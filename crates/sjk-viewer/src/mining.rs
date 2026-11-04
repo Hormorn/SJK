@@ -2,11 +2,11 @@
 //! takes a pickaxe in hand, and boulders come up out of the ground round them, a few at a
 //! time ([`ROCKS`]). The player walks up to one and strikes it with `+use`, the whole body
 //! in the swing (`BOTH_A3_T__B_`, the strong saber style's blow from overhead, the
-//! pickaxe held as a hilt is); six to nine blows
+//! pickaxe held as a hilt is); ten to fourteen blows
 //! break it, and it gives rubble or ore, counted in the player's mining log
-//! (`mining_log.txt`). Another boulder comes up elsewhere a few seconds later. Now and then
+//! (`mining_log.txt`). Another boulder comes up elsewhere 15 to 25 seconds later. Now and then
 //! a glint flashes on a boulder being broken: a blow that lands while it shines is a clean
-//! strike, worth two, and each one makes the boulder give better ([`roll_find`]).
+//! strike, worth two, and any makes the boulder give better ([`roll_find`]).
 //!
 //! Unlike Fishing it is no waiting game: the player walks from boulder to boulder, and
 //! the pace is theirs, a swing at a time. Attacking, taking damage or dying puts the
@@ -152,7 +152,7 @@ const EMPTY_HANDS_FOR: Duration = Duration::from_secs(2);
 /// From the player's origin down to their feet (`DEFAULT_MINS_2`).
 const FEET: f32 = -24.0;
 /// How many boulders wait round the player at once.
-pub(crate) const ROCKS: usize = 3;
+pub(crate) const ROCKS: usize = 2;
 /// A boulder comes up this far from the player (level distance), at least this far from
 /// any other; one farther from them than [`ROCK_FAR`] goes.
 const ROCK_RANGE: (f32, f32) = (140.0, 420.0);
@@ -160,9 +160,9 @@ const ROCK_APART: f32 = 110.0;
 /// Nor nearer than this to an item on the map (a weapon, a pickup).
 const ITEM_CLEAR: f32 = 56.0;
 const ROCK_FAR: f32 = 1_400.0;
-/// The next boulder comes up this long after one broke (seconds); the first ones, this
-/// soon after the pickaxe is taken out.
-const ROCK_AGAIN: (f32, f32) = (3.0, 7.0);
+/// The next boulder comes up this long after one broke (seconds), about three a minute
+/// at most; the first ones, this soon after the pickaxe is taken out.
+const ROCK_AGAIN: (f32, f32) = (15.0, 25.0);
 const ROCK_FIRST: (f32, f32) = (0.3, 1.0);
 /// The first ones come quickly for this long after the pickaxe is out.
 const FIRST_WHILE: Duration = Duration::from_secs(4);
@@ -189,7 +189,7 @@ const SWING_POSE: &str = "BOTH_A3_T__B_";
 /// the hilt.
 const HOLD_POSE: &str = "BOTH_SABERSLOW_STANCE";
 /// The blows a boulder takes, a clean strike counting two.
-const ROCK_HITS: (u32, u32) = (6, 9);
+const ROCK_HITS: (u32, u32) = (10, 14);
 /// The first glint on a boulder comes this long after its first blow, the next this long
 /// after the last went (seconds); each shines this long.
 const GLINT_FIRST: (f32, f32) = (1.0, 2.5);
@@ -245,14 +245,14 @@ pub(crate) const FINDS: [Find; 13] = [
     rubble("slag", "a lump of slag"),
     rubble("drill_bit", "a worn drill bit"),
     rubble("fossil", "a fossil shell"),
-    ore("iron_ore", "a chunk of iron ore", 20),
-    ore("copper_ore", "a chunk of copper ore", 18),
-    ore("silver_nugget", "a silver nugget", 12),
-    ore("glowstone", "a glowstone", 9),
-    ore("sunstone", "a sunstone", 6),
-    ore("moonstone", "a moonstone", 4),
-    ore("star_quartz", "a star quartz", 3),
-    ore("void_crystal", "a void crystal", 2),
+    ore("iron_ore", "a chunk of iron ore", 110),
+    ore("copper_ore", "a chunk of copper ore", 98),
+    ore("silver_nugget", "a silver nugget", 65),
+    ore("glowstone", "a glowstone", 49),
+    ore("sunstone", "a sunstone", 32),
+    ore("moonstone", "a moonstone", 22),
+    ore("star_quartz", "a star quartz", 13),
+    ore("void_crystal", "a void crystal", 10),
     ore(HEART, "the Heart of the Mountain", 1),
 ];
 
@@ -260,12 +260,11 @@ pub(crate) const FINDS: [Find; 13] = [
 /// but never under the floor.
 const RUBBLE_CHANCE: u32 = 40;
 const CLEAN_RUBBLE_CUT: u32 = 10;
-const RUBBLE_FLOOR: u32 = 10;
-/// Each clean strike (at most this many) rolls the ore once more, the rarest kept.
-const CLEAN_ROLLS: u32 = 2;
+const RUBBLE_FLOOR: u32 = 20;
 /// Bad luck protection for the Heart of the Mountain, as Fishing's for Old Whiskers: its
-/// weight rises by one for every this many ores dug since the last one.
-const HEART_PITY: u32 = 10;
+/// weight rises by one for every this many ores dug since the last one. With the weights
+/// above, one in about 300 boulders (some 100 minutes at three a minute).
+const HEART_PITY: u32 = 150;
 /// The mining log's count of the ores dug since the last Heart: `heart_wait <count>`.
 const HEART_WAIT: &str = "heart_wait";
 
@@ -296,23 +295,27 @@ fn pick_of(kind: Kind, pick: u32, heart_wait: u32) -> &'static Find {
         .unwrap_or(&FINDS[0])
 }
 
-/// Roll a broken boulder's find from `roll` and `picks`, uniform numbers, after `clean`
+/// Roll a broken boulder's find from `roll` and `pick`, uniform numbers, after `clean`
 /// clean strikes, `heart_wait` ores after the last Heart: rubble less often for each
-/// clean strike, and the ore rolled once more for each (at most [`CLEAN_ROLLS`]), the
-/// rarest of the rolls kept.
-pub(crate) fn roll_find(roll: u32, picks: [u32; 3], clean: u32, heart_wait: u32) -> &'static Find {
+/// clean strike, and with any clean strike the ore one tier rarer, but never into the
+/// Heart, which only its own roll gives.
+pub(crate) fn roll_find(roll: u32, pick: u32, clean: u32, heart_wait: u32) -> &'static Find {
     let rubble = RUBBLE_CHANCE
         .saturating_sub(CLEAN_RUBBLE_CUT.saturating_mul(clean))
         .max(RUBBLE_FLOOR);
     if roll % 100 < rubble {
-        return pick_of(Kind::Rubble, picks[0], 0);
+        return pick_of(Kind::Rubble, pick, 0);
     }
-    let rolls = 1 + clean.min(CLEAN_ROLLS) as usize;
-    picks[..rolls]
+    let ore = pick_of(Kind::Ore, pick, heart_wait);
+    if clean == 0 || ore.id == HEART {
+        return ore;
+    }
+    FINDS
         .iter()
-        .map(|&pick| pick_of(Kind::Ore, pick, heart_wait))
-        .min_by_key(|find| find.weight)
-        .unwrap_or(&FINDS[0])
+        .position(|f| f.id == ore.id)
+        .and_then(|at| FINDS.get(at + 1))
+        .filter(|rarer| rarer.id != HEART)
+        .unwrap_or(ore)
 }
 
 /// A small fast random source (xorshift64*), as Fishing's.
@@ -831,8 +834,8 @@ impl Mining {
     fn break_rock(&mut self, rock: Rock, origin: [f32; 3], now: Instant) {
         let heart_wait = self.log.as_ref().map_or(0, Log::heart_wait);
         let roll = self.dice.next();
-        let picks = [self.dice.next(), self.dice.next(), self.dice.next()];
-        let find = roll_find(roll, picks, rock.clean, heart_wait);
+        let pick = self.dice.next();
+        let find = roll_find(roll, pick, rock.clean, heart_wait);
         let count = self.log.get_or_insert_with(Log::default).found(find);
         self.said.push(Say::Sound(BREAK));
         if find.id == HEART {
@@ -1434,8 +1437,8 @@ mod tests {
         assert!(mining.shown.is_some());
         let log = mining.log.as_ref().expect("a log");
         assert_eq!(FINDS.iter().map(|f| log.count(f.id)).sum::<u32>(), 1);
-        // The next comes up a few seconds later.
-        for _ in 0..80 {
+        // The next comes up 15 to 25 seconds later.
+        for _ in 0..260 {
             now += Duration::from_millis(100);
             mining.update(frame(), now, flat);
         }
@@ -1601,7 +1604,7 @@ mod tests {
         let tally = |clean: u32| {
             let (mut rubble, mut ore) = (0, 0);
             for roll in 0..100 {
-                match roll_find(roll, [roll * 7, roll * 13, roll * 31], clean, 0).kind {
+                match roll_find(roll, roll * 7, clean, 0).kind {
                     Kind::Rubble => rubble += 1,
                     Kind::Ore => ore += 1,
                 }
@@ -1610,12 +1613,13 @@ mod tests {
         };
         assert_eq!(tally(0), (40, 60));
         assert_eq!(tally(1), (30, 70));
-        assert_eq!(tally(5), (10, 90));
+        assert_eq!(tally(2), (20, 80));
+        assert_eq!(tally(5), (20, 80));
         // Every find can come up, and ids are distinct.
         for find in &FINDS {
             let roll = if find.kind == Kind::Rubble { 0 } else { 99 };
             assert!(
-                (0..1000).any(|pick| roll_find(roll, [pick; 3], 0, 0) == find),
+                (0..1000).any(|pick| roll_find(roll, pick, 0, 0) == find),
                 "{}",
                 find.id
             );
@@ -1625,27 +1629,28 @@ mod tests {
     }
 
     #[test]
-    fn clean_strikes_keep_the_rarest_of_more_rolls() {
-        // Iron from the first pick, a glowstone from the second, the Heart from the third.
+    fn a_clean_strike_lifts_the_ore_a_tier_but_not_into_the_heart() {
         let iron = 0;
-        let glowstone = 20 + 18 + 12;
-        let heart = 74;
-        assert_eq!(roll_find(99, [iron, glowstone, heart], 0, 0).id, "iron_ore");
-        assert_eq!(
-            roll_find(99, [iron, glowstone, heart], 1, 0).id,
-            "glowstone"
-        );
-        assert_eq!(roll_find(99, [iron, glowstone, heart], 3, 0).id, HEART);
+        let void = 110 + 98 + 65 + 49 + 32 + 22 + 13;
+        let heart = void + 10;
+        assert_eq!(roll_find(99, iron, 0, 0).id, "iron_ore");
+        assert_eq!(roll_find(99, iron, 1, 0).id, "copper_ore");
+        // Two clean strikes lift it no further than one.
+        assert_eq!(roll_find(99, iron, 2, 0).id, "copper_ore");
+        assert_eq!(roll_find(99, void, 0, 0).id, "void_crystal");
+        assert_eq!(roll_find(99, void, 2, 0).id, "void_crystal");
+        assert_eq!(roll_find(99, heart, 0, 0).id, HEART);
+        assert_eq!(roll_find(99, heart, 1, 0).id, HEART);
     }
 
     #[test]
     fn the_heart_grows_likelier_the_longer_it_waits() {
         let mut log = Log::default();
         let iron = &FINDS[4];
-        for _ in 0..25 {
+        for _ in 0..310 {
             log.found(iron);
         }
-        assert_eq!(log.heart_wait(), 25);
+        assert_eq!(log.heart_wait(), 310);
         assert_eq!(weight(&FINDS[12], log.heart_wait()), 3);
         log.found(&FINDS[12]);
         assert_eq!(log.heart_wait(), 0);

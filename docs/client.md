@@ -6035,9 +6035,10 @@ on top of fishing); that needs the hub.
   saber stance (`BOTH_SABERSLOW_STANCE`), both hands on the handle, while it stands.
   Taking it puts the fishing rod away and getting the rod out puts it away: `+use` is both
   toys'.
-- **Boulders** (three at a time) come up out of the ground 140 to 420 units from the
+- **Boulders** (two at a time) come up out of the ground 140 to 420 units from the
   player, at least 110 apart, rising over 0.6 seconds: the first ones within a second of
-  the pickaxe coming out, the next 3 to 7 seconds after one breaks. A spot must be in the
+  the pickaxe coming out, the next 15 to 25 seconds after one breaks (about three a
+  minute at most). A spot must be in the
   player's sight, on ground flat enough (its normal at least 0.75 up), not in water, lava
   or slime, nor the sky, at most 64 units below the feet (not the floor under a ledge),
   the boulder itself in sight, and 56 units clear of the map's items (weapons, pickups).
@@ -6052,16 +6053,18 @@ on top of fishing); that needs the hub.
   within 64 units before the player (about 57 degrees either side of the way they face),
   or says to walk up to one. Others see the pickaxe held, not the swing: swings are not
   sent.
-- **Blows:** a boulder takes 6 to 9, shrinking as it breaks and shaking at each.
+- **Blows:** a boulder takes 10 to 14, shrinking as it breaks and shaking at each.
 - **The glint:** 1 to 2.5 seconds after a boulder's first blow, then every 1.5 to 4
   seconds, a star flashes on it for 0.8 seconds with a spark sound. A blow that lands
   while it shines is a **clean strike**: it counts two blows, rings, and makes the find
   better.
 - **The find:** rubble 40% of the time (four kinds), 10 points less for each clean strike
-  (never under 10%), else an ore (nine kinds, from iron ore to the Heart of the Mountain,
-  one ore in 75), rolled once more for each clean strike (at most twice), the rarest roll
-  kept. The Heart's weight rises by one for every 10 ores dug since the last one, as Old
-  Whiskers' does. The find jumps out of the broken boulder to the player's feet and is
+  (never under 20%), else an ore (nine kinds, weighted 110 iron, 98 copper, 65 silver,
+  49 glowstone, 32 sunstone, 22 moonstone, 13 star quartz, 10 void crystal and 1 the
+  Heart of the Mountain). With any clean strike the ore is one tier rarer (iron becomes
+  copper and so on), never into the Heart, which only its own roll gives. The Heart's
+  weight rises by one for every 150 ores dug since the last one, as Old Whiskers' does:
+  one in about 300 boulders, some 100 minutes of steady mining, near Old Whiskers' wait. The find jumps out of the broken boulder to the player's feet and is
   said in the centre of the screen; each is counted in `mining_log.txt` in the settings
   folder (`<id> <count>` a line, and `heart_wait <count>`).
 - **Sounds:** Settings > Sound > Toys, "Mining sounds" (`s_toyMiningSound`), all retail

@@ -2,16 +2,17 @@
 
 04/11/2026, `feat/mining`, based on `main` `c0d603eb` (Slash's design): `toy_mining` puts a
 pickaxe in the right hand, held as a hilt is (turned with the hand bolt, so it stays in
-the grip in every pose and in first person; the strong saber stance), and three
+the grip in every pose and in first person; the strong saber stance), and two
 boulders come up out of the ground round the player, in sight, on flat dry ground
 ([client.md](client.md#mining)). `+use` swings: the whole body plays `BOTH_A3_T__B_`
 from the swing's start (`actor_pose_steps.rs`, the own player only; legs while standing),
-and the blow strikes the nearest boulder within 64 units before the player. 6 to 9 blows
+and the blow strikes the nearest boulder within 64 units before the player. 10 to 14 blows
 break it; a glint flashes on it now and then, and a blow landing while it shines is a clean
-strike (two blows, less rubble, the ore rolled again with the rarest kept). The find (4
+strike (two blows, less rubble, the ore one tier rarer but never into the Heart). The find (4
 rubble, 9 ores, the Heart of the Mountain with Old Whiskers' kind of bad luck protection)
-jumps to the feet and is counted in `mining_log.txt`; another boulder comes up 3 to 7
-seconds later. The player may walk with it; attacking or getting hurt puts it away, and it
+jumps to the feet and is counted in `mining_log.txt`; another boulder comes up 15 to 25
+seconds later (balanced against Fishing: about three boulders a minute, the Heart some
+100 minutes). The player may walk with it; attacking or getting hurt puts it away, and it
 and the fishing rod put each other away. Boulders and swings are the miner's own (not
 sent); others see the pickaxe held. The fists are selected when the player has them,
 else a lit saber is switched off, and the pickaxe replaces what the hand held. Health
