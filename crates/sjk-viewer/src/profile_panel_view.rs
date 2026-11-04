@@ -253,12 +253,17 @@ impl Panel {
             .snapshot
             .filter(|_| inputs.enabled)
             .and_then(|snapshot| snapshot.me.as_ref());
-        crate::profile_card::banner::draw(
-            &mut self.ui,
-            frame.rect(LEFT_X - 12.0, TOP - 12.0, LEFT_WIDTH + 24.0, 148.0),
-            crate::profile_card::banner::equipped(profile),
-        );
         let s = frame.s;
+        // The neutral cover draws nothing behind the head; a worn banner, round corners.
+        let cover = crate::profile_card::banner::equipped(profile);
+        if !crate::profile_card::banner::plain(cover) {
+            crate::profile_card::banner::draw_rounded(
+                &mut self.ui,
+                frame.rect(LEFT_X - 12.0, TOP - 12.0, LEFT_WIDTH + 24.0, 148.0),
+                cover,
+                12.0 * s,
+            );
+        }
         // The player's picture: a click (or Enter) opens the picture panel.
         let lit = self.focus == Focus::Picture || self.ui.token_hovered(PICTURE_TOKEN);
         let radius = PICTURE_SIZE * 0.5;

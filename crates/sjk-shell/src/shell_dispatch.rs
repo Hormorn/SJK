@@ -49,6 +49,10 @@ impl Shell {
             "seta" => self.set_command(arguments, crate::CvarFlags::ARCHIVE),
             "reset" => self.reset_command(arguments),
             "toggle" => self.toggle_command(arguments),
+            "alias" => self.alias_command(arguments),
+            "unalias" => self.unalias_command(arguments),
+            "unaliasall" => Ok(vec![format!("{} aliases removed", self.aliases.clear())]),
+            "aliaslist" => Ok(self.alias_list(arguments)),
             "bind" => self.bind_command(arguments),
             "unbind" => self.unbind_command(arguments),
             "unbindall" => {

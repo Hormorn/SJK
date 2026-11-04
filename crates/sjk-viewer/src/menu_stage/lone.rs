@@ -10,12 +10,12 @@
 //! [`SABER_AREA`]: crate::console::collection_panel::SABER_AREA
 
 use super::showcase::Line;
-use crate::console::collection_panel::{SABER_AREA, SaberTurn};
+use crate::console::collection_panel::SaberTurn;
 use crate::hud::identification::Camera;
 use glam::{Quat, Vec3};
 
 /// How long the longest saber lies across the window, in frame pixels (the turn shortens
-/// it as its tip comes round).
+/// it as its tip comes round), at most four fifths of the area it lies over.
 pub(super) const LENGTH: f32 = 600.0;
 /// The nearest it may float, in world units, whatever the field (clear of the near
 /// plane).
@@ -31,11 +31,13 @@ pub(super) struct Place {
 }
 
 impl Place {
-    /// The place for sabers whose longest span is `longest` world units, before `view`.
-    pub(super) fn new(view: &Camera, longest: f32) -> Self {
+    /// The place for sabers whose longest span is `longest` world units, before `view`,
+    /// over `area` (frame pixels: the Shaders tab's [`SABER_AREA`], or the Saber Lab's
+    /// `LAB_SABER_AREA`).
+    pub(super) fn new(view: &Camera, longest: f32, area: [f32; 4]) -> Self {
         let viewport = view.viewport;
         let frame = crate::menu::sjk::Frame::new(viewport);
-        let [x, y, width, height] = SABER_AREA;
+        let [x, y, width, height] = area;
         let [px, py] = frame.point(x + width * 0.5, y + height * 0.5);
         let (ndc_x, ndc_y) = (px / viewport[0] * 2.0 - 1.0, 1.0 - py / viewport[1] * 2.0);
         let half = (view.fov.to_radians() * 0.5).tan().max(1e-3);
@@ -45,8 +47,9 @@ impl Place {
         let right = forward.cross(view.up).normalize_or(Vec3::Y);
         let up = right.cross(forward);
         // At distance `d` a window pixel is `2 half d / height` world units: far enough
-        // that the longest saber is LENGTH frame pixels across.
-        let pixels = LENGTH * frame.s;
+        // that the longest saber is LENGTH frame pixels across, or four fifths of a
+        // narrower area (the Saber Lab's), its turned tip coming nearer within it.
+        let pixels = LENGTH.min(width * 0.8) * frame.s;
         let distance = (longest.max(1.0) * viewport[1] / (2.0 * half * pixels)).max(NEAREST);
         let centre = view.eye
             + forward * distance
@@ -73,6 +76,7 @@ impl Place {
 mod tests {
     use super::super::showcase::Span;
     use super::*;
+    use crate::console::collection_panel::SABER_AREA;
 
     /// A single saber: hilt from 0 to 10 along +Z, blade 40 from the top.
     fn single() -> Line {
@@ -117,7 +121,7 @@ mod tests {
                 [2560.0, 1080.0],
             ] {
                 let view = camera(viewport, fov);
-                let place = Place::new(&view, line.span.front - line.span.back);
+                let place = Place::new(&view, line.span.front - line.span.back, SABER_AREA);
                 let (grip, rotation) = place.pose(&line, 0.0, SaberTurn::default());
                 // The ends of its blade line: the hilt's end and the blade's tip.
                 let end = line.through + line.axis * (line.span.back - line.through.dot(line.axis));
@@ -152,7 +156,7 @@ mod tests {
     fn its_turn_keeps_its_middle_in_place() {
         let line = single();
         let view = camera([1920.0, 1080.0], 90.0);
-        let place = Place::new(&view, 50.0);
+        let place = Place::new(&view, 50.0, SABER_AREA);
         let middle = line.through + line.axis * (line.span.middle() - line.through.dot(line.axis));
         for (yaw, roll) in [(0.0, 0.0), (-0.32, 1.0), (2.5, -4.0)] {
             let (grip, rotation) = place.pose(&line, 0.0, SaberTurn { yaw, roll });
@@ -184,10 +188,14 @@ mod tests {
     #[test]
     fn a_longer_saber_stands_further_off() {
         let view = camera([1920.0, 1080.0], 90.0);
-        let near = Place::new(&view, 50.0).centre.distance(view.eye);
-        let far = Place::new(&view, 90.0).centre.distance(view.eye);
+        let near = Place::new(&view, 50.0, SABER_AREA)
+            .centre
+            .distance(view.eye);
+        let far = Place::new(&view, 90.0, SABER_AREA)
+            .centre
+            .distance(view.eye);
         assert!(far > near * 1.5);
         // Never through the near plane.
-        assert!(Place::new(&view, 0.0).centre.distance(view.eye) >= NEAREST);
+        assert!(Place::new(&view, 0.0, SABER_AREA).centre.distance(view.eye) >= NEAREST);
     }
 }

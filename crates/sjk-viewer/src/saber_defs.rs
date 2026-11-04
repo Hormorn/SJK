@@ -6,6 +6,9 @@ use std::error::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Definition {
+    /// `soundOn` and `soundOff`, which the Saber Lab's stage plays (`crate::menu_stage`).
+    pub(crate) sound_on: Option<String>,
+    pub(crate) sound_off: Option<String>,
     pub(crate) sound_spin: Option<String>,
     pub(crate) sound_swing: [Option<String>; 3],
     pub(crate) name: String,
@@ -34,6 +37,8 @@ pub(crate) fn load(
                 key,
                 Definition {
                     name: definition.name,
+                    sound_on: definition.sound_on,
+                    sound_off: definition.sound_off,
                     sound_spin: definition.sound_spin,
                     sound_swing: definition.sound_swing,
                     model: definition.model,

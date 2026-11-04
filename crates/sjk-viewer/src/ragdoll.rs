@@ -44,8 +44,8 @@ use crate::GpuState;
 use crate::ghost_replay::Drive;
 use body::PELVIS;
 pub(crate) use body::{
-    Body, JOINTS, L_FOOT, MAX_PUSH, R_FOOT, STEP_MS, Start, Strike, World, friction, unbounced,
-    unit,
+    Body, JOINTS, L_FOOT, MAX_PUSH, R_FOOT, STEP_MS, STOCK_SCALE, Start, Strike, World, friction,
+    scale_percent, unbounced, unit,
 };
 use glam::Vec3;
 pub(crate) use scene::{Movers, Scene};
@@ -436,22 +436,26 @@ pub(crate) fn pose(
     scratch.pose(gla, &skin::model_space(points))
 }
 
-/// Where an actor posed by [`pose`] is placed: at the pelvis, unturned, at the model
-/// scale the actor's transform already carries (`iModelScale`, `actor_model_scale.rs`):
-/// a youngling or a Jawa keeps its size (#223), its limbs scaled about the pelvis.
+/// Where an actor posed by [`pose`] is placed: at the pelvis, unturned, keeping the
+/// scale its `modelScale` gave it (the body was simulated at that scale,
+/// [`Start::scale`]): a youngling or a jawa the server made small grew to full size as
+/// it fell (hub report #223). The posed bones hang from the pelvis at the model's own
+/// joints, so the scale shrinks the model about the pelvis the body lies on.
 pub(crate) fn place(transform: &mut sjk_runtime::Transform, points: &[Vec3; JOINTS]) {
     transform.translation = points[PELVIS].to_array();
     transform.rotation = glam::Quat::IDENTITY.to_array();
 }
 
 /// The points of a body standing at `origin` (a player's origin), facing `yaw`
-/// (degrees): where a blow to a standing player lands ([`crate::monitor`]).
-pub(crate) fn standing(origin: Vec3, yaw: f32) -> [Vec3; JOINTS] {
+/// (degrees), at `scale` ([`Start::scale`]): where a blow to a standing player lands
+/// ([`crate::monitor`]).
+pub(crate) fn standing(origin: Vec3, yaw: f32, scale: u16) -> [Vec3; JOINTS] {
     let start = Start {
         moment: 0,
         origin: origin.to_array().map(|c| c.round() as i32),
         velocity: [0; 3],
         yaw: yaw.rem_euclid(360.0).round() as u16 % 360,
+        scale,
     };
     *Body::new(&start).points()
 }
@@ -954,12 +958,14 @@ impl GpuState {
         };
         let round = |v: f32| v.round() as i32;
         let yaw = self.camera_yaw.to_degrees().rem_euclid(360.0).round() as u16 % 360;
+        let scale = self.ragdoll_own_scale();
         let start = Start {
             moment,
             origin: state.origin.map(round),
             velocity: [0, 1, 2]
                 .map(|axis| round((state.velocity[axis] + kick[axis]).clamp(-3_999.0, 3_999.0))),
             yaw,
+            scale,
         };
         self.ragdoll.set_fall(own, Some(Fall::new(start)));
         self.ragdoll.mine = Some(Mine {
@@ -975,6 +981,14 @@ impl GpuState {
         });
         self.ragdoll.cues.push(Cue::flatline(None, own));
         true
+    }
+
+    /// How big the player's own body falls ([`Start::scale`]): their `iModelScale`, as
+    /// their model is drawn (`actor_world_submission::model_scale::source`).
+    pub(crate) fn ragdoll_own_scale(&self) -> u16 {
+        self.live_session.as_ref().map_or(STOCK_SCALE, |session| {
+            scale_percent(session.latest_snapshot().player.model_scale_percent())
+        })
     }
 
     /// The player is struck by monitor `by` (or slips on a banana peel, `by`'s number
@@ -1304,17 +1318,26 @@ impl GpuState {
         steps: u32,
     ) {
         let session = self.demo_session.as_ref().expect("a demo playing");
-        let time = session.latest_snapshot().server_time;
+        let snapshot = session.latest_snapshot();
+        let time = snapshot.server_time;
         let origin = session
             .world()
             .entity(EntityId::new(u64::from(slot) + 1))
             .map(|entity| entity.sample(i64::from(time)).translation)
             .expect("the player");
+        let scale = snapshot
+            .entities
+            .iter()
+            .find(|entity| entity.number() == slot)
+            .map_or(STOCK_SCALE, |entity| {
+                scale_percent(entity.model_scale_percent())
+            });
         let start = Start {
             moment: time,
             origin: origin.map(|v| v.round() as i32),
             velocity,
             yaw,
+            scale,
         };
         let mut body = Body::new(&start);
         if let Some((joint, push)) = strike {
@@ -1454,6 +1477,7 @@ mod tests {
             origin: [0, 0, 24],
             velocity: [0; 3],
             yaw: 0,
+            scale: STOCK_SCALE,
         }
     }
 
@@ -1560,7 +1584,7 @@ mod tests {
     #[test]
     fn a_name_hangs_over_the_head_of_a_standing_body_and_low_over_a_lying_one() {
         let origin = Vec3::new(100.0, 0.0, 24.0);
-        let standing = standing(origin, 0.0);
+        let standing = standing(origin, 0.0, STOCK_SCALE);
         let (pelvis, head) = top_of(&standing);
         assert_eq!(pelvis, standing[PELVIS]);
         // About where a standing player's box top is (40 over the origin).
@@ -1581,6 +1605,7 @@ mod tests {
             origin: [-1_024, 512, 88],
             velocity: [320, -12, 270],
             yaw: 271,
+            scale: STOCK_SCALE,
         }
     }
 
@@ -1742,14 +1767,18 @@ mod tests {
     }
 
     #[test]
-    fn a_ragdoll_places_its_actor_at_the_pelvis_unturned_at_its_scale() {
-        let body = Body::new(&start());
+    fn a_ragdoll_places_its_actor_at_the_pelvis_unturned_at_its_model_scale() {
+        // Hub report #223: a player drawn at 60 % (`iModelScale`) stays that size limp,
+        // its body simulated at the same scale.
+        let body = Body::new(&Start {
+            scale: 60,
+            ..start()
+        });
         let mut transform = sjk_runtime::Transform::IDENTITY;
-        transform.scale = [0.6; 3];
+        crate::actor_world_submission::model_scale::apply(&mut transform, 60, 0);
         transform.rotation = glam::Quat::from_rotation_z(1.0).to_array();
         place(&mut transform, body.points());
         assert_eq!(transform.translation, body.centre().to_array());
-        // A small model (`iModelScale` 60) stays small.
         assert_eq!(transform.scale, [0.6; 3]);
         assert_eq!(transform.rotation, glam::Quat::IDENTITY.to_array());
     }

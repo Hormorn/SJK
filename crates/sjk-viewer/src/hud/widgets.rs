@@ -95,6 +95,35 @@ pub(super) fn emit(
                 letter_spacing: widget.style.letter_spacing.unwrap_or(0.0),
             });
         }
+        HudWidgetKind::Meter if widget.style.segments.is_some_and(|cells| cells > 1) => {
+            let ratio = context
+                .data
+                .number(binding.unwrap_or_default())
+                .unwrap_or(0.0);
+            let track = widget
+                .style
+                .background
+                .unwrap_or(Color::new(1.0, 1.0, 1.0, 0.20));
+            for (cell, alpha) in segment_cells(rect, widget.style.segments.unwrap_or(1), ratio) {
+                let _ = draw_list.push(DrawCommand::RoundedRect {
+                    rect: cell,
+                    radius: radius.min(cell.height * 0.5),
+                    color: track,
+                });
+                if alpha > 0.0 {
+                    let _ = draw_list.push(DrawCommand::RoundedRect {
+                        rect: cell,
+                        radius: radius.min(cell.height * 0.5),
+                        color: Color::new(
+                            foreground.r,
+                            foreground.g,
+                            foreground.b,
+                            foreground.a * alpha,
+                        ),
+                    });
+                }
+            }
+        }
         HudWidgetKind::Meter => {
             let ratio = context
                 .data
@@ -176,6 +205,30 @@ pub(super) fn emit(
     }
 }
 
+/// The cells of a segmented meter in `rect` and how lit each is for `ratio`: `count`
+/// cells as wide as the meter allows with a gap of half its height between them, the
+/// ones the ratio covers at 1, the one it part covers at that part, the rest at 0.
+pub(super) fn segment_cells(
+    rect: Rect,
+    count: u8,
+    ratio: f32,
+) -> impl Iterator<Item = (Rect, f32)> {
+    let count = count.max(1);
+    let cells = f32::from(count);
+    let gap = (rect.height * 0.5).min(rect.width / (cells * 2.0));
+    let width = ((rect.width - gap * (cells - 1.0)) / cells).max(0.0);
+    let covered = if ratio.is_finite() {
+        ratio.clamp(0.0, 1.0) * cells
+    } else {
+        0.0
+    };
+    (0..count).map(move |index| {
+        let index = f32::from(index);
+        let cell = Rect::new(rect.x + index * (width + gap), rect.y, width, rect.height);
+        (cell, (covered - index).clamp(0.0, 1.0))
+    })
+}
+
 /// Line height of the crosshair name at the HUD's 1080-line reference, in
 /// physical pixels. `CG_DrawCrosshairNames` (`cg_draw.c`) draws the name with
 /// `CG_DrawProportionalString`: `FONT_MEDIUM` (`ergoec`, point size 20) at
@@ -251,7 +304,7 @@ pub(super) fn emit_panel(
 
 #[cfg(test)]
 mod tests {
-    use super::crosshair_name_size;
+    use super::{Rect, crosshair_name_size, segment_cells};
 
     /// The HUD's resolution factor before `cg_hudScale`, as `HudOverlay::layout`.
     fn dpi(height: f32) -> f32 {
@@ -271,5 +324,24 @@ mod tests {
     fn crosshair_name_follows_layout_and_hud_scale() {
         assert!((crosshair_name_size(0.9, 1.0) - 40.5).abs() < 1e-3);
         assert!((crosshair_name_size(1.0, 1.0 * 1.5) - 67.5).abs() < 1e-3);
+    }
+
+    /// Ten cells share the meter with gaps of half its height, and the ratio lights
+    /// them in order, the part-covered one faded.
+    #[test]
+    fn segmented_meters_light_their_cells_in_order() {
+        let cells: Vec<_> = segment_cells(Rect::new(0.0, 0.0, 145.0, 10.0), 10, 0.25).collect();
+        assert_eq!(cells.len(), 10);
+        assert_eq!(cells[0].0, Rect::new(0.0, 0.0, 10.0, 10.0));
+        assert_eq!(cells[9].0.right(), 145.0);
+        let lit: Vec<_> = cells.iter().map(|(_, alpha)| *alpha).collect();
+        assert_eq!(lit[..4], [1.0, 1.0, 0.5, 0.0]);
+        assert!(
+            segment_cells(Rect::new(0.0, 0.0, 145.0, 10.0), 10, f32::NAN)
+                .all(|(_, alpha)| alpha == 0.0)
+        );
+        assert!(
+            segment_cells(Rect::new(0.0, 0.0, 145.0, 10.0), 10, 2.0).all(|(_, alpha)| alpha == 1.0)
+        );
     }
 }

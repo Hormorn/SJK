@@ -748,7 +748,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 94 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 109 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -922,6 +922,23 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
 - #278 the Fishing toy (after Sanjisan's idea): a rod, a bucket with the last catch,
   12 fish, junk and a pond where there is no water; a holocron play drops while fishing
   comes up on the line as an Echo; five achievements.
+- #341 `vid_restart force` reloads the graphics with no setting changed, after Blep's idea.
+- #342 Ctrl+C copies the chat link under the pointer, after AngeloPapaya's idea.
+- #345 a small or big player ragdolls at their own size (hub report #223, Rollembones).
+- #346 `s_muteEmotesInDuel` silences emote sounds in duels (hub report #234, Groark).
+- #349 fished junk sold to the hub for credits, at most 15 a day (after Sanjisan's Fishing).
+- #351 the piloted vehicle's speed, ammo and turbo in every HUD style, and the SJK classic
+  HUD redrawn along the bottom edge.
+- #350 a fishing bite shown on screen when its sound can't be heard (`cg_fishingBiteCue`).
+- #352 getting on a vehicle ends your emote (hub report #247).
+- #353 nameplate opacity (`cg_nameplateAlpha`).
+- #354 server remaps chosen for each map (`cg_serverRemapsMap`), after Lex's idea.
+- #355 Loadouts on the Shaders tab opens its card again (hub report #245).
+- #357 sharpening (`r_sharpen`, RCAS), after Lex's idea.
+- #358 console aliases (`alias`, `unalias`, `aliases.cfg`), after Lex's idea.
+- #359 profile card and page: no cover for the neutral banner, round corners for a worn one.
+- #360 the whisper recipient on its own line, stepping and picking between whisperers, after
+  Creo's idea.
 
 His Peek work in #199 (closed 24/10/2026, not merged) shaped the Drone toy: a player is
 asked before being peeked, told who watches, and can end it. His #206 (closed 25/10/2026,
@@ -929,7 +946,7 @@ main had its own lazy card pictures) brought two pieces ported onto main: a pict
 decoder panics on fails alone instead of stopping every later card picture, and card and
 medal pictures carry their own labels in `vram` and crash reports.
 
-Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 3 pull requests merged
+Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):
 
 - #156 See & share nameplates (`cg_nameplate`) replaces Share my bars: seeing nameplates shares
@@ -941,6 +958,9 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
 - #194 JoF EternalJK takes part in SJK chat: its messages start with its icon, and on JoF
   servers SJK chat is said in All chat too (moved into JoF tools at JoF's request, with a
   one-time notice), each line shown once and labelled ALL/SJK.
+- #348 the Saber Lab (`saberlab <folder>`): a live blade-skin lab with a builder of effect
+  cards, an editor of every field with undo and Revert, and new blade-skin effects (smoke,
+  ribbons, sparks, crackle, flash, unrest, chroma by file, a burn on a saber kill).
 
 Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 1 pull
 request merged into SJK
@@ -1067,6 +1087,10 @@ asked to place the kill feed anywhere: the HUD edit mode now shows a sample kill
 and the feed may stand anywhere on the screen. His idea of a green damage flash on armour
 became Green on shield hits (`cg_hitMarkerShield`).
 
+AngeloPapaya, a player, asked for Ctrl+C on a link in the chat: Slash built it
+(03/11/2026), the link under the pointer lit while the chat is open and copied without its
+colour codes.
+
 ## Testing
 
 Glen, a player, was the first to play SJK on a Mac (25/10/2026), on a MacBook Pro
@@ -1144,7 +1168,8 @@ co-author), manual slider values (#94), compact chat player actions (#92),
 upright player status icons (#96), footsteps and animation sound cues (#90),
 legacy server pak references (#91), the leader display (#93), client devmap and
 server noclip (#95), drop-in installs and portable storage (#103),
-distributable ZIPs (#104) and actor animation isolation (#112). Sol contributed
+distributable ZIPs (#104) and actor animation isolation (#112). Into SJK, Bishop fixed
+Linux startup after an update (SJK #347, the main-thread stack). Sol contributed
 to JKR before SJK
 ([Sol's JKR pull requests](https://github.com/Bishop-R/JKR/pulls?q=is%3Apr+author%3ASol-Vulpes)).
 

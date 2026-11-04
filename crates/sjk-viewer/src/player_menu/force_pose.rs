@@ -495,6 +495,91 @@ const SINGLE_ATTACKS: [Move; 9] = [
     swing("BOTH_A3__L__R"),
     back("BOTH_R3__R_S1", PREVIEW_PAUSE),
 ];
+/// The Saber Lab's swings for a single saber in each style, fast, medium and strong
+/// (`crate::saber_lab`): each style's three attacks chained as [`SINGLE_ATTACKS`] chains
+/// the strong one's, its own start, attack and return (`BOTH_S1_S1_T_`, `BOTH_A1_T__B_`,
+/// `BOTH_R1_B__S1` for the fast style). A static, so a style's moves are `'static` for
+/// [`Effect::Moves`].
+pub(crate) static STYLE_ATTACKS: [[Move; 9]; 3] = [
+    [
+        start("BOTH_S1_S1_T_"),
+        swing("BOTH_A1_T__B_"),
+        back("BOTH_R1_B__S1", SWING_PAUSE),
+        start("BOTH_S1_S1_BL"),
+        swing("BOTH_A1_BL_TR"),
+        back("BOTH_R1_TR_S1", SWING_PAUSE),
+        start("BOTH_S1_S1__L"),
+        swing("BOTH_A1__L__R"),
+        back("BOTH_R1__R_S1", PREVIEW_PAUSE),
+    ],
+    [
+        start("BOTH_S2_S1_T_"),
+        swing("BOTH_A2_T__B_"),
+        back("BOTH_R2_B__S1", SWING_PAUSE),
+        start("BOTH_S2_S1_BL"),
+        swing("BOTH_A2_BL_TR"),
+        back("BOTH_R2_TR_S1", SWING_PAUSE),
+        start("BOTH_S2_S1__L"),
+        swing("BOTH_A2__L__R"),
+        back("BOTH_R2__R_S1", PREVIEW_PAUSE),
+    ],
+    SINGLE_ATTACKS,
+];
+/// Each style's stance, the one [`STYLE_ATTACKS`] start from and come back to
+/// (`PM_GetSaberStance`: fast, medium, strong).
+pub(crate) const STYLE_STANCES: [&str; 3] = [
+    "BOTH_SABERFAST_STANCE",
+    "BOTH_STAND2",
+    "BOTH_SABERSLOW_STANCE",
+];
+/// The Saber Lab's swings and the stance they come back to: a single saber's in `style`
+/// (0 fast, 1 medium, 2 strong, [`STYLE_ATTACKS`]), a staff's or two sabers' in their
+/// own, the one style the game gives them.
+pub(crate) fn lab_swings(style: usize, held: SaberStyle) -> Effect {
+    let style = style.min(STYLE_STANCES.len() - 1);
+    match held {
+        SaberStyle::Single => Effect::Moves {
+            moves: &STYLE_ATTACKS[style],
+            stance: STYLE_STANCES[style],
+        },
+        SaberStyle::Staff => Effect::Moves {
+            moves: &STAFF_ATTACKS,
+            stance: skill_stance(held),
+        },
+        SaberStyle::Dual => Effect::Moves {
+            moves: &DUAL_ATTACKS,
+            stance: skill_stance(held),
+        },
+    }
+}
+
+/// The stance the Saber Lab's model stands in: a single saber's `style`'s, a staff's or
+/// two sabers' own.
+pub(crate) fn lab_stance(style: usize, held: SaberStyle) -> &'static str {
+    match held {
+        SaberStyle::Single => STYLE_STANCES[style.min(STYLE_STANCES.len() - 1)],
+        SaberStyle::Staff | SaberStyle::Dual => skill_stance(held),
+    }
+}
+
+/// The game's flourish as a held saber is lit (`lit`) or put out (`PM_SetSaberMove`'s
+/// `LS_DRAW` and `LS_PUTAWAY`): a single saber's draw and put-away, a staff's and two
+/// sabers' own.
+pub(crate) fn lab_flourish(lit: bool, held: SaberStyle) -> &'static str {
+    match (held, lit) {
+        (SaberStyle::Single, true) => "BOTH_STAND1TO2",
+        (SaberStyle::Single, false) => "BOTH_STAND2TO1",
+        (SaberStyle::Staff, true) => "BOTH_S1_S7",
+        (SaberStyle::Staff, false) => "BOTH_S7_S1",
+        (SaberStyle::Dual, true) => "BOTH_S1_S6",
+        (SaberStyle::Dual, false) => "BOTH_S6_S1",
+    }
+}
+
+/// The stance of a player whose saber is off (`BOTH_STAND1`), which the Saber Lab's model
+/// stands in once it has put its blade away with the flourish.
+pub(crate) const HOLSTERED_STANCE: &str = "BOTH_STAND1";
+
 const STAFF_ATTACKS: [Move; 6] = [
     swing("BOTH_A7_T__B_"),
     back("BOTH_R7_B__S7", SWING_PAUSE),
@@ -680,6 +765,50 @@ mod tests {
                     || shell(power).is_some()
                     || effect(power, 1, style).is_some();
                 assert!(shown, "{power:?} {style:?}");
+            }
+        }
+    }
+
+    /// The Saber Lab's swings are the game's for each style: each start leads into the
+    /// attack from its quadrant, each attack is followed by the return from where it ends,
+    /// all of the style's own level, and the stances are the game's.
+    #[test]
+    fn the_lab_swings_chain_each_styles_own_moves() {
+        let names = sjk_game_jka::legacy_animation::NAMES;
+        for (index, attacks) in STYLE_ATTACKS.iter().enumerate() {
+            let level = index + 1;
+            assert!(
+                names.contains(&STYLE_STANCES[index]),
+                "{}",
+                STYLE_STANCES[index]
+            );
+            for step in attacks {
+                assert!(names.contains(&step.animation), "{}", step.animation);
+                let kind = &step.animation[5..6];
+                assert_eq!(
+                    &step.animation[6..7],
+                    level.to_string(),
+                    "{}",
+                    step.animation
+                );
+                assert!(["S", "A", "R"].contains(&kind), "{}", step.animation);
+            }
+            for chain in attacks.chunks(3) {
+                let quadrant = chain[0]
+                    .animation
+                    .strip_prefix(&format!("BOTH_S{level}_S1_")[..]);
+                let quadrant = quadrant.expect("a start from the stance");
+                assert!(
+                    chain[1]
+                        .animation
+                        .starts_with(&format!("BOTH_A{level}_{quadrant}")),
+                    "{chain:?}"
+                );
+                let end = &chain[1].animation[chain[1].animation.len() - 2..];
+                assert!(
+                    chain[2].animation.contains(&format!("_{end}_")),
+                    "{chain:?}"
+                );
             }
         }
     }

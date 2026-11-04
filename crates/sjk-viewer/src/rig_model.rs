@@ -15,8 +15,9 @@
 //! above the sole kept), so a rig whose legs are longer or shorter for its pelvis
 //! than the driver's neither sinks nor floats ([`Feet`]).
 //!
-//! Joints under a manifest's `dynamic` joint (a tail) move on their own, springing
-//! after their animated place and wagging a little ([`dynamics`]).
+//! Joints under a manifest's `dynamic` joint (a tail, a cape) move on their own,
+//! springing after their animated place, wagging a little and kept out of the body's
+//! trunk and legs ([`dynamics`]).
 //!
 //! The glTF's own animations become clips ([`clips`]) a rig plays on its skeleton
 //! in place of the driver's pose, fading in and out (emotes). An emote made on
@@ -188,9 +189,47 @@ pub(crate) struct Manifest {
     /// feet planting: a hand tweak for a model whose soles are not its lowest point.
     pub(crate) lift: f32,
     pub(crate) map: Vec<MapEntry>,
-    /// Joints whose chains below move on their own (`dynamic <joint> [gravity]`
-    /// lines), with their gravity when the line gives one.
-    pub(crate) dynamic: Vec<(String, Option<f32>)>,
+    /// Joints whose chains below move on their own (`dynamic` lines), each with its
+    /// chain's settings.
+    pub(crate) dynamic: Vec<(String, dynamics::Settings)>,
+}
+
+/// The driver's bones whose rig joints (from their bone map entry to the joint it
+/// aims at) become the capsules dynamic chains are kept out of: the trunk and the
+/// legs, which a tail or a cape hangs against. Arms and head are left out (a cape
+/// rests on the shoulders, the hands pass through a tail anyway).
+const COLLISION_BONES: &[&str] = &[
+    "pelvis",
+    "lower_lumbar",
+    "upper_lumbar",
+    "thoracic",
+    "lfemurYZ",
+    "rfemurYZ",
+    "ltibia",
+    "rtibia",
+];
+
+/// A `dynamic` line's words after the joint: `[gravity] [gravity <n>] [wag <n>]
+/// [stiffness <n>] [damping <n>] [nocollide]`, any order after the bare gravity.
+fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
+    let mut settings = dynamics::Settings::default();
+    let number = |word: &str| word.parse::<f32>().ok().filter(|n| n.is_finite());
+    let mut words = words.iter().copied().peekable();
+    if let Some(gravity) = words.peek().and_then(|word| number(word)) {
+        settings.gravity = gravity;
+        words.next();
+    }
+    while let Some(word) = words.next() {
+        match word {
+            "nocollide" => settings.collide = false,
+            "gravity" => settings.gravity = number(words.next()?)?,
+            "wag" => settings.wag = number(words.next()?)?,
+            "stiffness" => settings.stiffness = number(words.next()?).filter(|n| *n > 0.0)?,
+            "damping" => settings.damping = number(words.next()?).filter(|n| *n >= 0.0)?,
+            _ => return None,
+        }
+    }
+    Some(settings)
 }
 
 impl Manifest {
@@ -233,17 +272,9 @@ impl Manifest {
                         .filter(|lift: &f32| lift.is_finite())
                         .ok_or_else(bad)?
                 }
-                ["dynamic", joint] => manifest.dynamic.push(((*joint).to_owned(), None)),
-                ["dynamic", joint, gravity] => manifest.dynamic.push((
-                    (*joint).to_owned(),
-                    Some(
-                        gravity
-                            .parse()
-                            .ok()
-                            .filter(|gravity: &f32| gravity.is_finite())
-                            .ok_or_else(bad)?,
-                    ),
-                )),
+                ["dynamic", joint, rest @ ..] => manifest
+                    .dynamic
+                    .push(((*joint).to_owned(), dynamic_settings(rest).ok_or_else(bad)?)),
                 ["map", joint, bone] => manifest.map.push(entry(joint, bone, Align::Rest)),
                 ["map", joint, bone, "as", other] => {
                     manifest
@@ -463,6 +494,59 @@ pub(crate) struct RigModel {
     /// Its body measured on the driver's bones, for a rig loaded to lend its clips
     /// to stock models ([`body`]).
     body: Option<body::Body>,
+}
+
+/// The capsules dynamic chains are kept out of: one per bone map entry on a
+/// [`COLLISION_BONES`] bone that aims at another joint, round the bind-pose vertices
+/// whose strongest joint is that one (or an unmapped joint under it, such as a twist
+/// bone), the chains' own vertices left out.
+fn body_capsules(
+    map: &[MapEntry],
+    joints: &[Joint],
+    driven: &[Option<Driven>],
+    chains: &dynamics::Chains,
+    surfaces: &[Surface],
+    joint_index: impl Fn(&str) -> Option<usize>,
+) -> Vec<dynamics::Capsule> {
+    let spans: Vec<(usize, usize)> = map
+        .iter()
+        .filter(|entry| COLLISION_BONES.contains(&entry.bone.as_str()))
+        .filter_map(|entry| match &entry.align {
+            Align::Toward { joint_end, .. } => {
+                Some((joint_index(&entry.joint)?, joint_index(joint_end)?))
+            }
+            _ => None,
+        })
+        .collect();
+    // Each vertex on the nearest mapped joint at or above its strongest one.
+    let carrier = |mut joint: usize| {
+        for _ in 0..joints.len() {
+            if chains.joints.contains(&joint) {
+                return None;
+            }
+            if driven.get(joint).copied().flatten().is_some() {
+                return Some(joint);
+            }
+            joint = joints.get(joint)?.parent?;
+        }
+        None
+    };
+    let mut carried: Vec<Vec<Vec3A>> = vec![Vec::new(); spans.len()];
+    for vertex in surfaces.iter().flat_map(|surface| &surface.vertices) {
+        let Some(joint) = carrier(usize::from(vertex.joints[0])) else {
+            continue;
+        };
+        for (span, points) in spans.iter().zip(carried.iter_mut()) {
+            if span.0 == joint {
+                points.push(Vec3A::from_array(vertex.position));
+            }
+        }
+    }
+    spans
+        .iter()
+        .zip(&carried)
+        .filter_map(|(&(from, to), points)| dynamics::Capsule::measure(joints, from, to, points))
+        .collect()
 }
 
 /// glTF (+Y up, +Z front) to the GLA's model space (+Z up, -Y front): the axes a
@@ -759,20 +843,20 @@ impl RigModel {
             }
         }
         let order = topological(&joints)?;
-        let dynamic_anchors: Vec<(usize, f32)> = manifest
+        let dynamic_anchors: Vec<(usize, dynamics::Settings)> = manifest
             .dynamic
             .iter()
-            .filter_map(|(name, gravity)| {
+            .filter_map(|(name, settings)| {
                 let found = joint_index(name);
                 if found.is_none() {
                     crate::log::progress(format_args!(
                         "rig model {base}: {MANIFEST}: no joint {name:?} for dynamic"
                     ));
                 }
-                Some((found?, gravity.unwrap_or(dynamics::GRAVITY)))
+                Some((found?, *settings))
             })
             .collect();
-        let chains = dynamics::Chains::under(&joints, &order, &dynamic_anchors);
+        let mut chains = dynamics::Chains::under(&joints, &order, &dynamic_anchors);
         // Alignments first (an `As` entry reads another's), then the driven joints.
         let mut aligned: Vec<Option<Mat3A>> = vec![None; joints.len()];
         for entry in &map {
@@ -890,6 +974,12 @@ impl RigModel {
                 })
             })
             .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+        if !chains.is_empty() {
+            let capsules = body_capsules(&map, &joints, &driven, &chains, &surfaces, |name| {
+                joint_index(name)
+            });
+            chains.collide_with(&joints, capsules);
+        }
         crate::log::progress(format_args!(
             "rig model {base}: {} joints ({mapped} driven by {:?}), {} surfaces, {} clips{}, scale {scale:.2}",
             joints.len(),
@@ -1078,14 +1168,7 @@ impl RigModel {
             *blended = true;
         }
         if !self.chains.is_empty() {
-            dynamics::simulate(
-                &self.joints,
-                &self.chains,
-                pose,
-                chain_state,
-                step,
-                dynamics::WAG_UNITS,
-            );
+            dynamics::simulate(&self.joints, &self.chains, pose, chain_state, step);
         }
         if self.lift != 0.0 {
             for joint in pose.iter_mut() {

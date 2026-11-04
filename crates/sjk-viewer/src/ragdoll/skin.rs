@@ -390,6 +390,7 @@ mod tests {
             origin: [100, 200, 24],
             velocity: [0, 0, 0],
             yaw: 0,
+            scale: crate::ragdoll::STOCK_SCALE,
         });
         let mut scratch = Scratch::default();
         assert!(scratch.pose(&gla, &model_space(body.points())));
@@ -418,6 +419,7 @@ mod tests {
             origin: [0, 0, 24],
             velocity: [0, 0, 0],
             yaw: 45,
+            scale: crate::ragdoll::STOCK_SCALE,
         });
         let mut floor = |from: Vec3, to: Vec3, half: f32| -> Option<(Vec3, Vec3)> {
             if to.z >= half {
@@ -471,8 +473,36 @@ mod tests {
             origin: [0, 0, 24],
             velocity: [0, 0, 0],
             yaw: 0,
+            scale: crate::ragdoll::STOCK_SCALE,
         });
         let mut scratch = Scratch::default();
         assert!(!scratch.pose(&Arc::new(gla), &model_space(body.points())));
+    }
+
+    /// A body at a player's `modelScale` (hub report #223) turns the model's parts as a
+    /// stock-sized one does: the pose hangs every part from the pelvis at the model's
+    /// own joints, so the actor's scale alone sizes the model to the body.
+    #[test]
+    fn a_scaled_body_poses_the_model_as_a_stock_one_does() {
+        let gla = Arc::new(humanoid());
+        let start = Start {
+            moment: 3_000,
+            origin: [0, 0, 24],
+            velocity: [0, 0, 0],
+            yaw: 45,
+            scale: crate::ragdoll::STOCK_SCALE,
+        };
+        let mut stock = Scratch::default();
+        assert!(stock.pose(&gla, &model_space(Body::new(&start).points())));
+        let mut small = Scratch::default();
+        let body = Body::new(&Start { scale: 60, ..start });
+        assert!(small.pose(&gla, &model_space(body.points())));
+        for (a, b) in stock.matrices.iter().zip(&small.matrices) {
+            for (row_a, row_b) in a.iter().zip(b) {
+                for (x, y) in row_a.iter().zip(row_b) {
+                    assert!((x - y).abs() < 1e-3, "{a:?} {b:?}");
+                }
+            }
+        }
     }
 }

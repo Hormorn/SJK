@@ -1,7 +1,8 @@
 //! The per-frame hook of emotes (`emotes.rs`): the emotes the SJK hub relayed for
 //! this server start on the players they name, when the game shows the name their
-//! claim was made under in that slot; emotes end when they are over or their player
-//! moves. Costs two uncontended locks a frame when nothing comes.
+//! claim was made under in that slot; emotes end when they are over, their player
+//! moves, or mounts a vehicle (hub report #247). Costs two uncontended locks a
+//! frame when nothing comes.
 
 use super::*;
 use sjk_runtime::EntityId;
@@ -22,6 +23,21 @@ fn typing(enabled: bool, snapshot: &sjk_protocol::Snapshot, own_typing: Option<b
             .entities
             .iter()
             .map(|entity| (entity.number(), entity.e_flags())),
+    )
+}
+
+/// The players riding a vehicle in `snapshot` ([`emotes::riding_slots`]).
+fn riding(snapshot: &sjk_protocol::Snapshot) -> u64 {
+    let player = &snapshot.player;
+    let own = u8::try_from(player.client_num())
+        .ok()
+        .map(|slot| (slot, player.vehicle_entity_num()));
+    emotes::riding_slots(
+        own,
+        snapshot
+            .entities
+            .iter()
+            .map(|entity| (entity.number(), entity.vehicle_entity_num())),
     )
 }
 
@@ -55,6 +71,9 @@ impl GpuState {
                     let world = demo.world();
                     state
                         .active
+                        .end_riding(riding(demo.latest_snapshot()), None);
+                    state
+                        .active
                         .hold(typing(keep_typing, demo.latest_snapshot(), None));
                     state.active.update(Instant::now(), |slot: u8| {
                         world
@@ -74,6 +93,7 @@ impl GpuState {
         };
         let now = Instant::now();
         let own = u8::try_from(session.latest_snapshot().player.client_num()).ok();
+        let riders = riding(session.latest_snapshot());
         let mut state = emotes::lock();
         for emote in received {
             // The hub's id is shown in the console as it came when no catalogue entry
@@ -105,6 +125,13 @@ impl GpuState {
                 continue;
             }
             if emote.emote == emotes::SYNC {
+                continue;
+            }
+            // On a vehicle, which plays its rider's animations (hub report #247).
+            if riders
+                .checked_shr(u32::from(emote.slot))
+                .is_some_and(|bits| bits & 1 != 0)
+            {
                 continue;
             }
             // Its player went away, or came back (`away_emote.rs`).
@@ -160,6 +187,9 @@ impl GpuState {
             blocked &= blocked - 1;
             state.active.stop(slot);
         }
+        // A player who mounts a vehicle ends their emote; the own player tells the
+        // others (after the lock), for the clients that do not see it end by themselves.
+        let own_ended = state.active.end_riding(riders, own);
         // A player typing keeps their emote until they move after (`cg_emoteTypingKeep`).
         state.active.hold(typing(
             keep_typing,
@@ -167,6 +197,10 @@ impl GpuState {
             Some(own_typing),
         ));
         state.active.update(now, position);
+        drop(state);
+        if own_ended {
+            let _ = player_identity::emote(emotes::STOP.to_owned(), None);
+        }
     }
 
     /// Play and stop the emotes' sounds (`emotes::Cue`) on their players; the

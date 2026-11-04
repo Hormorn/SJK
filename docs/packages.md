@@ -31,7 +31,10 @@ unmerged game changes. Download the resulting `SJK-windows-x64`,
 retention period, not automatically published GitHub Releases.
 
 The Linux build uses Ubuntu 22.04, requiring glibc 2.35 or newer, ALSA and the
-window-system/graphics-driver libraries. The Windows build targets MSVC with a
+window-system/graphics-driver libraries. At startup the Linux client raises its
+main-thread stack allowance to 64 MiB within the inherited hard limit, so terminal,
+desktop and in-game update launches do not depend on the usual 8 MiB soft limit.
+The Windows build targets MSVC with a
 static C runtime, for Windows 10/11 x64. Drivers remain a system requirement.
 The Windows release client is a windowed program (`windows_subsystem` in
 [main.rs](../crates/sjk-viewer/src/main.rs)), so no console opens beside the game;

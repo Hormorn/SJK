@@ -133,6 +133,7 @@ impl Mesh {
                 PrimitiveShape::Billboard
                     | PrimitiveShape::FrameBillboard
                     | PrimitiveShape::ScreenFlash
+                    | PrimitiveShape::Spark
             )
         });
         if !has_geometry && !decals.has_polys() {
@@ -154,6 +155,7 @@ impl Mesh {
                 PrimitiveShape::Billboard
                     | PrimitiveShape::FrameBillboard
                     | PrimitiveShape::ScreenFlash
+                    | PrimitiveShape::Spark
             ) {
                 return 0u8;
             }
@@ -248,6 +250,7 @@ impl Mesh {
             PrimitiveShape::Billboard
                 | PrimitiveShape::FrameBillboard
                 | PrimitiveShape::ScreenFlash
+                | PrimitiveShape::Spark
         ) {
             return;
         }
@@ -360,7 +363,8 @@ impl Mesh {
                 }
                 PrimitiveShape::Billboard
                 | PrimitiveShape::FrameBillboard
-                | PrimitiveShape::ScreenFlash => {}
+                | PrimitiveShape::ScreenFlash
+                | PrimitiveShape::Spark => {}
             }
         }
     }

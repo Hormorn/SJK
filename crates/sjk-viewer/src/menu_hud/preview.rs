@@ -463,6 +463,7 @@ mod tests {
             boost_flash: false,
             turbo: Some((0.45, false)),
             linked: true,
+            boost: None,
         };
         let walker = VehicleReadout {
             hull: [800.0, 800.0],
@@ -473,6 +474,7 @@ mod tests {
             boost_flash: false,
             turbo: None,
             linked: false,
+            boost: None,
         };
         let directory =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/menu-snapshots");

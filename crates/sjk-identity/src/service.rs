@@ -302,6 +302,12 @@ pub struct Snapshot {
     /// The answer to the last mystery box request, by serial, or why it was refused
     /// (in the player's words).
     pub mystery_box: Option<(u64, Result<BoxDone, String>)>,
+    /// Fished junk selling as the hub last said ([`Service::read_junk`]): `None` until
+    /// read, and when the hub has none or could not be asked (no Sell button then).
+    pub junk: Option<crate::junk::JunkStatus>,
+    /// The answer to the last junk sale ([`Service::sell_junk`]), by serial, or why it
+    /// was refused (in the player's words).
+    pub junk_sale: Option<(u64, Result<crate::junk::JunkSold, String>)>,
     /// The box hunt as last read, by serial, for the server named
     /// ([`Service::read_box_hunt`]).
     pub box_hunt: Option<(u64, String, crate::mystery_box::HuntState)>,
@@ -730,6 +736,8 @@ impl Snapshot {
             mystery_boxes: None,
             mystery_boxes_revision: 0,
             mystery_box: None,
+            junk: None,
+            junk_sale: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,
@@ -885,6 +893,10 @@ enum Command {
     PlaceMysteryBox(crate::mystery_box::MysteryBox),
     /// SJK's creator: remove mystery box `id`.
     RemoveMysteryBox(i64),
+    /// Ask the hub about junk selling.
+    ReadJunk,
+    /// Sell these pieces of fished junk, by id.
+    SellJunk(std::collections::BTreeMap<String, u32>),
     /// Read the box hunt on `server`, the player away or not.
     BoxHunt {
         server: String,
@@ -1103,6 +1115,8 @@ struct Worker {
     /// When the hub's mystery boxes are next read, and the last request's serial.
     due_mystery_boxes: Instant,
     mystery_box_serial: u64,
+    /// The last junk sale's serial.
+    junk_serial: u64,
     box_hunt_serial: u64,
     /// When the Toy Master's toys are next read, and the last request's serial.
     due_secrets: Instant,
@@ -1435,6 +1449,7 @@ impl Worker {
             map_edits_serial: 0,
             due_mystery_boxes: now,
             mystery_box_serial: 0,
+            junk_serial: 0,
             box_hunt_serial: 0,
             due_secrets: now,
             secret_serial: 0,
@@ -1898,6 +1913,8 @@ impl Worker {
                 hub.remove_mystery_box(identity, id)
                     .map(|_| (BoxDone::Removed(id), None))
             }),
+            Command::ReadJunk => self.read_junk(),
+            Command::SellJunk(held) => self.sell_junk(&held),
             Command::UseSecret {
                 id,
                 server,
@@ -3225,6 +3242,61 @@ impl Worker {
         });
     }
 
+    /// Ask the hub about junk selling: [`Snapshot::junk`] is what it said, `None` when it
+    /// could not be asked or has none (an older hub).
+    fn read_junk(&mut self) {
+        let status = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.junk_status(&self.identity).ok(),
+            _ => None,
+        };
+        self.update(|snapshot| snapshot.junk = status);
+    }
+
+    /// Sell `held` (pieces of junk by id): the answer goes in [`Snapshot::junk_sale`],
+    /// what is still payable in [`Snapshot::junk`] and the credits in the profile.
+    fn sell_junk(&mut self, held: &std::collections::BTreeMap<String, u32>) {
+        self.junk_serial += 1;
+        let serial = self.junk_serial;
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.sell_junk(&self.identity, held),
+            _ => Err(self.not_connected()),
+        };
+        self.update(|snapshot| {
+            let outcome = match outcome {
+                Ok(sold) => {
+                    if let Some(status) = snapshot.junk.as_mut() {
+                        status.left = sold.left;
+                        status.balance = sold.balance;
+                    }
+                    let credits = u64::try_from(sold.balance).unwrap_or(0);
+                    if let Some(shop) = snapshot.shop.as_mut() {
+                        shop.day.credits = credits;
+                    }
+                    if let Some(me) = snapshot.me.as_mut() {
+                        me.credits = credits;
+                        snapshot.me_revision += 1;
+                    }
+                    Ok(sold)
+                }
+                Err(error) => {
+                    if crate::junk::unsupported(&error) {
+                        snapshot.junk = None;
+                    } else if let HubError::Rejected { code, .. } = &error
+                        && let Some(status) = snapshot.junk.as_mut()
+                    {
+                        match code.as_str() {
+                            "junk_cap" => status.left = 0,
+                            "junk_selling_off" => status.open = false,
+                            _ => {}
+                        }
+                    }
+                    Err(crate::junk::refusal(&error))
+                }
+            };
+            snapshot.junk_sale = Some((serial, outcome));
+        });
+    }
+
     /// Read the Toy Master's toys once registered, if it is time: next time
     /// [`SECRETS_EVERY`] later. Cosmetic: a failure keeps the last list.
     fn keep_secrets(&mut self, now: Instant) {
@@ -4206,6 +4278,18 @@ impl Service {
     /// SJK's creator: remove mystery box `id`.
     pub fn remove_mystery_box(&self, id: i64) {
         let _ = self.commands.send(Command::RemoveMysteryBox(id));
+    }
+
+    /// Ask the hub whether the player may sell fished junk, at what prices and how much
+    /// it still pays today: the answer arrives in [`Snapshot::junk`].
+    pub fn read_junk(&self) {
+        let _ = self.commands.send(Command::ReadJunk);
+    }
+
+    /// Sell `held`, pieces of fished junk by id: what the hub took arrives in
+    /// [`Snapshot::junk_sale`], the credits after in the profile.
+    pub fn sell_junk(&self, held: std::collections::BTreeMap<String, u32>) {
+        let _ = self.commands.send(Command::SellJunk(held));
     }
 
     /// The player pressed Use `presses` times on the Toy Master's toy `id` on `server` in

@@ -1,5 +1,6 @@
 // From VisionJK's web admin page (codemp/game/webadmin/page/js/scripts-world.js at 50d7c18b, GPL-2.0, by Blackwolf;
-// the panel after JKAdmin's by Lixsl), for SJK's browser map editor. SJK: unchanged.
+// the panel after JKAdmin's by Lixsl), for SJK's browser map editor. SJK: the sky drawn is the one a remap swaps the
+// map's for (remapOf in prepareScripted), as the game's sky follows a sky remap.
 // the sky of the engine (tr_sky.cpp): a box around the eye, and the layers of clouds on a dome above it
 const SKY_SIDES = [[3, -1, 2], [-3, 1, 2], [1, 3, 2], [-1, -3, 2], [-2, -1, 3], [2, -1, -3]];
 const SKY_SUFFIX = ['rt', 'lf', 'bk', 'ft', 'up', 'dn'];
@@ -269,7 +270,8 @@ function prepareScripted(w) {
 		list.push(e);
 	});
 	list.sort((x, y) => x.mat.sort - y.mat.sort || x.order - y.order || !x.b.model - !y.b.model || x.b.model - y.b.model || x.b.fog - y.b.fog || x.i - y.i);
-	w.skyDraw = w.sky ? buildSky(w.sky) : null;
+	w.skyDraw = w.sky ? buildSky(remapOf(w.sky)) || buildSky(w.sky) : null;
+
 	w.scripted = list;
 }
 

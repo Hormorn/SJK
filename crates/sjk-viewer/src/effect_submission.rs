@@ -98,6 +98,7 @@ pub(crate) fn prepare(timing: &mut frame_pacing::budget::Timer, inputs: Inputs<'
             PrimitiveShape::Billboard
                 | PrimitiveShape::FrameBillboard
                 | PrimitiveShape::ScreenFlash
+                | PrimitiveShape::Spark
         ) {
             continue;
         }
@@ -114,10 +115,14 @@ pub(crate) fn prepare(timing: &mut frame_pacing::budget::Timer, inputs: Inputs<'
         let seconds = age.saturating_sub(particle.delay).as_secs_f32();
         let motion = particle.motion.sample();
         let (size, base_alpha, color) = particle.sample_envelopes(seconds);
-        let direction = particle
-            .streak
-            .map(|streak| streak_direction(particle, streak, seconds))
-            .unwrap_or(Vec3::ZERO);
+        let direction = match (particle.shape, particle.streak) {
+            // Along the way it goes now, the tail behind it.
+            (PrimitiveShape::Spark, Some(_)) => {
+                streak_direction(particle, -motion.velocity, seconds)
+            }
+            (_, Some(streak)) => streak_direction(particle, streak, seconds),
+            (_, None) => Vec3::ZERO,
+        };
         let direction = particle.normal.unwrap_or(direction).to_array();
         let (color_fade, vertex_alpha) =
             effect_runtime::particle_fade(particle.use_alpha, base_alpha);

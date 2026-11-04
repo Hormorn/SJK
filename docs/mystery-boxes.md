@@ -165,7 +165,9 @@ shattering a Legendary shader gives. The blade fanfares like the jackpot.
 
 The map editor's Place page (`mapedit_panel`) shows the creator Mystery box and Remove
 box beside Place model; Mystery box follows the editor's scope (All servers or This
-server). Placing needs the map's BSP checksum (as map edits do, `sv_mapChecksum`): the box
+server). The browser map editor's World page ([map-edits.md](map-edits.md#the-browser-editor-creator-only-for-now))
+shows the boxes and places one where a click meets the floor, or removes one, through the
+same code (`mystery_box_place_at`, `mysterybox_remove <id>`); the hub has no move. Placing needs the map's BSP checksum (as map edits do, `sv_mapChecksum`): the box
 stands in that exact map file only. The hub takes the creator's request only; every
 placing and removal goes to the staff log. The client reads the hub's list once registered,
 every 10 minutes, and at once after a placing, a removal or a box that is gone.

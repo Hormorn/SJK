@@ -96,7 +96,8 @@ struct Skin {
     tongue_a: vec4<f32>,
     tongue_b: vec4<f32>,
     // Lightning arcs: colour and brightness; width, halo, jag, kinks; count, rate,
-    // threshold, decay; reach, span low and high, tip share; jitter, crawl. No arcs: zeros.
+    // threshold, decay; reach, span low and high, tip share; jitter, crawl, the share
+    // rooted at the emitter. No arcs: zeros.
     arc_color: vec4<f32>,
     arc_shape: vec4<f32>,
     arc_strike: vec4<f32>,
@@ -220,6 +221,29 @@ struct Skin {
     design: vec4<f32>,
     // Its colour (the lab's), for the light at its emitter.
     design_color: vec4<f32>,
+    // Unrest (blade_skin_smoke.rs): x 1 when given, reach and fade (units from the
+    // emitter), far (the share left up the blade). Zeros: unsettled all along.
+    unrest: vec4<f32>,
+    // x: how far (units along a capsule radius out) the tongues' spikes slant to the tip;
+    // y: how much further (units) it reaches up a whole swing (the instance's `motion.x`);
+    // z: how much the heat haze calms with it (0 none, 1 only where the blade is
+    // unsettled); w: how much further its arcs reach at a clash (`unrest_clash`).
+    unrest_lean: vec4<f32>,
+    // Flash (the emitter's crackling star): colour and brightness; rays, length (units),
+    // width (share), halo; rate (shuffles a second), chaos, jitter (units), lean.
+    flash_color: vec4<f32>,
+    flash_shape: vec4<f32>,
+    flash_motion: vec4<f32>,
+    // x: its place along the blade (a share, 0 the emitter); y and z how much brighter
+    // and bigger it is the moment the blade lights (its instance's red lane, 0 to 1, the
+    // share of that left).
+    flash_place: vec4<f32>,
+    // Its heat burst as the blade lights: strength (units), reach (units), width (units);
+    // its instance's blue lane says what is left of it (`fragment_haze`).
+    flash_burst: vec4<f32>,
+    // The arcs' climb at a clash (`unrest.clash`, its units `unrest_lean.w`): x the
+    // seconds it settles over, the clash's age the instance's `motion.y`.
+    unrest_clash: vec4<f32>,
 }
 
 @group(2) @binding(0)
@@ -249,8 +273,8 @@ struct VertexOutput {
     @location(9) @interpolate(flat) down: vec4<f32>,
     // A chroma skin's turn to its wearer's colour (saber_skins.rs `Chroma`); 0 otherwise.
     @location(10) @interpolate(flat) chroma: f32,
-    // The sections its wearer switched off (`OFF_*` bits); 0 otherwise.
-    @location(11) @interpolate(flat) off: u32,
+    // The sections its wearer switched off: x the `OFF_*` bits, y the `OFF2_*`; 0 otherwise.
+    @location(11) @interpolate(flat) off: vec2<u32>,
     // A skinned blade's swing (0 to 1) and the seconds since its last clash, since it was
     // lit and since its last swing began (saber_motion.rs).
     @location(12) @interpolate(flat) motion: vec4<f32>,
@@ -280,6 +304,10 @@ const KIND_SKIN: u32 = 3u;
 // Colour alpha of a skin's first glint (saber.rs `STAR`), glint n's `STAR - n`; a glow's
 // is its hilt sprite's radius, a core's zero.
 const STAR: f32 = -1.0;
+// Colour alpha of a skin's first emitter star (saber.rs `FLASH`), star n's `FLASH - n`.
+const FLASH: f32 = -16.0;
+// Most rays an emitter star has (blade_skin_smoke.rs `MAX_FLASH_RAYS`).
+const MAX_FLASH_RAYS: i32 = 12;
 // How bright a glint shows behind the blade, where its glow covers it.
 const GLINT_BEHIND: f32 = 0.3;
 // The sections a wearer may switch off, a bit each (blade_skin_extras.rs `Section`).
@@ -316,6 +344,10 @@ const OFF_WINGS: u32 = 268435456u;
 const OFF_COPIES: u32 = 536870912u;
 const OFF_INK: u32 = 1073741824u;
 const OFF_CHROME: u32 = 2147483648u;
+// The mask's second word (`off.y`), the sections from `Section::Smoke` on, a bit each in the
+// same order: the CPU makes the others (smoke, ribbons, sparks, bolts, the stars, the
+// crackle, the burning), so the shader reads the unrest's alone.
+const OFF2_UNREST: u32 = 16u;
 // RB_SurfaceSaberGlow: sprite spacing and per-sprite growth.
 const SPACING: f32 = 0.65;
 const GROWTH: f32 = 0.017;
@@ -342,7 +374,7 @@ struct BladeInstance {
     @location(6) animation: vec2<f32>,
     @location(7) persona: vec4<u32>,
     @location(8) chroma: f32,
-    @location(9) off: u32,
+    @location(9) off: vec2<u32>,
     @location(10) motion: vec4<f32>,
     // A direction across the blade fixed to its hilt (world, unit; zero when unknown) and
     // the blade's full length (saber.rs `Instance::with_frame`).
@@ -380,9 +412,15 @@ fn vertex_main(@builtin(vertex_index) vertex_index: u32, blade: BladeInstance) -
 fn vertex_haze(@builtin(vertex_index) vertex_index: u32, blade: BladeInstance) -> VertexOutput {
     var output = blade_vertex(vertex_index, blade);
     var hazy = output.kind >= KIND_SKIN && output.hilt > 0.0 && (blade.persona.x >> 24u) == 255u
-        && (blade.off & OFF_HAZE) == 0u;
+        && (blade.off.x & OFF_HAZE) == 0u;
     if hazy {
         hazy = skins[skin_index(output)].haze.x > 0.0;
+    }
+    // A skin's first emitter star while its heat burst spreads (`flash.burst`).
+    let bursting = output.kind >= KIND_SKIN && output.hilt <= FLASH + 0.5
+        && output.hilt > FLASH - 0.5 && blade.color.b > 0.0 && (blade.off.x & OFF_HAZE) == 0u;
+    if bursting {
+        hazy = skins[skin_index(output)].flash_burst.x > 0.0;
     }
     if !hazy {
         output.clip_position = vec4(0.0, 0.0, 0.0, 1.0);
@@ -456,7 +494,7 @@ fn blade_vertex(vertex_index: u32, blade: BladeInstance) -> VertexOutput {
     var star = 0.0;
     var glints = 0.0;
     var orbit = vec4(0.0);
-    output.off = 0u;
+    output.off = vec2(0u);
     if blade_material >= SKIN_MATERIAL && blade_material < SKIN_MATERIAL + MAX_SKINS {
         output.kind = KIND_SKIN + (blade_material - SKIN_MATERIAL);
         output.off = blade.off;
@@ -464,9 +502,9 @@ fn blade_vertex(vertex_index: u32, blade: BladeInstance) -> VertexOutput {
         // A skin's glow reaches further, for its flares and shimmer, and its quad further
         // still for its wisps and haze.
         // An afterimage is the plain capsule (`afterimage_glow`): neither.
-        if !afterimage(blade_persona.x, blade.off) {
+        if !afterimage(blade_persona.x, blade.off.x) {
             reach = skin.swell.x;
-            room = skin_room(skin, blade.off);
+            room = skin_room(skin, blade.off.x);
         }
         // A Blade Lab design's quad reaches its glow's reach and its particles' room.
         if skin.design.x > 0.0 {
@@ -474,6 +512,9 @@ fn blade_vertex(vertex_index: u32, blade: BladeInstance) -> VertexOutput {
         }
         star = skin.star_shape.y;
         if skin.hole_shape.x > 0.0 { star = skin.hole_shape.w; }
+        if hilt <= FLASH + 0.5 {
+            star = skin.flash_shape.y * (1.0 + skin.flash_motion.w);
+        }
         glints = skin.star_motion.w;
         orbit = skin.star_orbit;
     }
@@ -488,10 +529,27 @@ fn blade_vertex(vertex_index: u32, blade: BladeInstance) -> VertexOutput {
         // are long (the hole's reach), round the tip, or round its place on the orbit
         // below it; `blade` is the place on it from its heart, `shaft` how hidden it is.
         let n = STAR - hilt;
-        let size = max(star, 0.001) * glint_scale(n);
+        let flash = hilt <= FLASH + 0.5;
+        var size = max(star, 0.001) * select(glint_scale(n), 1.0, flash);
         var heart = blade_base + direction * blade_length;
         output.shaft = 0.0;
-        if glints > 0.0 {
+        if flash {
+            // At the emitter (its share along the blade), jumping about it at each shuffle.
+            let f = FLASH - hilt;
+            let skin = skins[blade_material - SKIN_MATERIAL];
+            let shuffle = i32(floor(blade_animation.x * skin.flash_motion.x + f * 0.37));
+            let row = i32(f) * 977 + i32(blade_animation.y * 4096.0);
+            let jump = vec2(skin_hash(vec2(shuffle, row)), skin_hash(vec2(shuffle, row + 71)))
+                * 2.0 - 1.0;
+            heart = blade_base + direction * (skin.flash_place.x * blade_length)
+                + (side * jump.x + direction * jump.y * 0.5) * skin.flash_motion.z;
+            // Grown as it surges once lit (`star_glow` draws it so).
+            size *= 1.0 + skin.flash_place.z * blade_color.r;
+            // The first is wide enough for the heat burst's ring while it spreads.
+            if f < 0.5 && blade_color.b > 0.0 && skin.flash_burst.x > 0.0 {
+                size = max(size, skin.flash_burst.y + skin.flash_burst.z);
+            }
+        } else if glints > 0.0 {
             // Round the blade's axis, measured from the camera's side of it (the near side
             // at a quarter turn), so the circle reads as a ring however the blade is seen;
             // the tilt lifts the near side and drops the far one.
@@ -636,7 +694,15 @@ fn skin_index(input: VertexOutput) -> u32 {
 // absent, as a file without them is (every section draws nothing when its lanes are zeros).
 fn skin_at(input: VertexOutput) -> Skin {
     var skin = skins[skin_index(input)];
-    let off = input.off;
+    // A swinging blade is unsettled further up (`unrest.swing`).
+    skin.unrest.y += skin.unrest_lean.y * input.motion.x;
+    // The mask's second word: of the eighth set's sections the shader draws the unrest alone.
+    if (input.off.y & OFF2_UNREST) != 0u {
+        skin.unrest = vec4(0.0);
+        skin.unrest_lean = vec4(0.0);
+        skin.unrest_clash = vec4(0.0);
+    }
+    let off = input.off.x;
     if off == 0u {
         return skin;
     }
@@ -699,6 +765,19 @@ fn skin_at(input: VertexOutput) -> Skin {
 fn skin_extent(skin: Skin, input: VertexOutput) -> f32 {
     return max(chain_radius(input.radius, input.length, 0.0) * skin.swell.x, input.hilt);
 }
+
+// How unsettled the blade is `along` units from the emitter: whole for `reach`, calming
+// over `fade` to `far`; whole all along without the section.
+fn skin_unrest(skin: Skin, along: f32) -> f32 {
+    let u = skin.unrest;
+    if u.x == 0.0 {
+        return 1.0;
+    }
+    return mix(1.0, u.w, smoothstep(u.y, u.y + u.z, along));
+}
+
+// The granulation where the blade calms: pulled toward a steady middle.
+const GRAIN_CALM: f32 = 0.45;
 
 // Granulation at `along` world units from the hilt: two octaves drifting toward the tip and
 // slowly changing as they go.
@@ -796,8 +875,12 @@ fn skin_arcs(
             fade = 1.0 - clamp(t, 0.0, 1.0);
         } else {
             let span = mix(place.y, place.z, pick) * length;
-            let start = skin_hash(vec2(cycle, row + 202)) * (length - span)
+            var start = skin_hash(vec2(cycle, row + 202)) * (length - span)
                 + motion.y * age / max(strike.y, 0.0001);
+            // Rooted at the emitter, running up the blade for its span.
+            if skin_hash(vec2(cycle, row + 505)) < motion.z {
+                start = 0.0;
+            }
             t = (along - start) / span;
             bulge = sin(PI * clamp(t, 0.0, 1.0));
         }
@@ -807,7 +890,9 @@ fn skin_arcs(
         let jagged = i32(floor(time * motion.x + f32(arc) * 0.37)) * 13 + arc * 131 + seeded;
         let k = along * shape.w + f32(arc) * 17.0;
         let jag = skin_zigzag(k, jagged) + 0.45 * skin_zigzag(k * 2.7 + 5.0, jagged + 57);
-        let offset = side * bulge * place.x * r + jag * shape.z * r * sqrt(bulge);
+        // Where the blade calms (unrest) the arc hugs it, bulging and zigzagging less.
+        let offset = (side * bulge * place.x * r + jag * shape.z * r * sqrt(bulge))
+            * skin_unrest(skin, along);
         let d = (x - offset) / width;
         let filament = shape.x / width * exp(-d * d) + shape.y * 0.35 * exp(-d * d / 16.0);
         total += pow(1.0 - age, strike.w) * fade * filament;
@@ -1662,7 +1747,7 @@ fn skin_past_glow(skin: Skin, input: VertexOutput, beyond: f32) -> bool {
 }
 
 fn skin_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
-    if afterimage(input.persona.x, input.off) {
+    if afterimage(input.persona.x, input.off.x) {
         return afterimage_glow(input);
     }
     let skin = skin_at(input);
@@ -1748,12 +1833,13 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
     let time = input.animation.x;
     let seed = input.animation.y;
     let along = skin_along(input);
-    let grain = skin_granulation(skin, along, time, seed);
-    let flare = skin_flares(skin, along, input.length, time, seed);
+    let unrest = skin_unrest(skin, along);
+    let grain = mix(GRAIN_CALM, skin_granulation(skin, along, time, seed), unrest);
+    let flare = skin_flares(skin, along, input.length, time, seed) * unrest;
     let beat = skin_beat(skin, time);
     // Shimmer and swell: the corona breathes a little, a flare widens it, a beat too.
-    let shimmer = skin_wave(skin.shimmer_a, time, along, seed)
-        + skin_wave(skin.shimmer_b, time, along, seed);
+    let shimmer = (skin_wave(skin.shimmer_a, time, along, seed)
+        + skin_wave(skin.shimmer_b, time, along, seed)) * unrest;
     let swell = skin.swell;
     var widen = min(1.0 + shimmer + swell.y * (grain - 0.5) + swell.z * flare
         + skin.pulse_b.y * beat, swell.x);
@@ -1769,7 +1855,7 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
         // A frayed edge: the width wanders by noise, each side its own.
         let fray = skin_noise(vec2(around * ragged.y - time * ragged.z,
             time * ragged.z * 0.37 + seed * 13.0 + select(0.0, 50.0, x < 0.0)));
-        widen = clamp(widen * (1.0 + ragged.x * (fray * 2.0 - 1.0)), 0.3, swell.x);
+        widen = clamp(widen * (1.0 + ragged.x * unrest * (fray * 2.0 - 1.0)), 0.3, swell.x);
     }
     // Rings squeezing the glow where the bands pass (taken on the axis, so they stay
     // round).
@@ -1788,7 +1874,10 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
     // Flame tongues licking outward in the corona's edge.
     let ta = skin.tongue_a;
     let tb = skin.tongue_b;
-    let tongue = skin_noise(vec2(around * ta.x + seed * ta.y, out * ta.z - time * ta.w));
+    // Slanted toward the tip as they go out, when the skin leans them.
+    let slant = around - out * skin.unrest_lean.x;
+    let tongue = mix(0.5,
+        skin_noise(vec2(slant * ta.x + seed * ta.y, out * ta.z - time * ta.w)), unrest);
     let edge = smoothstep(tb.x, tb.y, out);
     let flicker = mix(1.0, tb.z + tb.w * tongue, edge);
     // The inside colour by the core, the rim's at the edge; granulation and flares heat it.
@@ -1900,7 +1989,12 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
             // Along the axis and straight on past the tip.
             let reach = select(input.blade.y / max(input.shaft, 0.0001) * input.length,
                 input.length + beyond, beyond > 0.0);
-            let arcs = skin_arcs(skin, reach, x, r, input.length, extent, pixel, time, seed);
+            // A clashing blade's arcs alone reach further up (`unrest.clash`).
+            var struck = skin;
+            let left = max(0.0, 1.0 - input.motion.y / max(skin.unrest_clash.x, 0.01));
+            struck.unrest.y += skin.unrest_lean.w * left * left;
+            let arcs = skin_arcs(struck, reach, x, r, input.length, extent, pixel, time, seed)
+                * skin_unrest(struck, reach);
             glow += arcs * room * skin.arc_color.rgb * skin.arc_color.w;
         }
         if skin.mote_field.x > 0.0 {
@@ -2006,8 +2100,9 @@ fn skin_core(input: VertexOutput, texel: vec4<f32>, uv: vec2<f32>, footprint: f3
     let time = input.animation.x;
     let seed = input.animation.y;
     let along = skin_along(input);
-    let grain = skin_granulation(skin, along, time, seed);
-    let flare = skin_flares(skin, along, input.length, time, seed);
+    let unrest = skin_unrest(skin, along);
+    let grain = mix(GRAIN_CALM, skin_granulation(skin, along, time, seed), unrest);
+    let flare = skin_flares(skin, along, input.length, time, seed) * unrest;
     let beat = skin_beat(skin, time);
     let bright = skin.core_fringe;
     var fringe = mix(skin.core_fringe_cool.rgb, skin.core_fringe_hot.rgb,
@@ -2148,8 +2243,80 @@ fn hole_ring(skin: Skin, p: vec2<f32>, time: f32, seed: f32, pixel: f32) -> f32 
 // A skin's glint, coloured as its glow is (the wearer's tint and chroma, an afterimage's
 // fading), dimmed behind the blade; each of an orbit twinkles and turns at its own pace.
 // A black hole's ring and swirl instead when the skin has holes.
+// The emitter's crackling star at `p` (units from its heart, facing the camera, +y up the
+// blade): `rays` thin rays round a hot heart, shuffled `rate` times a second, their angles
+// and lengths thrown about by `chaos` and their light flickering by it; `lean` stretches
+// the rays up the blade and shortens the ones pointing back.
+fn skin_flash(skin: Skin, p: vec2<f32>, time: f32, seed: f32, pixel: f32) -> f32 {
+    let shape = skin.flash_shape;
+    let motion = skin.flash_motion;
+    let size = max(shape.y, 0.001);
+    let rays = clamp(i32(shape.x), 2, MAX_FLASH_RAYS);
+    let chaos = motion.y;
+    let lean = motion.w;
+    let shuffle = i32(floor(time * motion.x));
+    let row = i32(seed * 4096.0);
+    let turn = skin_hash(vec2(shuffle, row + 5)) * TAU;
+    var total = 0.0;
+    for (var i = 0; i < MAX_FLASH_RAYS; i++) {
+        if i >= rays {
+            break;
+        }
+        let h = skin_hash(vec2(shuffle, row + i * 31 + 11));
+        let h2 = skin_hash(vec2(shuffle, row + i * 31 + 17));
+        let h3 = skin_hash(vec2(shuffle, row + i * 31 + 23));
+        let angle = turn + TAU * (f32(i) + chaos * (h - 0.5)) / f32(rays);
+        let way = vec2(cos(angle), sin(angle));
+        let reach = size * (1.0 - 0.75 * chaos * h2) * (1.0 + lean * way.y);
+        let t = dot(p, way);
+        if t <= 0.0 || t >= reach {
+            continue;
+        }
+        let aside = abs(p.x * way.y - p.y * way.x);
+        let along = 1.0 - t / reach;
+        let width = max(shape.z * reach * along, pixel);
+        total += exp(-(aside * aside) / (width * width)) * along * along
+            * (shape.z * reach * along + 0.0001) / width * (1.0 - 0.6 * chaos * h3);
+    }
+    let r = length(p);
+    let heart = shape.w * exp(-(r * r) / (0.03 * size * size));
+    let flicker = 1.0 - 0.6 * chaos * skin_hash(vec2(shuffle, row + 3));
+    return (total + heart) * flicker;
+}
+
 fn star_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
     let skin = skin_at(input);
+    if input.hilt <= FLASH + 0.5 {
+        // The emitter's crackling star.
+        if skin.flash_color.w <= 0.0 {
+            return vec3(0.0);
+        }
+        let f = FLASH - input.hilt;
+        // Bigger and brighter as it surges once lit (its instance's red lane).
+        let surge = input.color.r;
+        let grown = 1.0 + skin.flash_place.z * surge;
+        var bright = 1.0 + skin.flash_place.y * surge;
+        // Sputtering out once put out (the green lane, what is left): at each shuffle out
+        // or flaring, out more often and dimmer as it dies.
+        let dying = input.color.g;
+        if dying > 0.0 {
+            let shuffle = i32(floor(input.animation.x * skin.flash_motion.x));
+            let row = i32((input.animation.y + f * 0.37) * 4096.0);
+            // Alone, without the blade's glow round it, a flare shows brighter than its
+            // crackle did.
+            let on = skin_hash(vec2(shuffle, row + 53)) < 0.3 + 0.5 * dying;
+            bright *= select(0.0, 1.5 + 2.0 * skin_hash(vec2(shuffle, row + 59)), on)
+                * sqrt(dying);
+        }
+        var flash = skin_flash(skin, input.blade / grown, input.animation.x,
+            input.animation.y + f * 0.37, pixel / grown) * skin.flash_color.rgb
+            * skin.flash_color.w * bright;
+        flash = skin_apply_tint(flash, skin_tint(skin, input));
+        if input.chroma != 0.0 {
+            flash = skin_turn_hue(flash, input.chroma);
+        }
+        return flash * persona_fade(input);
+    }
     let n = STAR - input.hilt;
     let scale = glint_scale(n);
     var glint: vec3<f32>;
@@ -2303,6 +2470,23 @@ fn fragment_haze(input: VertexOutput) -> @location(0) vec4<f32> {
     let size = vec2<f32>(textureDimensions(haze_scene));
     let here = input.clip_position.xy;
     let skin = skin_at(input);
+    if input.hilt <= FLASH + 0.5 {
+        // A lighting blade's heat burst: a ring of bent air spreading from the emitter,
+        // pushing the scene outward, weaker as it goes; nothing drawn off the ring.
+        let b = skin.flash_burst;
+        let left = input.color.b;
+        let d = length(input.blade);
+        let radius = b.y * (1.0 - left * left);
+        let e = (d - radius) / max(b.z, 0.01);
+        let ring = exp(-e * e) * left;
+        if ring < 0.01 {
+            discard;
+        }
+        let push = input.blade / max(d, 0.001) * b.x * ring;
+        let moved = to_pixels(push, dx, dy, 0.02 * max(size.x, size.y));
+        return vec4(textureSampleLevel(haze_scene, haze_sampler, (here + moved) / size, 0.0).rgb,
+            1.0);
+    }
     let h = skin.haze;
     let up = skin_up(input.down.xy);
     let at = skin_above(input.blade, input.shaft, up);
@@ -2316,7 +2500,9 @@ fn fragment_haze(input: VertexOutput) -> @location(0) vec4<f32> {
     let seed = input.animation.y;
     let a = skin_rising(input.blade, up, h.y, h.z, 0.6, time, seed);
     let b = skin_rising(input.blade + vec2(17.3, -9.1), up, h.y, h.z, 0.6, time, seed);
-    let shift = (vec2(a, b) - 0.5) * 2.0 * h.x * fall * rising;
+    // Calming up the blade with its unrest, as far as the skin says.
+    let calm = mix(1.0, skin_unrest(skin, skin_along(input)), skin.unrest_lean.z);
+    let shift = (vec2(a, b) - 0.5) * 2.0 * h.x * fall * rising * calm;
     // Never more than a few dozen pixels, however close.
     let pixels = to_pixels(shift, dx, dy, 0.02 * max(size.x, size.y));
     let uv = (here + pixels) / size;
@@ -2343,7 +2529,8 @@ fn to_pixels(shift: vec2<f32>, dx: vec2<f32>, dy: vec2<f32>, most: f32) -> vec2<
 @vertex
 fn vertex_hole(@builtin(vertex_index) vertex_index: u32, blade: BladeInstance) -> VertexOutput {
     var output = blade_vertex(vertex_index, blade);
-    var hole = output.kind >= KIND_SKIN && output.hilt <= STAR && (blade.off & OFF_HOLES) == 0u;
+    var hole = output.kind >= KIND_SKIN && output.hilt <= STAR && output.hilt > FLASH + 0.5
+        && (blade.off.x & OFF_HOLES) == 0u;
     if hole {
         hole = skins[skin_index(output)].hole_shape.x > 0.0;
     }
@@ -2388,9 +2575,9 @@ fn vertex_solid(@builtin(vertex_index) vertex_index: u32, blade: BladeInstance) 
     var solid = output.kind >= KIND_SKIN && output.hilt > 0.0 && (blade.persona.x >> 24u) == 255u;
     if solid {
         let skin = skins[skin_index(output)];
-        let ink = (blade.off & OFF_INK) == 0u
+        let ink = (blade.off.x & OFF_INK) == 0u
             && (skin.ink_color.w > 0.0 || skin.ink_shape.x > 0.0);
-        let chrome = (blade.off & OFF_CHROME) == 0u && skin.chrome_color.w > 0.0;
+        let chrome = (blade.off.x & OFF_CHROME) == 0u && skin.chrome_color.w > 0.0;
         solid = ink || chrome || skin.design.w > 0.0;
     }
     if !solid {
@@ -2573,7 +2760,7 @@ struct LabPlace {
     // A blade gone in whose words float on (`saber_motion::BladeMotion::lingering`: its
     // swing lane is -1): only the words are drawn.
     lingering: bool,
-    // The wearer's switched-off parts (`input.off`): the Clone Wars blade's own (round 19).
+    // The wearer's switched-off parts (`input.off.x`): the Clone Wars blade's own (round 19).
     off: u32,
 }
 
@@ -2623,7 +2810,7 @@ fn lab_place(input: VertexOutput, pixel: f32) -> LabPlace {
     // The lab's clash fades at 2.2 a second.
     p.clash = max(1.0 - input.motion.y * 2.2, 0.0);
     // Its `bursts` option off (the motes bit): swings and clashes set nothing off.
-    if (input.off & OFF_MOTES) != 0u {
+    if (input.off.x & OFF_MOTES) != 0u {
         p.swing = 0.0;
         p.clash = 0.0;
     }
@@ -2631,7 +2818,7 @@ fn lab_place(input: VertexOutput, pixel: f32) -> LabPlace {
     p.since_swing = input.motion.w;
     p.since_clash = input.motion.y;
     p.turn = input.chroma;
-    p.off = input.off;
+    p.off = input.off.x;
     return p;
 }
 
@@ -3417,7 +3604,7 @@ fn lab_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
     let design = skins[skin_index(input)].design;
     let n = u32(design.x + 0.5);
     // An afterimage draws nothing.
-    if afterimage(input.persona.x, input.off) {
+    if afterimage(input.persona.x, input.off.x) {
         return vec3(0.0);
     }
     let p = lab_place(input, pixel);
@@ -3436,13 +3623,13 @@ fn lab_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
     let emitter = lab_turn(skins[skin_index(input)].design_color.rgb, p);
     light += emitter * (exp(-mouth / 0.012) * 0.9 + exp(-mouth / 0.035) * 0.22);
     // Quantum's ghost copies, an option its wearer may switch off.
-    if n == LAB_QUANTUM && (input.off & OFF_COPIES) == 0u {
+    if n == LAB_QUANTUM && (input.off.x & OFF_COPIES) == 0u {
         light += max(lab_quantum_ghosts(p), vec3(0.0));
     }
     let room = design.z;
     // Its particles, unless its wearer switched them off (the `particles` option, the
     // arcs bit: blade_lab_designs.rs `Design::shown`).
-    if room > 0.0 && p.d < room && (input.off & OFF_ARCS) == 0u {
+    if room > 0.0 && p.d < room && (input.off.x & OFF_ARCS) == 0u {
         light += lab_motes(n, p) * (1.0 - lab_sstep(room * 0.75, room, p.d));
     }
     return light * persona_fade(input);
@@ -4067,14 +4254,14 @@ fn sig_take(input: VertexOutput) {
     // a signature skin has no other use for: no swing and clash bursts (the pulse bit),
     // and its own parts (`SIG_PART_BITS`). Sol's own sections (arcs, motes, wisps, ...)
     // switch themselves.
-    if (input.off & OFF_PULSE) != 0u {
+    if (input.off.x & OFF_PULSE) != 0u {
         uSwing = 0.0;
         uClash = 0.0;
         uSince = 1000.0;
     }
     var parts = 0u;
     for (var k = 0u; k < 6u; k++) {
-        if (input.off & SIG_PART_BITS[k]) != 0u {
+        if (input.off.x & SIG_PART_BITS[k]) != 0u {
             parts |= 1u << k;
         }
     }
@@ -4086,7 +4273,7 @@ fn sig_take(input: VertexOutput) {
     uChroma = 0.0;
     uRoom = skins[skin_index(input)].design.z / LAB_METRE;
     let skin = skins[skin_index(input)];
-    let room = max(skin_room(skin, input.off), max(skin.design.y, skin.design.z) / LAB_METRE);
+    let room = max(skin_room(skin, input.off.x), max(skin.design.y, skin.design.z) / LAB_METRE);
     uReach = 0.6 * (max(chain_radius(input.radius, input.length, 0.0) * skin.swell.x, input.hilt) + room);
 }
 
@@ -4324,7 +4511,7 @@ fn sig_ring_d(ray: SigRay, height: f32, radius: f32) -> f32 {
 // draws ever stops at a straight edge.
 fn sig_edge(input: VertexOutput) -> f32 {
     let skin = skins[skin_index(input)];
-    let room = max(skin_room(skin, input.off), max(skin.design.y, skin.design.z) / LAB_METRE);
+    let room = max(skin_room(skin, input.off.x), max(skin.design.y, skin.design.z) / LAB_METRE);
     let extent = max(chain_radius(input.radius, input.length, 0.0) * skin.swell.x, input.hilt) + room;
     let across = 1.0 - smoothstep(0.6 * extent, 0.95 * extent, abs(input.blade.x));
     let below = smoothstep(-0.95 * extent, -0.6 * extent, input.blade.y);

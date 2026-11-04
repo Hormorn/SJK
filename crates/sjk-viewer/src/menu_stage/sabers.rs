@@ -4,7 +4,8 @@
 //! through the same glow/core renderer as in-game sabers, so the menu shows
 //! exactly the hilt, sockets and colours the player will carry. On
 //! lightsaber creation's preview the hilts leave the hands for the
-//! [`showcase`](super::showcase).
+//! [`showcase`](super::showcase). On the stage the blades leave a match's
+//! motion trail behind them ([`crate::saber_trail`]) as the model swings.
 
 use super::hilt_guard;
 use super::lone;
@@ -38,6 +39,11 @@ impl Request {
                 .all(|(current, wanted)| current.as_deref() == wanted)
     }
 
+    /// The hilt in `hand`, by its `.sab` name.
+    pub(super) fn hilt(&self, hand: usize) -> Option<&str> {
+        self.hilts.get(hand)?.as_deref()
+    }
+
     pub(super) fn from(wanted: &StageSabers<'_>) -> Self {
         Self {
             hilts: wanted.hilts.map(|name| name.map(str::to_owned)),
@@ -60,6 +66,29 @@ pub(super) struct StageSaber {
     geometry_binding: wgpu::BindGroup,
     index_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
+    /// Where the Saber Lab's floating copy of the hilt lies, beside the one in the hand.
+    float_instance_buffer: wgpu::Buffer,
+    /// Each blade's length as the Saber Lab lights it and puts it out, growing and
+    /// shrinking as a match's do ([`saber::Extension`]).
+    extension: [saber::Extension; 8],
+    /// Each blade's motion trail, as a match keeps one ([`crate::saber_trail::Trail`]).
+    trails: [crate::saber_trail::Trail; 8],
+    /// Each blade's afterimages' poses in the hand, for a skin leaving them, as a match
+    /// keeps them ([`crate::saber_ghosts`]).
+    ghosts: [crate::saber_ghosts::GhostTrail; 8],
+    /// When each blade in the hand last lit, for its emitter stars' surge.
+    ignition: [saber::Ignition; 8],
+    /// Each blade's motion in the hand (`saber_motion.rs`): its swing, for a skin whose
+    /// unrest follows it and the Blade Lab designs that answer it, and the floating copy's
+    /// (which clash with the Saber Lab's button too).
+    motion: [crate::saber_motion::BladeMotion; 8],
+    float_motion: [crate::saber_motion::BladeMotion; 8],
+    /// The Saber Lab's clashes this hilt last took (`LabStage::clash`).
+    clash_seen: Option<u32>,
+    /// Each blade's emitter's smoke, in the hand and on the Saber Lab's floating copy
+    /// ([`crate::saber_smoke`]).
+    smoke: [crate::saber_smoke::Emitter; 8],
+    float_smoke: [crate::saber_smoke::Emitter; 8],
 }
 
 impl StageSaber {
@@ -83,9 +112,57 @@ impl StageSaber {
             blended,
         );
     }
+
+    /// Draw the Saber Lab's floating copy of the hilt.
+    pub(super) fn draw_floating<'pass>(
+        &'pass self,
+        pass: &mut wgpu::RenderPass<'pass>,
+        world_materials: &'pass world_materials::Runtime,
+        camera: &'pass wgpu::BindGroup,
+        blended: bool,
+    ) {
+        world_materials.draw_detached(
+            pass,
+            camera,
+            &self.geometry_binding,
+            &self.vertex_buffer,
+            &self.index_buffer,
+            &self.float_instance_buffer,
+            &self.materials,
+            &self.draws,
+            blended,
+        );
+    }
 }
 
 impl GpuState {
+    /// The skins the stage's blades wear, the first saber's and the second's (or a staff's
+    /// other half's): the stage model is the local player, so the player's. The shader the
+    /// Collection shows goes on the side being dressed; the other side shows what it wears
+    /// now, so the pair is seen as Equip will leave it. With the target switch on the
+    /// second, the shader goes there and the first keeps what it wears. The Saber Lab's tab
+    /// dresses both.
+    pub(super) fn stage_skins(&self) -> [Option<crate::saber_skins::SkinColor>; 2] {
+        let shown = match self.menu_stage.skin_override {
+            Some(crate::console::collection_panel::PreviewSkin::Stock) => Some(None),
+            Some(crate::console::collection_panel::PreviewSkin::Skin(id)) => Some(
+                self.blade_skins
+                    .color_with(id, self.looks.own_options_off(id))
+                    .map(|skin| crate::saber_skins::SkinColor {
+                        persona: self.saber_skins.local_persona(),
+                        ..skin
+                    }),
+            ),
+            _ => None,
+        };
+        let dressed = if self.menu_stage.lab.is_some() {
+            [true; 2]
+        } else {
+            self.menu_stage.override_dressed
+        };
+        crate::saber_skins::previewed(self.saber_skins.local_both(), shown, dressed)
+    }
+
     /// Reload the hands for a changed request. Sockets and blade parameters
     /// come from the `.sab` definitions; a hilt that fails to load is logged and
     /// the hand holds the default hilt instead (empty only when that fails too).
@@ -225,6 +302,13 @@ impl GpuState {
                 contents: bytemuck::bytes_of(&instance),
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
+        let float_instance_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("SJK player stage floating hilt instance"),
+                    contents: bytemuck::bytes_of(&instance),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                });
         Ok(StageSaber {
             color,
             blades,
@@ -236,6 +320,16 @@ impl GpuState {
             geometry_binding,
             index_buffer,
             instance_buffer,
+            float_instance_buffer,
+            extension: Default::default(),
+            trails: Default::default(),
+            ghosts: Default::default(),
+            ignition: Default::default(),
+            motion: Default::default(),
+            float_motion: Default::default(),
+            clash_seen: None,
+            smoke: Default::default(),
+            float_smoke: Default::default(),
         })
     }
 
@@ -319,30 +413,24 @@ impl GpuState {
     /// stage model's blades (session sabers are appended by entity
     /// submission afterwards). Hilt instances are rewritten only when the
     /// pose or the hilts changed.
-    pub(crate) fn begin_saber_instances(&mut self) {
+    pub(crate) fn begin_saber_instances(&mut self, presentation_time: i64) {
         self.saber_instances.clear();
-        // The stage model is the local player: its blades wear the player's skin, or
-        // the one the Collection's Shaders tab shows.
-        // The shader the Collection shows goes on the side being dressed; the other side
-        // shows what it wears now, so the pair is seen as Equip will leave it.
-        // With the target switch on the second, the shader goes there and the first keeps
-        // what it wears.
-        let shown = match self.menu_stage.skin_override {
-            Some(crate::console::collection_panel::PreviewSkin::Stock) => Some(None),
-            Some(crate::console::collection_panel::PreviewSkin::Skin(id)) => Some(
-                self.blade_skins
-                    .color_with(id, self.looks.own_options_off(id))
-                    .map(|skin| crate::saber_skins::SkinColor {
-                        persona: self.saber_skins.local_persona(),
-                        ..skin
-                    }),
-            ),
-            _ => None,
-        };
-        let skins = crate::saber_skins::previewed(
-            self.saber_skins.local_both(),
-            shown,
-            self.menu_stage.override_dressed,
+        let skins = self.stage_skins();
+        let now = std::time::Instant::now();
+        // `cg_saberTrail`, on unless set to 0, as in a match.
+        let trails = self
+            .console
+            .as_ref()
+            .and_then(|console| console.integer_cvar("cg_saberTrail"))
+            .unwrap_or(1)
+            != 0;
+        // The Saber Lab's floating saber shows a still trail behind it while the tab asks,
+        // swept about the camera's forward through its grip.
+        let still_trail = self.menu_stage.lab.is_some_and(|lab| lab.trail);
+        let toward = Vec3::new(
+            self.camera_yaw.cos() * self.camera_pitch.cos(),
+            self.camera_yaw.sin() * self.camera_pitch.cos(),
+            self.camera_pitch.sin(),
         );
         let frame_view = self.frame_view;
         let stage = &mut self.menu_stage;
@@ -384,8 +472,15 @@ impl GpuState {
             .filter(|saber| saber.line.is_some())
             .count();
         // The Collection's Shaders tab lays them before the backdrop camera instead, as
-        // long as the longest of them asks.
-        let lone = stage
+        // long as the longest of them asks; the Saber Lab's lays a copy of them there,
+        // over its own area, and the model keeps them in its hands.
+        let lab = stage.lab.is_some();
+        let area = if lab {
+            crate::console::collection_panel::LAB_SABER_AREA
+        } else {
+            crate::console::collection_panel::SABER_AREA
+        };
+        let placed = stage
             .lone
             .filter(|_| !preview)
             .zip(frame_view)
@@ -397,11 +492,12 @@ impl GpuState {
                     .filter_map(|saber| saber.line)
                     .map(|line| line.span.length())
                     .fold(0.0, f32::max);
-                (turn, lone::Place::new(&view, longest))
+                (turn, lone::Place::new(&view, longest, area))
             });
+        let (lone, floating) = if lab { (None, placed) } else { (placed, None) };
         let seconds = crate::menu::art::motion::seconds();
         // On the live preview the Shaders tab's turn takes the place of retail's roll.
-        let (roll, yaw) = match stage.lone {
+        let (roll, yaw) = match stage.lone.filter(|_| !lab) {
             Some(turn) => (turn.roll.to_degrees(), turn.yaw),
             None => (showcase::roll_degrees(seconds as f32), 0.0),
         };
@@ -409,10 +505,42 @@ impl GpuState {
         let out = 1.0 - stage.blades_in.clamp(0.0, 1.0);
         // Where a lone staff's two halves lie on screen, for a click on it to choose one.
         let mut halves = [None; 2];
-        for (hand, saber) in stage.sabers.iter().enumerate() {
+        // The Saber Lab lights the blades and puts them out as a match does, a frame's
+        // growth at a time; elsewhere they are out in full.
+        let lit = stage.lab.map(|lab| lab.lit);
+        let clash = stage.lab.map(|lab| lab.clash);
+        let millis = (seconds * 1_000.0) as i64;
+        // On the stage (not in a preview) the blades trail as long as the move the model's
+        // torso plays has a match's trail last (a stance none, an attack 200 ms).
+        let trail = (trails && !preview).then(|| trail_length(&actor.upper.sequence.name));
+        for (hand, saber) in stage.sabers.iter_mut().enumerate() {
             let Some(saber) = saber else {
                 continue;
             };
+            // A Clash asked for since the last frame strikes every blade of the hilt.
+            let clashed = saber.clash_seen.is_some() && saber.clash_seen != clash;
+            saber.clash_seen = clash;
+            if clashed {
+                for index in 0..8 {
+                    saber.motion[index].clash(millis);
+                    saber.float_motion[index].clash(millis);
+                }
+                stage.lab_sounds.clash();
+            }
+            let mut lengths = [0.0; 8];
+            let mut since = [None; 8];
+            for (index, blade) in saber.blades.iter().enumerate() {
+                let full = blade.as_ref().map_or(0.0, |blade| blade.length);
+                since[index] = saber.ignition[index].update(lit.unwrap_or(true), millis);
+                lengths[index] = match lit {
+                    Some(lit) => saber.extension[index].update(lit, full, millis),
+                    None => {
+                        saber.extension[index] = saber::Extension::default();
+                        full
+                    }
+                };
+                saber.ignition[index].retracted(lengths[index], millis);
+            }
             let pose = match (&showcase, &lone, actor.hands[hand]) {
                 (Some(view), _, _) => saber
                     .line
@@ -429,6 +557,11 @@ impl GpuState {
             let Some((grip, rotation)) = pose else {
                 continue;
             };
+            // The blades lit by each skin this saber wears (a staff's other half may wear
+            // the second), and how far each side's stars surge, for its light.
+            let mut light_blades = [[None; 8]; 2];
+            let mut light_colors = [saber.color; 2];
+            let mut surge = [0.0_f32; 2];
             // The showcase and the lone saber turn every frame.
             if stage.sabers_dirty || showcase.is_some() || lone.is_some() {
                 // In the hand (and on the showcase) the hilt shares the
@@ -449,19 +582,96 @@ impl GpuState {
                 self.queue
                     .write_buffer(&saber.instance_buffer, 0, bytemuck::bytes_of(&instance));
             }
+            // A skin with smoke: the emitters smoke while lit and a while after (into the
+            // world, not into a preview's picture), each blade's by its side's skin.
+            if !preview {
+                let mut sink = crate::saber_smoke::Sink {
+                    particles: &mut self.particles,
+                    effects: &mut self.effects,
+                    atlas: Some(&self.particle_atlas),
+                    ribbons: &mut self.smoke_ribbons,
+                    sparks: &mut self.saber_sparks,
+                    clashes: &[],
+                    heard: None,
+                    now,
+                };
+                for (index, blade) in saber
+                    .blades
+                    .iter()
+                    .take(usize::from(saber.num_blades))
+                    .enumerate()
+                    .filter_map(|(index, blade)| Some((index, blade.as_ref()?)))
+                {
+                    let other_half =
+                        crate::saber_hilts::other_half(&saber.blades, saber.num_blades, index);
+                    let Some(skin) =
+                        crate::saber_skins::skin_of_blade(skins, two_sabers, hand, other_half)
+                    else {
+                        continue;
+                    };
+                    let (smoke, ribbon, sparks) = (skin.smoke, skin.ribbon, skin.sparks);
+                    let length = lengths[index] * out;
+                    let reach =
+                        saber::world_blade(grip, rotation, blade.socket, length, blade.radius);
+                    let at = |along: f32| {
+                        Vec3::from_array(reach.base)
+                            + Vec3::from_array(reach.direction) * (length * along)
+                    };
+                    let blade = (hand * 8 + index) as u32;
+                    if let Some(spec) = smoke {
+                        saber.smoke[index].emit(
+                            &spec,
+                            at(spec.along),
+                            length >= 0.5,
+                            presentation_time,
+                            blade,
+                            &mut sink,
+                        );
+                    }
+                    if let Some(spec) = ribbon {
+                        sink.ribbons.emit(
+                            STAGE_RIBBONS + u64::from(blade),
+                            &spec,
+                            at(spec.along),
+                            length >= 0.5,
+                            presentation_time,
+                        );
+                    }
+                    for (set, spec) in sparks.iter().enumerate() {
+                        let Some(spec) = spec else { continue };
+                        let key = (STAGE_RIBBONS + u64::from(blade)).wrapping_mul(8) + set as u64;
+                        if clashed && length >= 0.5 {
+                            sink.kick(key, spec.clash);
+                        }
+                        let bursts = sink.spark(
+                            key,
+                            spec,
+                            at(spec.along),
+                            Vec3::from_array(reach.direction),
+                            length >= 0.5,
+                            presentation_time,
+                        );
+                        // The Saber Lab snaps with the hand's bolts (a skin's crackle).
+                        if matches!(spec.shape, crate::saber_sparks::Shape::Bolts { .. }) {
+                            stage.lab_sounds.snap(bursts);
+                        }
+                    }
+                }
+            }
             for (index, blade) in saber
                 .blades
                 .iter()
                 .take(usize::from(saber.num_blades))
                 .enumerate()
                 .filter_map(|(index, blade)| Some((index, blade.as_ref()?)))
-                .filter(|_| out > 0.0)
+                .filter(|(index, _)| out > 0.0 && lengths[*index] > 0.0)
             {
+                let trail_style = blade.trail_style;
                 let blade = saber::world_blade(
                     grip,
                     rotation,
                     blade.socket,
-                    blade.length * out,
+                    lengths[index] * out,
                     blade.radius,
                 );
                 let other_half =
@@ -478,16 +688,269 @@ impl GpuState {
                 let color = skin.map_or(saber.color, |skin| {
                     BladeColor::Skin(skin.worn_with(saber.color))
                 });
+                let side = usize::from(!two_sabers && other_half && skins[0] != skins[1]);
+                light_colors[side] = color;
                 let seed = (hand * 8 + index) as u32;
+                let ghosts = match color {
+                    BladeColor::Skin(skin) => skin.ghosts,
+                    _ => None,
+                };
+                if let Some(spec) = ghosts {
+                    saber.ghosts[index].record(blade, presentation_time, spec);
+                }
+                let (moments, motion) = match color {
+                    BladeColor::Skin(skin) => (
+                        skin.flash_moments(since[index], saber.ignition[index].gone_for(millis)),
+                        saber.motion[index].record_turned(
+                            blade,
+                            blade.direction,
+                            millis,
+                            lengths[index] < saber.blades[index].as_ref().map_or(0.0, |b| b.length),
+                            None,
+                            skin.each_swing,
+                        ),
+                    ),
+                    _ => (saber::Moments::default(), crate::saber_motion::STILL),
+                };
+                surge[side] = surge[side].max(moments.surge);
                 let pair = saber::Instance::pair(blade, color)
-                    .map(|i| i.with_animation(seconds, seed))
+                    .map(|i| i.with_animation(seconds, seed).with_motion(motion))
                     .into_iter()
-                    .chain(saber::skin_extras(blade, color, seconds, seed));
+                    .chain(
+                        saber::skin_extras(blade, color, seconds, seed)
+                            .map(move |i| i.with_moments(moments).with_motion(motion)),
+                    )
+                    .chain(ghosts.into_iter().flat_map(|spec| {
+                        saber.ghosts[index]
+                            .instances(blade, color, spec)
+                            .map(move |i| i.with_animation(seconds, seed))
+                    }));
                 if preview {
                     stage.preview.blades.extend(pair);
                 } else {
                     self.saber_instances.extend(pair);
+                    light_blades[side][index] = Some(blade);
                 }
+                if let Some(length) = trail
+                    && let Some(quad) = saber.trails[index].update(
+                        crate::saber_trail::Edges::new(None).edge(blade),
+                        presentation_time,
+                        length,
+                        trail_style,
+                        color,
+                        length > 0,
+                    )
+                {
+                    self.saber_trail_segments.insert(quad, presentation_time);
+                }
+            }
+            // Put out, a skin's emitter stars sputter on a while (`flash.die`), each blade by
+            // its side's skin.
+            for (index, blade) in saber
+                .blades
+                .iter()
+                .take(usize::from(saber.num_blades))
+                .enumerate()
+                .filter_map(|(index, blade)| Some((index, blade.as_ref()?)))
+                .filter(|(index, _)| out > 0.0 && lengths[*index] <= 0.0)
+            {
+                let other_half =
+                    crate::saber_hilts::other_half(&saber.blades, saber.num_blades, index);
+                let Some(skin) =
+                    crate::saber_skins::skin_of_blade(skins, two_sabers, hand, other_half)
+                else {
+                    continue;
+                };
+                let skin = skin.worn_with(saber.color);
+                let color = BladeColor::Skin(skin);
+                let ignition = &mut saber.ignition[index];
+                let moments = skin.flash_moments(None, ignition.gone_for(millis));
+                // The Saber Lab snaps once as the hand's sputter ends.
+                let die = skin.flash.map_or(0.0, |flash| flash.die);
+                if ignition.sputtered(die, millis) {
+                    stage.lab_sounds.snap(1);
+                }
+                if moments.dying <= 0.0 {
+                    continue;
+                }
+                // On the whole blade's line, where its stars were while it was lit.
+                let blade =
+                    saber::world_blade(grip, rotation, blade.socket, blade.length, blade.radius);
+                let seed = (hand * 8 + index) as u32;
+                let stars = saber::Instance::flashes(blade, color)
+                    .map(move |i| i.with_animation(seconds, seed).with_moments(moments));
+                if preview {
+                    stage.preview.blades.extend(stars);
+                } else {
+                    self.saber_instances.extend(stars);
+                }
+            }
+            // They light the stage as a match's light the map (a preview is a picture), each
+            // side by its own skin.
+            for (side, (blades, color)) in light_blades.iter().zip(light_colors).enumerate() {
+                if blades.iter().any(Option::is_some) {
+                    crate::saber_submission::lights::append(
+                        &mut self.dynamic_lights,
+                        blades,
+                        color,
+                        saber.num_blades,
+                        false,
+                        millis,
+                        (hand + side * 8) as u64,
+                        (hand * 8) as u32,
+                        surge[side],
+                    );
+                }
+            }
+            // The Saber Lab's copy floats on its area, turned as the tab says, lit as the
+            // model is; its blades animate on seeds of their own.
+            let Some((turn, place)) = &floating else {
+                continue;
+            };
+            let Some((grip, rotation)) = saber
+                .line
+                .map(|line| place.pose(&line, View::offset(hand, shown), *turn))
+            else {
+                continue;
+            };
+            let mut instance = ActorInstance::new(grip.to_array(), rotation.to_array(), [1.0; 3]);
+            instance.set_light(actor.light);
+            self.queue.write_buffer(
+                &saber.float_instance_buffer,
+                0,
+                bytemuck::bytes_of(&instance),
+            );
+            // The floating copy smokes too, lit or a while after, each blade by its side's skin.
+            if !preview {
+                let mut sink = crate::saber_smoke::Sink {
+                    particles: &mut self.particles,
+                    effects: &mut self.effects,
+                    atlas: Some(&self.particle_atlas),
+                    ribbons: &mut self.smoke_ribbons,
+                    sparks: &mut self.saber_sparks,
+                    clashes: &[],
+                    heard: None,
+                    now,
+                };
+                for (index, blade) in saber
+                    .blades
+                    .iter()
+                    .take(usize::from(saber.num_blades))
+                    .enumerate()
+                    .filter_map(|(index, blade)| Some((index, blade.as_ref()?)))
+                {
+                    let other_half =
+                        crate::saber_hilts::other_half(&saber.blades, saber.num_blades, index);
+                    let Some(skin) =
+                        crate::saber_skins::skin_of_blade(skins, two_sabers, hand, other_half)
+                    else {
+                        continue;
+                    };
+                    let (smoke, ribbon, sparks) = (skin.smoke, skin.ribbon, skin.sparks);
+                    let length = lengths[index];
+                    let reach =
+                        saber::world_blade(grip, rotation, blade.socket, length, blade.radius);
+                    let at = |along: f32| {
+                        Vec3::from_array(reach.base)
+                            + Vec3::from_array(reach.direction) * (length * along)
+                    };
+                    let blade = (64 + hand * 8 + index) as u32;
+                    if let Some(spec) = smoke {
+                        saber.float_smoke[index].emit(
+                            &spec,
+                            at(spec.along),
+                            length >= 0.5,
+                            presentation_time,
+                            blade,
+                            &mut sink,
+                        );
+                    }
+                    if let Some(spec) = ribbon {
+                        sink.ribbons.emit(
+                            STAGE_RIBBONS + u64::from(blade),
+                            &spec,
+                            at(spec.along),
+                            length >= 0.5,
+                            presentation_time,
+                        );
+                    }
+                    for (set, spec) in sparks.iter().enumerate() {
+                        let Some(spec) = spec else { continue };
+                        let key = (STAGE_RIBBONS + u64::from(blade)).wrapping_mul(8) + set as u64;
+                        if clashed && length >= 0.5 {
+                            sink.kick(key, spec.clash);
+                        }
+                        sink.spark(
+                            key,
+                            spec,
+                            at(spec.along),
+                            Vec3::from_array(reach.direction),
+                            length >= 0.5,
+                            presentation_time,
+                        );
+                    }
+                }
+            }
+            for (index, blade) in saber
+                .blades
+                .iter()
+                .take(usize::from(saber.num_blades))
+                .enumerate()
+                .filter_map(|(index, blade)| Some((index, blade.as_ref()?)))
+                .filter(|(index, _)| lengths[*index] > 0.0)
+            {
+                // Each blade wears its side's skin, as in the hand.
+                let other_half =
+                    crate::saber_hilts::other_half(&saber.blades, saber.num_blades, index);
+                let skin = crate::saber_skins::skin_of_blade(skins, two_sabers, hand, other_half);
+                let color = skin.map_or(saber.color, |skin| {
+                    BladeColor::Skin(skin.worn_with(saber.color))
+                });
+                let socket = blade.socket;
+                let (radius, trail_style) = (blade.radius, blade.trail_style);
+                let blade = saber::world_blade(grip, rotation, socket, lengths[index], radius);
+                if still_trail {
+                    // As far back as a swing's trail reaches, an attack's colour and age.
+                    let edges: [crate::saber_trail::Edge; STILL_SLICES + 1] =
+                        std::array::from_fn(|slice| {
+                            let back = glam::Quat::from_axis_angle(
+                                toward,
+                                -STILL_ARC * slice as f32 / STILL_SLICES as f32,
+                            );
+                            crate::saber_trail::Edges::new(None).edge(saber::world_blade(
+                                grip,
+                                back * rotation,
+                                socket,
+                                lengths[index],
+                                radius,
+                            ))
+                        });
+                    self.saber_trail_segments.add_still(
+                        crate::saber_trail::still_trail(&edges, STILL_TRAIL, trail_style, color)
+                            .collect::<Vec<_>>(),
+                    );
+                }
+                let seed = (64 + hand * 8 + index) as u32;
+                let reach = match color {
+                    BladeColor::Skin(skin) => saber.float_motion[index].record_turned(
+                        blade,
+                        blade.direction,
+                        millis,
+                        false,
+                        None,
+                        skin.each_swing,
+                    ),
+                    _ => crate::saber_motion::STILL,
+                };
+                self.saber_instances.extend(
+                    saber::Instance::pair(blade, color)
+                        .map(|i| i.with_animation(seconds, seed).with_motion(reach))
+                        .into_iter()
+                        .chain(
+                            saber::skin_extras(blade, color, seconds, seed)
+                                .map(move |i| i.with_motion(reach)),
+                        ),
+                );
             }
         }
         crate::saber_skins::set_staff_halves(match halves {
@@ -514,6 +977,49 @@ fn pad_empty_mesh(flattened: &mut FlattenedScene, draws: &mut Vec<ActorDraw>) {
             .push(<GpuVertex as bytemuck::Zeroable>::zeroed());
     }
     flattened.indices = vec![0; 3];
+}
+
+/// Where the stage's ribbon emitters' keys start, past every entity's
+/// (`saber_ribbons::Ribbons::emit`): the hands', then the floating copy's.
+const STAGE_RIBBONS: u64 = 1 << 62;
+
+/// The floating saber's still trail: the slices it is drawn in, how far back round it
+/// reaches (radians), and the move whose trail it shows (an attack's, ms).
+const STILL_SLICES: usize = 8;
+const STILL_ARC: f32 = 0.45;
+const STILL_TRAIL: u16 = 200;
+
+/// How long a match's trail of the move playing `animation` lasts (`saberMoveData`'s
+/// trail length, ms before `CG_AddSaberBlade` divides it by five): the move whose
+/// animation it is, an attack, start, return, transition or parry in any of the seven
+/// styles, each a group of animations further on than the fast style's
+/// (`SABER_ANIM_GROUP_SIZE`); 0 for anything else (a stance, the draw and the put-away).
+fn trail_length(animation: &str) -> u16 {
+    use sjk_game_jka::{legacy_animation_index, saber_move_data::SABER_MOVES};
+    static GROUP: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    let group = *GROUP.get_or_init(|| {
+        legacy_animation_index("BOTH_A2_T__B_")?
+            .checked_sub(legacy_animation_index("BOTH_A1_T__B_")?)
+    });
+    let (Some(index), Some(group)) = (legacy_animation_index(animation), group) else {
+        return 0;
+    };
+    // Only the attacks (`LS_A_TL2BR` to `LS_A_T2B`) and the starts, returns,
+    // transitions, bounces and deflections (`LS_S_TL2BR` to `LS_V1_B_`) take the style's
+    // group (`PM_SetSaberMove`); the parries, broken parries, knockaways and reflects
+    // ("have only 1 level") and the rest play the one animation.
+    let styled = |number: usize| (4..=10).contains(&number) || (62..=140).contains(&number);
+    SABER_MOVES
+        .iter()
+        .enumerate()
+        .filter(|(_, movement)| movement.trail_len > 0)
+        .find(|(number, movement)| {
+            let styles = if styled(*number) { 0..7 } else { 0..1 };
+            styles
+                .into_iter()
+                .any(|style| usize::from(movement.animation) + style * group == index)
+        })
+        .map_or(0, |(_, movement)| movement.trail_len)
 }
 
 /// Sideways distance between two floating hilts.
@@ -646,5 +1152,30 @@ mod tests {
         let mut padded = FlattenedScene::default();
         pad_empty_mesh(&mut padded, &mut Vec::new());
         assert!(crate::gpu_guard::capture(device, || bind_hilt(device, &padded)).is_ok());
+    }
+
+    /// The starts, attacks and returns of every style trail as long as a match's, the
+    /// transitions and parries less, the stances and the draw and put-away not at all.
+    #[test]
+    fn the_stage_trails_as_long_as_the_move_in_a_match() {
+        for attack in [
+            "BOTH_S1_S1_T_",
+            "BOTH_A1_T__B_",
+            "BOTH_R1_B__S1",
+            "BOTH_A3__L__R",
+            "BOTH_A6_TL_BR",
+            "BOTH_R7__R_S7",
+        ] {
+            assert_eq!(trail_length(attack), 200, "{attack}");
+        }
+        assert_eq!(trail_length("BOTH_P1_S1_T_"), 150);
+        for still in [
+            "BOTH_STAND2",
+            "BOTH_SABERSLOW_STANCE",
+            "BOTH_STAND1TO2",
+            "NOT_AN_ANIM",
+        ] {
+            assert_eq!(trail_length(still), 0, "{still}");
+        }
     }
 }

@@ -42,6 +42,15 @@ impl Default for Speed {
 }
 
 impl Speed {
+    /// Show `text` with its right edge at `x` (640-unit), for snapshots.
+    #[cfg(test)]
+    pub(super) fn preview(&mut self, text: &str, x: f32) {
+        self.enabled = true;
+        self.text.clear();
+        self.text.push_str(text);
+        self.position = [x, 459.0, 0.75];
+    }
+
     /// Apply supported speedometer flags to the current predicted velocity.
     pub(super) fn update(
         &mut self,

@@ -294,6 +294,12 @@ impl Kind {
     }
 }
 
+/// Whether a brush of `contents` is a liquid volume (water, lava, slime), which
+/// `r_showBrushes` leaves out as it shows anyway; the browser map editor can show it.
+pub(crate) fn is_liquid(contents: u32) -> bool {
+    contents & (CONTENTS_WATER | CONTENTS_LAVA | CONTENTS_SLIME) != 0
+}
+
 fn contains_ignore_case(haystack: &[u8], needle: &[u8]) -> bool {
     haystack
         .windows(needle.len())

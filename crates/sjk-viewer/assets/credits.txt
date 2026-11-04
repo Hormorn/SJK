@@ -105,6 +105,7 @@ did: 125 Hz user commands, so every tap reaches the server
 did: Rig models: glTF players with their own skeleton, moved by JKA's animations
 did: SJK Rig Model Export, the Blender add-on that writes a rig model folder
 did: Rig model emotes: a model's own animations played on its own skeleton
+did: Rig model capes and tails that swing, pushed out of the body and legs
 did: Gameplay FPS: the movement of 125, 142, 250 or 333 at any frame rate, explained
 did: Import from Base, JA+, OpenJK, EJK and TaystJK configs found on your computer
 did: Player profile, model grid, lightsaber creation, hats and capes
@@ -371,7 +372,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 94 merged pull requests
+role: Contributor: 109 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -467,15 +468,31 @@ did: #318 Each HUD style shows the vehicle's HP its own way
 did: #336 NPCs with head|torso| skins wear them instead of grey
 did: #338 Empower glow can be hidden (cg_empowerEffect 3)
 did: #339 Switchable and flickering map lights drawn (light styles)
+did: #341 vid_restart force reloads the graphics
+did: #342 Ctrl+C copies a chat link
+did: #345 Ragdolls keep a scaled player's size
+did: #346 Emote sounds muted in duels (s_muteEmotesInDuel)
+did: #349 Fished junk sold to the hub for credits
+did: #350 A fishing bite shown on screen with the sound off
+did: #351 Vehicle speed, ammo and turbo in every HUD; SJK classic HUD redrawn
+did: #352 Getting on a vehicle ends your emote
+did: #353 Nameplate opacity (cg_nameplateAlpha)
+did: #354 Server remaps chosen per map
+did: #355 Loadouts button on the Shaders tab opens its card
+did: #357 Sharpening slider (r_sharpen)
+did: #358 Console aliases (alias)
+did: #359 Rounded banner covers on the profile card and page
+did: #360 Whisper recipient on its own line, pick between whisperers
 did: #278 The Fishing toy: rod, bucket, 12 fish, Echoes on the line
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]
 github: Milamber0
-role: Contributor: 3 merged pull requests
+role: Contributor: 4 merged pull requests
 did: #156 See & share nameplates, settings to review on What's new, duel bars hidden
 did: #163 No hitch when a map remaps to a missing skin
 did: #194 JoF EternalJK in SJK chat: its icon, SJK chat said in All chat on JoF servers
+did: #348 The Saber Lab: a live blade-skin lab, builder and new blade effects
 link: Milamber's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0
 
 [Blackwolf1337]
@@ -642,4 +659,5 @@ github: Bishop-R
 role: Creator of JKR, the starting point of Sol JK
 did: SJK began from JKR's code in October 2026; most of it has since been replaced
 did: JKR's Rust engine, wgpu renderer, client, server and protocol 26 networking
+did: SJK #347 Linux starts after an update again (main-thread stack)
 link: https://github.com/Bishop-R/JKR

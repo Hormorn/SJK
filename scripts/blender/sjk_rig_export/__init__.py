@@ -393,17 +393,38 @@ def with_lift(text, lift):
 DEFAULT_GRAVITY = 1600.0
 
 
+def dynamic_options(words):
+    """The words of a `dynamic` line after its joint and bare gravity (`wag 0`,
+    `stiffness 120`, `nocollide`...), written by hand and kept on re-export."""
+    rest = words[2:]
+    if rest:
+        try:
+            float(rest[0])
+            rest = rest[1:]
+        except ValueError:
+            pass
+    return rest
+
+
 def with_dynamic(text, joints, gravity=DEFAULT_GRAVITY, own=()):
     """`text` (a manifest) with one `dynamic` line per joint of `joints`, the ones it
-    had replaced; `gravity` is written when it is not the game's default. Lines naming
-    a bone of `own` (the armature's own bones, such as a tail added by hand) stay."""
-    def kept(line):
+    had replaced (keeping their hand-written options, such as `wag 0`); `gravity` is
+    written when it is not the game's default. Lines naming a bone of `own` (the
+    armature's own bones, such as a tail added by hand) stay as they are."""
+    options = {}
+    lines = []
+    for line in text.splitlines():
         words = line.split()
-        return words[:1] != ["dynamic"] or (len(words) > 1 and words[1] in own
-                                            and words[1] not in joints)
-    lines = [line for line in text.splitlines() if kept(line)]
+        if words[:1] != ["dynamic"]:
+            lines.append(line)
+        elif len(words) > 1 and words[1] in own and words[1] not in joints:
+            lines.append(line)
+        elif len(words) > 1:
+            options[words[1]] = dynamic_options(words)
     suffix = "" if gravity == DEFAULT_GRAVITY else f" {gravity:g}"
-    lines.extend(f"dynamic {joint}{suffix}" for joint in joints)
+    for joint in joints:
+        extra = "".join(f" {word}" for word in options.get(joint, []))
+        lines.append(f"dynamic {joint}{suffix}{extra}")
     return "\n".join(lines) + "\n"
 
 

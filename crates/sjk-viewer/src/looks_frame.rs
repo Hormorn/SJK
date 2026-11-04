@@ -96,6 +96,12 @@ impl GpuState {
                 Worn::own(&setting, &options, |_| true, lit)
                     .with_second(&second_setting, &options, |_| true)
                     .with_sounds(&sounds, |_| true)
+            } else if crate::saber_lab::active() {
+                // The Saber Lab's skins are worn here only; `held` is what is sent.
+                let lab = |id: &str| owned(id) || crate::saber_lab::owns(id);
+                Worn::own(&setting, &options, lab, lit)
+                    .with_second(&second_setting, &options, lab)
+                    .with_sounds(&sounds, lab)
             } else {
                 held
             };

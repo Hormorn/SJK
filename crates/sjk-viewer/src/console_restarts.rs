@@ -33,6 +33,23 @@ pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
     Ok(())
 }
 
+/// The argument that makes `vid_restart` reload the graphics even with no change.
+pub(crate) const FORCE: &str = "force";
+
+/// `vid_restart`'s help in `cmdlist`, Tab listings and the command reference.
+pub(crate) const VID_RESTART_HELP: &str = "Reapply video settings; reload the graphics if \
+     one changed (vid_restart force: always)";
+
+/// Whether `vid_restart` was asked to force the graphics reload: `force` (any case) or
+/// nothing; anything else is a usage error.
+pub(super) fn forced(args: &[String]) -> Result<bool, String> {
+    match args {
+        [] => Ok(false),
+        [word] if word.eq_ignore_ascii_case(FORCE) => Ok(true),
+        _ => Err(format!("usage: vid_restart [{FORCE}]")),
+    }
+}
+
 pub(super) fn mode_size(mode: i64, width: i64, height: i64) -> Result<[u32; 2], String> {
     if mode == -1 {
         let width = u32::try_from(width).ok().filter(|v| *v > 0);
@@ -63,6 +80,7 @@ impl crate::GpuState {
     pub(super) fn restart_command(
         &mut self,
         name: &str,
+        args: &[String],
         audio: &mut Option<crate::GameAudio>,
     ) -> Result<Vec<String>, String> {
         match name {
@@ -89,6 +107,7 @@ impl crate::GpuState {
                 Ok(lines)
             }
             "vid_restart" => {
+                let force = forced(args)?;
                 let console = self.console.as_mut().ok_or("Console unavailable")?;
                 let size = mode_size(
                     console.integer_cvar("r_mode").unwrap_or(4),
@@ -109,9 +128,10 @@ impl crate::GpuState {
                     vec!["Video settings reapplied; GPU device/resources retained.".into()];
                 // The settings read only when the graphics start: build the world again
                 // on them (`graphics_reload.rs`), as the original game's vid_restart
-                // restarted its renderer.
-                if !self.graphics_changes().is_empty() {
-                    lines.push(self.reload_graphics(audio)?);
+                // restarted its renderer. `vid_restart force` reloads them with no
+                // change too, as the original game's always did.
+                if crate::graphics_reload::wanted(force, &self.graphics_changes()) {
+                    lines.push(self.reload_graphics(audio, force)?);
                 }
                 Ok(lines)
             }
@@ -153,5 +173,32 @@ impl crate::GpuState {
             }
             _ => Err("Unknown restart command".into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn words(args: &[&str]) -> Vec<String> {
+        args.iter().map(|word| (*word).to_owned()).collect()
+    }
+
+    #[test]
+    fn force_is_the_only_argument() {
+        assert_eq!(forced(&[]), Ok(false));
+        assert_eq!(forced(&words(&["force"])), Ok(true));
+        assert_eq!(forced(&words(&["FORCE"])), Ok(true));
+        assert!(forced(&words(&["now"])).is_err());
+        assert!(forced(&words(&["force", "force"])).is_err());
+    }
+
+    #[test]
+    fn tab_completes_force() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        console.input = "vid_restart f".into();
+        console.complete_command(sjk_shell::CompletionKey::Tab);
+        assert_eq!(console.input, "vid_restart force ");
     }
 }

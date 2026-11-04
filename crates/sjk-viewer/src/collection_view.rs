@@ -176,6 +176,7 @@ pub(crate) fn row_labels(
         box_hunt: false,
         banana: false,
         fishing: false,
+        fishing_card: None,
         name: "",
         stock: color::HOLO,
         grid: false,
@@ -315,8 +316,16 @@ impl Panel {
         #[cfg(test)]
         let seconds = self.shot_seconds.unwrap_or(seconds);
         self.ui.begin_transparent(viewport);
+        // The Saber Lab's tab goes with the lab: Shaders shows when it stops.
+        if self.tab == Tab::SaberLab && !crate::saber_lab::active() {
+            self.tab = Tab::Shaders;
+        }
         let kit = matches!(self.tab, Tab::Shaders | Tab::Toys | Tab::Nameplates);
-        if kit && self.backstage != Backstage::None {
+        if self.lab_building() {
+            lab_build_scrims(&mut self.ui, viewport, &frame);
+        } else if self.tab == Tab::SaberLab && self.backstage != Backstage::None {
+            lab_scrims(&mut self.ui, viewport, &frame);
+        } else if kit && self.backstage != Backstage::None {
             stage_scrims(&mut self.ui, viewport, &frame);
         } else {
             crate::settings::sjk_view::backdrop(&mut self.ui, viewport);
@@ -385,6 +394,7 @@ impl Panel {
                 self.grid = inputs.grid;
                 self.forge(&frame, inputs, seconds, viewport);
             }
+            Tab::SaberLab => self.saber_lab(&frame, inputs),
             _ => self.nameplates(&frame, inputs),
         }
         if self.offers_loadouts() {
@@ -406,6 +416,7 @@ impl Panel {
             );
         }
         self.keys(&frame, inputs);
+        self.lab_build_overlay(&frame);
         self.hover_card(&frame, inputs);
         self.ui.finish(self.focus_token());
     }
@@ -638,6 +649,7 @@ impl Panel {
                     _ => "light",
                 },
             )),
+            Tab::SaberLab => self.lab_keys(&mut keys),
             _ => {}
         }
         if self.tab == Tab::Toys && self.bind_wait.is_none() {
@@ -668,6 +680,102 @@ impl Panel {
 /// in frame pixels (25/10/2026, Sol: the tabs on top must read over any map).
 const HEADER_SOLID: f32 = 200.0;
 const HEADER_CLEAR: f32 = 290.0;
+
+/// The Saber Lab's: dark behind the choices on the right, under the floating saber (which
+/// keeps the scene's own dark behind it, as on Shaders), fading out before the model on
+/// the left; the band behind the title and the tabs, as the other stage pages', and a
+/// light fade behind the keys.
+/// The Saber Lab's builder's darkness: the left, where its library and groups stand,
+/// fading out before the model on the right; the header's and the keys' as on the
+/// stage's view.
+fn lab_build_scrims(
+    canvas: &mut crate::menu_widgets::MenuCanvas,
+    viewport: [f32; 2],
+    frame: &Frame,
+) {
+    let [width, height] = viewport;
+    let space = |alpha| color::alpha(color::SPACE, alpha);
+    let x = |frame_x: f32| frame.point(frame_x, 0.0)[0];
+    let y = |frame_y: f32| frame.point(0.0, frame_y)[1];
+    fade_across(
+        canvas,
+        sjk_ui::Rect::new(0.0, 0.0, x(1_170.0), height),
+        space(0.6),
+        space(0.5),
+    );
+    fade_across(
+        canvas,
+        sjk_ui::Rect::new(x(1_170.0), 0.0, x(1_300.0) - x(1_170.0), height),
+        space(0.5),
+        space(0.0),
+    );
+    fade(
+        canvas,
+        sjk_ui::Rect::new(0.0, 0.0, width, y(HEADER_SOLID)),
+        space(0.86),
+        space(0.86),
+    );
+    fade(
+        canvas,
+        sjk_ui::Rect::new(
+            0.0,
+            y(HEADER_SOLID),
+            width,
+            y(HEADER_CLEAR) - y(HEADER_SOLID),
+        ),
+        space(0.86),
+        space(0.0),
+    );
+    fade(
+        canvas,
+        sjk_ui::Rect::new(0.0, y(900.0), width, height - y(900.0)),
+        space(0.0),
+        space(0.7),
+    );
+}
+
+fn lab_scrims(canvas: &mut crate::menu_widgets::MenuCanvas, viewport: [f32; 2], frame: &Frame) {
+    let [width, height] = viewport;
+    let space = |alpha| color::alpha(color::SPACE, alpha);
+    let x = |frame_x: f32| frame.point(frame_x, 0.0)[0];
+    let y = |frame_y: f32| frame.point(0.0, frame_y)[1];
+    let top = y(540.0);
+    fade_across(
+        canvas,
+        sjk_ui::Rect::new(x(1_000.0), top, x(1_200.0) - x(1_000.0), height - top),
+        space(0.0),
+        space(0.8),
+    );
+    fade_across(
+        canvas,
+        sjk_ui::Rect::new(x(1_200.0), top, width - x(1_200.0), height - top),
+        space(0.8),
+        space(0.9),
+    );
+    fade(
+        canvas,
+        sjk_ui::Rect::new(0.0, 0.0, width, y(HEADER_SOLID)),
+        space(0.86),
+        space(0.86),
+    );
+    fade(
+        canvas,
+        sjk_ui::Rect::new(
+            0.0,
+            y(HEADER_SOLID),
+            width,
+            y(HEADER_CLEAR) - y(HEADER_SOLID),
+        ),
+        space(0.86),
+        space(0.0),
+    );
+    fade(
+        canvas,
+        sjk_ui::Rect::new(0.0, y(900.0), width, height - y(900.0)),
+        space(0.0),
+        space(0.7),
+    );
+}
 
 /// Dark behind the things on the left, fading out at the stage before the model; a band
 /// behind the title and the tabs, solid under them and fading out above the stage, as

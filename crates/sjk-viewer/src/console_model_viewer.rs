@@ -107,6 +107,7 @@ impl ViewerConsole {
             on_both: false,
             saber: None,
             holocron: false,
+            lab: None,
         })
     }
 

@@ -299,12 +299,24 @@ pub(crate) fn draw(canvas: &mut MenuCanvas, frame: &Frame, card: &Card<'_>, toke
     let s = frame.s;
     let [x, y, width, height] = AREA;
     let area = frame.rect(x, y, width, height);
-    let _ = canvas.draw_list_mut().push(DrawCommand::PushRoundedClip {
-        rect: area,
-        radius: 18.0 * s,
-    });
-    banner::draw(canvas, area, card.summary.banner);
-    let _ = canvas.draw_list_mut().push(DrawCommand::PopClip);
+    // The neutral cover draws nothing: the card is its text over the menu, with a
+    // backing while lit, as before banners. A worn banner keeps the card's corners.
+    if banner::plain(card.summary.banner) {
+        if card.lit {
+            let _ = canvas.draw_list_mut().push(DrawCommand::RoundedRect {
+                rect: area,
+                radius: 18.0 * s,
+                color: color::alpha(color::SPACE, 0.6),
+            });
+        }
+    } else {
+        let _ = canvas.draw_list_mut().push(DrawCommand::PushRoundedClip {
+            rect: area,
+            radius: 18.0 * s,
+        });
+        banner::draw_rounded(canvas, area, card.summary.banner, 18.0 * s);
+        let _ = canvas.draw_list_mut().push(DrawCommand::PopClip);
+    }
     if card.lit {
         let _ = canvas.draw_list_mut().push(DrawCommand::Border {
             rect: area,
@@ -592,6 +604,8 @@ mod tests {
             mystery_boxes: None,
             mystery_boxes_revision: 0,
             mystery_box: None,
+            junk: None,
+            junk_sale: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,

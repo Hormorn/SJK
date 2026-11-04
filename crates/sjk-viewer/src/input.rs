@@ -99,6 +99,10 @@ pub(crate) enum InputAction {
     CardboardBox,
     /// `toy_fishing`: get the fishing rod out or put it away ([`crate::fishing`]).
     Fishing,
+    /// `fishing_sell`: sell the fished junk to the hub ([`crate::fishing_sell`]).
+    FishingSell,
+    /// `fishing_log`: print the fish log in full to the console.
+    FishingLog,
     /// `toy_order66`: turn the Order 66 toy on or off ([`crate::order66`]).
     Order66,
     /// `order66`: execute Order 66 for every player who has the toy on.
@@ -355,6 +359,8 @@ impl GameplayInput {
                     | "force_illuminate"
                     | crate::cardboard_box::COMMAND
                     | crate::fishing::COMMAND
+                    | crate::fishing_sell::COMMAND
+                    | crate::fishing_sell::LOG_COMMAND
                     | crate::order66::COMMAND
                     | crate::order66::EXECUTE_COMMAND
                     | crate::hax::COMMAND
@@ -538,6 +544,8 @@ impl GameplayInput {
             "toy_illuminate" | "force_illuminate" => Some(InputAction::Illuminate),
             crate::cardboard_box::COMMAND => Some(InputAction::CardboardBox),
             crate::fishing::COMMAND => Some(InputAction::Fishing),
+            crate::fishing_sell::COMMAND => Some(InputAction::FishingSell),
+            crate::fishing_sell::LOG_COMMAND => Some(InputAction::FishingLog),
             crate::order66::COMMAND => Some(InputAction::Order66),
             crate::order66::EXECUTE_COMMAND => Some(InputAction::ExecuteOrder66),
             crate::hax::COMMAND => Some(InputAction::Hax),
@@ -734,6 +742,8 @@ impl super::GpuState {
             Some(InputAction::Illuminate) => self.toggle_illuminate(),
             Some(InputAction::CardboardBox) => self.toggle_cardboard_box(),
             Some(InputAction::Fishing) => self.toggle_fishing(),
+            Some(InputAction::FishingSell) => self.sell_fishing_junk(),
+            Some(InputAction::FishingLog) => self.print_fishing_log(),
             Some(InputAction::Order66) => self.toggle_order66(),
             Some(InputAction::ExecuteOrder66) => self.execute_order66(),
             Some(InputAction::Hax) => self.toggle_hax(),

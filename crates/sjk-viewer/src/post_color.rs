@@ -16,6 +16,8 @@ pub(crate) struct Policy {
     pub(crate) bloom: bool,
     /// Dynamic glow resources (`r_DynamicGlow` and the blur size and style).
     pub(crate) glow: super::glow::Policy,
+    /// Contrast-adaptive sharpening of the scene (`r_sharpen`), 0 (off) to 1.
+    pub(crate) sharpen: f32,
 }
 
 impl Default for Policy {
@@ -25,13 +27,19 @@ impl Default for Policy {
             tonemap: false,
             bloom: false,
             glow: super::glow::Policy::default(),
+            sharpen: 0.0,
         }
     }
 }
 
+/// The scene sharpening cvar, 0 (off, the stock image) to 100 %.
+pub(crate) const SHARPEN_CVAR: &str = "r_sharpen";
+/// The most [`SHARPEN_CVAR`] takes: RCAS's full strength.
+pub(crate) const SHARPEN_MAX: i64 = 100;
+
 /// Snapshot-safe policy shared with console-free world-install workers.
 #[derive(Clone)]
-pub(crate) struct Settings(Arc<[AtomicU32; 3]>, super::glow::Settings);
+pub(crate) struct Settings(Arc<[AtomicU32; 4]>, super::glow::Settings);
 
 impl Default for Settings {
     fn default() -> Self {
@@ -41,6 +49,8 @@ impl Default for Settings {
                 AtomicU32::new(0),
                 // Bloom, on like the registered `r_sceneBloom` default.
                 AtomicU32::new(1),
+                // Sharpening, off like the registered `r_sharpen` default.
+                AtomicU32::new(0),
             ]),
             super::glow::Settings::default(),
         )
@@ -64,6 +74,13 @@ impl Settings {
             CvarFlags::ARCHIVE,
             "Scene bloom (0 off, 1 on); applies immediately, never blooms HUD",
         ))?;
+        // Off by default: the stock image (AGENTS.md, defaults are stock JKA).
+        cvars.register(CvarDefinition::new(
+            SHARPEN_CVAR,
+            0_i64,
+            CvarFlags::ARCHIVE,
+            "Scene sharpening against blur, 0 off to 100 (RCAS); the HUD and menus are not              sharpened; applies immediately",
+        ))?;
         let settings = Self(Self::default().0, super::glow::Settings::bind(cvars)?);
         let gamma = settings.clone();
         cvars.on_change("r_gamma", move |change| {
@@ -83,6 +100,12 @@ impl Settings {
                 bloom.0[2].store(u32::from(value != 0), Ordering::Relaxed);
             }
         })?;
+        let sharpen = settings.clone();
+        cvars.on_change(SHARPEN_CVAR, move |change| {
+            if let CvarValue::Integer(value) = change.current {
+                sharpen.0[3].store(clamp_sharpen(value), Ordering::Relaxed);
+            }
+        })?;
         // Seed the retained scalars from the registered defaults. `on_change` only fires on an
         // edit, so without this a cvar whose default is on would never reach the renderer until
         // the player toggled it — the runtime state and the cvar default are separate sources of
@@ -95,6 +118,9 @@ impl Settings {
         if let Some(&CvarValue::Float(value)) = cvars.get("r_gamma").map(|cvar| &cvar.value) {
             settings.0[0].store(clamp_gamma(value).to_bits(), Ordering::Relaxed);
         }
+        if let Some(&CvarValue::Integer(value)) = cvars.get(SHARPEN_CVAR).map(|cvar| &cvar.value) {
+            settings.0[3].store(clamp_sharpen(value), Ordering::Relaxed);
+        }
         Ok(settings)
     }
 
@@ -105,6 +131,7 @@ impl Settings {
             tonemap: self.0[1].load(Ordering::Relaxed) != 0,
             bloom: self.0[2].load(Ordering::Relaxed) != 0,
             glow: self.1.policy(),
+            sharpen: self.0[3].load(Ordering::Relaxed) as f32 / SHARPEN_MAX as f32,
         }
     }
 
@@ -112,6 +139,11 @@ impl Settings {
     pub(crate) fn glow(&self) -> &super::glow::Settings {
         &self.1
     }
+}
+
+/// `r_sharpen` in percent, 0 to [`SHARPEN_MAX`].
+fn clamp_sharpen(value: i64) -> u32 {
+    value.clamp(0, SHARPEN_MAX) as u32
 }
 
 /// OpenJK tr_image.cpp:1438–1464; non-finite input cannot poison the shader.
@@ -130,14 +162,16 @@ impl crate::GpuState {
         if self.post_aa.as_ref().is_some_and(|aa| aa.policy == policy) {
             return;
         }
+        // Gamma and sharpening amounts are 16-byte uploads; only turning either on or off
+        // (a display pass, the sharpening taps) rebuilds the resolve.
         if let Some(aa) = &mut self.post_aa
             && aa.policy.tonemap == policy.tonemap
             && aa.policy.bloom == policy.bloom
             && aa.policy.glow == policy.glow
-            && aa.policy.gamma != 1.0
-            && policy.gamma != 1.0
+            && (aa.policy.gamma == 1.0) == (policy.gamma == 1.0)
+            && (aa.policy.sharpen > 0.0) == (policy.sharpen > 0.0)
         {
-            aa.set_gamma(&self.queue, policy.gamma);
+            aa.set_controls(&self.queue, policy);
             return;
         }
         self.post_aa = super::Runtime::configured(
@@ -150,5 +184,32 @@ impl crate::GpuState {
             self.context.hdr,
             Some(self.scene_size()),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sharpening_is_off_by_default_and_follows_its_slider_live() {
+        let mut cvars = CvarRegistry::new();
+        cvars
+            .register(CvarDefinition::new(
+                "r_gamma",
+                1.0_f64,
+                CvarFlags::ARCHIVE,
+                "test gamma",
+            ))
+            .expect("r_gamma");
+        let settings = Settings::bind(&mut cvars).expect("the settings bind");
+        let sharpen = cvars.get(SHARPEN_CVAR).expect("registered");
+        assert_eq!(sharpen.value, CvarValue::Integer(0));
+        assert!(sharpen.flags.contains(CvarFlags::ARCHIVE));
+        assert_eq!(settings.policy().sharpen, 0.0);
+        for (text, amount) in [("50", 0.5), ("100", 1.0), ("250", 1.0), ("-5", 0.0)] {
+            cvars.set_text(SHARPEN_CVAR, text).expect("set");
+            assert_eq!(settings.policy().sharpen, amount, "r_sharpen {text}");
+        }
     }
 }

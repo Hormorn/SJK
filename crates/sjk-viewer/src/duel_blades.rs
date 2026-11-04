@@ -28,8 +28,9 @@ pub(crate) fn plain(
     stock && in_duel(game, player)
 }
 
-/// The viewed player is in a private duel, or the server plays a duel gametype.
-fn in_duel(
+/// The viewed player is in a private duel, or the server plays a duel gametype (also
+/// what silences the emotes with `s_muteEmotesInDuel`, `crate::emotes::DUEL_MUTE_CVAR`).
+pub(crate) fn in_duel(
     game: Option<&sjk_protocol::GameState>,
     player: Option<&sjk_protocol::PlayerState>,
 ) -> bool {

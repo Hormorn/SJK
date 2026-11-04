@@ -361,6 +361,45 @@ test: Move or take damage: the rod goes away. Another SJK player sees rod and bu
 test: debug_holocron while fishing: card at once, no Echo on the line, no Echo Angler count.
 note: Achievements need hub-shared #9 imported and deployed before they record online.
 
+[saber-lab-348]
+area: Rendering & effects
+title: Saber Lab (Milamber #348): blade-skin lab, builder, new blade effects
+change: saberlab <folder> or SJK_SABER_LAB: Collection gains a Saber Lab tab (last).
+change: .bladeextra6: smoke, ribbon, sparks, crackle, disintegrate; flash, unrest, chroma.
+test: Copy assets/saber-lab outside the repo, saberlab <it>, open Collection > Saber Lab.
+test: Builder: drag cards into groups, undo/redo, Revert; B for stage, C clashes.
+test: Lab off (no saberlab): no Saber Lab tab; blades in a match look as before.
+note: Owed: unit tests, crackle + body burn unseen in a match, TRACE-DISINTEGRATE still in.
+
+[vehicle-hud-351]
+area: HUD
+title: Vehicle HUD in every style + new SJK classic HUD (Slash #351)
+change: Speed, ammo and turbo beside the vehicle HP in Text only, SJK radial and classic.
+change: SJK classic HUD redrawn: vitals bottom left, Force bottom right, weapon centre.
+test: SJK classic HUD on foot (blaster, saber) and on a swoop and AT-ST: rows read clearly.
+test: HUD edit mode: Vitals, Force, Weapon, Vehicle groups each move as one.
+
+[pr-batch-1104b]
+area: Gameplay
+title: PRs 04/11 b: fishing sell/cue, vehicle emotes, nameplate alpha, sharpen, alias, whispers
+change: Slash #349 sell junk (hub off until deployed), #350 bite cue, #352 emote ends on vehicle.
+change: Slash #353 cg_nameplateAlpha, #357 r_sharpen, #358 alias, #359 rounded banners.
+change: Slash #360 whisper recipient line; #355 Loadouts click; Bishop #347 Linux stack.
+test: s_volume 0, fish: a ! over the float + Bite! Press Use!; mount a swoop mid-emote: ends.
+test: r_sharpen 50 vs 0 on ffa3; cg_nameplateAlpha 0.3; alias x "say hi" then x, restart, x.
+test: Whisper two people: To <name> line, < > step, click name lists both; Loadouts (P) click.
+
+[pr-batch-1104]
+area: Gameplay
+title: PRs 04/11: duel emote mute, ragdoll scale, chat link copy, vid_restart force
+change: Slash #346: s_muteEmotesInDuel 1 silences emote sounds while you duel.
+change: Slash #345: a scaled player (youngling, jawa) ragdolls at their size.
+change: Slash #342 Ctrl+C copies a hovered chat link; #341 vid_restart force reloads.
+test: s_muteEmotesInDuel 1, emote then accept a duel: silent; ends: heard again.
+test: toy_ragdoll as a youngling (JoF shuttle): body stays small on the floor.
+test: Someone posts https://x.y in chat: open chat, hover it, Ctrl+C, paste.
+test: vid_restart force on the menu and on a server: graphics reload, no crash.
+
 [pr-batch-1103]
 area: Rendering & effects
 title: PRs 03/11: light styles, NPC split skins, Empower glow off
@@ -3887,6 +3926,16 @@ test: Walk, run, jump, land: the tail lags and bounces, then settles behind her.
 test: sjkemote comrade: the tail follows the dance's hips, stays attached.
 note: Needs test_content.pk3 from add-on 1.7 (the tail's 10 bones, 322 joints).
 
+[rig-cloth]
+area: Rendering & effects
+title: Rig models: capes and tails swing, kept out of the legs (SolFox2)
+change: dynamic lines take wag, stiffness, damping and nocollide (capes: wag 0).
+change: Chain points are pushed out of capsules round the hips, spine, thighs and calves.
+test: /model solfox2 (local rig_solfox2.pk3), run: cape strips swing behind, tail too.
+test: Run and jump: the loincloth is pushed by the thighs, the tail stays out of the legs.
+test: Stand still: the cape hangs without wagging; the tail wags gently.
+note: Arms and head do not collide: arms down can pass through the cape's side panels.
+
 [stock-emotes]
 area: Rendering & effects
 title: Emotes on normal JKA models (Creyon #103)
@@ -4352,6 +4401,17 @@ change: It kept its static bake before: brighter than its neighbours and blind t
 test: JA+ server on mp/ffa4, real-time lighting: the remapped trim, flag and rock door match.
 test: The purple lamp near them lights them as it lights the unremapped walls.
 note: Checked offline on mp/ffa4 with the five remaps as local ones (Linux), not on a server.
+
+[remap-per-map-choice]
+area: Rendering & effects
+title: Server remaps on this map: default, on or off for each map (Lex's idea)
+change: Settings > GAME > Remaps on this map (cg_serverRemapsMap) sets the loaded map's
+change: choice; on keeps it in cg_remapsAllowedMaps, off in cg_remapsBlockedMaps.
+change: allowRemaps [map] / unallowRemaps [map] do the same from the console.
+test: Server remaps off, on a server that remaps the map: set the row to on; remaps come at once.
+test: Change map: the row says default; come back: it says on again and the remaps apply.
+test: Set it to off with Server remaps on: the server's remaps go; listRemaps says why.
+test: Restart the client: the choices are still in cg_remapsAllowedMaps / cg_remapsBlockedMaps.
 
 [remap-blocked-maps]
 area: Rendering & effects
@@ -8618,13 +8678,66 @@ note: if the line is too thick or strong, say so (ring copies are 85% opaque).
 [mapedit-web]
 area: Rendering & effects
 title: Map editor in the web browser (creator only for now)
-change: mapedit_web turns the editor on and opens the map in 3D in your browser (127.0.0.1).
-change: Clicks select or place through the game; every edit is the in-game editor's command.
+change: mapedit_web opens the map in 3D in your browser (127.0.0.1); edits run as game commands.
+change: Round 2: selection drawn gold, controls card (?), Recent rows, copy/paste, World page.
+change: Round 3: brush view (B), Shift+click multi-select, linked caulk, nearby-texture Fill.
 note: Only your creator key may use it; others get a refusal line. Not tried in game yet.
 test: On duel6, mapedit_web: the browser opens on the map, from where you look in game.
 test: Click a fern, Hide: it goes in the page and in the game; Ctrl+Z brings it back in both.
+test: Click a wall: it pulses gold with an outline; the panel names its shader and surface.
+test: Click a merged rock: the rest of it shows fainter (what Hide whole model takes).
+test: Click a prop or placed model: tinted with a box round it; a caulk face: its polygon.
 test: Place: search tree, choose one, click the floor: a tree stands there in both; Turn, Up.
-test: Selected: click a wall, pick a shader picture, Remap: both draw the wall with it.
+test: Remap a wall, place a model, restart the game: both lead the Recent rows; switch off.
+test: Select panel text with the mouse, Ctrl+C: it copies; Ctrl+A/C/V/X work in search fields.
+test: In the view, Ctrl+C a placed model, Ctrl+V at another spot: a copy, same turn and size.
+test: Ctrl+C a wall, select another, Ctrl+V: it is remapped to the first wall's shader.
+test: ? folds the controls card and it stays folded after a reload; Esc stops placing.
+test: World on a server: Your boombox, click the floor: it stands there; again moves it.
+test: World: Mystery box and Toy (cat) place through the hub; Remove takes them away.
 test: Edits: Delete one; Publish asks first, then the answer shows under it and in game.
 test: Change map: the page loads the new map; mapedit off: the page says SJK is not answering.
 test: With a staff key that is not the creator: mapedit_web is refused.
+test: B in the page: invisible brushes as r_showBrushes 2 colours them; untick caulk: it goes.
+test: Brush view on, click a pink caulk face: Selected names it (brush and side).
+test: Shift+click a second caulk face and a wall: 3 selected, all gold; again takes one out.
+test: Choose a shader, Remap (Apply to N): faces drawn, wall remapped; one Ctrl+Z undoes all.
+test: Shift+click two walls, H: both hidden in page and game; Ctrl+Z brings both back.
+test: On a caulk face: Same plane, then Connected surface: counts shown, unseen left out.
+test: Fill with the nearby texture: its picture and share; Fill draws them all in the game.
+test: Esc clears the selection; a reload of the page keeps the brush view and its kinds.
+
+[mapedit-gizmo]
+area: Rendering & effects
+title: Map editor gizmos: move, rotate, scale placed models as in Blender (game and page)
+change: Arrows, plane squares, rings and scale arms on the selected (or current) placed model.
+change: G / R / T with the mouse, then X Y Z (twice: own axis), a number, Enter; Esc cancels.
+change: 1 2 3 switch the mode, L own axes; Ctrl snaps, Shift fine. One undo step per drag.
+test: Map editor panel open, select a placed model: the gizmo shows on it, the hovered part gold.
+test: Drag the red arrow: it moves along X only; release, Ctrl+Z: back in one step.
+test: Drag the blue ring with Ctrl: it turns in 15 degree steps; Shift: slowly.
+test: 3, drag a box end: it stretches along that axis only; the centre: all three.
+test: G, X, type 64, Enter: 64 units along X. G, move, Esc: nothing changes.
+test: R, Z, Z, 45, Enter: turned 45 about its own up. L: the arrows follow its own axes.
+test: Typing in the panel's search: G, R, T, 1, 2, 3 go into the field, not the gizmo.
+test: Page (mapedit_web): the same on a placed model; the bar sets snap steps and keeps them.
+test: Page: Shift+click two placed models, R Z 90 Enter: both turn about their middle.
+test: Page: World, your boombox: the gizmo moves it along the floor and turns it.
+note: Mystery boxes and toys have no gizmo (the hub cannot move them). Not tried in game yet.
+
+[mapedit-sky]
+area: Rendering & effects
+title: Map editor: sky sides covered and skies swapped (in game and in the page)
+change: Aim or click on the sky: it selects the sky side behind it (Selected names it Sky).
+change: A texture covers that side (a shown face); a sky shader swaps the map's sky (a remap).
+change: mapedit_sky <sky> [all], or the panel's Swap sky, Swap all skies, Take back.
+note: Publish covered sky sides only once a release has them; older clients skip them.
+test: On ffa3, mapedit, aim at the sky, O: the panel says Sky; skies lead the shader list.
+test: Choose another sky, Swap sky: the whole sky changes at once; Ctrl+Z brings it back.
+test: Choose a wall texture, Cover side: that sky side shows the wall, no sky flickers through.
+test: Fly round under it and look from the side: the cover stays whole, no sky bleeding.
+test: Swap all skies on a map with two sky shaders: both change; one Ctrl+Z restores both.
+test: mapedit_sky - on a swapped sky: the map's sky again; listRemaps names the swap edit.
+test: mapedit_web: click the sky; Swap the sky shows pictures; Swap this sky changes the page.
+test: Page: B, tick sky: blue sky faces; click one, Same plane: the sky round it, no caulk.
+test: Page: Fill on a sky side suggests the walls round it; Fill covers it in the game too.

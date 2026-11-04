@@ -11,9 +11,36 @@
 </head>
 <body>
 <main id="view">
-	<canvas id="gl"></canvas>
+	<canvas id="gl" tabindex="0" aria-label="The map: click to select, drag to look"></canvas>
 	<div id="loading">Waiting for SJK...</div>
-	<div id="keysHint">Drag: look &middot; W A S D: fly &middot; Q E: down, up &middot; Shift: faster &middot; wheel: speed &middot; click: select (on Place: put the model there) &middot; H: hide &middot; Ctrl+Z, Ctrl+Y</div>
+	<div id="hud">
+		<button id="hudHead" type="button" title="Fold or unfold (? in the view)"><span>Controls</span><kbd>?</kbd></button>
+		<div id="hudBody">
+			<dl>
+				<dt>Drag</dt><dd>look around</dd>
+				<dt>W A S D</dt><dd>fly (or the arrows)</dd>
+				<dt>Q / E</dt><dd>down / up (C / Space)</dd>
+				<dt>Shift</dt><dd>fly faster; wheel: speed</dd>
+				<dt>Click</dt><dd>select; on Place or World: put it there</dd>
+				<dt>Shift+click</dt><dd>add to the selection or take out (Ctrl too)</dd>
+				<dt>B</dt><dd>invisible brushes on or off (as r_showBrushes)</dd>
+				<dt>H</dt><dd>hide the selection</dd>
+				<dt>Ctrl+C</dt><dd>copy the selection</dd>
+				<dt>Ctrl+V</dt><dd>paste at the pointer, or its shader on the selection</dd>
+				<dt>Ctrl+Z / Y</dt><dd>undo / redo</dd>
+				<dt>Delete</dt><dd>delete the edit chosen in Edits</dd>
+				<dt>Esc</dt><dd>stop placing, else clear the selection</dd>
+			</dl>
+			<p id="hudFocus">The keys work while the view has focus: click or drag it.</p>
+		</div>
+	</div>
+	<div id="viewBar"><button id="btnBrushes" type="button" title="Show the invisible brushes as the game's r_showBrushes does (B)">Brushes <kbd>B</kbd></button></div>
+	<div id="brushCard" hidden>
+		<div class="head">Invisible brushes <span id="brushCount" class="count"></span></div>
+		<div id="brushSets" class="buttons"><button data-set="play" title="What r_showBrushes 1 shows: what changes play">Play</button><button data-set="all" title="What r_showBrushes 2 shows">All</button><button data-set="caulk" title="Caulk, nodraw and invisible walls: the faces a click selects">Caulk</button><button data-set="none">None</button></div>
+		<div id="brushKinds"></div>
+		<p class="hint">A click on a caulk, nodraw or sky face selects it.</p>
+	</div>
 	<div id="toasts"></div>
 </main>
 <aside id="panel">
@@ -22,18 +49,53 @@
 		<div class="sub"><span id="mapName"></span> <span id="busy" hidden>&middot; working...</span></div>
 		<div id="problem" class="problem" hidden></div>
 	</header>
-	<nav id="tabs"><button data-tab="selected">Selected</button><button data-tab="place">Place</button><button data-tab="edits">Edits</button></nav>
+	<nav id="tabs"><button data-tab="selected">Selected</button><button data-tab="place">Place</button><button data-tab="edits">Edits</button><button data-tab="world">World</button></nav>
 	<section id="tab-selected">
 		<div class="kind" id="selKind"></div>
 		<div class="summary" id="selSummary"></div>
+		<dl id="selFacts" class="facts"></dl>
+		<div id="multiBox" class="multi" hidden><span id="multiCount"></span><button id="btnMultiClear" title="Esc in the view">Clear</button><p id="multiHint" class="hint"></p></div>
 		<div class="buttons"><button id="btnHide">Hide</button><button id="btnHideGroup" title="The surfaces of a model the map compiler merged into the world">Hide whole model</button><button id="btnCopy">Place a copy</button></div>
+		<div id="skyBox" hidden>
+			<h3>Swap the sky</h3>
+			<div id="skyRecentBox" class="recentBox">
+				<h4>Recent</h4>
+				<div id="skyRecent" class="tiles recent"></div>
+			</div>
+			<input id="skyFind" placeholder="Search the skies" spellcheck="false" autocomplete="off">
+			<div class="count" id="skyCount"></div>
+			<div id="skyList" class="tiles"></div>
+			<div class="buttons"><button id="btnSky" class="gold" title="Draw the chosen sky wherever the map draws this one: one remap edit">Swap this sky</button><button id="btnSkyAll" title="Every sky of this map swapped for the chosen one: one step to undo">Swap all skies</button><button id="btnSkyBack" title="Take this sky's swap back: the map's own sky again">Map's sky</button></div>
+			<p class="hint" id="skyHint">Draw another shader, below, covers the selected sky side with a texture instead.</p>
+		</div>
+		<div id="linkBox" hidden>
+			<h3 id="linkHead">Linked caulk</h3>
+
+			<div class="buttons"><button id="btnLinkPlane" title="Every face joined to it on its plane that players see">Same plane</button><button id="btnLinkSurface" title="Every face joined to it at any angle that players see: the whole surface">Connected surface</button></div>
+			<p id="linkNote" class="hint"></p>
+		</div>
+		<div id="fillBox" hidden>
+			<h3>Fill with the nearby texture</h3>
+			<div id="fillTiles" class="tiles fill"></div>
+			<div class="buttons"><button id="btnFill" class="gold">Fill</button></div>
+		</div>
 		<h3>Draw another shader</h3>
+		<div id="shaderRecentBox" class="recentBox">
+			<h4>Recent</h4>
+			<div id="shaderRecent" class="tiles recent"></div>
+		</div>
+		<label class="switch"><input type="checkbox" class="rememberRecent"> Remember recent textures</label>
 		<input id="shaderFind" placeholder="Search, or type a shader name" spellcheck="false" autocomplete="off">
 		<div class="count" id="shaderCount"></div>
 		<div id="shaderList" class="tiles"></div>
 		<div class="buttons"><button id="btnRemap">Remap</button><button id="btnUnremap">Remove remap</button></div>
 	</section>
 	<section id="tab-place" hidden>
+		<div id="modelRecentBox" class="recentBox">
+			<h4>Recent</h4>
+			<div id="modelRecent" class="list recent"></div>
+		</div>
+		<label class="switch"><input type="checkbox" class="rememberRecent"> Remember recent textures and models</label>
 		<input id="modelFind" placeholder="Search the models" spellcheck="false" autocomplete="off">
 		<div class="count" id="modelCount"></div>
 		<div id="modelList" class="list"></div>
@@ -49,9 +111,24 @@
 		<p class="hint">Steps of 15 degrees, 8 units and 1.1 times; Shift held: 1 degree, 1 unit, 1.01.</p>
 	</section>
 	<section id="tab-edits" hidden>
-		<div id="editList" class="list"></div>
+		<div id="editList" class="list" tabindex="0"></div>
 		<p class="hint">Dimmed: for another server. Click a placed model to move it on Place; double-click to fly to it.</p>
 		<div class="buttons"><button id="btnDelete">Delete</button><button id="btnUndo">Undo</button><button id="btnRedo">Redo</button></div>
+	</section>
+	<section id="tab-world" hidden>
+		<div id="thingList" class="list"></div>
+		<p class="hint">What other parts of SJK stand on this map: your boombox and the others', mystery boxes and the Toy Master's toys. Click one to select it; double-click to fly to it.</p>
+		<div class="buttons"><button id="btnThingRemove" class="ember">Remove</button><button id="btnThingFly">Fly to it</button></div>
+		<h3>Place</h3>
+		<div class="buttons" id="thingPlace">
+			<button data-thing="boombox" title="Your own boombox, as boombox_place stands it; placing it again moves it">Your boombox</button>
+			<button data-thing="mystery_box" title="A mystery box, through the hub (mysterybox_place)">Mystery box</button>
+			<button data-thing="toy" title="A Toy Master toy, through the hub (toymaster_place)">Toy</button>
+			<select id="toyKind" title="The kind of toy"></select>
+		</div>
+		<label class="switch"><input type="checkbox" id="thingServer"> On this server only (box, toy)</label>
+		<label class="switch"><input type="checkbox" id="thingEscort"> Toy shown only where you are</label>
+		<p class="hint" id="thingHint">Choose what to place, then click the floor where it goes. Boxes and toys are the hub's: it places and removes them but cannot move one (remove it and place it again).</p>
 	</section>
 	<footer>
 		<div id="scope" class="buttons"><span>New edits for</span><button data-scope="all">All servers</button><button data-scope="server" id="scopeServer">This server</button></div>
@@ -79,7 +156,9 @@
 <!--#include vjk/editor-remaps.js -->
 <!--#include sjk/edits.js -->
 <!--#include sjk/panel.js -->
+<!--#include sjk/brushes.js -->
 <!--#include sjk/view.js -->
+<!--#include sjk/gizmo.js -->
 <!--#include sjk/tail.js -->
 </script>
 </body>

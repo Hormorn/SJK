@@ -9,6 +9,62 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 04/11/2026 | - | Map editor: sky sides covered and skies swapped (in game and in the browser editor)
+- f0ea6e6 |  | Map editor: sky sides covered and skies swapped (in game and in the browser editor)
++ 04/11/2026 | - | Credits history after the map editor gizmos
+- 334ef07 |  | Credits history after the map editor gizmos
++ 04/11/2026 | - | Map editor gizmos: move, rotate and scale placed models as in Blender (game and page)
+- 45fb92f |  | Map editor gizmos: move, rotate and scale placed models as in Blender (game and page)
++ 04/11/2026 | - | Test list: PR batch 04/11 under Gameplay
+- 1cf8645 |  | Test list: PR batch 04/11 under Gameplay
++ 04/11/2026 | - | Credits and test list for PR batch 04/11 (Slash #341 #342 #345 #346)
+- b8af0ae |  | Credits and test list for PR batch 04/11 (Slash #341 #342 #345 #346)
++ 04/11/2026 | - | Credits and test list for the Saber Lab (Milamber #348)
+- 5813259 |  | Credits and test list for the Saber Lab (Milamber #348)
++ 04/11/2026 | - | Saber Lab: forget a blade skin's pending burns on a new timeline
+- 7230392 |  | Saber Lab: forget a blade skin's pending burns on a new timeline
++ 04/11/2026 | - | Rig models: per-chain dynamic settings and body collision (capes, tails)
+- 3541fbe |  | Rig models: per-chain dynamic settings and body collision (capes, tails)
++ 04/11/2026 | - | Rig cloth: test list entry and credits line
+- 00b6659 |  | Rig cloth: test list entry and credits line
++ 04/11/2026 | - | Credits history after the browser map editor round 2
+- 07211e8 |  | Credits history after the browser map editor round 2
++ 04/11/2026 | - | Credits history after the browser map editor round 3
+- feca872 |  | Credits history after the browser map editor round 3
++ 04/11/2026 | - | Browser map editor, round 3: brush view, multiple selection, linked caulk, nearby-texture Fill
+- 7d8233f |  | Browser map editor, round 3: brush view, multiple selection, linked caulk, nearby-texture Fill
++ 04/11/2026 | - | Browser map editor, round 2: selection drawn, controls card, Recent rows, copy/paste, World page
+- 104c188 |  | Browser map editor, round 2: selection drawn, controls card, Recent rows, copy/paste, World page
++ 03/11/2026 | - | Release 2026.1103.2
+- c0d603e |  | Release 2026.1103.2
++ 03/11/2026 | - | Docs: Slash and Milamber can merge to main and cut releases; release steps
+- 585ea80 |  | Docs: Slash and Milamber can merge to main and cut releases; release steps
++ 03/11/2026 | - | Holocron catch-up and play signals, tag copies (client side)
+- 4c01c6f |  | Holocron catch-up and play signals, tag copies (client side)
++ 03/11/2026 | - | Holocrons: peaceful play earns at the full pace (docs, changelog)
+- 7daa73a |  | Holocrons: peaceful play earns at the full pace (docs, changelog)
++ 03/11/2026 | - | Clan chats: JoF and S chats beside SJK chat, Not in Tab for chat buttons
+- 83fd26a |  | Clan chats: JoF and S chats beside SJK chat, Not in Tab for chat buttons
++ 03/11/2026 | - | Startup stack check: module in rustfmt's order
+- f070f1c |  | Startup stack check: module in rustfmt's order
++ 03/11/2026 | - | Startup stack check: the client's start fits in a quarter of the main stack
+- b4337ce |  | Startup stack check: the client's start fits in a quarter of the main stack
++ 03/11/2026 | - | Client main thread reserves 64 MiB of stack (menu world overflowed 8 MiB)
+- ba2f80c |  | Client main thread reserves 64 MiB of stack (menu world overflowed 8 MiB)
++ 03/11/2026 | - | Report a bug from the main menu; Hax trap switches on the Hax's Collection card
+- 752b2ac |  | Report a bug from the main menu; Hax trap switches on the Hax's Collection card
++ 03/11/2026 | - | Choose what the HUD switch hides
+- 39be952 |  | Choose what the HUD switch hides
++ 03/11/2026 | - | Cosmetic loadouts in the Collection
+- b5f4d07 |  | Cosmetic loadouts in the Collection
++ 03/11/2026 | - | Loadouts card and HUD switch parts: clippy
+- 50dc651 |  | Loadouts card and HUD switch parts: clippy
++ 03/11/2026 | - | Quick wheel pictures of the player's own
+- 39dec8f |  | Quick wheel pictures of the player's own
++ 03/11/2026 | - | Status: menu ideas 03/11
+- 51725c1 |  | Status: menu ideas 03/11
++ 03/11/2026 | - | Credits history after today's merges (map editor in the browser included)
+- 1c40cde |  | Credits history after today's merges (map editor in the browser included)
 + 03/11/2026 | - | Map editor in the web browser (mapedit_web, creator only for now)
 - 07ff030 |  | Map editor in the web browser (mapedit_web, creator only for now)
 + 03/11/2026 | - | Map editor in the browser stays out of the changelog (creator tool)
@@ -3174,6 +3230,10 @@
 - 8d21001 |  | Clip visible saber blades at world walls
 
 = Milamber
++ 03/11/2026 | - | Add the Saber Lab handover and Milamber's blade
+- c2b9e80 |  | Add the Saber Lab handover and Milamber's blade
++ 03/11/2026 | - | Add the Saber Lab: a live blade-skin lab with new effects and a builder
+- d18483d |  | Add the Saber Lab: a live blade-skin lab with new effects and a builder
 + 22/10/2026 | SJK #194 | Show JoF EternalJK's icon and say SJK chat lines on the server
 - 21efba7 |  | Show JoF EternalJK's icon and say SJK chat lines on the server
 + 18/10/2026 | SJK #163 | Look up a missing remap target once a map
@@ -3185,6 +3245,16 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 04/11/2026 | - | vid_restart force: reload the graphics with no setting changed
+- 22c06e1 |  | vid_restart force: reload the graphics with no setting changed
++ 04/11/2026 | - | Copy a chat link with Ctrl+C
+- b812f40 |  | Copy a chat link with Ctrl+C
++ 04/11/2026 | - | Ragdoll: a scaled player falls at their size (hub report #223)
+- dd636de |  | Ragdoll: a scaled player falls at their size (hub report #223)
++ 04/11/2026 | - | Mute emote sounds in duels (s_muteEmotesInDuel, hub report #234)
+- 0845523 |  | Mute emote sounds in duels (s_muteEmotesInDuel, hub report #234)
++ 04/11/2026 | - | Fix duel emote mute tests and help text length
+- 1a79a94 |  | Fix duel emote mute tests and help text length
 + 03/11/2026 | - | Fishing toy, phase 1: a rod, a bucket and bites, anywhere
 - 08fb696 |  | Fishing toy, phase 1: a rod, a bucket and bites, anywhere
 + 03/11/2026 | - | Fishing: the rod in the hand, catches reeled in, a nicer pond

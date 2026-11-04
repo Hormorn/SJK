@@ -12,6 +12,9 @@ pub(super) struct Editor {
     pub(super) edit: LineEdit,
     pub(super) channel: Channel,
     pub(super) recipient: Option<ChatTarget>,
+    /// The list of the players who whispered you, opened from the recipient's name
+    /// (`chat/view/recipient.rs`).
+    pub(super) pm_list: bool,
     pub(super) layout: super::editing::DraftLayout,
     /// Dead key shown at the caret until its composition arrives.
     pub(super) dead: DeadKey,
@@ -24,6 +27,7 @@ impl Editor {
             edit: LineEdit::default(),
             channel,
             recipient: None,
+            pm_list: false,
             layout: super::editing::DraftLayout::default(),
             dead: DeadKey::default(),
         }

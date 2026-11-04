@@ -602,6 +602,26 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Whether this key may sell fished junk, the prices and what is still payable
+    /// today (`GET /v1/fishing/junk`, 03/11/2026).
+    fn junk_status(&mut self, _identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not read junk selling".to_owned(),
+        ))
+    }
+
+    /// Sell `held`, pieces of fished junk by id (`POST /v1/fishing/junk/sell`,
+    /// 03/11/2026): the hub answers what it took.
+    fn sell_junk(
+        &mut self,
+        _identity: &Identity,
+        _held: &std::collections::BTreeMap<String, u32>,
+    ) -> Result<crate::junk::JunkSold, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not sell junk".to_owned(),
+        ))
+    }
+
     /// Every placed mystery box, the price and the odds (`GET /v1/mystery-boxes`,
     /// 27/10/2026).
     fn mystery_boxes(
@@ -1991,6 +2011,20 @@ impl Hub for HttpHub {
         identity: &Identity,
     ) -> Result<crate::mystery_box::Boxes, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/mystery-boxes", None)?)
+    }
+
+    fn junk_status(&mut self, identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {
+        parse(self.send(Some(identity), "GET", "/v1/fishing/junk", None)?)
+    }
+
+    fn sell_junk(
+        &mut self,
+        identity: &Identity,
+        held: &std::collections::BTreeMap<String, u32>,
+    ) -> Result<crate::junk::JunkSold, HubError> {
+        let body = crate::junk::sale_body(held)
+            .ok_or_else(|| HubError::Protocol("no junk to sell".to_owned()))?;
+        parse(self.send(Some(identity), "POST", "/v1/fishing/junk/sell", Some(body))?)
     }
 
     fn open_mystery_box(

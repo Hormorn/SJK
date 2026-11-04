@@ -86,7 +86,7 @@ const BOLT: &str = "*back";
 /// right shoulder, its side against the head.
 const SEAT: [f32; 3] = [5.0, -10.0, 1.0];
 /// Its size against the model's.
-const SCALE: f32 = 0.85;
+pub(crate) const SCALE: f32 = 0.85;
 const SLOTS: usize = crate::looks::SLOTS;
 /// The boomboxes' sound sources: their own, so an emote's sound never cuts the music.
 const SOURCE_BASE: u32 = 0x5000_0000;
@@ -653,6 +653,20 @@ impl Boombox {
         self.down.is_some()
     }
 
+    /// The boxes on the floor: the player's own (no slot) and the other players' by
+    /// slot, each where it rests and the way it faces, in degrees.
+    pub(crate) fn standing(&self) -> Vec<(Option<u8>, Vec3, f32)> {
+        let own = self.down.iter().map(|standing| (None, standing));
+        let others = self
+            .boxes
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, standing)| Some((Some(slot as u8), standing.as_ref()?)));
+        own.chain(others)
+            .map(|(slot, standing)| (slot, standing.rest, f32::from(standing.spot.yaw)))
+            .collect()
+    }
+
     /// The own track ends: everyone told hears it.
     fn stop_own(&mut self) {
         if self.playing.take().is_some() {
@@ -771,12 +785,18 @@ pub(crate) fn place_spot(
         }
         None => wanted,
     };
-    let mut floor = |from: Vec3| {
-        trace(from, from - Vec3::Z * FLOOR_SEARCH)
-            .filter(|floor| floor.normal.z >= FLAT_ENOUGH && !floor.sky)
-            .map(|floor| floor.stop)
-    };
-    floor(ahead).or_else(|| floor(origin))
+    floor_under(ahead, &mut trace).or_else(|| floor_under(origin, &mut trace))
+}
+
+/// The floor a box stands on under `from`, [`FLOOR_SEARCH`] down at most; `None` when
+/// there is none, or it is too steep or sky.
+pub(crate) fn floor_under(
+    from: Vec3,
+    trace: &mut impl FnMut(Vec3, Vec3) -> Option<crate::banana::Ground>,
+) -> Option<Vec3> {
+    trace(from, from - Vec3::Z * FLOOR_SEARCH)
+        .filter(|floor| floor.normal.z >= FLAT_ENOUGH && !floor.sky)
+        .map(|floor| floor.stop)
 }
 
 /// Where the music of a box with its speakers at `speaker`, facing `yaw` radians, seems
@@ -956,15 +976,11 @@ impl GpuState {
             self.boombox_centre("Boombox back on your shoulder");
             return;
         }
-        let Some(session) = self.live_session.as_ref() else {
+        if self.live_session.is_none() {
             return;
-        };
-        let player = &session.latest_snapshot().player;
-        if player.is_spectator()
-            || player.health() <= 0
-            || player.movement_flags() & PMF_FOLLOW != 0
-        {
-            self.boombox_centre("No boombox to put down right now");
+        }
+        if let Err(why) = self.boombox_may_put_down() {
+            self.boombox_centre(why);
             return;
         }
         let Some(state) = self.local_prediction.predicted_state() else {
@@ -976,18 +992,70 @@ impl GpuState {
             self.boombox_centre("Nowhere to put the boombox down here");
             return;
         };
+        self.boombox_put_down(rest, yaw);
+    }
+
+    /// Whether the player may put their box down now: not dead, spectating or
+    /// following.
+    fn boombox_may_put_down(&self) -> Result<(), &'static str> {
+        let session = self
+            .live_session
+            .as_ref()
+            .ok_or("Join a game first: the boombox stands on a server's map")?;
+        let player = &session.latest_snapshot().player;
+        if player.is_spectator()
+            || player.health() <= 0
+            || player.movement_flags() & PMF_FOLLOW != 0
+        {
+            return Err("No boombox to put down right now");
+        }
+        Ok(())
+    }
+
+    /// Stand the player's box at `rest`, facing `yaw` degrees (moved there when it
+    /// stands elsewhere), putting the toy on first. Whether it stands.
+    fn boombox_put_down(&mut self, rest: Vec3, yaw: f32) -> bool {
         if !self.boombox.on {
             self.toggle_boombox();
             if !self.boombox.on {
-                return;
+                return false;
             }
         }
+        // Everyone is told of it (again, where it stands now).
         self.boombox.box_told.clear();
         self.boombox.down = Some(Standing {
             spot: Spot::new(rest, yaw),
             rest,
             at: Instant::now(),
         });
+        true
+    }
+
+    /// The browser map editor's Place boombox: the player's box on the floor under
+    /// `at`, facing `yaw` degrees, as `boombox_place` stands it in front of them (moved
+    /// there when it is already down).
+    pub(crate) fn place_boombox_at(&mut self, at: Vec3, yaw: f32) -> Result<String, String> {
+        self.boombox_may_put_down()?;
+        let rest = floor_under(at + Vec3::Z * 16.0, &mut |from, to| {
+            self.banana_trace(from, to)
+        })
+        .ok_or("No floor flat enough there for the boombox")?;
+        if !self.boombox_put_down(rest, yaw) {
+            return Err("The boombox toy is not on: it could not be turned on".into());
+        }
+        Ok(format!(
+            "Your boombox stands at {:.0} {:.0} {:.0}",
+            rest.x, rest.y, rest.z
+        ))
+    }
+
+    /// The browser map editor's Pick up: the player's box back on their shoulder.
+    pub(crate) fn pick_up_boombox(&mut self) -> Result<String, String> {
+        if self.boombox.down.is_none() {
+            return Err("Your boombox is not on the floor".into());
+        }
+        self.boombox.take_own();
+        Ok("Boombox back on your shoulder".into())
     }
 
     /// The frame's toy logic: the relay's events, what plays here and who to tell of the

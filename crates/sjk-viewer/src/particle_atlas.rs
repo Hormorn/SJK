@@ -376,6 +376,7 @@ pub(crate) fn finish(
         any_glow,
         remaps: Default::default(),
         pending: Default::default(),
+        admitted: Default::default(),
     }
 }
 
@@ -393,6 +394,17 @@ pub(crate) struct Pending {
     asked: BTreeSet<String>,
     /// Effects were added since the last look at what they need.
     dirty: bool,
+}
+
+impl ParticleAtlas {
+    /// The blend shader `name`'s first stage draws with, when the atlas holds it.
+    pub(crate) fn blend_of(&self, name: &str) -> Option<ParticleBlend> {
+        let stages = match self.animations.get(name) {
+            Some(stages) => stages,
+            None => self.animations.get(&name.to_ascii_lowercase())?,
+        };
+        stages.first().map(|stage| stage.blend)
+    }
 }
 
 impl GpuState {
@@ -422,9 +434,11 @@ impl GpuState {
                     return Err(error.into());
                 }
             };
+            let admitted = std::mem::take(&mut self.particle_atlas.admitted);
             let layout = layout(&self.device);
             self.particle_atlas = finish(&self.device, &self.queue, &layout, prepared);
             self.particle_atlas.pending = pending;
+            self.particle_atlas.admitted = admitted;
         }
         if !self.particle_atlas.pending.dirty {
             return Ok(());
@@ -432,6 +446,7 @@ impl GpuState {
         self.particle_atlas.pending.dirty = false;
         let mut required = BTreeSet::new();
         self.effects.append_shader_paths(&mut required);
+        required.extend(self.particle_atlas.admitted.iter().cloned());
         let atlas = &self.particle_atlas;
         if required
             .iter()

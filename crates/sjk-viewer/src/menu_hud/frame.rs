@@ -12,8 +12,9 @@ use std::fmt::Write as _;
 /// numbers, a saber style and the painted backgrounds, then the vehicle HUD's
 /// two frames, five backgrounds, 32 tics and two marks).
 pub(crate) const MAX_PICTURES: usize = 160;
-/// Text runs: the score line and the infinite-ammo mark, or the simple HUD.
-pub(crate) const MAX_TEXTS: usize = 5;
+/// Text runs: the score line and the infinite-ammo mark, or the simple HUD (the
+/// player's four numbers and the vehicle's four: speed, hull, ammunition, turbo).
+pub(crate) const MAX_TEXTS: usize = 8;
 
 /// `colorTable` entries (`shared/qcommon/q_color.c`) the HUD uses.
 const WHITE: [f32; 4] = [1.0; 4];
@@ -84,6 +85,8 @@ pub(crate) struct VehicleReadout {
     /// Turbo recharge fraction and readiness, where prediction gives it.
     pub(crate) turbo: Option<(f32, bool)>,
     pub(crate) linked: bool,
+    /// The turbo as the text HUD shows it: a vehicle with a `turboRecharge` only.
+    pub(crate) boost: Option<crate::hud::vehicle::Turbo>,
 }
 
 /// `colorTable` entries the vehicle HUD uses.
@@ -172,6 +175,9 @@ impl Default for Frame {
 /// `FONT_MEDIUM` (`ergoec`) and `FONT_SMALL` (`ocr_a`) point sizes.
 const MEDIUM_POINTS: f32 = 20.0;
 const SMALL_POINTS: f32 = 18.0;
+/// How far the text HUD's vehicle speed and ammunition sit from its hull, in 640x480
+/// units.
+const SIMPLE_VEHICLE_SPACING: f32 = 80.0;
 
 /// Units the text HUD's right-hand runs keep from the screen's right edge, as
 /// EternalJK keeps its followed name 4 units from the left.
@@ -646,8 +652,9 @@ impl Frame {
     }
 
     /// The text HUD of a nonzero `cg_hudFiles` (`CG_DrawHUD`'s first branch). In a
-    /// vehicle it shows the hull as one more number, centred at the bottom, in place
-    /// of SJK's vector vehicle strip (stock draws `swoopvehiclehud`'s pictures there).
+    /// vehicle it shows the hull, the speed and the ammunition as three more numbers
+    /// in a row at the bottom centre, in place of SJK's vector vehicle strip (stock
+    /// draws `swoopvehiclehud`'s pictures there).
     pub(crate) fn simple_hud(
         &mut self,
         readout: Option<&Readout>,
@@ -656,27 +663,77 @@ impl Frame {
     ) {
         self.clear();
         if let Some(vehicle) = vehicle {
-            self.simple_hull(vehicle);
+            self.simple_vehicle(vehicle);
         }
         if let Some(readout) = readout {
             self.simple_status(readout, timers);
         }
     }
 
-    /// The vehicle's hull, the text HUD's only vehicle number.
-    fn simple_hull(&mut self, vehicle: &VehicleReadout) {
-        let hull = vehicle.hull[0];
-        let hull = if hull.is_finite() {
-            hull.max(0.0) as i32
-        } else {
-            0
+    /// The vehicle's numbers of the text HUD: the speed on the left (light red while
+    /// the turbo flashes, as stock's speed tics), the hull in the middle and the
+    /// ammunition on the right, one weapon's or two as `first / second`, when the
+    /// vehicle has a weapon. A vehicle with a turbo shows it left of the speed: its
+    /// charge in percent in red while it recharges, `READY` in green, `BOOST` in white
+    /// while it burns.
+    fn simple_vehicle(&mut self, vehicle: &VehicleReadout) {
+        let whole = |value: f32| {
+            if value.is_finite() {
+                value.clamp(0.0, 99_999.0).round() as i32
+            } else {
+                0
+            }
         };
+        let speed_color = if vehicle.boost_flash {
+            LIGHT_RED
+        } else {
+            ICON_BLUE
+        };
+        if let Some(boost) = vehicle.boost {
+            use crate::hud::vehicle::TurboPhase;
+            let color = match boost.phase {
+                TurboPhase::Charging => RED,
+                TurboPhase::Ready => GREEN,
+                TurboPhase::Burning => WHITE,
+            };
+            self.simple_vehicle_number(320.0 - 2.0 * SIMPLE_VEHICLE_SPACING, color, |text| {
+                let _ = match boost.phase {
+                    TurboPhase::Charging => write!(text, "{}%", (boost.charge * 100.0) as i32),
+                    TurboPhase::Ready => write!(text, "READY"),
+                    TurboPhase::Burning => write!(text, "BOOST"),
+                };
+            });
+        }
+        self.simple_vehicle_number(320.0 - SIMPLE_VEHICLE_SPACING, speed_color, |text| {
+            let _ = write!(text, "{}", whole(vehicle.speed[0]));
+        });
+        self.simple_vehicle_number(320.0, YELLOW, |text| {
+            let _ = write!(text, "{}", whole(vehicle.hull[0]));
+        });
+        let [first, second] = vehicle.ammo.map(|[ammo, _]| whole(ammo));
+        match vehicle.weapons {
+            [true, false] => {
+                self.simple_vehicle_number(320.0 + SIMPLE_VEHICLE_SPACING, HUD_ORANGE, |text| {
+                    let _ = write!(text, "{first}");
+                });
+            }
+            [true, true] => {
+                self.simple_vehicle_number(320.0 + SIMPLE_VEHICLE_SPACING, HUD_ORANGE, |text| {
+                    let _ = write!(text, "{first} / {second}");
+                });
+            }
+            _ => {}
+        }
+    }
+
+    /// One of the text HUD's vehicle numbers, centred on `x` at the bottom.
+    fn simple_vehicle_number(&mut self, x: f32, color: [f32; 4], fill: impl FnOnce(&mut String)) {
         if let Some(run) = self.text() {
-            let _ = write!(run.text, "{hull}");
-            run.x = 320.0;
+            fill(&mut run.text);
+            run.x = x;
             run.y = 480.0 - 40.0;
             run.size = SMALL_POINTS;
-            run.color = YELLOW;
+            run.color = color;
             run.centred = true;
             run.side = Some(Side::Centre);
             run.end_limit = None;
@@ -1040,6 +1097,7 @@ menuDef { name swoopvehiclehud rect 0 400 640 80
             boost_flash: false,
             turbo: Some((0.5, false)),
             linked: true,
+            boost: None,
         }
     }
 
@@ -1136,24 +1194,72 @@ menuDef { name swoopvehiclehud rect 0 400 640 80
     }
 
     #[test]
-    fn the_text_hud_shows_only_the_hull_in_a_vehicle() {
+    fn the_text_hud_shows_the_speed_hull_and_ammunition_in_a_vehicle() {
         let mut frame = Frame::default();
-        let vehicle = VehicleReadout {
+        let mut vehicle = VehicleReadout {
             hull: [1_500.0, 2_000.0],
+            speed: [812.4, 1_600.0],
+            ammo: [[60.0, 100.0], [6.0, 8.0]],
+            weapons: [true, false],
             ..VehicleReadout::default()
         };
-        // A vehicle that hides its rider leaves no player numbers: the hull alone.
+        // A vehicle that hides its rider leaves no player numbers: the vehicle's alone,
+        // in a row at the bottom centre.
         frame.simple_hud(None, Some(&vehicle), &mut Timers::default());
         let runs = &frame.texts[..frame.text_count];
-        assert_eq!(runs.len(), 1);
-        assert_eq!(runs[0].text, "1500");
-        assert!(runs[0].centred);
-        assert_eq!(runs[0].side, Some(Side::Centre));
-        assert_eq!((runs[0].x, runs[0].y), (320.0, 440.0));
-        // With the player's numbers it is one more run, which fits the frame.
+        let texts: Vec<_> = runs.iter().map(|run| run.text.as_str()).collect();
+        assert_eq!(texts, ["812", "1500", "60"]);
+        let xs: Vec<_> = runs.iter().map(|run| run.x).collect();
+        assert_eq!(xs, [240.0, 320.0, 400.0]);
+        assert!(runs.iter().all(|run| run.centred
+            && run.side == Some(Side::Centre)
+            && run.y == 440.0
+            && run.size == SMALL_POINTS));
+        assert_eq!(runs[1].color, YELLOW);
+        assert_eq!(runs[2].color, HUD_ORANGE);
+        // Two weapons share the ammunition's run; the turbo flashes the speed.
+        vehicle.weapons = [true, true];
+        vehicle.boost_flash = true;
+        frame.simple_hud(None, Some(&vehicle), &mut Timers::default());
+        assert_eq!(frame.texts[2].text, "60 / 6");
+        assert_eq!(frame.texts[0].color, LIGHT_RED);
+        // A turbo shows left of the speed, coloured by its phase.
+        use crate::hud::vehicle::{Turbo, TurboPhase};
+        vehicle.weapons = [true, false];
+        vehicle.boost_flash = false;
+        for (phase, text, color) in [
+            (TurboPhase::Charging, "45%", RED),
+            (TurboPhase::Ready, "READY", GREEN),
+            (TurboPhase::Burning, "BOOST", WHITE),
+        ] {
+            vehicle.boost = Some(Turbo {
+                charge: 0.45,
+                phase,
+            });
+            frame.simple_hud(None, Some(&vehicle), &mut Timers::default());
+            assert_eq!(frame.text_count, 4);
+            assert_eq!(frame.texts[0].text, text);
+            assert_eq!(frame.texts[0].color, color);
+            assert_eq!(frame.texts[0].x, 160.0);
+            assert_eq!(frame.texts[1].text, "812");
+        }
+        vehicle.boost = None;
+        // No weapon, no ammunition.
+        vehicle.weapons = [false, false];
+        frame.simple_hud(None, Some(&vehicle), &mut Timers::default());
+        assert_eq!(frame.text_count, 2);
+        // With the player's numbers every run fits the frame.
+        vehicle.weapons = [true, false];
         frame.simple_hud(Some(&readout()), Some(&vehicle), &mut Timers::default());
-        assert_eq!(frame.text_count, 5);
-        assert_eq!(frame.texts[0].text, "1500");
+        assert_eq!(frame.text_count, 7);
+        assert_eq!(frame.texts[1].text, "1500");
+        // And with the turbo too.
+        vehicle.boost = Some(Turbo {
+            charge: 1.0,
+            phase: TurboPhase::Ready,
+        });
+        frame.simple_hud(Some(&readout()), Some(&vehicle), &mut Timers::default());
+        assert_eq!(frame.text_count, 8);
     }
 
     #[test]

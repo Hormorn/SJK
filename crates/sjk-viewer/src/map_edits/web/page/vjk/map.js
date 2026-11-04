@@ -1,5 +1,5 @@
 // From VisionJK's web admin page (codemp/game/webadmin/page/js/map.js at 50d7c18b, GPL-2.0, by Blackwolf;
-// the panel after JKAdmin's by Lixsl), for SJK's browser map editor. SJK: changed: the batches keep those ranges, and a patch a map edit hides keeps its triangles without an area.
+// the panel after JKAdmin's by Lixsl), for SJK's browser map editor. SJK: changed: the batches keep those ranges and their vertices' places (pos, for the selection's outline), and a patch a map edit hides keeps its triangles without an area.
 /* ------------------------------------------------------------------ */
 /* map                                                                 */
 /* ------------------------------------------------------------------ */
@@ -57,7 +57,7 @@ async function loadMap(name) {
 			// posBuf and tri: the wireframe of the editor makes its lines of them when it is asked for. With stBuf,
 			// colBuf and verts they are also what the quads that turn to the viewer are made of (buildSprites).
 			// tri has every triangle of a patch, whatever of it is drawn at the moment.
-			return { vao, count: tri.length, ranges: b.ranges, shaderName, fog: b.fog, model: b.model, lm: b.lightmap >= 0 ? lightmapTex[b.lightmap] : null, posBuf, stBuf, colBuf, idxBuf, verts: b.verts, tri, wire: null, sprites: undefined, sky: b.sky };
+			return { vao, count: tri.length, ranges: b.ranges, pos: b.pos, shaderName, fog: b.fog, model: b.model, lm: b.lightmap >= 0 ? lightmapTex[b.lightmap] : null, posBuf, stBuf, colBuf, idxBuf, verts: b.verts, tri, wire: null, sprites: undefined, sky: b.sky };
 		});
 		// what the map file marks as sky waits for the scripts (settleSky)
 		const batches = all.filter(b => !b.sky);

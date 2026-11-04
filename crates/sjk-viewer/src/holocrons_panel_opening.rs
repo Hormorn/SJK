@@ -1661,7 +1661,7 @@ impl Panel {
             color: color::alpha(color::SPACE, 0.95 * eased),
         });
         if let Some(banner) = crate::profile_card::banner::get(&found.id) {
-            crate::profile_card::banner::draw(&mut self.ui, area, banner.id);
+            crate::profile_card::banner::draw_rounded(&mut self.ui, area, banner.id, 22.0 * s);
             return;
         }
         // A tag stands as its picture.

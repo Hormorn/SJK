@@ -24,6 +24,9 @@
 pub(crate) mod document;
 pub(crate) mod editor;
 pub(crate) mod faces;
+pub(crate) mod gizmo;
+pub(crate) mod linked;
+pub(crate) mod nearby;
 pub(crate) mod panel;
 mod panel_view;
 pub(crate) mod web;
@@ -82,6 +85,12 @@ pub(crate) struct State {
     pub(crate) strip: panel_view::Strip,
     /// The browser editor's server while it runs (`mapedit_web`, [`web`]).
     pub(crate) web: Option<web::http::Server>,
+    /// The shaders and models used lately, once read ([`web::recent`]).
+    pub(crate) web_recent: Option<web::recent::Recent>,
+    /// The browser editor's brush faces, linked caulk and nearby shaders, per map.
+    pub(crate) web_cache: web::Cache,
+    /// The in-game transform gizmo ([`gizmo`]).
+    pub(crate) gizmo: gizmo::Gizmo,
 }
 
 /// Finding the loaded map's document.

@@ -1583,7 +1583,8 @@ the choice in view with its heading, a bar at its side; the credits cards a hub 
 follow the tags under "Credits cards"; a tile badges its Holo and Solar copies, and the card
 offers Normal, Holo and Solar chips, the finishes held, shown over the picture, Choose then
 setting `cg_tagFinish` too), and since 31/10/2026
-History last (what came, was opened, spent and traded, [cards.md](cards.md#history)). Sol picked the
+History last (what came, was opened, spent and traded, [cards.md](cards.md#history)); while
+the Saber Lab is on, a tab after History, Saber Lab ([client.md](client.md#saber-lab)). Sol picked the
 direction from a design canvas (`the vault`): every thing has its place from the
 start, the ones the player lacks dimmed; each tab shows its things on the left and
 the one chosen up close on the right.
@@ -1772,7 +1773,8 @@ for the run.
 - **Loadouts** (03/11/2026, Lex's idea,
   [collection_loadouts.rs](../crates/sjk-viewer/src/collection_loadouts.rs)): on Shaders,
   Tags and Nameplates an outlined "Loadouts (P)" button under the tally (x 1624 to 1824,
-  y 206) opens a pop-up card (`kit::card`, x 440 to 1480, y 170 to 910, over the scrim;
+  y 206; on Shaders it lies in the stage saber's drag room, `SABER_AREA`, which leaves
+  it out, hub report #245) opens a pop-up card (`kit::card`, x 440 to 1480, y 170 to 910, over the scrim;
   the page is left out under it): "Loadouts" in gold, "Kept on this PC", the headline
   "Save your look, wear it again in one click" and what a loadout keeps, then five slots,
   a row of 86 each: the number, the name in gold while chosen (or "Empty slot") and a line
@@ -2088,7 +2090,9 @@ selects (the selection's green outline is the screen's one memorable thing).
   muted, two lines), a row of two kit buttons, then Draw another shader: the kit's search
   pill (with its count), a list of five rows as Place's (names without `textures/` or
   `models/`, the selection's own shader in quiet print unless chosen), and Remap and
-  Remove remap. With nothing selected, how to select.
+  Remove remap. With nothing selected, how to select. On a sky (04/11/2026) the kind is
+  "Sky", the skies lead the list, and its last row has three buttons: Swap sky (Cover side
+  when a texture is chosen), Swap all skies (only with a sky chosen) and Take back.
 - **Place:** the kit's search pill, a list of six rows (34 each, the chosen one gold with
   a gold tick at its left, paths without `models/`), Place where you aimed across the
   column, then Placed model: its line and three rows of four buttons (turn and lift,

@@ -50,7 +50,8 @@ fn fps_help_card() {
 
         // EJK graphics as the card's button sets them: the switch, then the reload.
         gpu.fps_card_choice(Some(crate::fps_help::card::Choice::Switch));
-        gpu.reload_graphics(&mut None).expect("the reload starts");
+        gpu.reload_graphics(&mut None, false)
+            .expect("the reload starts");
         let started = std::time::Instant::now();
         let rebuilt = loop {
             let _ = gpu.render(&mut None);

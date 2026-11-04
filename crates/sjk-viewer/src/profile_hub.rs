@@ -35,18 +35,21 @@ pub(crate) enum Screen {
 }
 
 impl Screen {
-    /// The screen's tabs, in the row's order.
-    pub(crate) const fn tabs(self) -> &'static [Tab] {
+    /// The screen's tabs, in the row's order: the Collection's end with the Saber Lab's
+    /// while the lab is on ([`crate::saber_lab`]).
+    pub(crate) fn tabs(self) -> &'static [Tab] {
         match self {
             Self::Profile => &PROFILE_TABS,
+            Self::Collection if crate::saber_lab::active() => &COLLECTION_TABS_LAB,
             Self::Collection => &COLLECTION_TABS,
         }
     }
 
     /// The tabs' names, in the row's order.
-    pub(crate) const fn labels(self) -> &'static [&'static str] {
+    pub(crate) fn labels(self) -> &'static [&'static str] {
         match self {
             Self::Profile => &PROFILE_LABELS,
+            Self::Collection if crate::saber_lab::active() => &COLLECTION_LABELS_LAB,
             Self::Collection => &COLLECTION_LABELS,
         }
     }
@@ -84,6 +87,9 @@ pub(crate) enum Tab {
     Banners,
     /// What came, was opened, spent and traded, newest first (31/10/2026).
     History,
+    /// The Saber Lab's blade held, swung and floating, while the lab is on
+    /// ([`crate::saber_lab`]).
+    SaberLab,
 }
 
 const PROFILE_TABS: [Tab; 4] = [Tab::Character, Tab::Saber, Tab::Force, Tab::Profile];
@@ -100,6 +106,21 @@ const COLLECTION_TABS: [Tab; 11] = [
     Tab::Banners,
     Tab::History,
 ];
+/// The Collection's tabs while the Saber Lab is on: its own last.
+const COLLECTION_TABS_LAB: [Tab; 12] = [
+    Tab::Medals,
+    Tab::Achievements,
+    Tab::Shaders,
+    Tab::Toys,
+    Tab::Tags,
+    Tab::Nameplates,
+    Tab::Holocrons,
+    Tab::Forge,
+    Tab::Cards,
+    Tab::Banners,
+    Tab::History,
+    Tab::SaberLab,
+];
 const PROFILE_LABELS: [&str; 4] = ["Character", "Saber", "Force", "SJK Profile"];
 const COLLECTION_LABELS: [&str; 11] = [
     "Medals",
@@ -114,6 +135,23 @@ const COLLECTION_LABELS: [&str; 11] = [
     "Banners",
     "History",
 ];
+const COLLECTION_LABELS_LAB: [&str; 12] = [
+    "Medals",
+    "Achievements",
+    "Shaders",
+    "Toys",
+    "Tags",
+    "Nameplates",
+    HOLOCRONS,
+    FORGE,
+    "Cards",
+    "Banners",
+    "History",
+    SABER_LAB,
+];
+
+/// The name of the Saber Lab's tab.
+pub(crate) const SABER_LAB: &str = "Saber Lab";
 
 /// The Collection screen's title: one place to rename it.
 pub(crate) const COLLECTION: &str = "Collection";
@@ -126,7 +164,7 @@ pub(crate) const FORGE: &str = "Forge";
 
 impl Tab {
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 15] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::Character,
         Self::Saber,
         Self::Force,
@@ -142,6 +180,7 @@ impl Tab {
         Self::Cards,
         Self::Banners,
         Self::History,
+        Self::SaberLab,
     ];
 
     /// The screen the tab is on.
@@ -166,22 +205,29 @@ impl Tab {
             Self::Cards => 8,
             Self::Banners => 9,
             Self::History => 10,
+            Self::SaberLab => 11,
         }
     }
 
     /// The tab's name on the row.
-    pub(crate) const fn label(self) -> &'static str {
-        self.screen().labels()[self.index()]
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            // Named whether the lab is on or not: a page may still show it as it stops.
+            Self::SaberLab => SABER_LAB,
+            _ => self.screen().labels()[self.index()],
+        }
     }
 
     /// The tab after this one on its screen (`forward`) or before it, wrapping.
     pub(crate) fn next(self, forward: bool) -> Self {
         let tabs = self.screen().tabs();
         let count = tabs.len();
+        // A tab the row no longer holds (the lab stopped) steps from the row's end.
+        let at = self.index().min(count - 1);
         let index = if forward {
-            (self.index() + 1) % count
+            (at + 1) % count
         } else {
-            (self.index() + count - 1) % count
+            (at + count - 1) % count
         };
         tabs[index]
     }
@@ -505,11 +551,16 @@ pub(crate) fn collection_header(
     (counts, widen): (&[String], f32),
 ) {
     top_bar(canvas, frame, back, back_token, COLLECTION, None);
-    let labels = COLLECTION_LABELS.map(crate::terms::say);
+    // The row the screen holds now: the lab's tab last while the lab is on.
+    let labels: Vec<_> = Screen::Collection
+        .labels()
+        .iter()
+        .map(|label| crate::terms::say(label))
+        .collect();
     counted_tabs(
         canvas,
         frame,
-        &labels.each_ref().map(|label| &**label),
+        &labels.iter().map(|label| &**label).collect::<Vec<_>>(),
         counts,
         current.index(),
         TOKEN,
@@ -521,7 +572,7 @@ pub(crate) fn collection_header(
 pub(crate) fn collection_tab_of(token: u16) -> Option<Tab> {
     token
         .checked_sub(TOKEN)
-        .and_then(|index| COLLECTION_TABS.get(usize::from(index)).copied())
+        .and_then(|index| Screen::Collection.tabs().get(usize::from(index)).copied())
 }
 
 /// The Profile screen's tab of the row under `point` (window pixels) in a window of

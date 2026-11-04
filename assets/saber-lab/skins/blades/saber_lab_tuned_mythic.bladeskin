@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "glow_profile": {"width": 0.35, "peak": 0.6, "tail_width": 1.2, "tail_peak": 0.12},
+  "core_profile": {"width": 0.28, "fringe_width": 0.55},
+  "core": {
+    "white": [1.0, 0.95, 0.9],
+    "white_flare": 0.8,
+    "fringe_cool": [1.2, 0.02, 0.02],
+    "fringe_hot": [2.6, 0.18, 0.1],
+    "fringe_heat": {"base": 0.3, "grain": 0.6},
+    "fringe_brightness": {"base": 1.0, "grain": 0.5, "flare": 1.0},
+    "breathe": {"amount": 0.12, "rate": 30.0, "along": 0.6, "seed": 3.0},
+    "tip": 1.5
+  },
+  "corona": {
+    "rim_cool": [1.0, 0.0, 0.0],
+    "rim_hot": [1.4, 0.06, 0.03],
+    "inner": [1.3, 0.05, 0.03],
+    "inner_width": 0.6,
+    "rim_heat": {"grain": 0.9, "flare": 0.6},
+    "inner_mix": {"base": 0.5, "grain": 0.4, "flare": 0.3},
+    "brightness": {"base": 0.85, "grain": 0.6, "flare": 1.2},
+    "reach": 1.4,
+    "swell": {"grain": 0.1, "flare": 0.25}
+  },
+  "granulation": {
+    "octaves": [
+      {"scale": 2.5, "speed": 35.0, "evolve": 1.5, "offset": 10.0, "weight": 0.5},
+      {"scale": 0.7, "speed": 12.0, "evolve": 0.8, "offset": 90.0, "weight": 0.5}
+    ],
+    "low": 0.25,
+    "high": 0.75
+  },
+  "flares": {
+    "count": 5,
+    "rate": 1.2,
+    "rate_step": 0.35,
+    "rate_seed": 0.1,
+    "phase_seed": 5.0,
+    "phase_step": 0.4,
+    "threshold": 0.35,
+    "overshoot": 8.0,
+    "size": 8.0,
+    "size_jitter": 10.0
+  },
+  "shimmer": [
+    {"amount": 0.08, "rate": 25.0, "along": 0.8, "seed": 2.0}
+  ],
+  "tongues": {
+    "along": 0.7,
+    "offset": 11.0,
+    "out": 2.5,
+    "speed": 18.0,
+    "edge_low": 0.55,
+    "edge_high": 1.1,
+    "low": 0.0,
+    "range": 0.3
+  },
+  "sputter": {
+    "ragged": 0.1,
+    "scale": 0.6,
+    "speed": 30.0,
+    "cut": 0.0,
+    "rate": 4.0,
+    "threshold": 0.8
+  },
+  "arcs": {
+    "count": 3,
+    "color": [1.8, 0.75, 0.65],
+    "brightness": 2.2,
+    "width": 0.3,
+    "halo": 0.6,
+    "reach": 0.4,
+    "jag": 0.04,
+    "kinks": 1.4,
+    "span": {"low": 0.1, "high": 0.49},
+    "rate": 6.0,
+    "jitter": 35.0,
+    "threshold": 0.35,
+    "tip": 0.0,
+    "crawl": 18.0,
+    "decay": 2.5,
+    "root": 1.0
+  },
+  "motes": {
+    "color": [1.0, 0.55, 0.35],
+    "brightness": 1.4,
+    "density": 0.025,
+    "cells": 0.6,
+    "rings": 2.5,
+    "size": 0.09,
+    "stretch": 1.5,
+    "drift": {"along": 0.8, "out": 0.3},
+    "twinkle": 0.5,
+    "inner": 0.6,
+    "outer": 2.0,
+    "focus": 0.0
+  },
+  "trail": [1.0, 0.05, 0.03],
+  "light": {
+    "color": [4.0, 0.15, 0.1],
+    "flicker": {
+      "amount": 0.25,
+      "waves": [
+        {"rate": 13.0, "weight": 0.6, "phase": 1.0},
+        {"rate": 31.0, "weight": 0.4, "phase": 2.0}
+      ]
+    }
+  },
+  "sounds": {
+    "on": "sound/test/blade/on.wav",
+    "off": "sound/test/blade/off.wav",
+    "hum": "sound/test/blade/hum.wav",
+    "swings": ["sound/test/blade/s1.wav", "sound/test/blade/s2.wav", "sound/test/blade/s3.wav"]
+  }
+}

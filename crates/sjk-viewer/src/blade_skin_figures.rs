@@ -211,7 +211,7 @@ impl Figures<'_> {
 
     /// How far (units) the figures reach past the glow: the butterflies' flights and the
     /// wings' span, for the sections not in `off`.
-    pub(crate) fn room(&self, off: u32) -> f32 {
+    pub(crate) fn room(&self, off: u64) -> f32 {
         use super::extras::Section;
         let butterflies = self
             .butterflies

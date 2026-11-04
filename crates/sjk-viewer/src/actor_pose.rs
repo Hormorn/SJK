@@ -114,6 +114,12 @@ pub(crate) fn update(gpu: &mut GpuState, presentation_time: i64) -> Result<(), B
         mesh.retained_pose.invalidate();
         mesh.animator.requested = None;
     }
+    // The disintegrations this client starts itself follow the snapshot.
+    if let Some(snapshot) = snapshot {
+        let local = local_entity.and_then(|id| u16::try_from(id.get().saturating_sub(1)).ok());
+        gpu.forced_disintegrations
+            .update(snapshot, local, presentation_time);
+    }
     let frame = steps::Frame {
         flame: crate::actor_world_submission::force_powers::flame::policy(
             game_state,
@@ -132,7 +138,13 @@ pub(crate) fn update(gpu: &mut GpuState, presentation_time: i64) -> Result<(), B
         if let Err(error) = steps::prepare(mesh, &frame) {
             steps::failed(mesh, error.as_ref());
         }
-        track_disintegration(mesh, snapshot, local_entity, presentation_time);
+        track_disintegration(
+            mesh,
+            snapshot,
+            local_entity,
+            &gpu.forced_disintegrations,
+            presentation_time,
+        );
     }
     gpu.actor_workers
         .evaluate(&mut gpu.actor_meshes, presentation_time);
@@ -210,13 +222,15 @@ impl GpuState {
     }
 }
 
-/// Start, follow or end `EF_DISINTEGRATION` for one actor. On the first frame the pose
-/// freezes at the presented legs frame (`cg_players.c`); when a live player's flag
-/// clears (respawn) the frozen animator is replaced by a fresh one.
+/// Start, follow or end `EF_DISINTEGRATION` for one actor, or a disintegration this
+/// client started itself (`forced`). On the first frame the pose freezes at the
+/// presented legs frame (`cg_players.c`); when a live player's flag clears (respawn) the
+/// frozen animator is replaced by a fresh one.
 fn track_disintegration(
     mesh: &mut ActorMesh,
     snapshot: Option<&sjk_protocol::Snapshot>,
     local_entity: Option<EntityId>,
+    forced: &crate::disintegration::Forced,
     presentation_time: i64,
 ) {
     let (Some(snapshot), Some(id)) = (snapshot, mesh.entity_id) else {
@@ -225,10 +239,16 @@ fn track_disintegration(
     let Ok(number) = u16::try_from(id.get().saturating_sub(1)) else {
         return;
     };
-    let hit = crate::disintegration::hit_location(snapshot, Some(id) == local_entity, number);
+    let hit = crate::disintegration::hit_location(snapshot, Some(id) == local_entity, number)
+        .map(|hit| (hit, presentation_time, false))
+        .or_else(|| {
+            forced
+                .active(number, presentation_time)
+                .map(|(hit, started)| (hit, started, true))
+        });
     match (hit, mesh.disintegration.as_mut()) {
-        (Some(hit), Some(state)) => state.hit = hit,
-        (Some(hit), None) => {
+        (Some((hit, _, _)), Some(state)) => state.hit = hit,
+        (Some((hit, started, by_us)), None) => {
             if let Err(error) = mesh
                 .animator
                 .freeze_for_disintegration(&mesh.preview.animation, presentation_time)
@@ -238,9 +258,19 @@ fn track_disintegration(
                     number
                 ));
             }
-            mesh.disintegration = Some(crate::disintegration::State::new(presentation_time, hit));
+            let mut state = crate::disintegration::State::new(started, hit);
+            state.forced = by_us;
+            crate::disintegration::trace(format_args!(
+                "mesh of {number} (corpse pool {}) burns from {started} at {presentation_time}, forced {by_us}",
+                mesh.corpse_pool
+            ));
+            mesh.disintegration = Some(state);
         }
         (None, Some(_)) => {
+            crate::disintegration::trace(format_args!(
+                "mesh of {number} (corpse pool {}) drawn again at {presentation_time}",
+                mesh.corpse_pool
+            ));
             mesh.disintegration = None;
             if !mesh.corpse_pool
                 && let Ok(fresh) = storage(&mesh.preview.animation)

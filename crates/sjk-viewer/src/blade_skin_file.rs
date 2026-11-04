@@ -18,7 +18,8 @@
 //! ([`lab`]: bands, segments, a film, blobs and a front), from a third one, and the
 //! sixth ([`figures`]: a sketch, an hourglass, a serpent, strands, butterflies, wings and
 //! copies), from a fourth, and the seventh ([`solids`]: ink and chrome, drawn blended over
-//! the blade), from a fifth.
+//! the blade), from a fifth, and the eighth ([`smoke`]: smoke from the emitter, the game's
+//! particles left in the air), from a sixth.
 
 use crate::saber_rgb::{CoreProfile, GlowProfile};
 use serde::Deserialize;
@@ -31,6 +32,8 @@ pub(crate) mod extras;
 pub(crate) mod figures;
 #[path = "blade_skin_lab.rs"]
 pub(crate) mod lab;
+#[path = "blade_skin_smoke.rs"]
+pub(crate) mod smoke;
 #[path = "blade_skin_solids.rs"]
 pub(crate) mod solids;
 
@@ -158,6 +161,25 @@ pub(crate) struct BladeSkinDef {
     pub(crate) ink: Option<solids::Ink>,
     #[serde(default)]
     pub(crate) chrome: Option<solids::Chrome>,
+    /// The eighth set ([`smoke`]), from the sixth additions file; each none when absent.
+    #[serde(default)]
+    pub(crate) smoke: Option<smoke::Smoke>,
+    #[serde(default)]
+    pub(crate) ribbon: Option<smoke::Ribbon>,
+    #[serde(default)]
+    pub(crate) sparks: Option<smoke::SparkSets>,
+    #[serde(default)]
+    pub(crate) bolts: Option<smoke::Bolts>,
+    #[serde(default)]
+    pub(crate) unrest: Option<smoke::Unrest>,
+    #[serde(default)]
+    pub(crate) flash: Option<smoke::Flash>,
+    #[serde(default)]
+    pub(crate) crackle: Option<smoke::Crackle>,
+    #[serde(default)]
+    pub(crate) disintegrate: Option<smoke::Disintegrate>,
+    #[serde(default)]
+    pub(crate) chroma: Option<smoke::Chroma>,
     /// The parts its wearer may switch off; none when absent.
     #[serde(default)]
     pub(crate) options: Vec<extras::SkinOption>,
@@ -329,6 +351,10 @@ pub(crate) struct Arcs {
     pub(crate) crawl: f32,
     /// How fast a strike fades: its light is `(1 − age)^decay` (0 holds it).
     pub(crate) decay: f32,
+    /// The share of strikes rooted at the emitter (0, the default, none): they start at
+    /// the hilt and run up the blade for their span, instead of anywhere along it.
+    #[serde(default)]
+    pub(crate) root: f32,
 }
 
 /// `low` to `high`.
@@ -462,8 +488,44 @@ pub(crate) fn parse(id: &str, text: &str) -> Result<BladeSkinDef, String> {
     Ok(def)
 }
 
+/// The skin's files, in the order they are laid over each other: the skin file, then its
+/// additions files.
+pub(crate) const FILES: [&str; 7] = [
+    EXTENSION,
+    extras::ADDITIONS,
+    extras::LATER_ADDITIONS,
+    lab::LAB_ADDITIONS,
+    figures::FIGURES_ADDITIONS,
+    solids::SOLIDS_ADDITIONS,
+    smoke::SMOKE_ADDITIONS,
+];
+
+thread_local! {
+    /// While [`ranges`] reads a skin: each field [`within`] checks, with its range.
+    static PROBE: std::cell::RefCell<Option<Vec<(String, f32, f32)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The range of each field the checks of skin `id`'s `text` (its files laid over each
+/// other) look at, by the name its error would give (`motes.density`, `core.white red`,
+/// `granulation.octaves[0].scale`): the blade-skin editor's sliders
+/// (`crate::blade_editor`). The checks stop at the first value out of range, so a skin
+/// that reads gives them all.
+pub(crate) fn ranges(id: &str, text: &str) -> Vec<(String, f32, f32)> {
+    PROBE.with(|probe| *probe.borrow_mut() = Some(Vec::new()));
+    let _ = parse(id, text);
+    PROBE
+        .with(|probe| probe.borrow_mut().take())
+        .unwrap_or_default()
+}
+
 /// `value`, named `field`, within `low..=high`.
 fn within(field: &str, value: f32, low: f32, high: f32) -> Result<(), String> {
+    PROBE.with(|probe| {
+        if let Some(found) = probe.borrow_mut().as_mut() {
+            found.push((field.to_owned(), low, high));
+        }
+    });
     if value.is_finite() && (low..=high).contains(&value) {
         Ok(())
     } else {
@@ -640,6 +702,30 @@ impl BladeSkinDef {
         self.lab().check()?;
         self.figures().check()?;
         self.solids().check()?;
+        if let Some(smoke) = &self.smoke {
+            smoke.check()?;
+        }
+        if let Some(ribbon) = &self.ribbon {
+            ribbon.check()?;
+        }
+        if let Some(sparks) = &self.sparks {
+            sparks.check()?;
+        }
+        if let Some(bolts) = &self.bolts {
+            bolts.check()?;
+        }
+        if let Some(unrest) = &self.unrest {
+            unrest.check()?;
+        }
+        if let Some(flash) = &self.flash {
+            flash.check()?;
+        }
+        if let Some(crackle) = &self.crackle {
+            crackle.check()?;
+        }
+        if let Some(disintegrate) = &self.disintegrate {
+            disintegrate.check()?;
+        }
         colour("trail", self.trail, 1.0)?;
         colour("light.color", self.light.color, 4.0)?;
         within("light.flicker.amount", self.light.flicker.amount, 0.0, 1.0)?;
@@ -743,7 +829,8 @@ impl Arcs {
         within("arcs.threshold", self.threshold, 0.0, 1.0)?;
         within("arcs.tip", self.tip, 0.0, 1.0)?;
         within("arcs.crawl", self.crawl, -100.0, 100.0)?;
-        within("arcs.decay", self.decay, 0.0, 8.0)
+        within("arcs.decay", self.decay, 0.0, 8.0)?;
+        within("arcs.root", self.root, 0.0, 1.0)
     }
 }
 
@@ -777,44 +864,57 @@ impl Motes {
 /// Every `skins/blades/<id>.bladeskin` in `vfs` that reads, by id, with its additions
 /// file (`<id>.bladeextra`, [`extras::ADDITIONS`]), its later one (`<id>.bladeextra2`,
 /// [`extras::LATER_ADDITIONS`]), its third (`<id>.bladeextra3`, [`lab::LAB_ADDITIONS`])
-/// its fourth (`<id>.bladeextra4`, [`figures::FIGURES_ADDITIONS`]) and its fifth
-/// (`<id>.bladeextra5`, [`solids::SOLIDS_ADDITIONS`]) laid over it in turn when there are
+/// its fourth (`<id>.bladeextra4`, [`figures::FIGURES_ADDITIONS`]), its fifth
+/// (`<id>.bladeextra5`, [`solids::SOLIDS_ADDITIONS`]) and its sixth (`<id>.bladeextra6`,
+/// [`smoke::SMOKE_ADDITIONS`]) laid over it in turn when there are
 /// some; the ones that do not read are reported to
 /// the log by name.
 pub(crate) fn load(vfs: &sjk_vfs::VirtualFileSystem) -> Vec<(String, BladeSkinDef)> {
     let mut skins = Vec::new();
-    let text_of = |path: &str| {
-        vfs.read(path)
-            .map_err(|error| error.to_string())
-            .and_then(|asset| asset.ok_or_else(|| "missing".to_owned()))
-            .and_then(|asset| String::from_utf8(asset.bytes).map_err(|_| "not UTF-8".to_owned()))
-    };
     for listed in vfs.list_files(FOLDER, EXTENSION) {
-        let path = format!("{FOLDER}/{listed}");
         let id = listed.trim_end_matches(EXTENSION);
-        // The additions files, laid over the skin file in turn when there are some.
-        let lay_over = |text: String, extension: &str| {
-            let additions = format!("{FOLDER}/{id}{extension}");
-            match vfs.read(&additions) {
-                Ok(Some(_)) => extras::merged(&text, &text_of(&additions)?),
-                _ => Ok(text),
-            }
-        };
-        let read = text_of(&path)
-            .and_then(|text| lay_over(text, extras::ADDITIONS))
-            .and_then(|text| lay_over(text, extras::LATER_ADDITIONS))
-            .and_then(|text| lay_over(text, lab::LAB_ADDITIONS))
-            .and_then(|text| lay_over(text, figures::FIGURES_ADDITIONS))
-            .and_then(|text| lay_over(text, solids::SOLIDS_ADDITIONS))
-            .and_then(|text| parse(id, &text));
-        match read {
+        match read(vfs, id) {
             Ok(def) => skins.push((id.to_owned(), def)),
-            Err(why) => crate::log::progress(format_args!("blade skins: {path}: {why}")),
+            Err(why) => crate::log::progress(format_args!("blade skins: {FOLDER}/{listed}: {why}")),
         }
     }
     skins.sort_by(|a, b| a.0.cmp(&b.0));
     skins.dedup_by(|a, b| a.0 == b.0);
     skins
+}
+
+/// Skin `id`'s file in `vfs` with its additions files laid over it, or why it does not
+/// read: what [`load`] reads for each skin, and what the Saber Lab reports for a file
+/// of its folder ([`crate::saber_lab`]).
+pub(crate) fn read(vfs: &sjk_vfs::VirtualFileSystem, id: &str) -> Result<BladeSkinDef, String> {
+    let text_of = |path: &str| {
+        vfs.read(path)
+            .map_err(|error| error.to_string())
+            .and_then(|asset| asset.ok_or_else(|| "missing".to_owned()))
+            .and_then(|asset| String::from_utf8(asset.bytes).map_err(|_| "not UTF-8".to_owned()))
+            // A byte-order mark is how some Windows editors (Notepad, PowerShell) save
+            // UTF-8, not part of the JSON.
+            .map(|text| match text.strip_prefix('\u{feff}') {
+                Some(rest) => rest.to_owned(),
+                None => text,
+            })
+    };
+    // The additions files, laid over the skin file in turn when there are some.
+    let lay_over = |text: String, extension: &str| {
+        let additions = format!("{FOLDER}/{id}{extension}");
+        match vfs.read(&additions) {
+            Ok(Some(_)) => extras::merged(&text, &text_of(&additions)?),
+            _ => Ok(text),
+        }
+    };
+    text_of(&format!("{FOLDER}/{id}{EXTENSION}"))
+        .and_then(|text| lay_over(text, extras::ADDITIONS))
+        .and_then(|text| lay_over(text, extras::LATER_ADDITIONS))
+        .and_then(|text| lay_over(text, lab::LAB_ADDITIONS))
+        .and_then(|text| lay_over(text, figures::FIGURES_ADDITIONS))
+        .and_then(|text| lay_over(text, solids::SOLIDS_ADDITIONS))
+        .and_then(|text| lay_over(text, smoke::SMOKE_ADDITIONS))
+        .and_then(|text| parse(id, &text))
 }
 
 #[cfg(test)]

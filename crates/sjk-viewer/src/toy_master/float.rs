@@ -49,11 +49,11 @@ impl Floats {
         self.list.is_empty()
     }
 
-    /// The players `players` (slot, origin, yaw in degrees) float off at `elapsed_ms` into
-    /// a show of `seed`.
-    pub(crate) fn begin(&mut self, players: &[(u8, Vec3, f32)], elapsed_ms: f32, seed: u32) {
+    /// The players `players` (slot, origin, yaw in degrees, scale as
+    /// [`Start::scale`]) float off at `elapsed_ms` into a show of `seed`.
+    pub(crate) fn begin(&mut self, players: &[(u8, Vec3, f32, u16)], elapsed_ms: f32, seed: u32) {
         self.ended = None;
-        for &(slot, origin, yaw) in players {
+        for &(slot, origin, yaw, scale) in players {
             if self.list.iter().any(|floater| floater.slot == slot) {
                 continue;
             }
@@ -63,6 +63,7 @@ impl Floats {
                 origin: origin.round().as_ivec3().to_array(),
                 velocity: [0; 3],
                 yaw: yaw.rem_euclid(360.0) as u16,
+                scale,
             };
             let mut body = Body::new(&start);
             body.weightless(true);
@@ -143,6 +144,7 @@ impl Floats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ragdoll::STOCK_SCALE;
 
     /// A floor at z = 0 and nothing else.
     fn floor(from: Vec3, to: Vec3, half: f32) -> Option<(Vec3, Vec3)> {
@@ -162,8 +164,16 @@ mod tests {
     #[test]
     fn a_player_floats_up_falls_back_and_stands_again() {
         let mut floats = Floats::default();
-        floats.begin(&[(3, Vec3::new(0.0, 0.0, 24.0), 90.0)], 1_000.0, 42);
-        floats.begin(&[(3, Vec3::new(0.0, 0.0, 24.0), 90.0)], 1_100.0, 42);
+        floats.begin(
+            &[(3, Vec3::new(0.0, 0.0, 24.0), 90.0, STOCK_SCALE)],
+            1_000.0,
+            42,
+        );
+        floats.begin(
+            &[(3, Vec3::new(0.0, 0.0, 24.0), 90.0, STOCK_SCALE)],
+            1_100.0,
+            42,
+        );
         assert_eq!(floats.list.len(), 1);
         floats.run(4_000.0, true, &mut floor);
         let up = middle(&floats).z;
@@ -181,7 +191,7 @@ mod tests {
     #[test]
     fn a_twirl_turns_the_body_about_its_middle() {
         let mut floats = Floats::default();
-        floats.begin(&[(1, Vec3::new(10.0, 0.0, 24.0), 0.0)], 0.0, 7);
+        floats.begin(&[(1, Vec3::new(10.0, 0.0, 24.0), 0.0, STOCK_SCALE)], 0.0, 7);
         let before = middle(&floats);
         let (_, turned) = floats.shown(90.0).next().unwrap();
         let after = turned.iter().copied().sum::<Vec3>() / JOINTS as f32;

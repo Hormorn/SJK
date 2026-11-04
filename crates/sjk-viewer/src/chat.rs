@@ -12,6 +12,7 @@ pub(crate) mod incoming_color;
 pub(crate) mod client_icons;
 mod interaction;
 mod layout;
+mod links;
 pub(crate) mod marks;
 pub(crate) mod options;
 pub(crate) mod pm_only;
@@ -247,6 +248,11 @@ pub(crate) struct ChatOverlay {
     /// last moved, and a feed that changed under a still pointer (a tab chosen) would
     /// otherwise hand that place to another widget.
     pointer_at: Option<sjk_ui::Vec2>,
+    /// Where this frame drew the links of the shown lines, while the composer is open,
+    /// for Ctrl+C on a link (`chat/links.rs`).
+    links: links::Spots,
+    /// When a link was last copied, for the "Link copied" note under the field.
+    link_copied_ms: Option<u64>,
     /// The client slots (bits) whose player takes encrypted whispers now
     /// (`e2e_whispers.rs`): a whisper to them goes encrypted, which the composer says,
     /// and their card offers the safety code.
@@ -357,6 +363,8 @@ impl ChatOverlay {
             admin_server: false,
             clans: [false; 2],
             pointer_at: None,
+            links: links::Spots::default(),
+            link_copied_ms: None,
             encrypted_slots: 0,
             safety_request: None,
             reportable_slots: 0,

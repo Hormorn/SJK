@@ -34,6 +34,14 @@ pub(super) fn register(shell: &mut sjk_shell::Shell) -> Result<(), sjk_shell::Co
             "Toy: fish facing water, or put the rod away (+use when the float bobs under hooks the catch)",
         ),
         (
+            crate::fishing_sell::COMMAND,
+            "Toy: sell your fished junk to the SJK hub for a few credits (a small sum a day)",
+        ),
+        (
+            crate::fishing_sell::LOG_COMMAND,
+            "Toy: print your fish log in full: every fish and junk caught, held and sold",
+        ),
+        (
             crate::order66::COMMAND,
             "Toy: Order 66 on or off (every player who has it on dies when one of them executes it)",
         ),

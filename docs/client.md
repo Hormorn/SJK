@@ -2395,7 +2395,13 @@ works](rendering.md#graphics-reload)):
 
 - `vid_restart` reloads the graphics when one of them changed, as it restarted
   the renderer in the original game (it still reapplies the display settings
-  first).
+  first). `vid_restart force` (Tab completes `force`) reloads them even when none
+  changed, as the original game's `vid_restart` always restarted the renderer: the
+  world is built again on a new graphics context with the same settings, in the
+  same places and under the same limits as a reload with a change. Plain
+  `vid_restart` still skips the reload when nothing changed (it only reapplies the
+  display settings), and the reload card and the FPS help card, which queue it after
+  a change, keep using it.
 - When one of them changed and the player is back on the main menu or the game
   menu (not in Settings, so changing several rows is not interrupted), a pop-up
   card in the SJK UI's look, in every menu style, says what changed ("Vanilla
@@ -2753,6 +2759,8 @@ Checked 11/10/2026 with world shots (`world_shot_brushes.rs`, `SJK_BRUSH_MAPS`,
 as `hurt`, clips); not yet in a game. `mp/ffa5` wraps much of its detail in
 `physics_clip`, so `solid` shows white over those walls at 1: that is where players
 collide.
+The browser map editor shows the same faces, sorted by the same code, plus liquid
+volumes ([map-edits.md](map-edits.md#the-browser-editor-creator-only-for-now)).
 
 ## Map entities
 
@@ -2923,7 +2931,10 @@ was a stack copy, and the main thread's nested frames (`window_event` 3.1 MB,
 Building the menu's first world on the main thread came within 2 MiB of the same
 8 MiB with a clean profile and overflowed it with JoF content loaded (03/11/2026),
 so the client reserves 64 MiB for its main thread on Windows and macOS
-([`build.rs`](../crates/sjk-viewer/build.rs)). The client's start must fit in a quarter of
+([`build.rs`](../crates/sjk-viewer/build.rs)). Linux raises its inherited soft stack
+limit to the same allowance before building the client, without lowering a larger
+limit or changing the hard limit; a restrictive hard limit or failed adjustment is
+logged ([`main_stack.rs`](../crates/sjk-viewer/src/platform/main_stack.rs)). The client's start must fit in a quarter of
 that: [startup_stack.rs](../crates/sjk-viewer/src/startup_stack.rs) checks it, run
 before every merge into `main` (AGENTS.md).
 
@@ -3144,7 +3155,11 @@ shows only on JA+ and jaPRO servers; its key is `messagemode6` (Controls > Admin
 key by default), which says so on other servers. Leaving one moves a composer on Admin to
 All, and a remembered Admin or hidden channel opens on All. PM whispers to the last
 player who whispered you; left-clicked again the next one, right-clicked the one before
-("To Fox  2/3" says which),
+(since 04/11/2026, Creo's idea, the recipient has a line of its own under the row, the
+whole chat's width: "< To Fox  2/3 >", the name in its colours and cut with "..." only
+when even that is too narrow; `<`, `>`, Alt+Left and Alt+Right step between the players
+who whispered you, and a click on the name lists them, newest first, in a dark
+see-through panel right above the name, Escape closing it before the composer; `chat/view/recipient.rs`),
 or says how to whisper when no one has. The words sit an even 22 px apart, each as wide
 as itself. Each button is a tab
 too (Dave, 29/10/2026): while the composer is on Team, SJK, Admin or a whisper, the feed
@@ -3191,6 +3206,19 @@ decision), and there is no View profile either: the card is the profile view (pi
 hub name, key, medals, where they are), while the player card (`inspect`) needs the
 player in sight. The old dropdown (whisper, a per-map ignore, the friend star, copy
 name) stays gone; an existing `chat-friends.txt` is not read.
+
+Copying a link from the chat (03/11/2026, AngeloPapaya's idea;
+[chat/links.rs](../crates/sjk-viewer/src/chat/links.rs)): while the composer is open,
+resting the pointer on a web link in a chat line (a word starting `http://`, `https://`
+or `www.`, its closing punctuation and the colour codes round it left out) lights it as
+a name under the pointer is lit, on every row it wraps onto, and Ctrl+C (or Ctrl+Insert)
+copies the link, without its colour codes, instead of the draft; "Link copied" shows
+under the field for a second and a half. A selection in the draft goes first: with text
+selected there, Ctrl+C copies that as in every field. Off a link Ctrl+C copies the draft
+as before. Game and SJK chat lines alike; a muted line, a find's words and a GIF shown as
+"GIF" have no link to copy (with GIFs off the link shows, and copies, as typed). The chat
+box is the same in SJK UI and classic, so the feature is too. Links are laid out only in
+frames that draw the feed with the composer open, in a fixed array of 32 pieces.
 
 The draft shares the console's UTF-8 caret and selection rules: arrows/Home/End,
 Ctrl+arrows and Ctrl+Backspace/Delete, Shift-selection, Ctrl+A/C/X/V,
@@ -4080,7 +4108,9 @@ command new for them (`DrawCommand::Polygon`, [rendering.md](rendering.md#submis
   target, 2 everyone); 1 (allies only) stays reachable in the settings.
 - `cg_nameplateBars`: 0 none, 1 allies only, 2 everyone (default), 3 target; never on
   a duel opponent ([Sharing](#sharing-and-estimates)). `cg_nameplateScale`
-  sets the text size, `cg_nameplateWalls` shows
+  sets the text size, `cg_nameplateAlpha` (Settings "Nameplate opacity", 0.1 to 1,
+  default 1) how solid the whole plate is in every style, times its distance and wall
+  fade, `cg_nameplateWalls` shows
   players behind walls at 35% opacity instead of fading them (the same BSP trace as
   before, from the rendered eye; changes ease over 120 ms), and `cg_nameplateNpcs`
   adds NPC plates (class name; at most 16; vehicles skipped). Their health bar
@@ -5288,7 +5318,12 @@ every fall ends with the map or the server.
   pushed off balance (back, to a side, the knees buckling), so a running or jumping
   player tumbles on. It falls at `g_gravity`'s 800, slides and bounces a little on the
   world's brushes, and sleeps once it has lain still for a second (or after 40 seconds
-  whatever it does), until a mover stirs it or something strikes it.
+  whatever it does), until a mover stirs it or something strikes it. It is the size the
+  player is drawn (since 03/11/2026, Rollembones's report #223): a player the server made
+  small or big (`iModelScale`, a youngling or a jawa) falls as a body that much smaller
+  or bigger, its points, sticks and boxes scaled about the feet, and the model is drawn
+  at that scale on it, so it lies on the floor as a stock-sized one does (before, the
+  body was stock-sized and the model drawn full size on it).
 - **Its physics** (since 26/10/2026, with the [Monitor](#monitor)): the points weigh what
   the body's parts weigh (the trunk 26 of its 71, a hand 1.2), so the sticks move a hand
   more than the pelvis and a limb flails while the trunk holds its course. A surface
@@ -5357,7 +5392,10 @@ every fall ends with the map or the server.
 - **Everyone sees the same fall:** no pose is ever sent. The faller's client relays
   one start event to each SJK player on the server through the hub's
   [toy relay](hub-chat.md#toy-relay), one every 35 ms: `fall_<moment>_<x>_<y>_<z>_<vx>_<vy>_<vz>_<yaw>`,
-  the game server time it began, the origin, speed (whole units) and yaw (degrees).
+  the game server time it began, the origin, speed (whole units) and yaw (degrees),
+  then `_<scale>` (the percentage, 1 to 1023) for a player not drawn at the stock size
+  (since 03/11/2026; a stock-sized fall reads as before, while clients from before then
+  drop a scaled one).
   Every client runs the same simulation from it, in fixed 16 ms steps of the game
   server's clock (the turn from a table of whole degrees, plain arithmetic, so every
   client gets the same numbers), and a client that hears it late runs the steps it
@@ -6011,6 +6049,30 @@ brings up are the ones the hub drops anyway.
   bite neither counts nor breaks the run), counted on servers only, as the others
   ([identity.md](identity.md#achievements)).
 - **Sounds:** Settings > Sound > Toys, "Fishing" (`s_toyFishingSound`).
+- **The fish log on the card** (03/11/2026): the Fishing card in Collection > Toys says
+  how many fish were caught and of how many kinds, and in one line the junk held ("Junk:
+  7 pieces, worth 12 credits (8 left today)"). `fishing_log` in the console prints the
+  log in full: every fish and junk with its count, the junk held and what was sold.
+- **Selling junk** (03/11/2026, Sol's yes on PR #278; the hub's `PROTOCOL.md` "Fishing junk",
+  `sjk_identity::junk`): the card's "Sell junk (+N credits)" button, and `fishing_sell`
+  in the console, sell the junk held to the hub. The hub pays a few credits a piece (1
+  to 5) up to 15 credits in 24 hours per person and per address, the most valuable
+  pieces first, and answers what it took: only that is counted sold, as `sold <id>
+  <count>` lines in `fishing_log.txt` (older clients skip them), so the counts of what
+  was caught, and the achievements, never change. The card asks the hub what it still
+  pays (`GET /v1/fishing/junk`) when shown and every 30 seconds after; the button shows
+  only while the hub says this player may sell (the operator's switch, off until Sol
+  turns it on) and is greyed with nothing payable or no junk. One sale at a time
+  (`fishing_sell.rs`). Fish never sell: they stay in the log for the achievements.
+- **Bite cue** (03/11/2026, for players with the sound off): Settings > Sound > Toys,
+  "Fishing bite cue" (`cg_fishingBiteCue`: 0 off, 1 when the sound is off, the default,
+  2 always). While shown, a bite puts a pulsing "!" over the float (gold for an Echo's
+  bite), drawn as the mystery boxes' words are, and "Bite! Press Use!" (an Echo:
+  "Something shines under the float!") on the centre of the screen; a fish's bite let
+  go says "It got away.". "The sound is off" means the Fishing sounds switched off, the
+  toys' or the game's effects volume at 0, or the game muted while away
+  (`GpuState::fishing_cue_shown`); a sound muted by name (`s_muteSounds`) or no sound
+  device does not count, so set 2 there.
 
 No game server knows of it. The rod is a toy in the player's look (`toys: ["fishing"]`),
 so other SJK players draw it in the fisher's hand, with the line to a float where their
@@ -6146,6 +6208,219 @@ are registered when the gamestate's tables are built and again, at once, when a 
 arrives mid-session (`GameAudio::follow_blade_skins`, which also decodes a skin's
 sounds afresh in case the new pack changed them); the per-client table then names the
 new sets. The Sun's sounds have not been checked by ear in a game.
+
+### Saber Lab
+
+The Saber Lab ([saber_lab.rs](../crates/sjk-viewer/src/saber_lab.rs), 18/10/2026) makes and
+tunes blade skins from a folder of loose files, reloaded as they are saved: no pack, no
+restart, no rebuild. `saberlab <folder>` starts it (a path may hold spaces), `saberlab off`
+stops it and `saberlab` alone says what it reads; `SJK_SABER_LAB=<folder>` starts it at
+launch, for a shortcut.
+
+- **The folder** is laid out as a pack: `skins/blades/<id>.bladeskin`, its additions files
+  ([unlockables.md](unlockables.md#blade-skin-files)), and the images and sounds they name.
+  It is mounted over the hub's packs (`sjk_packs::mount`), so a file there replaces a
+  pack's of the same name: `saber_sun.bladeskin` tunes a copy of the Sun. A file named
+  `saber_lab.bladeskin` is the **lab blade** (`saber_lab::BLADE`), a skin of its own the
+  catalogue knows only while the lab is on, for a new skin with no catalogue entry yet.
+- **Reloading:** the folder is looked at every half second (names, sizes and modification
+  times of at most 512 files); a change mounts the packs again, the renderer takes the new
+  skins on its next frame and their sounds are registered again, as when the hub sends a
+  pack. A reload takes about 20 ms. A file saved with a UTF-8 byte-order mark (Notepad,
+  PowerShell) reads as one without.
+- **Mistakes:** a file that does not read, or whose images or sounds do not load, keeps its
+  skin's last good look (`LoadedSkins::keep`), and the Shaders tab's lead says which file
+  and why (`corona.reach must be 1 to 2, not 9`), as does the console. The lead otherwise
+  names the folder and how long ago it was read.
+- **The preview:** starting the lab opens the Collection's Shaders tab (the SJK UI's
+  Collection screen, or the classic menus' page) with the lab blade chosen, the row after
+  the stock blade whatever the filter, on the lone saber the tab turns
+  ([sjk-ui.md](sjk-ui.md#collection)). Any skin of the folder can be chosen there.
+- **The Saber Lab tab** (18/10/2026, [collection_saber_lab.rs](../crates/sjk-viewer/src/collection_saber_lab.rs)):
+  while the lab is on the Collection's row ends with it. On the menu map's stage the
+  player's model stands left of the picture (`menu_backdrop::Shot::SaberLab`; duel6 has
+  a route of its own, other maps take the player's shot) holding the blade chosen, in
+  the style chosen (Fast, Medium, Strong: `BOTH_SABERFAST_STANCE`, `BOTH_STAND2`,
+  `BOTH_SABERSLOW_STANCE`), standing or swinging: each style's three attacks chained as
+  the game chains them, the start from the stance, the attack and the return
+  (`force_pose::STYLE_ATTACKS`, `BOTH_S1_S1_T_` / `BOTH_A1_T__B_` / `BOTH_R1_B__S1` and so
+  on). A copy of the same saber floats on the right (`LAB_SABER_AREA`, four fifths of
+  its width long at most), turned by a drag as on Shaders, its hilt in a buffer of its
+  own (`StageSaber::float_instance_buffer`). Under it: Style and Moves as segments, the
+  blade with arrows among the folder's skins, Equip, and the lab's status in the lead.
+  Keys: 1 to 3 the style, Space stand or swing, Left and Right the blade, Enter equip.
+  Over a match the tab shows no stage and says so; the stage is the main menu's only.
+- **Hilts, speed, ignition, sound and camera** (18/10/2026): the model holds the player's
+  own hilts (`saber1`, `saber2`, read as the Collection opens), as the Shaders tab's lone
+  saber does; a staff or two sabers swing in their own style (`force_pose::lab_swings`,
+  the `BOTH_A7_*` and `BOTH_A6_*` attacks) and the Style row says so. A Speed slider
+  (10% to 200%, `-` and `=`) plays the animations and the moves' script at that pace
+  (`actor.rate`, `MenuStage::motion_clock`), each swing following the last the moment
+  it ends, with no wait in the stance between at any speed (the user, 18/10/2026:
+  `force_motion::moves_at`'s `pause` 0 in the lab; the Force page's previews keep
+  theirs). Saber Off and On (`I`) retract and light
+  both sabers a frame's growth at a time, as a match does (`saber::Extension` per blade,
+  `StageSaber::extension`); with Flourish ticked (`F`, on at first) the model plays the
+  game's draw or put-away as it does (`LS_DRAW`, `LS_PUTAWAY`: `BOTH_STAND1TO2` and
+  `BOTH_STAND2TO1`, a staff's `BOTH_S1_S7` and `BOTH_S7_S1`, two sabers' `BOTH_S1_S6`
+  and `BOTH_S6_S1`; `force_pose::lab_flourish`), the swings waiting for it, and stands
+  holstered (`BOTH_STAND1`) while the blade is off. Sound On and Muted (`M`): the
+  ignition and retraction (the skin's own, else the hilt's `soundOn`/`soundOff`, else
+  `saberon.mp3` and `enemy_saber_off.wav`; a file no pack holds is passed over for the
+  next), a swing as each attack begins as a match plays `EV_SABER_ATTACK` (the hilt's
+  `swingSound*`, else `saberhup1` to `saberhup8`, the skin's swing on top), and what the
+  model's `animevents.cfg` cues (the spins and specials' swings), none of the swings while
+  the blade is off (`menu_stage/lab.rs`). The ordinary attacks have no swing in
+  `animevents.cfg`: listening for those alone, the tab was silent at first. The hum does
+  not play yet. A drag on the picture left of the choices turns the camera round the
+  model and tilts it over it, the wheel brings it nearer (45% to 220% of the shot's
+  distance), `R` puts it back (`LabView`, `menu_backdrop::orbit`): the whole view turns
+  about the model's chest, so the model stays where the shot frames it, and the camera
+  stops short of a wall between. View Third person (`T`) puts the camera behind the
+  model as a match's third person does (`cg_thirdPersonRange`, `cg_thirdPersonVertOffset`
+  and `cg_thirdPersonAngle` over the eye, `DEFAULT_VIEWHEIGHT`, looking level;
+  `menu_backdrop::behind`), the drag and the wheel turning it round that point. Both ease
+  in over 0.6 s and out as the tab is left (`menu_stage::lab::Ease`, `LabCamera`).
+- **Trails and the blade shown** (18/10/2026): the stage's blades leave a match's motion
+  trail as the model swings (`StageSaber::trails`, fed to the match's
+  `saber_trail::SegmentPool`; `cg_saberTrail 0` turns it off). How long it lasts is the
+  game's `saberMoveData` trail length of the move whose animation the torso plays, found
+  in the move table with the style's animation group (`sabers::trail_length`: starts,
+  attacks and returns 200 ms, transitions and parries 150, stances, the draw and the
+  put-away none), before `CG_AddSaberBlade` divides it by five. Trail, ticked over the
+  floating saber (`L`), gives it a still trail: an attack's trail held as a blade swinging
+  evenly leaves it, eight slices over 0.45 rad about the camera's forward through its
+  grip, each as old as its place (`saber_trail::still_trail`, drawn that frame only,
+  `SegmentPool::add_still`). The blade on the model and the floating one is the one worn
+  (`cg_saberSkin`, whatever Shaders equipped), so the lab's own shows once the tab's
+  Equip wears it. The Blade row (Left and Right) starts there, then previews the stock
+  blade, the lab folder's skins and every other blade skin of the catalogue, the rarest
+  first, owned or not (`LabBlade`, `lab_blades`; drawn on this PC only, as Shaders
+  previews a locked one). Equip wears what may be worn (a lab skin, or one the profile
+  lists) and takes off what is worn; a blade not owned is only previewed, and the line
+  under the row says which.
+- **The blade-skin editor** (18/10/2026, [blade_editor.rs](../crates/sjk-viewer/src/blade_editor.rs),
+  [collection_saber_lab_editor.rs](../crates/sjk-viewer/src/collection_saber_lab_editor.rs)):
+  Edit (`E`) on the Equip row opens the skin the Blade row shows (a skin of the packs is
+  copied into the lab's folder first, "Copy to edit": the lab then draws its copy in place
+  of the pack's, on this PC only) as its six files, the skin file and its five additions
+  files, read in their own order ([ordered_json.rs](../crates/sjk-viewer/src/ordered_json.rs)).
+  Its sections and fields are rows in the column under the floating saber: a number with
+  a slider over the range its check allows (`blade_skin_file::ranges` records each
+  `within` the checks make, over every skin of the packs and the one edited), a colour
+  with a swatch and its channels, a switch, a path; a section of another file shows that
+  file. Each section says in a few words what it draws (`blade_editor::about`: "black
+  holes", "lightning arcs"; only words, and a test fails when the format has a section
+  they do not word). There is one shader (`saber.wgsl`) and one format: a section is a
+  part of that shader a skin switches on by holding it, so the editor covers the format,
+  read from the format itself ([blade_skin_shape.rs](../crates/sjk-viewer/src/blade_skin_shape.rs),
+  no list of its own; the user, 18/10/2026: "if there is a rule to the system then
+  that's what I want the editor to cover"). A skin read with a probe member in it is
+  refused with the members the format allows there, in its order; a value of the wrong
+  type with the type wanted (a struct, an array of a length, a sequence, an integer, a
+  string, a switch); a value out of its range with the range. The sections the skin
+  lacks are listed to add under a heading ("Add a section", `A` goes there), in the
+  format's order; one is added as the first shipped skin holding it has it (in that
+  skin's file) or, when none does, as the format makes it: its fields of their types,
+  built from those words, and its values moved into their ranges until it reads, in the
+  newest additions file. Built so, every section reads on its own but for those a rule
+  binds beyond its ranges (the image paths, `motes.size × stretch`, `orbit` needing
+  `star` or `holes`, an option's id), whose words the editor then shows. Up and Down choose a row, Left and Right move a number
+  by its step (a hundredth of its range, 1, 2 or 5 times a power of ten; Shift ten,
+  Ctrl a tenth) or open and close a section, Shift+Right and Shift+Left every section, a
+  drag on a slider sets it (a number without a range is scrubbed), Enter opens, flips,
+  adds or types (a digit types a number at once), Delete takes a section or a list's
+  item out, Insert copies an item, Ctrl+Z and Ctrl+Y undo and redo (200 changes, a drag
+  as one), Ctrl+S writes at once, Esc or Done closes. Each change is laid over and
+  checked as the game reads the files; when it reads it replaces the skin's look at once
+  (`sjk_packs::edit`, `LoadedSkins::edited`: the one skin, its images made again only
+  when their profile or image changed, uploaded alone, `SaberGpu::upload_skins`'s
+  `only`), the model, the floating saber and the trail showing it the next frame; when
+  it does not, the check's words show and the last good look stays. The files are written
+  0.7 s after the last change (an additions file left empty is taken away) and the lab
+  is told (`saber_lab::wrote`), so it does not mount the packs again for them; a file
+  saved by another editor meanwhile is read again when nothing waits.
+- **Smoke from the emitter** (18/10/2026): the format's eighth set, `smoke` in
+  `<id>.bladeextra6` ([unlockables.md](unlockables.md#blade-skin-files)), drawn as the
+  game's particles let go where each blade's emitter is (`saber_smoke::Emitter`, kept per
+  blade in a match's `BladeState` and the stage's `StageSaber`, the floating copy's
+  apart): while lit and, put out, for its `after` seconds, the puffs rising and fading in
+  the air so a swing trails them. At first the puffs were made but not drawn: the effect
+  atlas holds only the map's effects' shaders, so a skin's smoke shader is now added to it
+  (`GpuState::admit_smoke_shaders`). Wisps (the user asked for wispy white smoke): many
+  small faint puffs a second chain into a thin strand, and the stream's sway (`sway`,
+  `sway_rate`) curls it; the lab's skin lets 70 a second go of the stock
+  `gfx/effects/jk_smoke5`, white, 1 to 4.5 units, opacity 0.3. The stock soft
+  `alpha_smoke2` barely shows at all, and the game's wisp `smokeTrail` is made for
+  trails: additive, it summed to white blobs, and its scrolling smeared in the atlas.
+  Then a ribbon renderer (the user, 18/10/2026: "an actual ribbon renderer for wispy
+  smoke"): `ribbon`, beside `smoke` in the same file, strands through points let go one
+  after another, each drifting on its own, drawn by `saber_ribbons::Gpu` with the blades'
+  pass (after them) and counted in the effect layer's bounds. The lab's skin now smokes
+  with a white ribbon alone: standing, for 1.5 s once lit and 3.5 s once put out, but not
+  swinging (`idle` 1, `swinging` 0; the user, 18/10/2026: trails "too distracting while
+  swinging", with the choice of smoking the whole time, `swinging` 1). Then sparks
+  (`sparks`, the same file; the user: "sparks flying out of the emitter a bit upwards,
+  crackling"): 2.5 bursts a second lit, 14 for 1.2 s once lit, 8 falling to none over
+  0.8 s once put out, up to five sparks each, 75 units a second in a 35° cone, falling at
+  420, 0.3 wide streaking 5 units; at first 0.7 wide, they read as fat ovals. `aim` turns
+  the cone from the world's up (0) to along the blade (1; the lab's skin), the user asking
+  for sparks shot out along the blade. More lab blades: a folder's
+  `saber_lab_<name>.bladeskin` is the lab blade "Saber Lab: <name>", worn on this PC as
+  the lab blade is (`saber_lab::EXTRA_PREFIX`); the user's first blade is kept so as
+  `saber_lab_half_broken`. Space, I, M, T, F
+  and L still swing, light, mute, turn the camera, flourish and trail while it is open.
+- **The builder** (30/10/2026, the user's design: "a very visual way of working with"
+  the effects; [blade_builder.rs](../crates/sjk-viewer/src/blade_builder.rs),
+  [collection_saber_lab_builder.rs](../crates/sjk-viewer/src/collection_saber_lab_builder.rs)):
+  the tab's first view; Stage controls (`B`) shows the choices above, Builder comes back.
+  The camera turns until the model stands right of the panels (`LabStage::build`,
+  `menu_backdrop::framed_yaw`: the model's chest at 78% of the frame across, from the
+  menu's field of view, eased as the other views are) and no saber floats. On the left
+  the library: every effect a skin file can draw (`blade_builder::EFFECTS`, 49: the 40
+  sections an option may switch, the orbit, and the blade's own make), by kind on six
+  tabs (Around, On the blade, Emitter, Figures, Core, Kills), a card each with its name
+  and a few words, or where it is on the blade; the pointer resting on a card or a chip
+  for 0.35 s shows its card (`hover::draw`) with what it draws and what a click or a drag
+  does. In the middle the blade's groups (`blade_builder::Shape`): The blade itself (the
+  sections every skin has; never grouped, never taken off), Always on (the effects in
+  no option), each group (an option of the file: its name, a click renames it, Enter
+  keeps the name; its switch, the wearer's own choice as on Shaders; `×` ungroups it,
+  its effects always on) and room for a new one while there are fewer than six. An
+  effect is dragged (6 frame pixels from where it was pressed) from the library onto the
+  blade, between Always on and the groups (at most four in one), onto New group (named
+  after it), or back to the library to take it off; Delete takes off the one the pointer
+  rests on; a click on a library card puts it on Always on, a click on a chip opens its
+  fields where the groups were (the editor's rows, that section alone open; Done or Esc
+  comes back). Each change goes through the editor (`Editor::add_section`,
+  `remove_section`, `set_options`), is checked as the game reads the files, and is
+  refused with the check's words when it would not read (an orbit with nothing to
+  circle, a glint with black holes); where it may not go is said under the pointer while
+  dragging. `options` is written in the newest file a client must read to know every
+  section it names, at least `.bladeextra` (`write_options`), and taken out of the
+  others, so an older client reads no option it could not check. An orbit goes with its
+  glint or holes, shown after them. A blade of the packs is copied into the lab's folder
+  first (Copy into the lab); a signature's or a hand-ported design's is not built, its
+  shader drawing most of it. Tried by the user on 30/10/2026; three blades they edited
+  had to be put back by hand, so (the user, 01/11/2026: "when you start editing a blade,
+  it keeps a copy of the original so you can always revert it") the editor, before it
+  first writes a blade's files, copies them as they are into the lab folder's
+  `originals/<id>/` (`blade_editor::ORIGINALS`, outside `skins/blades` so they are not
+  read as skins; an additions file goes before the skin file, so a copy cut short is
+  made again, and nothing is written if the copy fails). That copy is never written
+  over: the first edit's original stays until the folder is deleted. Revert, on the
+  builder's status line and the fields' column, puts it back as a change (Undo takes it
+  back), and a file back as it was is copied from the kept one, byte for byte.
+- **Wearing:** while the lab is on, the lab blade and every skin the folder holds a file
+  for count as yours on this PC (`saber_lab::owns`): Equip wears them, in the hand, in a
+  match and on the stage, and the card says "Yours in the Saber Lab, on this PC only".
+  Only the blade drawn here follows it: the look sent to the hub keeps your real unlocks
+  (`looks_frame.rs`, as debug collectibles do), so the hub never hears of a lab skin and
+  other players see your usual blade.
+
+Checked in the client on Windows: the lab started from `SJK_SABER_LAB`, a save reloaded
+within half a second, an out-of-range value was named and the last look kept, and the
+fixed file read again.
 
 ## Quick wheels
 
@@ -7123,6 +7398,26 @@ composes them with the same rules
 leading 0 always use code page 437, the US OEM page, even where Windows uses
 another OEM page (850 in much of Western Europe).
 
+`alias <name> <commands>` names a command line, as Quake II's `alias` does (the
+original Jedi Academy has none; Lex's idea, 04/11/2026): after `alias duel "say
+ready; +use"`, typing `duel`, a bind to it (`bind f duel`), an `exec` script or a
+quick wheel command runs `say ready` and `+use` where `duel` stood. Quote the
+commands when they hold a `;`, or the rest of the line runs at once. A `+name` alias
+with a `-name` one works as a held key: `alias +zoom "cg_fov 40"`, `alias -zoom
+"cg_fov 80"`, `bind mouse3 +zoom` zooms while the button is held. Names ignore case,
+are up to 32 characters without spaces, quotes or `;`, and cannot be a command or a
+setting the client knows (`alias bind ...` is refused; a server's command, such as
+`kill`, can be). `alias` alone or `aliaslist [<part of a name>]` lists them,
+`alias <name>` shows one, `unalias <name>` and `unaliasall` remove them; listings hide
+passwords as `bindlist` does, and Tab completes alias names. An alias may run other
+aliases; one that runs itself, or a chain 16 deep (the `exec` limit), stops with a
+console message, so a looping alias with `wait` stops too, unlike Quake II's. Aliases
+are kept for the next start in `aliases.cfg` beside `config.cfg`, not in it, so a build
+without aliases still loads that config; a line of `aliases.cfg` that cannot be read
+is reported and skipped
+([alias.rs](../crates/sjk-shell/src/alias.rs),
+[shell_alias.rs](../crates/sjk-shell/src/shell_alias.rs)).
+
 `r_we <command>` runs one weather command on the current map, as the original
 renderer's `r_we` does: `r_we heavyrain`, `r_we snow`, `r_we heavyrainfog`,
 `r_we constantwind ( 0 -800 0 )`, `r_we clear` (an unknown command lists them).
@@ -7703,6 +7998,13 @@ semicolons (`mp/ffa4 mp/duel6`; `maps/` and `.bsp` are optional, capitals do not
 matter; typed in the console, a list with semicolons needs quotes). `blockRemaps [map]` adds a map and `unblockRemaps [map]` removes it, the
 loaded one when no map is named; the change applies at once, and `listRemaps` says
 when the loaded map is blocked. The list is saved with the other settings.
+`cg_remapsAllowedMaps` is the other way round: maps whose server remaps apply,
+filtered by `cg_remaps`, even while `cg_serverRemaps` is 0; `allowRemaps [map]` adds a
+map and `unallowRemaps [map]` removes it. A map in both lists is blocked.
+Settings > GAME > "Remaps on this map" (`cg_serverRemapsMap`, not saved) shows
+and sets the loaded map's choice: `default` (as `cg_serverRemaps`), `on` (in the
+allowed list) or `off` (in the blocked list). It is rewritten from the lists on each
+map, and setting it moves the map between the lists, so each map keeps its choice.
 A map's own worldspawn remaps always apply. `listRemaps` lists the map's, the
 enabled server and the temporary local remaps in the order they were applied, each
 labelled `map:`, `server:` or `local:`, and marks those a later remap overrides.

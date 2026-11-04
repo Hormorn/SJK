@@ -24,6 +24,8 @@ pub(crate) struct Runtime {
     last_time: Option<i64>,
     materials: [Arc<str>; 2],
     pub(crate) enabled: bool,
+    /// Where blades first touched a wall in the last update, for the skins that react.
+    touches: Vec<Vec3>,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -33,10 +35,16 @@ impl Default for Runtime {
             last_time: None,
             materials: MATERIALS.map(Arc::from),
             enabled: true,
+            touches: Vec::new(),
         }
     }
 }
 impl Runtime {
+    /// Where blades first touched a wall in the last update.
+    pub(crate) fn touches(&self) -> &[Vec3] {
+        &self.touches
+    }
+
     pub(crate) fn clear(&mut self) {
         self.states.fill(Contact::default());
         self.last_time = None;
@@ -56,6 +64,7 @@ impl Runtime {
         slots: [u8; 2],
         mut impact: impl FnMut(Vec3, Vec3, crate::saber_rgb::BladeColor, bool, bool, bool, u32),
     ) {
+        self.touches.clear();
         if !self.enabled {
             if self.last_time.is_some() {
                 self.clear();
@@ -138,6 +147,9 @@ impl Runtime {
                 );
             }
             let touching = state.seen != 0 && state.seen.wrapping_add(1) == self.frame;
+            if !touching {
+                self.touches.push(point);
+            }
             let spark = !touching || time - state.spark >= 40;
             if spark {
                 state.spark = time;
@@ -232,6 +244,10 @@ pub(crate) fn frame(
             }
         },
     );
+    // A blade's first touch of a wall is a clash, for the skins that react next frame.
+    for point in gpu.effect_aux.saber_contacts.touches() {
+        gpu.impacts.clash_at(point.to_array());
+    }
     gpu.saber_instances.retain(Instance::visible);
 }
 

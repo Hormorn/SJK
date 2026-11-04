@@ -153,7 +153,7 @@ pub(crate) struct SkinOption {
 }
 
 /// The sections an option may switch, a bit each in an instance's mask (`saber.wgsl`
-/// `OFF_*`, the same order).
+/// `OFF_*`, the same order, then `OFF2_*` from [`Section::Smoke`]).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Section {
     Arcs,
@@ -188,11 +188,22 @@ pub(crate) enum Section {
     Copies,
     Ink,
     Chrome,
+    // The eighth set's (`.bladeextra6`): the CPU makes all but the unrest, which
+    // `saber.wgsl` reads from the mask's second word.
+    Smoke,
+    Ribbon,
+    Sparks,
+    Bolts,
+    Unrest,
+    Flash,
+    Crackle,
+    Disintegrate,
 }
 
 impl Section {
-    /// Thirty-two, the instance's mask's bits: a later section needs a wider mask.
-    pub(crate) const ALL: [Self; 32] = [
+    /// Each a bit of the instance's mask, two 32-bit words (`saber.wgsl` `off.x` and
+    /// `off.y`): room for 64.
+    pub(crate) const ALL: [Self; 40] = [
         Self::Arcs,
         Self::Motes,
         Self::Hue,
@@ -225,6 +236,14 @@ impl Section {
         Self::Copies,
         Self::Ink,
         Self::Chrome,
+        Self::Smoke,
+        Self::Ribbon,
+        Self::Sparks,
+        Self::Bolts,
+        Self::Unrest,
+        Self::Flash,
+        Self::Crackle,
+        Self::Disintegrate,
     ];
 
     /// Its field's name in the file.
@@ -262,12 +281,20 @@ impl Section {
             Self::Copies => "copies",
             Self::Ink => "ink",
             Self::Chrome => "chrome",
+            Self::Smoke => "smoke",
+            Self::Ribbon => "ribbon",
+            Self::Sparks => "sparks",
+            Self::Bolts => "bolts",
+            Self::Unrest => "unrest",
+            Self::Flash => "flash",
+            Self::Crackle => "crackle",
+            Self::Disintegrate => "disintegrate",
         }
     }
 
     /// Its bit in an instance's mask of sections switched off.
-    pub(crate) const fn bit(self) -> u32 {
-        1 << self as u32
+    pub(crate) const fn bit(self) -> u64 {
+        1 << self as u64
     }
 
     pub(crate) fn named(name: &str) -> Option<Self> {
@@ -329,13 +356,21 @@ impl BladeSkinDef {
             Section::Copies => self.copies.is_some(),
             Section::Ink => self.ink.is_some(),
             Section::Chrome => self.chrome.is_some(),
+            Section::Smoke => self.smoke.is_some(),
+            Section::Ribbon => self.ribbon.is_some(),
+            Section::Sparks => self.sparks.is_some(),
+            Section::Bolts => self.bolts.is_some(),
+            Section::Unrest => self.unrest.is_some(),
+            Section::Flash => self.flash.is_some(),
+            Section::Crackle => self.crackle.is_some(),
+            Section::Disintegrate => self.disintegrate.is_some(),
         }
     }
 
     /// The mask of sections its wearer has switched off: those of every option in `off`
     /// (ids the file does not offer are ignored, so an older pack draws a newer wearer's
     /// choice as best it can).
-    pub(crate) fn off_mask(&self, off: crate::saber_skin_options::OptionsOff) -> u32 {
+    pub(crate) fn off_mask(&self, off: crate::saber_skin_options::OptionsOff) -> u64 {
         self.options
             .iter()
             .filter(|option| off & option_bit(&option.id) != 0)
@@ -347,7 +382,7 @@ impl BladeSkinDef {
     /// How far (units) the glow's quad reaches past the glow for the sections not in
     /// `off`: the wisps' rise, the haze's reach, the butterflies' flights and the wings'
     /// span.
-    pub(crate) fn room(&self, off: u32) -> f32 {
+    pub(crate) fn room(&self, off: u64) -> f32 {
         let wisps = self
             .wisps
             .filter(|_| off & Section::Wisps.bit() == 0)
@@ -426,7 +461,7 @@ impl BladeSkinDef {
                 self.options.len()
             ));
         }
-        let mut switched = 0_u32;
+        let mut switched = 0_u64;
         for (index, option) in self.options.iter().enumerate() {
             let field = format!("options[{index}]");
             if !valid_option_id(&option.id) {

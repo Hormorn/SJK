@@ -35,6 +35,8 @@ pub(crate) const COPY: u16 = 12;
 pub(crate) const REMAP_FIELD: u16 = 13;
 pub(crate) const REMAP: u16 = 14;
 pub(crate) const UNREMAP: u16 = 15;
+/// Selected, on a sky: swap every sky of the map for the chosen one.
+pub(crate) const SKY_ALL: u16 = 16;
 /// Place: the search, placing the chosen model, the placed model's controls.
 pub(crate) const SEARCH: u16 = 20;
 pub(crate) const PLACE: u16 = 21;
@@ -110,6 +112,8 @@ pub(crate) enum Action {
     Copy,
     Remap,
     Unremap,
+    /// Swap every sky of the map for the chosen sky shader.
+    SkyAll,
     Place,
     Turn(f32),
     Lift(f32),
@@ -147,6 +151,8 @@ pub(crate) enum Picked {
     Entity,
     /// A caulk or nodraw brush side the map draws nothing on: an edit may draw it.
     Face,
+    /// A sky brush side: an edit may cover it with a texture, or swap the sky.
+    Sky,
     /// Nothing an edit changes.
     Other,
 }
@@ -223,6 +229,9 @@ pub(crate) struct Panel {
     /// once per game data, with the game data's address.
     shaders: Vec<String>,
     shaders_from: usize,
+    /// The sky shaders (their scripts have `skyParms`), lower case and sorted: on a sky
+    /// they come first in the list, and a sky swaps only for one of them.
+    skies: Vec<String>,
     /// The indices of [`Self::shaders`] the remap's search keeps.
     pub(crate) shader_shown: Vec<u32>,
     pub(crate) shader_row: usize,
@@ -244,6 +253,8 @@ pub(crate) struct Panel {
     /// What [`Facts`] were read for: the document's revision, the current placed model,
     /// grabbing, and whether the map's checksum was known.
     seen: Option<(u64, Option<u32>, bool, bool)>,
+    /// The gizmo transforms the placed model: the keys line names its keys.
+    pub(crate) transforming: bool,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -289,6 +300,20 @@ pub(super) fn remap_shaders(
 }
 
 /// Whether `path` matches every word of `query` (lower case).
+/// The sky shaders of `catalog` (their scripts have `skyParms`), as named there: what a
+/// sky swaps for.
+pub(crate) fn sky_shaders(catalog: &sjk_shader::ShaderCatalog) -> Vec<String> {
+    let mut skies: Vec<String> = catalog
+        .names()
+        .filter(|name| !name.contains(':'))
+        .filter(|name| catalog.get(name).is_some_and(|d| d.sky.is_some()))
+        .map(str::to_owned)
+        .collect();
+    skies.sort();
+    skies.dedup();
+    skies
+}
+
 fn matches(path: &str, query: &str) -> bool {
     let path = path.to_ascii_lowercase();
     query.split_whitespace().all(|word| path.contains(word))
@@ -374,7 +399,30 @@ impl Panel {
         }
         self.shaders_from = from;
         self.shaders = remap_shaders(vfs, catalog);
+        self.skies = sky_shaders(catalog)
+            .into_iter()
+            .map(|sky| sky.to_ascii_lowercase())
+            .collect();
+        self.skies.sort();
+        self.skies.dedup();
+        // A sky outside textures/ (a pack's own folder) is still offered on a sky.
+        for sky in &self.skies {
+            if let Err(at) = self.shaders.binary_search(sky) {
+                self.shaders.insert(at, sky.clone());
+            }
+        }
         self.refilter_shaders();
+    }
+
+    /// Whether `shader` (any case) is a sky shader.
+    pub(crate) fn is_sky(&self, shader: &str) -> bool {
+        self.skies.binary_search(&shader_stem(shader)).is_ok()
+    }
+
+    /// Whether the chosen shader is a sky: on a sky, the remap swaps the sky.
+    pub(crate) fn chosen_is_sky(&self) -> bool {
+        self.chosen_shader()
+            .is_some_and(|shader| self.is_sky(shader))
     }
 
     #[cfg(test)]
@@ -386,6 +434,13 @@ impl Panel {
     #[cfg(test)]
     pub(crate) fn set_shaders(&mut self, shaders: &[&str]) {
         self.shaders = shaders.iter().map(|shader| (*shader).to_owned()).collect();
+        self.skies = self
+            .shaders
+            .iter()
+            .filter(|shader| shader.contains("skies/"))
+            .cloned()
+            .collect();
+        self.skies.sort();
         self.refilter_shaders();
     }
 
@@ -401,6 +456,18 @@ impl Panel {
                 .filter(|(_, shader)| matches(shader, &query))
                 .map(|(index, _)| index as u32),
         );
+        let on_sky = self
+            .facts
+            .selection
+            .as_ref()
+            .is_some_and(|selection| selection.picked == Picked::Sky);
+        if on_sky {
+            // The skies first: what a sky is most often swapped for.
+            let skies = &self.skies;
+            let shaders = &self.shaders;
+            self.shader_shown
+                .sort_by_key(|&index| skies.binary_search(&shaders[index as usize]).is_err());
+        }
         let own = self
             .facts
             .selection
@@ -436,13 +503,16 @@ impl Panel {
             return;
         }
         if self.remap.is_empty() || self.remap == self.prefill {
-            let face = self
+            let picked = self
                 .facts
                 .selection
                 .as_ref()
-                .is_some_and(|selection| selection.picked == Picked::Face);
-            // A face draws a wall or floor texture, not another tool shader.
-            self.prefill = if face {
+                .map(|selection| selection.picked);
+            // A face draws a wall or floor texture, not another tool shader; on a sky the
+            // skies come first in the whole list.
+            self.prefill = if picked == Some(Picked::Sky) {
+                String::new()
+            } else if picked == Some(Picked::Face) {
                 "textures/".to_owned()
             } else {
                 shader
@@ -680,6 +750,7 @@ impl Panel {
             COPY => return Some(Action::Copy),
             REMAP | REMAP_FIELD => return Some(Action::Remap),
             UNREMAP => return Some(Action::Unremap),
+            SKY_ALL => return Some(Action::SkyAll),
             PLACE | SEARCH => return Some(Action::Place),
             TURN_LEFT => return Some(Action::Turn(TURN)),
             TURN_RIGHT => return Some(Action::Turn(-TURN)),
@@ -896,6 +967,10 @@ impl GpuState {
         if !self.map_edit_panel_open() {
             return false;
         }
+        // The gizmo's keys (1, 2, 3, L, G, R, T; all of them while it transforms).
+        if self.map_edit_gizmo_key(event) {
+            return true;
+        }
         let (shift, control) = self.console.as_ref().map_or((false, false), |console| {
             (console.shift_held(), console.control_held())
         });
@@ -912,6 +987,10 @@ impl GpuState {
     /// A pointer event while the panel is open: the column's, or a press on the scene,
     /// which selects what is under the pointer.
     pub(crate) fn map_edit_pointer(&mut self, event: InputEvent) {
+        // A press on the gizmo's handles, and its drags, are the gizmo's.
+        if self.map_edit_gizmo_pointer(event) {
+            return;
+        }
         if let InputEvent::PointerPress {
             position,
             button: PointerButton::Primary,
@@ -987,6 +1066,14 @@ impl GpuState {
                 ("mapedit_remap", vec![shader])
             }
             Action::Unremap => ("mapedit_remap", text(&["-"])),
+            Action::SkyAll => {
+                let panel = &mut self.map_edits.panel;
+                let Some(sky) = panel.chosen_shader().filter(|_| panel.chosen_is_sky()) else {
+                    panel.answer(Err("Choose a sky in the list first".into()));
+                    return;
+                };
+                ("mapedit_sky", vec![sky.to_owned(), "all".to_owned()])
+            }
             Action::Place => {
                 let panel = &mut self.map_edits.panel;
                 let Some(model) = panel.chosen_model().map(str::to_owned) else {
@@ -1296,6 +1383,7 @@ impl GpuState {
                 brush,
                 side,
                 shader,
+                sky,
             } => {
                 let server = self.map_edits_server();
                 let drawn = self.map_edits.document.as_ref().and_then(|document| {
@@ -1311,6 +1399,33 @@ impl GpuState {
                             _ => None,
                         })
                 });
+                if sky {
+                    let swapped = self.map_edits.document.as_ref().and_then(|document| {
+                        document
+                            .active(server.as_deref())
+                            .find_map(|edit| match &edit.kind {
+                                Kind::Remap { from, to } if from.eq_ignore_ascii_case(&shader) => {
+                                    Some(to.clone())
+                                }
+                                _ => None,
+                            })
+                    });
+                    let sky = match swapped {
+                        Some(to) => format!("swapped for {to}"),
+                        None => "the map's sky".to_owned(),
+                    };
+                    return Some(Selected {
+                        picked: Picked::Sky,
+                        name: shader.clone(),
+                        detail: match drawn {
+                            Some(to) => {
+                                format!("brush {brush} side {side} covered with {to}; {sky}")
+                            }
+                            None => format!("brush {brush} side {side}, {sky}"),
+                        },
+                        shader: Some(shader),
+                    });
+                }
                 Selected {
                     picked: Picked::Face,
                     name: shader.clone(),

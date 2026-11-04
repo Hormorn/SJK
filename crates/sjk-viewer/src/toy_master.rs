@@ -274,7 +274,37 @@ pub(crate) struct ToyMaster {
     shot: bool,
 }
 
+/// A hidden toy as the browser map editor shows it.
+pub(crate) struct Hidden<'a> {
+    pub(crate) id: i64,
+    pub(crate) kind: Option<&'a str>,
+    pub(crate) model: &'a str,
+    pub(crate) origin: Vec3,
+    /// Facing, in degrees.
+    pub(crate) yaw: f32,
+    pub(crate) scale: f32,
+    pub(crate) escorted: bool,
+}
+
 impl ToyMaster {
+    /// The toys hidden on the loaded map.
+    pub(crate) fn hidden(&self) -> impl Iterator<Item = Hidden<'_>> {
+        self.here.iter().map(|here| Hidden {
+            id: here.id,
+            kind: here.kind.as_deref(),
+            model: &here.model,
+            origin: here.origin,
+            yaw: here.yaw,
+            scale: here.scale,
+            escorted: here.escorted,
+        })
+    }
+
+    /// The kinds of toy, as the hub tells the creator.
+    pub(crate) fn kinds(&self) -> &[String] {
+        &self.kinds
+    }
+
     /// Note a `+use` press in `command` for the frame's logic.
     pub(crate) fn observe_use(&mut self, command: &UserCommand) {
         let using = command.buttons & BUTTON_USE != 0;
@@ -985,23 +1015,12 @@ impl GpuState {
                     .ray_hit(eye, forward, 4096.0)
                     .ok_or("Aim at the floor where the toy should stand")?;
                 let yaw = forward.y.atan2(forward.x).to_degrees() + 180.0;
-                self.toy_master.pending_place = Some(PendingPlace {
-                    kind: kind.clone(),
-                    origin: eye + forward * hit.distance,
-                    yaw: yaw.rem_euclid(360.0),
-                    server: if one_server { server } else { String::new() },
+                Ok(vec![self.toy_master_place_at(
+                    kind,
+                    eye + forward * hit.distance,
+                    yaw,
+                    one_server.then_some(server),
                     escorted,
-                });
-                let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
-                self.map_edits.want_checksum(&map);
-                Ok(vec![format!(
-                    "Hiding a {kind} on {map}{}{}...",
-                    if one_server { " for this server" } else { "" },
-                    if escorted {
-                        ", shown only where you are"
-                    } else {
-                        ""
-                    }
                 )])
             }
             "toymaster_escort" => {
@@ -1060,6 +1079,41 @@ impl GpuState {
             }
             _ => Err(format!("Unknown command {name}")),
         }
+    }
+
+    /// Ask the hub to hide a toy of `kind` at `origin` facing `yaw` degrees, on every
+    /// server running this map file or on `server` only, once the map's checksum is
+    /// known (`toymaster_place` aims; the browser map editor gives the spot). The
+    /// caller has checked the creator and the server.
+    pub(crate) fn toy_master_place_at(
+        &mut self,
+        kind: String,
+        origin: Vec3,
+        yaw: f32,
+        server: Option<String>,
+        escorted: bool,
+    ) -> String {
+        let one_server = server.is_some();
+        let line = format!(
+            "Hiding a {kind} on {}{}{}...",
+            crate::remap_blocked_maps::map_name(&self.world_load_map),
+            if one_server { " for this server" } else { "" },
+            if escorted {
+                ", shown only where you are"
+            } else {
+                ""
+            }
+        );
+        self.toy_master.pending_place = Some(PendingPlace {
+            kind,
+            origin,
+            yaw: yaw.rem_euclid(360.0),
+            server: server.unwrap_or_default(),
+            escorted,
+        });
+        let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
+        self.map_edits.want_checksum(&map);
+        line
     }
 
     fn toy_master_list(&self) -> Vec<String> {
@@ -1163,7 +1217,7 @@ impl GpuState {
             return;
         }
         // Who stands round each floating show as it floats off.
-        let mut players: Vec<(u8, Vec3, f32)> = Vec::new();
+        let mut players: Vec<(u8, Vec3, f32, u16)> = Vec::new();
         if let Some(session) = self.live_session.as_ref() {
             let snapshot = session.latest_snapshot();
             let time = i64::from(snapshot.server_time);
@@ -1179,6 +1233,7 @@ impl GpuState {
                         slot,
                         Vec3::from_array(at.sample(time).translation),
                         entity.angles()[1],
+                        crate::ragdoll::scale_percent(entity.model_scale_percent()),
                     ));
                 }
             }
@@ -1193,6 +1248,7 @@ impl GpuState {
                     own,
                     Vec3::from_array(origin),
                     snapshot.player.view_angles()[1],
+                    crate::ragdoll::scale_percent(snapshot.player.model_scale_percent()),
                 ));
             }
         }
@@ -1215,7 +1271,7 @@ impl GpuState {
                 let near: Vec<_> = players
                     .iter()
                     .copied()
-                    .filter(|(_, at, _)| at.distance(here.origin) <= full)
+                    .filter(|(_, at, _, _)| at.distance(here.origin) <= full)
                     .collect();
                 here.floats
                     .begin(&near, elapsed, here.seed ^ here.id as u32);

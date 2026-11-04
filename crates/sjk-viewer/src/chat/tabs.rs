@@ -385,14 +385,20 @@ impl ChatOverlay {
         let at = current.map_or(0, |at| (at as isize + step).rem_euclid(count) as usize);
         input.channel = Channel::Whisper;
         input.recipient = Some(whisperers[at]);
+        input.pm_list = false;
         self.notice = "";
     }
 
     /// Where the composer's whisper stands among the players who whispered you, as
     /// "2/3", when more than one did and it is one of them.
+    #[cfg(test)]
     pub(super) fn pm_place(&self) -> Option<(usize, usize)> {
+        self.pm_place_among(&self.whisperers())
+    }
+
+    /// [`Self::pm_place`] among `whisperers`, [`Self::whisperers`] as already found.
+    pub(super) fn pm_place_among(&self, whisperers: &[ChatTarget]) -> Option<(usize, usize)> {
         let recipient = self.input.as_ref()?.recipient?;
-        let whisperers = self.whisperers();
         (whisperers.len() > 1)
             .then(|| whisperers.iter().position(|target| *target == recipient))
             .flatten()

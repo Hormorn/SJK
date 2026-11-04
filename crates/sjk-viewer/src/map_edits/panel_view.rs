@@ -268,6 +268,7 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         Picked::Surface { .. } => "Surface",
         Picked::Entity => "Game entity",
         Picked::Face => "Hidden face",
+        Picked::Sky => "Sky",
         Picked::Other => "Not editable",
     };
     text(
@@ -329,6 +330,13 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             "The map draws nothing here: pick a shader to draw it.",
             color::MUTED,
         ),
+        Picked::Sky => line(
+            ui,
+            frame,
+            y + 8.0,
+            "Pick a sky to swap it, or a texture to cover this side.",
+            color::MUTED,
+        ),
         Picked::Other => {}
     }
     if selection.shader.is_none() {
@@ -384,6 +392,25 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         );
     }
     y += height + 8.0;
+    if selection.picked == Picked::Sky {
+        let sky = panel.chosen_is_sky();
+        buttons(
+            ui,
+            frame,
+            panel,
+            y,
+            &[
+                (
+                    REMAP,
+                    if sky { "Swap sky" } else { "Cover side" },
+                    panel.has_remap_target(),
+                ),
+                (SKY_ALL, "Swap all skies", sky),
+                (UNREMAP, "Take back", true),
+            ],
+        );
+        return;
+    }
     buttons(
         ui,
         frame,
@@ -787,16 +814,30 @@ fn keys(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
         ]
     };
     hint_line(ui, frame, right, KEYS_Y, first);
-    let second: &[Hint<'_>] = if panel.tab == Tab::Place {
+    hint_line(ui, frame, right, KEYS_Y + KEYS_PITCH, second_keys(panel));
+}
+
+/// The second line of keys: the gizmo's while it transforms ([`super::gizmo`]).
+fn second_keys(panel: &Panel) -> &'static [Hint<'static>] {
+    if panel.transforming {
         &[
-            (&["Click"], "a spot"),
-            (&["Shift"], "fine steps"),
+            (&["X", "Y", "Z"], "axis"),
+            (&["Enter"], "done"),
+            (&["Esc"], "cancel"),
+        ]
+    } else if panel.tab == Tab::Place {
+        &[
+            (&["Shift"], "fine"),
+            (&["G", "R", "T"], "gizmo"),
             (&["Esc"], "aim"),
         ]
     } else {
-        &[(&["Click"], "the scene selects"), (&["Esc"], "aim")]
-    };
-    hint_line(ui, frame, right, KEYS_Y + KEYS_PITCH, second);
+        &[
+            (&["Click"], "selects"),
+            (&["G", "R", "T"], "gizmo"),
+            (&["Esc"], "aim"),
+        ]
+    }
 }
 
 /// The strip's canvas, kept for the session.
@@ -967,6 +1008,7 @@ mod tests {
             ("place", panel(Tab::Place, None)),
             ("edits", panel(Tab::Edits, None)),
             ("face", panel(Tab::Selected, Some(Picked::Face))),
+            ("sky", panel(Tab::Selected, Some(Picked::Sky))),
         ]
     }
 
@@ -1030,6 +1072,10 @@ mod tests {
         assert!(tokens("surface").contains(&HIDE_GROUP));
         assert!(!tokens("entity").contains(&HIDE) && tokens("entity").contains(&REMAP_FIELD));
         assert!(!tokens("face").contains(&HIDE) && tokens("face").contains(&REMAP));
+        let sky = tokens("sky");
+        assert!(!sky.contains(&HIDE) && sky.contains(&REMAP) && sky.contains(&SKY_ALL));
+        assert!(!tokens("face").contains(&SKY_ALL) && !tokens("prop").contains(&SKY_ALL));
+
         let prop = tokens("prop");
         assert!(prop.contains(&(SHADER_ROW + SHADER_ROWS as u16 - 1)) && prop.contains(&REMAP));
         assert!(!prop.contains(&(SHADER_ROW + SHADER_ROWS as u16)));
@@ -1102,6 +1148,26 @@ mod tests {
         assert_eq!(panel.edit_first, 2);
         assert!(visited.contains(&DELETE) && visited.contains(&PUBLISH));
         assert_eq!(visited.last(), Some(&EDITOR_OFF));
+    }
+
+    #[test]
+    fn the_key_lines_fit_the_column() {
+        let width = |hints: &[Hint<'_>]| {
+            hints
+                .iter()
+                .map(|(caps, action)| key_hint_width(caps, action, 1.0))
+                .sum::<f32>()
+                + 20.0 * hints.len().saturating_sub(1) as f32
+        };
+        for tab in [Tab::Selected, Tab::Place, Tab::Edits] {
+            for transforming in [false, true] {
+                let mut panel = Panel::default();
+                panel.tab = tab;
+                panel.transforming = transforming;
+                let line = width(second_keys(&panel));
+                assert!(line <= COLUMN_WIDTH, "{tab:?} {transforming}: {line}");
+            }
+        }
     }
 
     #[test]

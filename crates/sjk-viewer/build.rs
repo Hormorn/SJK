@@ -8,7 +8,8 @@
 //! (03/11/2026: a profile with JoF content overflowed 8 MiB at the menu's map), so
 //! Windows and macOS binaries reserve 64 MiB, as the world-install worker does
 //! (`session_transition::WORLD_INSTALL_STACK_BYTES`). Reserved pages that are never
-//! touched cost nothing. Linux takes its main thread's stack from `ulimit -s`. `sjk.exe` carries SJK's icon
+//! touched cost nothing. Linux sets the same allowance at startup (within the
+//! inherited hard limit) in `platform/main_stack.rs`. `sjk.exe` carries SJK's icon
 //! (`assets/branding/sjk.ico`, which Explorer and shortcuts show) and names
 //! itself "SJK" in its version strings, which Task Manager shows. Other
 //! platforms have no executable icons.
@@ -21,7 +22,8 @@
 #[path = "../../scripts/build_version.rs"]
 mod build_version;
 
-const MAIN_STACK_BYTES: u32 = 64 * 1024 * 1024;
+mod stack_size;
+use stack_size::MAIN_STACK_BYTES;
 /// SJK's icon set, relative to this crate.
 const ICON: &str = "../../assets/branding/sjk.ico";
 /// The fast-card hints' source, relative to this crate, and the symbols it exports.
@@ -33,6 +35,7 @@ const GPU_HINT_SYMBOLS: [&str; 2] = [
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=stack_size.rs");
     println!("cargo:rerun-if-changed={ICON}");
     println!("cargo:rerun-if-changed=../../scripts/build_version.rs");
     println!("cargo:rerun-if-changed={GPU_HINTS}");

@@ -38,6 +38,8 @@ pub(crate) struct Runtime {
     instance_buffer: wgpu::Buffer,
     ranges: [Range<u32>; crate::saber_rgb::MATERIAL_COUNT],
     trails: crate::saber_trail_gpu::Runtime,
+    /// Blade skins' smoke ribbons (`saber_ribbons.rs`), drawn after the blades.
+    ribbons: crate::saber_ribbons::Gpu,
     /// The classic model preview's blades, kept apart from the world's.
     preview_buffer: wgpu::Buffer,
     preview_ranges: [Range<u32>; crate::saber_rgb::MATERIAL_COUNT],
@@ -637,6 +639,7 @@ impl Runtime {
             signatures: signatures.clone(),
             signed: Vec::new(),
             trails,
+            ribbons: crate::saber_ribbons::Gpu::new(device, camera_layout, format),
         })
     }
 
@@ -644,18 +647,23 @@ impl Runtime {
     /// pairs and signature pipelines wait until a blade draws them ([`Self::upload_drawn`]):
     /// every skin of the hub's pack up front was about 45 MiB of video memory on every
     /// world (165 skins, 21/10/2026), most of them worn by nobody on the server. Only when
-    /// skins load, never per frame.
+    /// skins load, never per frame; an edit of skin `only` puts its pair alone up again.
     pub(crate) fn upload_skins(
         &mut self,
         queue: &crate::frame_queue::FrameQueue,
         skins: &Arc<LoadedSkins>,
+        only: Option<u8>,
     ) {
         queue.write_buffer(
             &self.skins_buffer,
             0,
             bytemuck::cast_slice(&skins.uniforms()),
         );
-        self.any_haze = skins.iter().any(|(_, skin)| skin.shown().haze.is_some());
+        // A flash's heat burst is drawn with the haze.
+        self.any_haze = skins.iter().any(|(_, skin)| {
+            let shown = skin.shown();
+            shown.haze.is_some() || shown.flash.is_some_and(|f| f.burst.is_some())
+        });
         self.any_holes = skins.iter().any(|(_, skin)| skin.shown().holes.is_some());
         self.any_solids = skins.iter().any(|(_, skin)| {
             skin.shown().solids().any()
@@ -679,10 +687,13 @@ impl Runtime {
         // black blades drawn with the neutral pair's opaque squares).
         let first = crate::saber_rgb::SKIN_MATERIAL as usize;
         let black = crate::saber_rgb::BLACK_MATERIAL as usize;
-        for slot in &mut self.materials[first..black] {
-            *slot = self.neutral.clone();
+        // An edit of one skin (the Saber Lab's editor) puts its pair alone up again.
+        for slot in 0..black - first {
+            if only.is_none_or(|only| usize::from(only) == slot) {
+                self.materials[first + slot] = self.neutral.clone();
+                self.uploaded[slot] = false;
+            }
         }
-        self.uploaded = [false; MAX_SKINS];
         self.loaded = Arc::clone(skins);
     }
 
@@ -740,6 +751,7 @@ impl Runtime {
         queue: &crate::frame_queue::FrameQueue,
         blades: &mut [Instance],
         trails: &mut SegmentPool,
+        ribbons: &crate::saber_ribbons::Ribbons,
         now: i64,
     ) {
         self.ranges = saber::material_ranges(blades);
@@ -749,6 +761,7 @@ impl Runtime {
             queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(blades));
         }
         self.trails.prepare(queue, trails, now);
+        self.ribbons.prepare(queue, ribbons, now);
     }
 
     /// Ask for the pipelines of every signature skin `ranges` draws whose build has not begun,
@@ -791,6 +804,7 @@ impl Runtime {
         self.trails.draw(pass, camera, true);
         self.draw_blades(pass, camera, Pass::Main);
         self.draw_horizons(pass, camera, &self.instance_buffer, &self.ranges, true);
+        self.ribbons.draw(pass, camera);
     }
 
     /// Whether this frame's blades may bend the scene with heat haze or a black hole's
@@ -1087,11 +1101,18 @@ impl Runtime {
         for position in self.trails.positions() {
             bounds.sphere(glam::Vec3::from_array(position), 0.0);
         }
+        // The smoke ribbons too, as wide as they are drawn: without them the effect layer's
+        // rectangle held the blades alone, and a blade put out left its smoke undrawn.
+        for (position, half_width) in self.ribbons.extents() {
+            bounds.sphere(glam::Vec3::from_array(position), half_width);
+        }
     }
 
     /// Whether this frame has any blade or trail to draw.
     pub(crate) fn has_draws(&self) -> bool {
-        self.trails.has_draws() || self.ranges.iter().any(|range| !range.is_empty())
+        self.trails.has_draws()
+            || self.ribbons.has_draws()
+            || self.ranges.iter().any(|range| !range.is_empty())
     }
 }
 

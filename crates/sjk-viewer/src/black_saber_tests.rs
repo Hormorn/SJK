@@ -141,6 +141,8 @@ fn black_material_is_separate_from_rgb_and_all_skin_slots() {
         false,
         1000,
         1,
+        1,
+        0.0,
     );
     assert!(lights.as_slice().is_empty());
     let source = include_str!("saber.wgsl");

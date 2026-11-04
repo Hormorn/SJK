@@ -45,6 +45,11 @@ const ABOUT_CHARS: f32 = 46.0;
 const NOTE_CHARS: f32 = 52.0;
 /// The card's "See" row under its switch.
 const SIGHT_ROW: f32 = 48.0;
+/// The Fishing card's fish log under its switch: its head (the fish caught), its line of
+/// junk and the Sell junk row (`fishing_log` prints every kind in the console).
+const LOG_HEAD: f32 = 30.0;
+const LOG_LINE: f32 = 22.0;
+const SELL_ROW: f32 = 42.0;
 
 /// Every command a toy is run by, in the order the page is told their keys
 /// ([`Inputs::toy_keys`]): each toy's switch, Order 66's order after its own, the
@@ -247,9 +252,9 @@ const TOYS: [Toy; TOY_COUNT] = [
         name: "Fishing",
         tag: "Cast a line, wait for the bite, reel it in.",
         title: "Fishing",
-        what: "Stand still and cast: into the water ahead, or a pond where there is none. When the float dips, press Use in time to land a fish or some junk for your fish log. An Echo the hub drops you while you fish comes as a bite of its own. Other SJK players see your rod.",
+        what: "Stand still and cast into the water ahead, or a pond where there is none. When the float dips, press Use in time to land a fish or some junk. An Echo dropped to you while you fish bites too. Other SJK players see your rod.",
         more: Some(
-            "Moving or getting hurt puts the rod away. Your catches are in fishing_log.txt.",
+            "Moving or getting hurt puts the rod away. Junk sells to the hub for a few credits, a small sum a day.",
         ),
         commands: &[(crate::fishing::COMMAND, "Your key")],
         switch: "Rod out",
@@ -608,6 +613,11 @@ impl Panel {
             + 48.0
             + if toy.sight.is_some() { SIGHT_ROW } else { 0.0 }
             + toy.options.len() as f32 * SIGHT_ROW
+            + if toy.token == FISHING_TOKEN {
+                fish_log_height()
+            } else {
+                0.0
+            }
             + CARD_PAD
     }
 
@@ -869,7 +879,141 @@ impl Panel {
                 frame.rect(left - 4.0, middle - 19.0, right - left + 8.0, 38.0),
             );
         }
+        if toy.token == FISHING_TOKEN
+            && let Some(card) = inputs.fishing_card
+        {
+            let below = row + SIGHT_ROW * toy.options.len() as f32 + 30.0;
+            self.fish_log(frame, card, [x, below, width]);
+        }
     }
+
+    /// The Fishing card's fish log from (`x`, `y`): what was caught, the junk held, and
+    /// the Sell junk button with what it pays now (when the hub buys junk from the
+    /// player) and the last sale's result.
+    fn fish_log(
+        &mut self,
+        frame: &Frame,
+        card: &crate::fishing_sell::Card,
+        [x, mut y, width]: [f32; 3],
+    ) {
+        let s = frame.s;
+        let k = text_scale();
+        let _ = self.ui.draw_list_mut().push(DrawCommand::SolidRect {
+            rect: frame.rect(x, y, width, 1.0),
+            color: color::alpha(color::HOLO, 0.18),
+        });
+        y += 8.0;
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("Fish log"),
+            frame.rect(x, y, 110.0, 22.0),
+            15.0 * s,
+            color::HOLO,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{}", card.summary),
+            frame.rect(x + 110.0, y, width - 110.0, 22.0),
+            15.0 * s,
+            color::TEXT,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+        y += LOG_HEAD - 8.0;
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{}", card.junk_line),
+            frame.rect(x, y, width, LOG_LINE * k),
+            14.0 * s,
+            color::MUTED,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+        y += LOG_LINE + 4.0;
+        let Some(pays) = card.sell else {
+            return;
+        };
+        let has_junk = card.pieces > 0;
+        let shown = if card.selling {
+            "Selling...".to_owned()
+        } else if pays > 0 && has_junk {
+            format!("Sell junk (+{pays} credits)")
+        } else {
+            "Sell junk".to_owned()
+        };
+        let live = !card.selling && pays > 0 && has_junk;
+        let button_width =
+            ((crate::text::display_width(&shown, 17.0) * k + 32.0).max(140.0)).min(width);
+        let rect = frame.rect(x, y, button_width, 36.0);
+        let hovered = live && self.ui.token_hovered(SELL_JUNK_TOKEN);
+        let ground = if hovered {
+            0.22
+        } else if live {
+            0.12
+        } else {
+            0.04
+        };
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect,
+            radius: 8.0 * s,
+            color: color::alpha(color::GOLD, ground),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect,
+            radius: 8.0 * s,
+            width: 1.2 * s,
+            color: if live {
+                color::GOLD
+            } else {
+                color::alpha(color::TEXT, 0.3)
+            },
+        });
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("{shown}"),
+            frame.rect(x, y + 6.0, button_width, 24.0),
+            17.0 * s,
+            if live {
+                color::GOLD_BRIGHT
+            } else {
+                color::QUIET
+            },
+            FontWeight::Semibold,
+            TextAlign::Center,
+        );
+        if live {
+            self.ui.hit_region(SELL_JUNK_TOKEN, rect);
+        }
+        // Beside it, the last sale's result, else why it does nothing.
+        let note = match &card.line {
+            Some(line) => line.as_str(),
+            None if !has_junk => "No junk to sell",
+            None if pays == 0 => "The hub buys no more today",
+            None => "A small sum a day",
+        };
+        let note_x = x + button_width + 12.0;
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{note}"),
+            frame.rect(note_x, y + 9.0, (x + width - note_x).max(0.0), 20.0),
+            13.0 * s,
+            color::QUIET,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+    }
+}
+
+/// How tall the Fishing card's fish log stands below its switch.
+fn fish_log_height() -> f32 {
+    30.0 + LOG_HEAD + LOG_LINE + 4.0 + SELL_ROW
 }
 
 /// `body` from (`x`, `y`) in a column `width` wide, wrapped at `chars` to a line at the
@@ -969,8 +1113,10 @@ mod tests {
         for toy in &TOYS {
             assert!(
                 panel.toy_card_height(toy) <= CARD_BOTTOM - CARD_TOP_MIN,
-                "{}",
-                toy.name
+                "{} {} {}",
+                toy.name,
+                panel.toy_card_height(toy),
+                text_scale()
             );
         }
     }

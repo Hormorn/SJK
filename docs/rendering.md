@@ -162,8 +162,11 @@ Worldspawn and explicit local console remaps are independent. The preference
 applies live without reloading the map; an excluded server remap reveals the
 earlier remap it replaced.
 `cg_remapsBlockedMaps` lists maps on which SJK ignores server remaps, as `cg_remaps 0`
-does there; worldspawn and local remaps still apply. The frame reads a cached answer,
-refreshed when the cvar or the loaded map changes
+does there; worldspawn and local remaps still apply. `cg_remapsAllowedMaps` lists maps
+whose server remaps apply even with `cg_serverRemaps 0` (a blocked map stays
+blocked), and `cg_serverRemapsMap` shows and sets the loaded map's choice
+(`default`, `on`, `off`) for Settings. The frame reads a cached answer,
+refreshed when one of these cvars or the loaded map changes
 ([remap_blocked_maps.rs](../crates/sjk-viewer/src/remap_blocked_maps.rs)).
 `listRemaps` lists the map's, the enabled server and the local remaps in the order
 they were applied, with their source, and marks those a later remap overrides.
@@ -535,6 +538,7 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 | `r_sceneHdr` | Scene precision: 0 display format, 1 RGBA16F (default); applies after a graphics reload |
 | `r_superSample` | Scene supersampling, 1 (default, off), 2 or 3 per axis; applies after a graphics reload. See [Render scale and supersampling](#render-scale-and-supersampling) |
 | `r_renderScale` | The world's size in percent of the window per axis, 50 to 100 (default) in steps of 5, stretched to the window; ignored while `r_superSample` is above 1; applies after a graphics reload. See [Render scale and supersampling](#render-scale-and-supersampling) |
+| `r_sharpen` | Scene sharpening, 0 (default, off) to 100 %; live, the HUD and menus untouched. See [Sharpening](#sharpening) |
 | `r_highDpi` | 1 the window's size (`r_resolution`) and the world count the screen's pixels, 0 its points; default 0 on a Mac, 1 elsewhere. The window resizes at once, the world after a graphics reload. See [Render scale and supersampling](#render-scale-and-supersampling) |
 | `r_hdrExposure` | Base exposure multiplier, 0.25–4; live. Eye adaptation adjusts around it; `r_sceneHdr 0` ignores it |
 | `r_autoExposure` | Eye adaptation, default 1 (on); 0 holds `r_hdrExposure`. Live; see [eye adaptation](#eye-adaptation) |
@@ -734,6 +738,9 @@ pop-up card and run by `vid_restart` (see
   cvars changes (their change callbacks call `graphics_reload::notice`); reading
   for that comparison latches nothing (`material_maps::Settings::read`), so the
   material-map and probe notices keep comparing with the running values.
+  `vid_restart force` skips that comparison (`graphics_reload::wanted`): the reload
+  runs with no change too, on a resampled context that reads the same settings, and
+  the console and log name it "forced, no setting changed".
 
 Measured off-screen on an RTX 5080 at 1920x1080 (release build, see
 [status](status.md)): duel6's menu world rebuilt in about 3 s; on a local server
@@ -813,6 +820,25 @@ card (the `overlays+post+hud` phase). What does not shrink is drawn at a fixed s
 volumetric froxel grid, shadow maps, probes, and the post-processing at the window's size.
 A weak GPU spends a larger share of its frame on the pixels the scale removes, but no weak
 GPU has been measured yet.
+
+## Sharpening
+
+`r_sharpen` (04/11/2026, Lex's idea in #ideas; Settings > Graphics > Image) sharpens the
+world against the softness FXAA and filtered textures leave. 0, the default, is the stock
+image: the resolve (`post_aa.wgsl`) is built without the sharpening taps
+(`SHARPEN` override off), so it costs nothing. Above 0 the shared resolve samples the
+scene's four neighbours of each pixel once more and applies RCAS's contrast-adaptive
+lobe (AMD FidelityFX Super Resolution 1, MIT), as the render scale's stretch does
+([above](#render-scale-and-supersampling)): the negative lobe is the largest that pushes no
+channel below the neighbours' darkest or above their brightest, so edges get crisper
+without dark or bright halos; 100 % is RCAS's full limit (a lobe of at most 0.1875). It
+works on the resolve's display values, after HDR's shoulder and the eye adaptation, and
+sharpens the pixel FXAA resolved where FXAA ran. The HUD, menus and text are drawn after
+the resolve and are never sharpened; a gamma ramp then moves to the display pass, as with
+FXAA or bloom. Moving the slider uploads the 16-byte amount
+(`post_color.rs`, `set_controls`); only turning it on or off rebuilds the resolve. With
+the render scale below 100 % the stretch's own fixed sharpen (0.5) still runs before it.
+The world shot `sharpen_shots` renders mp/ffa3 at 0, 50 and 100 %.
 
 ## GPU memory
 
@@ -2554,8 +2580,10 @@ the CPU (`SkinColor::light_color`, `trail_color`).
   sky, a key highlight, a rim), tinted by the light where the blade is. The halftone is
   the glow's: outside 0.35 to 0.6 radii it is printed as dots sized by its level.
 - **Options.** An instance carries its wearer's mask of sections switched off
-  (`Instance::off`, attribute 9; [unlockables.md](unlockables.md#options)); `skin_at`
-  reads the skin with those sections' lanes zeroed, so they draw as a file without them.
+  (`Instance::off`, attribute 9, two words: `OFF_*` bits, then `OFF2_*` for the eighth
+  set's; [unlockables.md](unlockables.md#options)); `skin_at` reads the skin with those
+  sections' lanes zeroed, so they draw as a file without them. Of the eighth set it zeroes
+  only the unrest's: the CPU makes the rest.
 - **Persona and afterimages.** A skinned instance carries four more `u32`s
   (`Instance::persona`, attribute 7): the surroundings' light (three bytes) and an
   afterimage's brightness, the team and the name's letters
@@ -4874,16 +4902,34 @@ wide screen and grown by `cg_hudScale` from the bottom like the rest of the game
 HUD, with the turbo bar and the weapons-linked mark in `whiteShader` white
 ([menu_hud/frame.rs](../crates/sjk-viewer/src/menu_hud/frame.rs) `vehicle_hud`).
 Stock's item names are kept: `shield_tic*` show the hull and `armor_tic*` the shields.
-The text HUD of a nonzero `cg_hudFiles` (the HUD picker's Text only) shows just the
-hull, as a yellow number centred at the bottom in the text HUD's font
-(`Frame::simple_hud`), also when the vehicle hides its rider and the player's numbers
-give way. SJK's own looks show only the hull too, through their layout documents'
-`vehicle_*` widgets (bindings `vehicle_ratio`, `vehicle_value`, `vehicle_text`, shown by
-`draw_vehicle`): `radial` a yellow arc under the crosshair, on the health arc's circle
-between the left and right meters (132 to 48 degrees, four segments, the same track and
-shadow, moved by the radial placement with the rest of the status), with the hull's
-number inside it; `classic` a yellow bar with an `HP` line above the weapon and
-ammunition lines. With a game-data HUD that has no vehicle menu, SJK draws its own
+The text HUD of a nonzero `cg_hudFiles` (the HUD picker's Text only) shows the speed,
+the hull and the ammunition as three numbers in a row at the bottom centre, in the text
+HUD's font (`Frame::simple_hud`): the speed 80 units left of the yellow hull in
+`ICON_BLUE` (light red while the turbo flashes), the ammunition 80 units right in
+`HUD_ORANGE` (`first / second` for two weapons, nothing without a weapon), also when the
+vehicle hides its rider and the player's numbers give way. SJK's own looks show the same
+three through their layout documents' `vehicle_*` widgets (bindings `vehicle_ratio`,
+`vehicle_speed_ratio`, `vehicle_ammo_ratio`, `vehicle_value`, `vehicle_speed_value`,
+`vehicle_ammo_value`, `vehicle_text`, `vehicle_speed_text`, `vehicle_ammo_text`, shown by
+`draw_vehicle`, the ammunition's by `draw_vehicle_ammo`, which needs a weapon): `radial` a
+yellow hull arc under the crosshair, on the health arc's circle between the left and
+right meters (132 to 48 degrees, four segments, the same track and shadow), and on the
+armour arc's inner circle a cyan speed arc (132 to 96 degrees, filling towards the
+middle) and an orange ammunition arc (48 to 84), with the speed, hull and ammunition
+numbers in a row under the outer arc; the radial placement moves them all up and down
+with the rest of the status but never spreads them apart. `classic` the centre panel
+described below. A vehicle with a `turboRecharge`, whose turbo time the ride prediction
+gives (a live game, not a demo), also shows its turbo (`vehicle::Turbo`): the recharge
+fraction in red-orange while it recharges, full and green once ready, full and bright
+while it burns. As a widget's colour is fixed, each look has one turbo meter per phase,
+shown by `draw_vehicle_turbo_charging`, `draw_vehicle_turbo_ready` and
+`draw_vehicle_turbo_burning` (binding `vehicle_turbo_ratio`), and its word by
+`draw_vehicle_turbo` (`vehicle_turbo_value`: the charge in percent, `READY` or `BOOST`,
+colour coded; `vehicle_turbo_text` the `TURBO` line): `radial` a thin arc just inside the
+speed arc with the word under the speed number, `classic` its row of the centre panel. The text HUD puts the same word 160 units left of the centre, in red,
+green or white. Without a turbo nothing of it shows and nothing moves. The speed's meter is `speed` over `speedMax` (the turbo passes the
+maximum and reads full), the ammunition's one weapon's `ammo` over its `ammoMax` or two
+weapons' together. With a game-data HUD that has no vehicle menu, SJK draws its own
 ([hud/vehicle.rs](../crates/sjk-viewer/src/hud/vehicle.rs)): a vector strip at the
 bottom centre laid out on `swoopvehiclehud`'s 640x80 units (hull above, speed, shield
 and ammunition below), scaled by the window height and `cg_hudScale`, with its numbers
@@ -4904,7 +4950,23 @@ game-data HUD away, as stock does. In a vehicle the crosshair is doubled (when
 `vehicledamagehud` and `enemyvehicledamagehud`, the no-ammo warning flash and the
 weapons-linked sound.
 
-`cg_hudStyle classic` selects SJK's classic layout in either font. Under `game`,
+`cg_hudStyle classic` selects SJK's classic layout in either font: three groups
+along the bottom with no panel behind them (`classic.json`), level with each other; the
+text keeps its drop shadow and the bars a dark track, so they read on light and dark
+ground alike. Bottom left
+(`vitals_*`, the HUD edit mode's Vitals) the `HEALTH` and `ARMOR` rows, a label, a bar
+and the number; bottom right (`forcebox_*`, Force) the Force row mirrored. In the middle
+(`weaponbox_*`, Weapon) on foot the held weapon's name (`weapon_name`, which does not
+fade) over an `AMMO` row with the count, or the saber's style, shown by
+`draw_weapon_panel` (a weapon that counts ammunition or a saber, no vehicle, and not
+while the weapon selection row, drawn in the same place, shows); unarmed, nothing. While
+piloting, a taller centre group (`vehicle_*`, Vehicle) in two columns: `HP`, `SPD` and
+`TURBO` rows (the turbo's bar in its phase's colour; without a turbo the row stays,
+greyed with `--`), and `AMMO 1` and `AMMO 2` with each weapon's number over a segmented
+bar of ten cells (`vehicle_ammo1_*`, `vehicle_ammo2_*`; a slot without a weapon greyed
+with `--` and an empty track). All three sit on the bottom edge of the screen, their lowest line 24 units above it. Fixed words
+come from `label_*` bindings (`data_source::LABELS`), segmented bars from a meter's
+`segments` style (`widgets::segment_cells`). Under `game`,
 SJK's default layout ([default.json](../crates/sjk-viewer/assets/hud/default.json),
 or a `hud.json` beside the configuration) draws the crosshair, team rows, votes,
 timer and lagometer, and the status too when the game HUD's files give
@@ -4977,8 +5039,8 @@ SJK's own layouts (default, classic and radial) draw their weapon name as a tran
 that holds 0.8 s and fades over 0.6 s, as long as the row; while the row shows they
 hide it, since the row names the weapon, so it only appears when the row cannot (for
 example while following a player). The ammunition count, the ammunition arc and
-the pill of the radial layout, and the classic layout's ammunition line, stay
-visible during the row, as in EternalJK, where nothing hides the ammunition while
+the pill of the radial layout stay visible during the row (the classic layout's weapon
+panel gives way to it), as in EternalJK, where nothing hides the ammunition while
 `CG_DrawWeaponSelect` draws. The small held-weapon icon beside the ammo count shares
 the name's timing and is hidden while the row shows; there is no ammo picture at the
 bottom centre. The Force power timer icons keep showing during the row. Unlike

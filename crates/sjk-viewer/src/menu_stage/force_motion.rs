@@ -95,6 +95,12 @@ pub(super) struct Step {
 /// `length` says it lasts and its `keep` after, the stance for its hold after that
 /// (taking over as the move's `settle` says), then again from the first.
 pub(super) fn script_at(moves: &[Move], length: impl Fn(&str) -> f32, seconds: f32) -> Step {
+    paced_script_at(moves, length, seconds, 1.0)
+}
+
+/// [`script_at`] with every hold in the stance `pause` times its own.
+fn paced_script_at(moves: &[Move], length: impl Fn(&str) -> f32, seconds: f32, pause: f32) -> Step {
+    let pause = pause.max(0.0);
     let stance = |takeover| Step {
         animation: None,
         takeover,
@@ -106,7 +112,10 @@ pub(super) fn script_at(moves: &[Move], length: impl Fn(&str) -> f32, seconds: f
     let spans = moves
         .iter()
         .map(|step| (step, length(step.animation).max(0.05) + step.keep));
-    let period: f32 = spans.clone().map(|(step, length)| length + step.hold).sum();
+    let period: f32 = spans
+        .clone()
+        .map(|(step, length)| length + step.hold * pause)
+        .sum();
     if period <= 0.0 {
         return stance(first.takeover);
     }
@@ -125,26 +134,28 @@ pub(super) fn script_at(moves: &[Move], length: impl Fn(&str) -> f32, seconds: f
             };
         }
         t -= length;
-        if t < step.hold {
+        if t < step.hold * pause {
             return Step {
                 effect: step.effect && t < step.linger,
                 ..stance(step.settle)
             };
         }
-        t -= step.hold;
+        t -= step.hold * pause;
     }
     stance(first.takeover)
 }
 
 /// The animation the saber skills' `moves` play `seconds` after the preview began, in
-/// `stance` between them, and how it takes over ([`script_at`]).
+/// `stance` between them, its waits there `pause` times their own, and how it takes over
+/// ([`script_at`]).
 pub(super) fn moves_at(
     moves: &[Move],
     stance: &'static str,
     length: impl Fn(&str) -> f32,
     seconds: f32,
+    pause: f32,
 ) -> (&'static str, Takeover) {
-    let step = script_at(moves, length, seconds);
+    let step = paced_script_at(moves, length, seconds, pause);
     (step.animation.unwrap_or(stance), step.takeover)
 }
 
@@ -297,7 +308,7 @@ mod tests {
         ];
         let length = |_: &str| 0.3;
         let stance = "BOTH_SABERSLOW_STANCE";
-        let at = |seconds| moves_at(&MOVES, stance, length, seconds);
+        let at = |seconds| moves_at(&MOVES, stance, length, seconds, 1.0);
         assert_eq!(at(0.1), ("BOTH_P1_S1_T_", PARRY_TAKEOVER));
         // Its last frame kept, then the stance.
         assert_eq!(at(0.45).0, "BOTH_P1_S1_T_");
@@ -308,6 +319,10 @@ mod tests {
         assert!(script_at(&MOVES, length, 0.1).effect);
         assert!(!script_at(&MOVES, length, 0.6).effect);
         assert_eq!(script_at(&MOVES, length, 0.6).animation, None);
+        // Paced, the wait in the stance is that much shorter or longer.
+        let paced = |seconds, pause| moves_at(&MOVES, stance, length, seconds, pause).0;
+        assert_eq!(paced(0.65, 0.25), "BOTH_A3_T__B_");
+        assert_eq!(paced(1.1, 2.0), stance);
     }
 
     /// An effect that lingers stays on into the stance for its while, then goes off

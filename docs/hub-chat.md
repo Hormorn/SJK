@@ -177,7 +177,8 @@ Old clients ignore all of it, so it stays `/v1/`.
   and muting a
   player ([Muting a player](#blocking-a-player)) hides their lines already there. While
   the composer is open, resting the pointer on a sender's name shows their profile
-  card with Mute or Unmute. Joining a game
+  card with Mute or Unmute, and resting it on a link lets Ctrl+C copy the link
+  ([client.md](client.md#chat-player-actions)). Joining a game
   does not replay the hub's backlog in the feed (the dock and the page show it). A
   refusal (quota, rules) shows as an `SJK chat:` line. Each live message from an unblocked player is
   also kept in the console scrollback with a textual yellow `SJK` tag (the console
@@ -196,6 +197,12 @@ Old clients ignore all of it, so it stays `/v1/`.
   shows in the feed (the in-game composer has nowhere else to say it).
 - `cl_sjkChatConsole` (default 1, Settings > Chat > SJK chat in console) controls only
   whether live SJK messages are copied into console scrollback.
+- `SJK_APPEAR_OFFLINE` (environment, any value but empty or `0`; 19/10/2026) keeps the
+  chat off for that run as `cl_sjkChat 0` does, without saving it
+  (`sjk_chat_frame::appears_offline`; every reader of the switch goes through
+  `ViewerConsole::sjk_chat_on`). In the menus the feed is not read, so after a minute
+  the hub no longer lists the player as online: the player appears offline while
+  testing. The Settings row still shows the saved `cl_sjkChat`.
 
 ## Said on the game server too
 
@@ -1172,7 +1179,12 @@ The second gap is `s_muteSounds` ([client.md](client.md#muted-sounds)).
   catalogue lacks, never for a loop), and it ends early when the player moves 24 units
   from where they were first seen dancing, or is missing from the snapshots for 2
   seconds (a moment out of them, in a crowded dance, is not leaving; since 20/10/2026,
-  hub report #107), unless it is `moving`. With Settings > Sound > Emotes: Attack ends emote
+  hub report #107), unless it is `moving`. Whatever the emote, it ends when its player
+  mounts a vehicle (`m_iVehicleNum` set in their entity, or the own player's
+  playerState; `ActiveEmotes::end_riding`, since 04/11/2026, hub report #247): the
+  vehicle plays the rider's animations, and a `moving` one such as `cloud_float` fought
+  them for the whole ride. The own player's client then sends the hub a `stop`, a
+  received emote for a rider is not started, and `sjkemote` refuses one while riding. With Settings > Sound > Emotes: Attack ends emote
   (`cg_emoteAttackStop`, off by default), the player's own emote also ends when they
   attack or alt attack (`ActiveEmotes::end_on_attack`, called for each command sent):
   the server performs the attack whatever the emote shows, so it stops here and the
@@ -1194,7 +1206,8 @@ The second gap is `s_muteSounds` ([client.md](client.md#muted-sounds)).
   ([Emotes on stock models](rig-models.md#emotes-on-stock-models)); the `sound` plays
   on the player (`emotes::Cue`, channel 13,
   following another player, in both ears for the player's own, at `s_emoteVolume`
-  apart from `s_volume`, live while it plays)
+  apart from `s_volume`, live while it plays, silent in a duel with
+  `s_muteEmotesInDuel`)
   and stops when the emote is cut short; the `torso` and `legs` animations are not
   played yet, and a received emote is written to the console (`* Sol: Wave`). Demos
   keep the emotes started on them.

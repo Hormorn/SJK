@@ -143,6 +143,10 @@ pub(crate) struct BladeState {
     pub(crate) petals: crate::saber_petals::PetalEmitter,
     /// Whether it was last drawn thrown ([`Self::fly`]).
     flying: bool,
+    /// When it last lit, for its emitter stars' surge (`flash.ignite`).
+    pub(crate) ignition: crate::saber::Ignition,
+    /// Its emitter's smoke, for a skin with some (`saber_smoke.rs`).
+    pub(crate) smoke: crate::saber_smoke::Emitter,
 }
 
 impl BladeState {
@@ -250,12 +254,14 @@ impl Default for Segment {
     }
 }
 
-/// Bounded persistent trail slices; exhausted pools drop new slices.
+/// Bounded persistent trail slices; exhausted pools drop new slices. Beside them, this
+/// frame's still trails ([`still_trail`]), drawn once and dropped.
 pub(crate) struct SegmentPool {
     segments: Box<[Segment]>,
     cursor: usize,
     dropped: u64,
     inserted: u64,
+    still: Vec<Vertex>,
 }
 
 impl Default for SegmentPool {
@@ -265,6 +271,7 @@ impl Default for SegmentPool {
             cursor: 0,
             dropped: 0,
             inserted: 0,
+            still: Vec::new(),
         }
     }
 }
@@ -290,6 +297,11 @@ impl SegmentPool {
         false
     }
 
+    /// Draw `vertices` (a [`still_trail`]) with the slices this frame only.
+    pub(crate) fn add_still(&mut self, vertices: impl IntoIterator<Item = Vertex>) {
+        self.still.extend(vertices);
+    }
+
     pub(crate) fn append_vertices(&mut self, now: i64, output: &mut Vec<Vertex>) -> usize {
         let start = output.len();
         for segment in &mut self.segments {
@@ -313,6 +325,10 @@ impl SegmentPool {
             });
             output.extend(triangles(vertices));
         }
+        // The still trails after, in what room the slices leave.
+        let room = (MAX_SEGMENTS * 6).saturating_sub(output.len()) / 6 * 6;
+        output.extend(self.still.drain(..).take(room));
+        self.still.clear();
         (output.len() - start) / 6
     }
 }
@@ -327,6 +343,42 @@ fn triangles(vertices: [Vertex; 4]) -> [Vertex; 6] {
     [
         new_muzzle, new_tip, old_muzzle, old_muzzle, old_tip, new_tip,
     ]
+}
+
+/// The trail a blade swinging evenly leaves, held still: `edges` from where the blade is
+/// back to the oldest, each slice between two drawn as [`Trail::update`] would have
+/// drawn it that much earlier (its age an even share of the trail's life, so the glow's
+/// dark edge sweeps across them as it does across a real trail), in `style` and `color`.
+pub(crate) fn still_trail(
+    edges: &[Edge],
+    authored_duration: u16,
+    style: u8,
+    color: BladeColor,
+) -> impl Iterator<Item = Vertex> + '_ {
+    let slices = edges.len().saturating_sub(1).max(1);
+    let lifetime = i64::from(trail_duration(authored_duration));
+    let diff = (lifetime / slices as i64).max(1);
+    edges.windows(2).enumerate().flat_map(move |(age, pair)| {
+        let quad = build_quad(
+            pair[0].base,
+            pair[0].tip,
+            pair[1].base,
+            pair[1].tip,
+            diff,
+            authored_duration,
+            style,
+            color,
+        );
+        let fade = 1.0 - age as f32 / slices as f32;
+        quad.map(|quad| {
+            triangles(quad.vertices.map(|mut vertex| {
+                vertex.color[3] = fade;
+                vertex
+            }))
+        })
+        .into_iter()
+        .flatten()
+    })
 }
 
 pub(crate) fn trail_duration(authored_duration: u16) -> u16 {

@@ -57,6 +57,30 @@ const CATCH: &str = "sound/player/watr_out.wav";
 const SOUNDS: [&str; 5] = [CAST, LAND, BITE, ECHO_BITE, CATCH];
 /// The fish log, in the profile's folder: `<catch id> <count>` a line.
 pub(crate) const LOG_FILE: &str = "fishing_log.txt";
+/// When a bite is shown as well as heard (`cg_fishingBiteCue`, for players with the
+/// sound off): 0 never, 1 when the toy's sounds cannot be heard, 2 always.
+pub(crate) const CUE_CVAR: &str = "cg_fishingBiteCue";
+pub(crate) const CUE_DEFAULT: i64 = 1;
+/// What the centre of the screen says as a fish bites, an Echo bites, or a fish's bite
+/// goes unhooked, when the cue is shown.
+const CUE_BITE: &str = "Bite! Press Use!";
+const CUE_ECHO: &str = "Something shines under the float! Press Use!";
+const CUE_MISSED: &str = "It got away.";
+/// The "!" over the float: how high over the water, its size at 1080 lines and how
+/// fast it pulses.
+const CUE_RISE: f32 = 18.0;
+const CUE_SIZE: f32 = 64.0;
+const CUE_PULSE: f32 = 9.0;
+
+/// Whether a bite is shown on screen: by `mode` ([`CUE_CVAR`]) and whether the toy's
+/// sounds are `heard` now.
+pub(crate) fn cue_shown(mode: i64, heard: bool) -> bool {
+    match mode {
+        ..=0 => false,
+        1 => !heard,
+        _ => true,
+    }
+}
 
 /// A bundled file's bytes, by its name in `assets/fishing`.
 macro_rules! bundled {
@@ -412,40 +436,56 @@ pub(crate) enum Say {
     Centre(&'static str),
     /// A catch, with how many the log now holds of it.
     Caught(&'static Catch, u32),
+    /// A line on the centre of the screen only when the bite cue is shown
+    /// ([`cue_shown`]): a bite starting, or let go.
+    Cue(&'static str),
     Sound(&'static str),
     /// A console command to run (`weapmelee`: empty hands for the rod).
     Command(&'static str),
 }
 
-/// The fish log: how many of each catch the player brought up, and the last fish (in the
-/// bucket while the rod is out).
+/// The fish log: how many of each catch the player brought up, how many of those were
+/// sold to the hub (junk, [`crate::fishing_sell`]), and the last fish (in the bucket while
+/// the rod is out). The counts are what was caught, whatever was sold after.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Log {
     counts: Vec<(String, u32)>,
+    sold: Vec<(String, u32)>,
     last: Option<&'static Catch>,
 }
 
 /// The fish log's line naming the last fish caught: `last <id>`.
 const LAST: &str = "last";
+/// The fish log's lines of what was sold: `sold <id> <count>` (three words, which logs
+/// before 03/11/2026 skip).
+const SOLD: &str = "sold";
 
 impl Log {
-    /// Read `text` (`<id> <count>` a line, and `last <id>`; anything else is skipped).
+    /// Read `text` (`<id> <count>` a line, `sold <id> <count>` and `last <id>`; anything
+    /// else is skipped).
     pub(crate) fn parse(text: &str) -> Self {
         let mut log = Self::default();
         for line in text.lines() {
-            let mut words = line.split_whitespace();
-            let (Some(id), Some(value), None) = (words.next(), words.next(), words.next()) else {
-                continue;
-            };
-            if id == LAST {
-                log.last = CATCHES
-                    .iter()
-                    .find(|c| c.kind == Kind::Fish && c.id == value);
-            } else if let Ok(count) = value.parse::<u32>()
-                && !id.is_empty()
-            {
-                log.counts.retain(|(known, _)| known != id);
-                log.counts.push((id.to_owned(), count));
+            let words: Vec<&str> = line.split_whitespace().collect();
+            match words.as_slice() {
+                [SOLD, id, value] => {
+                    if let Ok(count) = value.parse::<u32>() {
+                        log.sold.retain(|(known, _)| known != id);
+                        log.sold.push(((*id).to_owned(), count));
+                    }
+                }
+                [LAST, value] => {
+                    log.last = CATCHES
+                        .iter()
+                        .find(|c| c.kind == Kind::Fish && c.id == *value);
+                }
+                [id, value] => {
+                    if let Ok(count) = value.parse::<u32>() {
+                        log.counts.retain(|(known, _)| known != id);
+                        log.counts.push(((*id).to_owned(), count));
+                    }
+                }
+                _ => {}
             }
         }
         log
@@ -457,6 +497,9 @@ impl Log {
             .iter()
             .map(|(id, count)| format!("{id} {count}\n"))
             .collect();
+        for (id, count) in &self.sold {
+            text.push_str(&format!("{SOLD} {id} {count}\n"));
+        }
         if let Some(last) = self.last {
             text.push_str(&format!("{LAST} {}\n", last.id));
         }
@@ -502,6 +545,48 @@ impl Log {
             self.counts.push((id.to_owned(), 1));
             1
         }
+    }
+
+    /// How many of `id` were sold.
+    pub(crate) fn sold_count(&self, id: &str) -> u32 {
+        self.sold
+            .iter()
+            .find(|(known, _)| known == id)
+            .map_or(0, |(_, count)| *count)
+    }
+
+    /// How many of `id` the player still holds: caught, less sold.
+    pub(crate) fn held(&self, id: &str) -> u32 {
+        self.count(id).saturating_sub(self.sold_count(id))
+    }
+
+    /// The junk the player holds, by id (only kinds with pieces).
+    pub(crate) fn junk_held(&self) -> std::collections::BTreeMap<String, u32> {
+        CATCHES
+            .iter()
+            .filter(|c| c.kind == Kind::Junk)
+            .map(|c| (c.id.to_owned(), self.held(c.id)))
+            .filter(|(_, held)| *held > 0)
+            .collect()
+    }
+
+    /// Count `sold` (pieces by id, as the hub took them) as sold, never more than was
+    /// caught; returns how many pieces that was.
+    pub(crate) fn sell(&mut self, sold: &std::collections::BTreeMap<String, u32>) -> u32 {
+        let mut pieces = 0;
+        for (id, count) in sold {
+            let taken = (*count).min(self.held(id));
+            if taken == 0 {
+                continue;
+            }
+            pieces += taken;
+            if let Some((_, known)) = self.sold.iter_mut().find(|(known, _)| known == id) {
+                *known += taken;
+            } else {
+                self.sold.push((id.clone(), taken));
+            }
+        }
+        pieces
     }
 
     /// The different fish caught, of all there are.
@@ -557,6 +642,10 @@ pub(crate) struct Fishing {
     /// from it.
     pub(crate) tips: [Option<[f32; 3]>; SLOTS],
     sounds_registered: Option<u64>,
+    /// Selling the junk to the hub ([`crate::fishing_sell`]).
+    pub(crate) sale: crate::fishing_sell::Sale,
+    /// The bite cue's "!" this frame ([`GpuState::append_fishing_cue`]).
+    cue: sjk_ui::DrawList,
     /// Rods to draw without a session, for the world shots: where the player stands,
     /// their yaw, whether a fish hangs from the tip, and which fish ([`FISH_MODELS`]) is
     /// in the bucket and on the line.
@@ -588,6 +677,8 @@ impl Default for Fishing {
             lines: Lines::default(),
             tips: [None; SLOTS],
             sounds_registered: None,
+            sale: Default::default(),
+            cue: sjk_ui::DrawList::new(2),
             #[cfg(test)]
             shot_rods: Vec::new(),
         }
@@ -694,6 +785,15 @@ impl Fishing {
 
     pub(crate) fn on(&self) -> bool {
         self.on
+    }
+
+    /// The bite on the line now, if any: where the float rests, and whether an Echo
+    /// bites.
+    pub(crate) fn biting(&self) -> Option<([f32; 3], bool)> {
+        match self.phase {
+            Some(Phase::Biting(bite)) if self.on => Some((self.water, bite.echo)),
+            _ => None,
+        }
     }
 
     /// Whether an Echo's card waits for its bite: the pop-up holds it back.
@@ -811,6 +911,7 @@ impl Fishing {
                         echo: true,
                     }));
                     self.said.push(Say::Sound(ECHO_BITE));
+                    self.said.push(Say::Cue(CUE_ECHO));
                 } else if used {
                     self.said
                         .push(Say::Centre("Too soon: you scared the fish off."));
@@ -823,6 +924,7 @@ impl Fishing {
                         echo: false,
                     }));
                     self.said.push(Say::Sound(BITE));
+                    self.said.push(Say::Cue(CUE_BITE));
                 }
             }
             Phase::Biting(bite) => {
@@ -876,6 +978,8 @@ impl Fishing {
                                 "Something shone under the float, and swam off.",
                             ));
                         }
+                    } else if !bite.echo {
+                        self.said.push(Say::Cue(CUE_MISSED));
                     }
                     self.wait(now, Duration::ZERO);
                 }
@@ -886,6 +990,12 @@ impl Fishing {
                 }
             }
         }
+    }
+
+    /// The fish log, read from `directory` first if it was not yet.
+    pub(crate) fn log_in(&mut self, directory: &Path) -> &mut Log {
+        self.read_log(directory);
+        self.log.get_or_insert_with(Log::default)
     }
 
     /// Read the fish log from `directory` once, counting in what was caught before.
@@ -911,7 +1021,7 @@ impl Fishing {
         self.log.as_ref().and_then(Log::last)
     }
 
-    fn save_log(&self, directory: &Path) {
+    pub(crate) fn save_log(&self, directory: &Path) {
         if let Some(log) = &self.log
             && let Err(error) = std::fs::write(directory.join(LOG_FILE), log.text())
         {
@@ -1131,6 +1241,7 @@ impl GpuState {
     }
 
     fn fishing_frame(&mut self, presentation_time: i64, now: Instant) {
+        self.fishing_sale_frame(now);
         let mesh_of = |model: &str| {
             self.object_meshes
                 .iter()
@@ -1406,9 +1517,12 @@ impl GpuState {
     /// [`Self::play_fishing_sounds`].
     fn say_fishing(&mut self) {
         let said: Vec<Say> = self.fishing.take_said().collect();
+        let cue = said.iter().any(|say| matches!(say, Say::Cue(_))) && self.fishing_cue_shown();
         for say in said {
             let text = match say {
                 Say::Centre(text) => text.to_owned(),
+                Say::Cue(text) if cue => text.to_owned(),
+                Say::Cue(_) => continue,
                 Say::Caught(catch, count) => {
                     let (species, all) = self.fishing.log.as_ref().map_or((0, 0), Log::species);
                     match catch.kind {
@@ -1442,6 +1556,90 @@ impl GpuState {
                 Instant::now(),
             );
         }
+    }
+
+    /// Whether this frame shows bites on screen ([`CUE_CVAR`]): the toy's sounds count
+    /// as heard while the Fishing sounds are on, the toys' volume and the effects volume
+    /// are above 0 and the game is not muted while away.
+    pub(crate) fn fishing_cue_shown(&self) -> bool {
+        let console = self.console.as_ref();
+        let mode = console
+            .and_then(|console| console.integer_cvar(CUE_CVAR))
+            .unwrap_or(CUE_DEFAULT);
+        let effects = console
+            .and_then(|console| console.float_cvar("s_volume"))
+            .unwrap_or(0.5);
+        let heard = effects > 0.0
+            && !console.is_some_and(crate::console::ViewerConsole::window_muted)
+            && crate::toy_sounds::Options::read(console)
+                .gain(crate::toy_sounds::Toy::Fishing, 1.0)
+                .is_some();
+        cue_shown(mode, heard)
+    }
+
+    /// The "!" over the float while something bites, when the cue is shown
+    /// ([`Self::fishing_cue_shown`]); gold for an Echo. Nothing while `shown` is false
+    /// (menus, console, scoreboard, intermission) or the float is out of view.
+    pub(crate) fn append_fishing_cue(&mut self, viewport: [f32; 2], shown: bool) {
+        self.fishing.cue.clear();
+        let Some((water, echo)) = self.fishing.biting() else {
+            return;
+        };
+        let Some(camera) = self.frame_view.filter(|_| shown) else {
+            return;
+        };
+        if !self.fishing_cue_shown() {
+            return;
+        }
+        let point = Vec3::from_array(water) + Vec3::Z * CUE_RISE;
+        let Some(at) = camera.project(point) else {
+            return;
+        };
+        let unit = crate::ui_scale::height_scale(viewport[1]);
+        let seconds = fishing_since(Instant::now()).elapsed().as_secs_f32();
+        let size = CUE_SIZE * unit * (1.0 + 0.12 * (seconds * CUE_PULSE).sin());
+        let colour = if echo {
+            sjk_ui::Color::new(1.0, 0.82, 0.3, 1.0)
+        } else {
+            sjk_ui::Color::new(1.0, 1.0, 1.0, 1.0)
+        };
+        let width = size * 2.0;
+        for (offset, color) in [
+            (2.0 * unit, sjk_ui::Color::new(0.0, 0.0, 0.0, 0.8)),
+            (0.0, colour),
+        ] {
+            let _ = self.fishing.cue.push(sjk_ui::DrawCommand::Text {
+                rect: sjk_ui::Rect::new(
+                    at[0] - width * 0.5 + offset,
+                    at[1] - size * 1.3 + offset,
+                    width,
+                    size * 1.3,
+                ),
+                text: sjk_ui::TextId(0),
+                size,
+                color,
+                align: sjk_ui::TextAlign::Center,
+                overflow: sjk_ui::TextOverflow::Clip,
+                weight: sjk_ui::FontWeight::Semibold,
+                letter_spacing: 0.0,
+            });
+        }
+        let cue = &self.fishing.cue;
+        let (vertices, font) = self.game_fonts.target(
+            crate::game_font::RetailFont::Headline,
+            &mut self.text_vertices,
+            &self.ui_font,
+        );
+        crate::ui_renderer::append_text_commands_where(
+            cue,
+            |_| "!",
+            |_, _| true,
+            vertices,
+            font,
+            viewport,
+            crate::text::TextStyle::NEUTRAL,
+            crate::text::CodePalette::Legible,
+        );
     }
 
     /// Play the toy's sounds, the player's own, in both ears.
@@ -1482,6 +1680,74 @@ fn fishing_since(now: Instant) -> Instant {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What was sold is kept apart from what was caught: the counts stay, held is the
+    /// difference, a sale never takes more than is held, and the log reads back.
+    #[test]
+    fn sold_junk_is_kept_beside_the_catches() {
+        let mut log = Log::parse("boot 4\nhilt 2\nsilver_darter 3\nlast silver_darter\n");
+        assert_eq!(log.held("boot"), 4);
+        let sold: std::collections::BTreeMap<String, u32> =
+            [("boot".to_owned(), 3), ("hilt".to_owned(), 5)].into();
+        assert_eq!(log.sell(&sold), 5, "three boots and the two hilts held");
+        assert_eq!((log.count("boot"), log.held("boot")), (4, 1));
+        assert_eq!((log.count("hilt"), log.held("hilt")), (2, 0));
+        assert_eq!(
+            log.junk_held(),
+            [("boot".to_owned(), 1)].into_iter().collect()
+        );
+        let text = log.text();
+        assert!(text.contains("sold boot 3\n") && text.contains("sold hilt 2\n"));
+        let again = Log::parse(&text);
+        assert_eq!(again, log);
+        assert_eq!(again.species(), (1, FISH_KINDS));
+        // A log written before selling reads as nothing sold.
+        assert_eq!(Log::parse("boot 4\n").held("boot"), 4);
+    }
+
+    /// The bite cue: never at 0, only while the sound cannot be heard at 1 (the
+    /// default), always at 2.
+    #[test]
+    fn the_bite_cue_follows_its_setting_and_the_sound() {
+        assert_eq!(CUE_DEFAULT, 1);
+        for heard in [false, true] {
+            assert!(!cue_shown(0, heard));
+            assert!(!cue_shown(-1, heard));
+            assert!(cue_shown(2, heard));
+            assert!(cue_shown(3, heard));
+        }
+        assert!(cue_shown(1, false));
+        assert!(!cue_shown(1, true));
+    }
+
+    /// A bite says its cue as it starts and as it goes unhooked; an Echo's bite its own.
+    #[test]
+    fn a_bite_starts_and_ends_with_its_cue() {
+        let mut fishing = Fishing::default();
+        let now = Instant::now();
+        cast(&mut fishing, now);
+        let _ = fishing.take_said().count();
+        let Some(Phase::Waiting { bite }) = fishing.phase else {
+            panic!("waiting");
+        };
+        fishing.update(frame(false), bite, || None);
+        assert_eq!(fishing.biting(), Some(([100.0, 0.0, -40.0], false)));
+        let said: Vec<Say> = fishing.take_said().collect();
+        assert!(said.contains(&Say::Cue(CUE_BITE)), "{said:?}");
+        fishing.update(frame(false), bite + Duration::from_secs(5), || None);
+        assert_eq!(fishing.biting(), None);
+        let said: Vec<Say> = fishing.take_said().collect();
+        assert!(said.contains(&Say::Cue(CUE_MISSED)), "{said:?}");
+        // An Echo waiting bites with its own cue.
+        fishing.update(frame(true), bite + Duration::from_secs(6), || None);
+        let Echo::Hooked { bite: echo_at, .. } = fishing.echo else {
+            panic!("an Echo waits");
+        };
+        fishing.update(frame(true), echo_at, || None);
+        assert_eq!(fishing.biting().map(|(_, echo)| echo), Some(true));
+        let said: Vec<Say> = fishing.take_said().collect();
+        assert!(said.contains(&Say::Cue(CUE_ECHO)), "{said:?}");
+    }
 
     fn frame(echo_waiting: bool) -> Frame {
         Frame {

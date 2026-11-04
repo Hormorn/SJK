@@ -21,8 +21,9 @@ pub(super) const PALETTE: [u8; 8] = [0, 1, 2, 3, 4, 5, RGB_COLOR_INDEX, BLACK_CO
 /// Near black, so the blade's preview and the chip still show on dark menus.
 const BLACK_RGB: [u8; 3] = [16, 16, 18];
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum SaberStyle {
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum SaberStyle {
+    #[default]
     Single,
     Staff,
     Dual,
@@ -31,7 +32,7 @@ pub(super) enum SaberStyle {
 impl SaberStyle {
     const ALL: [Self; 3] = [Self::Single, Self::Staff, Self::Dual];
 
-    pub(super) fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Single => "Single",
             Self::Staff => "Staff",
@@ -63,6 +64,8 @@ pub(crate) struct StageSabers<'a> {
     /// as its near-black tint, which the additive blade pass shows white (#130).
     pub(crate) black: [bool; 2],
     pub(crate) stance: &'static str,
+    /// The style the hilts are held in, which picks the Saber Lab's swings.
+    pub(crate) style: SaberStyle,
     pub(crate) thrown: bool,
 }
 
@@ -328,6 +331,7 @@ impl SaberMenu {
             colors: [self.rgb(false), self.rgb(true)],
             black: [false, true].map(|second| self.color(second) == BLACK_COLOR_INDEX),
             stance: self.draft.style.stance(),
+            style: self.draft.style,
             thrown,
         }
     }

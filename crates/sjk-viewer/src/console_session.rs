@@ -200,6 +200,12 @@ impl ViewerConsole {
         )?;
         let remap_blocked_maps =
             console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::CVAR)?;
+        let remap_allowed_maps = console_cvars::RevisionSetting::bind(
+            &mut cvars,
+            crate::remap_blocked_maps::ALLOWED_CVAR,
+        )?;
+        let remap_map_choice =
+            console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::MAP_CVAR)?;
         let draw_fog = console_cvars::IntegerSetting::bind(&mut cvars, "r_drawfog", 2)?;
         let packet_dup = console_cvars::IntegerSetting::bind(&mut cvars, "cl_packetdup", 1)?;
         let max_packets = console_cvars::IntegerSetting::bind(
@@ -644,6 +650,8 @@ impl ViewerConsole {
             pending_boombox: None,
             fishing_on: false,
             pending_fishing: None,
+            fishing_card: Default::default(),
+            pending_fishing_sell: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,
@@ -667,6 +675,8 @@ impl ViewerConsole {
             server_remaps,
             map_edits,
             remap_blocked_maps,
+            remap_allowed_maps,
+            remap_map_choice,
             packet_dup,
             max_packets,
             gameplay_fps,

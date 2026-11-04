@@ -30,6 +30,7 @@ and changed together. Begin with the status page, then the architecture.
 | [Map edits](map-edits.md) | SJK's own map fixes drawn by SJK clients: hidden props and surfaces, placed models, remaps, per server; the staff editor, the browser editor and the hub copies |
 | [Profile banners](profile-banners.md) | Collectible profile covers, Echo rewards, equip/unequip and compatibility |
 | [Unlockables and looks](unlockables.md) | Blade skins and other unlockables, and looks every SJK player sees through the hub |
+| [Saber Lab handover](saber-lab-handover.md) | The Saber Lab's state for Sol to finish (03/11/2026): built, planned, owed before merge, Milamber's blade |
 
 [AGENTS.md](../AGENTS.md) defines the documentation maintenance rules. Update the
 page that owns a fact rather than adding a second account elsewhere. New facts

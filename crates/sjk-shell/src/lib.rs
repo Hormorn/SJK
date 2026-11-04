@@ -7,6 +7,7 @@
 
 #![warn(missing_docs)]
 
+mod alias;
 mod bind;
 mod command;
 mod command_buffer;
@@ -23,6 +24,10 @@ pub mod secret;
 mod shell;
 mod shell_error;
 
+pub use alias::{
+    ALIAS_FILE_NAME, AliasError, AliasTable, MAX_ALIAS_COMMAND_BYTES, MAX_ALIAS_NAME_BYTES,
+    MAX_ALIASES,
+};
 pub use bind::{BindError, BindState, BindTable, MAX_KEY_COMBOS};
 pub use command::{CommandError, CommandRegistry, split_commands, tokenize};
 pub use command_buffer::{

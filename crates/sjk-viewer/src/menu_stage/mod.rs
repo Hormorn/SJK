@@ -12,6 +12,7 @@ mod cosmetics;
 mod force_fx;
 mod force_motion;
 mod hilt_guard;
+mod lab;
 mod lone;
 pub(crate) mod preview;
 mod prop;
@@ -89,6 +90,18 @@ pub(crate) struct MenuStage {
     /// The Collection's Shaders tab: the saber on its own, turned so, before the
     /// backdrop camera (or on the live preview's showcase), and no model drawn.
     lone: Option<crate::console::collection_panel::SaberTurn>,
+    /// The Collection's Saber Lab tab: the model holds and swings the saber while a copy
+    /// of it floats as [`Self::lone`] places it, on the tab's right.
+    lab: Option<crate::console::collection_panel::LabStage>,
+    /// Where the Saber Lab's camera looks from, kept once the tab is left while the camera
+    /// flies back ([`crate::menu_backdrop::orbit`]).
+    lab_view: crate::console::collection_panel::LabView,
+    /// The Saber Lab's ignition, retraction and swing sounds, and its camera's easing
+    /// ([`lab`]).
+    lab_sounds: lab::Sounds,
+    lab_ease: lab::Ease,
+    /// The game's draw or put-away as the Saber Lab lights or puts out the blade.
+    flourish: lab::Flourish,
     /// The Collection's Toys tab: the Illuminate holocron floats by the model.
     holocron_wanted: bool,
     /// The Force shell the preview's model wears (the Force page's power).
@@ -97,6 +110,9 @@ pub(crate) struct MenuStage {
     force_fx: force_fx::ForceFx,
     /// The jump, throw or moves the preview's model shows, and when they began.
     motion: Option<(Instant, crate::player_menu::force_pose::Effect)>,
+    /// Seconds into [`Self::motion`], at the Saber Lab's speed, and when they were last
+    /// counted.
+    motion_clock: (f32, Option<Instant>),
     /// The gesture the preview's model plays (the power under the pointer's), and when
     /// it began.
     gesture: Option<(Instant, &'static [crate::player_menu::force_pose::Move])>,
@@ -186,9 +202,17 @@ impl GpuState {
         let wish = self
             .console
             .as_ref()
-            .and_then(crate::console::ViewerConsole::collection_stage_wish);
+            .and_then(crate::console::ViewerConsole::collection_stage_wish)
+            // The Saber Lab's stage is the menu map's: over a match its tab shows none.
+            .filter(|wish| {
+                wish.lab.is_none() || (self.live_session.is_none() && self.demo_session.is_none())
+            });
         if let (Some(menu), Some(console)) = (&mut self.client_menu, &self.console) {
-            menu.set_collection_stage(wish.is_some(), console);
+            menu.set_collection_stage(
+                wish.is_some(),
+                wish.is_some_and(|wish| wish.lab.is_some()),
+                console,
+            );
         }
         if let (Some(menu), Some(console)) = (&mut self.client_menu, &mut self.console) {
             if console.model_viewer_needs_models()
@@ -211,6 +235,8 @@ impl GpuState {
             self.menu_stage.sabers_dirty = true;
         }
         self.menu_stage.lone = lone;
+        self.menu_stage.lab = wish.and_then(|wish| wish.lab);
+        self.menu_stage.ease_lab_view(now);
         if let Some(menu) = &mut self.client_menu {
             menu.set_collection_saber(self.menu_stage.lone.is_some());
         }
@@ -282,21 +308,59 @@ impl GpuState {
             .client_menu
             .as_ref()
             .and_then(menu::ClientMenu::saber_focus);
-        // A jump, throw or moves preview runs on its own clock from when it began.
-        let moving = preview.and_then(|preview| preview.effect).filter(|effect| {
-            matches!(
-                effect,
-                crate::player_menu::force_pose::Effect::Jump { .. }
-                    | crate::player_menu::force_pose::Effect::Throw
-                    | crate::player_menu::force_pose::Effect::Moves { .. }
-            )
+        // The Saber Lab's swings, in the style it shows for a single saber or the staff's
+        // or two sabers' own, before any preview's.
+        let held = wanted
+            .as_ref()
+            .map_or_else(Default::default, |sabers| sabers.style);
+        if let Some(console) = &mut self.console {
+            console.set_collection_lab_held(held);
+        }
+        let lab = self.menu_stage.lab;
+        let lab_moves = lab
+            .filter(|lab| lab.swinging)
+            .map(|lab| crate::player_menu::force_pose::lab_swings(lab.style, held));
+        // Put away with the flourish, the blade stays away as a holstered player stands.
+        let lab_stance = lab.map(|lab| {
+            if lab.flourish && !lab.lit {
+                crate::player_menu::force_pose::HOLSTERED_STANCE
+            } else {
+                crate::player_menu::force_pose::lab_stance(lab.style, held)
+            }
         });
+        let speed = lab.map_or(1.0, |lab| lab.speed);
+        // The Saber Lab's swings follow one another the moment each ends, at any speed,
+        // with no wait in the stance between (the user, 18/10/2026).
+        let pause = if lab.is_some() { 0.0 } else { 1.0 };
+        // A jump, throw or moves preview runs on its own clock from when it began.
+        let moving = lab_moves
+            .or(preview.and_then(|preview| preview.effect))
+            .filter(|effect| {
+                matches!(
+                    effect,
+                    crate::player_menu::force_pose::Effect::Jump { .. }
+                        | crate::player_menu::force_pose::Effect::Throw
+                        | crate::player_menu::force_pose::Effect::Moves { .. }
+                )
+            });
         if self.menu_stage.motion.map(|(_, effect)| effect) != moving {
             self.menu_stage.motion = moving.map(|effect| (now, effect));
+            self.menu_stage.motion_clock = (0.0, Some(now));
         }
-        let motion_seconds = self.menu_stage.motion.map_or(0.0, |(started, _)| {
-            now.saturating_duration_since(started).as_secs_f32()
+        // The Saber Lab's speed runs the moves' script as it runs their animations.
+        let (played, counted) = self.menu_stage.motion_clock;
+        let step = counted.map_or(0.0, |counted| {
+            now.saturating_duration_since(counted).as_secs_f32()
         });
+        // The Saber Lab's flourish plays over the moves, which wait for it.
+        let flourish = self.menu_stage.lab_flourish(held, step * speed);
+        let motion_seconds = played
+            + if flourish.is_some() {
+                0.0
+            } else {
+                step * speed
+            };
+        self.menu_stage.motion_clock = (motion_seconds, Some(now));
         // The jump's and the moves' poses come from their script; `Some(None)` stands.
         let scripted = match self.menu_stage.motion {
             // A jump moves the whole body, arms and all, as the game's does (Creyon's
@@ -318,6 +382,7 @@ impl GpuState {
                         stance,
                         |name| actor.preview.config.get(name).map_or(0.0, travel_seconds),
                         motion_seconds,
+                        pause,
                     ))
                 })
             }
@@ -371,6 +436,7 @@ impl GpuState {
             _ => None,
         };
         let takeover = match (scripted, gesture_step) {
+            _ if flourish.is_some() => tracks::HOVER_TAKEOVER,
             (None, Some(step)) => step.takeover,
             _ => takeover,
         };
@@ -385,12 +451,12 @@ impl GpuState {
                         Some(crate::player_menu::force_pose::Effect::Puffs { .. })
                     ))
         });
-        let pose = scripted
-            .flatten()
+        let pose = flourish
+            .or(scripted.flatten())
             .or(gesture_step.and_then(|step| step.animation));
         let (stance, request) = match (wanted, preview) {
             (Some(sabers), _) => (
-                Some(pose.unwrap_or(sabers.stance)),
+                Some(pose.unwrap_or(lab_stance.unwrap_or(sabers.stance))),
                 (!self.menu_stage.request.matches(&sabers)).then(|| sabers::Request::from(&sabers)),
             ),
             (None, Some(preview)) => (
@@ -461,11 +527,12 @@ impl GpuState {
             preview.and_then(|preview| preview.effect),
             Some(crate::player_menu::force_pose::Effect::SpeedTrail)
         ) && emitting;
-        let rate = if speeding {
-            force_motion::SPEED_RUN_RATE
-        } else {
-            1.0
-        };
+        let rate = speed
+            * if speeding {
+                force_motion::SPEED_RUN_RATE
+            } else {
+                1.0
+            };
         if let Some(actor) = &mut self.menu_stage.actor {
             actor.rate = rate;
         }
@@ -491,8 +558,10 @@ impl GpuState {
         self.advance_force_fx(preview.and_then(|preview| preview.effect), emitting, now);
         self.sync_force_trail(emitting);
         // The showcase and the lone saber draw no actor: its pose and what it wears can
-        // wait.
-        if self.menu_stage.showcase || self.menu_stage.lone.is_some() {
+        // wait. The Saber Lab's saber floats beside the model holding it.
+        if self.menu_stage.showcase
+            || (self.menu_stage.lone.is_some() && self.menu_stage.lab.is_none())
+        {
             return;
         }
         if let Err(error) = self.animate_stage_actor(now) {
@@ -880,11 +949,17 @@ impl MenuStage {
             prop.draw(pass, world_materials, camera, blended);
             return;
         }
-        if self.showcase || self.lone.is_some() {
+        if self.showcase || (self.lone.is_some() && self.lab.is_none()) {
             for saber in self.sabers.iter().flatten() {
                 saber.draw(pass, world_materials, camera, blended);
             }
             return;
+        }
+        // The Saber Lab's floating copies, beside the model holding the sabers.
+        if self.lab.is_some() && self.lone.is_some() {
+            for saber in self.sabers.iter().flatten() {
+                saber.draw_floating(pass, world_materials, camera, blended);
+            }
         }
         world_materials.draw_detached(
             pass,

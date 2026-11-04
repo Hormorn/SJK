@@ -173,13 +173,22 @@ const INPUT_LIMIT: usize = 512;
 /// The list `sjkemote`'s first argument completes from on Tab
 /// ([`crate::emotes::argument_words`]).
 const EMOTE_ARGUMENTS: &str = "emote";
+/// The list `vid_restart`'s argument completes from on Tab: `force`.
+const VID_RESTART_ARGUMENTS: &str = "vid_restart";
 /// The client's commands whose first argument Tab completes, beside the shell's
 /// own (`exec`, `devmap`...), one entry per command.
-const ARGUMENT_SOURCES: &[sjk_shell::ArgumentSource] = &[sjk_shell::ArgumentSource {
-    command: crate::emotes::COMMAND,
-    list: EMOTE_ARGUMENTS,
-    label: "Emote",
-}];
+const ARGUMENT_SOURCES: &[sjk_shell::ArgumentSource] = &[
+    sjk_shell::ArgumentSource {
+        command: crate::emotes::COMMAND,
+        list: EMOTE_ARGUMENTS,
+        label: "Emote",
+    },
+    sjk_shell::ArgumentSource {
+        command: "vid_restart",
+        list: VID_RESTART_ARGUMENTS,
+        label: "Option",
+    },
+];
 
 /// Toggleable console state owned by the viewer frontend.
 pub(crate) struct ViewerConsole {
@@ -272,6 +281,10 @@ pub(crate) struct ViewerConsole {
     fishing_on: bool,
     /// The Toys tab asked to get the rod out (`true`) or put it away, not yet taken.
     pending_fishing: Option<bool>,
+    /// The Fishing card's catches and sale, as the viewer last gave them.
+    fishing_card: crate::fishing_sell::Card,
+    /// The Fishing card's Sell junk button was pressed.
+    pending_fishing_sell: bool,
     /// The Monitor toy is on, mirrored as [`Self::order66_on`] is.
     monitor_on: bool,
     /// The Toys tab asked to turn the Monitor on (`true`) or off, not yet taken.
@@ -311,6 +324,10 @@ pub(crate) struct ViewerConsole {
     map_edits: console_cvars::IntegerSetting,
     /// Changes of `cg_remapsBlockedMaps`, for [`crate::remap_blocked_maps`].
     remap_blocked_maps: console_cvars::RevisionSetting,
+    /// Changes of `cg_remapsAllowedMaps`.
+    remap_allowed_maps: console_cvars::RevisionSetting,
+    /// Changes of `cg_serverRemapsMap`, the loaded map's choice.
+    remap_map_choice: console_cvars::RevisionSetting,
     packet_dup: console_cvars::IntegerSetting,
     max_packets: console_cvars::IntegerSetting,
     /// `gameplay_fps`, and the server's `pmove_fixed`/`pmove_msec` that override it.
@@ -1213,6 +1230,7 @@ impl ViewerConsole {
         let lists = |list: &str| match list {
             sjk_shell::MAP_EXTENSION => resolver.map_names(),
             EMOTE_ARGUMENTS => crate::emotes::argument_words(self.script_vfs.as_deref()),
+            VID_RESTART_ARGUMENTS => vec![console_client::VID_RESTART_FORCE.to_owned()],
             extension => resolver.root_files(extension),
         };
         let completed =
@@ -1278,13 +1296,9 @@ fn invalid_cvar(name: &str, requirement: &str) -> IoError {
 }
 
 impl ViewerConsole {
-    /// The server remaps to apply: `cg_remaps`, or 0 while `cg_serverRemaps` is off.
-    pub(crate) fn remap_mode(&self) -> i64 {
-        if self.server_remaps_on() {
-            self.remaps.value()
-        } else {
-            0
-        }
+    /// `cg_remaps`, whether or not `cg_serverRemaps` is on.
+    pub(crate) fn remap_filter(&self) -> i64 {
+        self.remaps.value()
     }
 
     pub(crate) fn server_remaps_on(&self) -> bool {
@@ -1295,8 +1309,13 @@ impl ViewerConsole {
         self.map_edits.value() != 0
     }
 
-    /// How often `cg_remapsBlockedMaps` has changed, read without a name lookup.
-    pub(crate) fn remap_blocked_maps_revision(&self) -> u64 {
-        self.remap_blocked_maps.value()
+    /// How often `cg_remapsBlockedMaps`, `cg_remapsAllowedMaps` and
+    /// `cg_serverRemapsMap` have changed, read without a name lookup.
+    pub(crate) fn remap_maps_revisions(&self) -> crate::remap_blocked_maps::Revisions {
+        [
+            self.remap_blocked_maps.value(),
+            self.remap_allowed_maps.value(),
+            self.remap_map_choice.value(),
+        ]
     }
 }

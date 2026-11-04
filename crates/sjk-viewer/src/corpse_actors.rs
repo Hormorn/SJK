@@ -14,11 +14,15 @@ impl GpuState {
             match command {
                 BaseServerCommandEvent::CopyBody(body) => {
                     self.reset_body_fade(body.entity_num);
+                    // The body of a player this client burnt away is hidden from the start.
+                    self.forced_disintegrations
+                        .body_copied(u16::from(body.client_num), body.entity_num);
                     if let Err(error) = self.copy_body_actor(body, presentation_time) {
                         crate::log::progress(format_args!("body copy failed: {error}"));
                     }
                 }
                 BaseServerCommandEvent::KillGhoul2(number) => {
+                    self.forced_disintegrations.freed(number);
                     let id = EntityId::new(u64::from(number) + 1);
                     for mesh in &mut self.actor_meshes {
                         if mesh.corpse_pool && mesh.entity_id == Some(id) {

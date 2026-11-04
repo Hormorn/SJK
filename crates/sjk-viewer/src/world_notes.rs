@@ -58,6 +58,9 @@ const COLLISION_MASK: u32 = 1 | 0x10000;
 const SURF_NODRAW: u32 = 0x0020_0000;
 /// How much nearer than the drawn surface a nodraw side must be to be selected instead.
 const FACE_MARGIN: f32 = 1.0;
+/// How far from the sky surface the ray met its brush's sky side may lie and still be
+/// the side that surface was made from.
+const SKY_MARGIN: f32 = 2.0;
 /// JKA's standing view height: `setviewpos` places the origin, the eye sits above it.
 const VIEW_HEIGHT: f32 = 36.0;
 /// Most edges an outline keeps, and most dots it draws a frame (the HUD's shapes share
@@ -198,8 +201,16 @@ impl Selection {
         }
         if let Some(face) = &self.face {
             return format!(
-                "{} (brush {} side {}, drawn by no surface), {:.0} units",
-                face.shader, face.brush, face.side, self.distance
+                "{} (brush {} side {}, {}), {:.0} units",
+                face.shader,
+                face.brush,
+                face.side,
+                if face.sky {
+                    "sky"
+                } else {
+                    "drawn by no surface"
+                },
+                self.distance
             );
         }
         let what = match (&self.surface, &self.entity) {
@@ -249,6 +260,7 @@ impl Selection {
                 brush: face.brush,
                 side: face.side,
                 shader: face.shader.clone(),
+                sky: face.sky,
             };
         }
         match (&self.surface, &self.entity) {
@@ -653,7 +665,28 @@ pub(crate) fn pick(
                 .as_ref()
                 .is_none_or(|hit| collision.distance + FACE_MARGIN < hit.distance)
     });
-    if nodraw_first && let Some(face) = crate::map_edits::faces::pick(bsp, eye, direction, REACH) {
+    // The sky drawn first: the sky side of the brush behind it, which edits may cover
+    // with a texture or whose sky they may swap (the sky's surface itself is no edit's).
+    let sky_first = world.as_ref().is_some_and(|hit| {
+        render
+            .surfaces()
+            .get(hit.surface)
+            .and_then(|surface| bsp.shaders().get(surface.shader))
+            .is_some_and(|shader| shader.surface_flags & crate::map_edits::faces::SURF_SKY != 0)
+    });
+    let face = if nodraw_first {
+        crate::map_edits::faces::pick(bsp, eye, direction, REACH)
+    } else if sky_first {
+        crate::map_edits::faces::pick(bsp, eye, direction, REACH).filter(|face| {
+            face.sky
+                && world
+                    .as_ref()
+                    .is_some_and(|hit| (hit.distance - face.distance).abs() <= SKY_MARGIN)
+        })
+    } else {
+        None
+    };
+    if let Some(face) = face {
         let point = eye + direction * face.distance;
         let corners: Vec<Vec3> = face.polygon.iter().map(|p| Vec3::from_array(*p)).collect();
         let edges = (0..corners.len())
@@ -933,13 +966,15 @@ pub(crate) enum EditTarget {
         shader: String,
         kind: &'static str,
     },
-    /// A side of a world brush the map draws nothing on (caulk, nodraw): its BSP brush
-    /// and side numbers and its shader.
+    /// A side of a world brush the map draws nothing on (caulk, nodraw), or draws as sky
+    /// (`sky`): its BSP brush and side numbers and its shader.
     Face {
         brush: u32,
         side: u32,
         shader: String,
+        sky: bool,
     },
+
     /// Something edits do not change (a mover, an entity marker).
     Other,
 }
@@ -1143,6 +1178,48 @@ impl Notes {
         self.selection.as_ref().map(Selection::summary)
     }
 
+    /// Select caulk or nodraw face `face` for a map edit, met at `hit`, as seen from
+    /// `eye` looking along `forward`: the browser editor's click on a face its brush
+    /// view draws.
+    pub(crate) fn select_face_for_edit(
+        &mut self,
+        map: &str,
+        [eye, forward, hit]: [Vec3; 3],
+        face: crate::map_edits::faces::Face,
+    ) -> String {
+        let camera = CameraUniform {
+            camera_position: eye.to_array(),
+            view_forward: forward.normalize_or_zero().to_array(),
+            ..bytemuck::Zeroable::zeroed()
+        };
+        let corners: Vec<Vec3> = face.polygon.iter().map(|p| Vec3::from_array(*p)).collect();
+        let selection = Selection {
+            map: map.to_owned(),
+            pose: camera.viewpos(),
+            eye,
+            forward: forward.normalize_or_zero(),
+            hit,
+            normal: face.normal,
+            distance: face.distance,
+            surface: None,
+            entity: None,
+            collision: None,
+            edges: (0..corners.len())
+                .map(|i| [corners[i], corners[(i + 1) % corners.len()]])
+                .collect(),
+            triangles: (2..corners.len())
+                .map(|i| [corners[0], corners[i - 1], corners[i]])
+                .collect(),
+            face: Some(face),
+            selected: Instant::now(),
+            model: None,
+            remaps: Vec::new(),
+        };
+        let summary = selection.summary();
+        self.selection = Some(selection);
+        summary
+    }
+
     /// While the map editor is on, a selection never goes stale.
     pub(crate) fn hold_selection(&mut self, held: bool) {
         self.held = held;
@@ -1321,6 +1398,20 @@ impl Notes {
     /// The outline to draw this frame, if any.
     pub(crate) fn highlight(&self) -> Option<&sjk_ui::DrawList> {
         (!self.highlight.is_empty()).then_some(&self.highlight)
+    }
+
+    /// The last rendered main view for the map editor's gizmo
+    /// ([`crate::map_edits::gizmo`]): its view-projection, eye, forward and the frame's
+    /// size in physical pixels.
+    pub(crate) fn camera_for_gizmo(&self) -> Option<(glam::Mat4, Vec3, Vec3, [f32; 2])> {
+        self.camera.map(|camera| {
+            (
+                glam::Mat4::from_cols_array_2d(&camera.view_projection),
+                Vec3::from_array(camera.camera_position),
+                Vec3::from_array(camera.view_forward).normalize_or_zero(),
+                self.viewport,
+            )
+        })
     }
 
     /// Save `note` about the confirmed selection into `directory`, returning the

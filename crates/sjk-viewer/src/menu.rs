@@ -204,6 +204,8 @@ pub(crate) struct ClientMenu {
     /// to the player's shot and the model stands on the stage, or shows in a preview
     /// over a match ([`Self::set_collection_stage`]).
     collection_stage: bool,
+    /// The Collection's stage is the Saber Lab tab's ([`Shot::SaberLab`]).
+    collection_lab: bool,
     /// The Collection's Shaders tab shows the saber on its own, not the model holding it.
     collection_saber: bool,
     /// The model the `modelviewer` page has chosen: it stands on the stage in place of
@@ -290,6 +292,7 @@ impl ClientMenu {
             backdrop: None,
             uploaded_into: None,
             collection_stage: false,
+            collection_lab: false,
             collection_saber: false,
             viewer_model: None,
             viewer_prop: None,
@@ -457,7 +460,9 @@ impl ClientMenu {
     /// The backdrop shot behind this frame: the current screen's, or the player's
     /// while the Collection's stage is wanted.
     fn shot(&self) -> Shot {
-        if self.collection_stage {
+        if self.collection_stage && self.collection_lab {
+            Shot::SaberLab
+        } else if self.collection_stage {
             Shot::Player
         } else {
             shot_for(self.state.phase(), &self.player, self.holocron_shot)
@@ -467,7 +472,13 @@ impl ClientMenu {
     /// Whether the Collection wants the player's model (on Shaders, Toys and
     /// Nameplates). When it starts wanting it and the player screen is not open, the
     /// model and sabers are read from the cvars, so the stage shows the player's own.
-    pub(crate) fn set_collection_stage(&mut self, wanted: bool, console: &ViewerConsole) {
+    pub(crate) fn set_collection_stage(
+        &mut self,
+        wanted: bool,
+        lab: bool,
+        console: &ViewerConsole,
+    ) {
+        self.collection_lab = wanted && lab;
         let profile = matches!(self.state.phase(), ClientPhase::Player);
         if wanted && !self.collection_stage && !profile {
             self.player.read_for_stage(console);

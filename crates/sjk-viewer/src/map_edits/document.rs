@@ -428,6 +428,21 @@ mod tests {
         assert_eq!(Document::parse(&text, "mp/ffa3", 1).unwrap(), document);
     }
 
+    /// A sky side covered with a texture is a shown face, and a sky swap a remap: kinds
+    /// every client already reads, so a document with them parses everywhere (a client
+    /// before sky faces checks the side against its own rule and skips that face only).
+    #[test]
+    fn sky_edits_are_shown_faces_and_remaps() {
+        let text = r#"{"map":"mp/ffa3","checksum":1,"edits":[
+            {"id":1,"kind":"show_face","brush":9,"side":54,"shader":"textures/skies/yavin","to":"textures/yavin/wall"},
+            {"id":2,"kind":"remap","from":"textures/skies/yavin","to":"textures/skies/night"}]}"#;
+        let document = Document::parse(text, "mp/ffa3", 1).unwrap();
+        assert_eq!(document.edits[0].label(), "Shown face: yavin -> wall");
+        assert_eq!(document.edits[1].label(), "Remap: yavin -> night");
+        let back = serde_json::to_string(&document).unwrap();
+        assert_eq!(Document::parse(&back, "mp/ffa3", 1).unwrap(), document);
+    }
+
     #[test]
     fn broken_documents_are_refused() {
         let mut document = Document::new("mp/ffa3", 1);
