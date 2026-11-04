@@ -35,7 +35,7 @@ pub(super) fn register(shell: &mut sjk_shell::Shell) -> Result<(), sjk_shell::Co
         ),
         (
             crate::mining::COMMAND,
-            "Toy: take a pickaxe in hand, or put it away (boulders come up round you; +use strikes the one before you)",
+            "Toy: take a pickaxe in hand, or put it away (boulders come up round you; attack strikes the one before you)",
         ),
         (
             crate::order66::COMMAND,

@@ -530,7 +530,11 @@ pub(crate) struct Mining {
     /// `+use` went down since the last frame.
     use_pressed: bool,
     use_held: bool,
-    /// The player attacked since the last frame.
+    /// The attack button (the pickaxe's swing while it is out) went down since the last
+    /// frame, and is held now: held, the swings follow one another.
+    strike_pressed: bool,
+    strike_held: bool,
+    /// The player alt-attacked since the last frame (or attacked, the pickaxe away).
     attacked: bool,
     health: Option<i32>,
     /// The mining log; `log_read`, it was read from the profile's folder (what was dug
@@ -561,6 +565,8 @@ impl Default for Mining {
             blows: 0,
             use_pressed: false,
             use_held: false,
+            strike_pressed: false,
+            strike_held: false,
             attacked: false,
             health: None,
             log: None,
@@ -607,13 +613,23 @@ impl Mining {
         self.on
     }
 
-    /// Note `+use`, and any attack, in `command`.
-    pub(crate) fn shape_command(&mut self, command: &UserCommand) {
+    /// Note `+use` and the attacks in `command`. While the pickaxe is out the attack button
+    /// swings it and is taken out of the command, so the weapon in hand does not fire; an
+    /// alt attack puts the pickaxe away.
+    pub(crate) fn shape_command(&mut self, command: &mut UserCommand) {
         let using = command.buttons & BUTTON_USE != 0;
         if using && !self.use_held {
             self.use_pressed = true;
         }
         self.use_held = using;
+        let striking = self.on && command.buttons & BUTTON_ATTACK != 0;
+        if striking {
+            command.buttons &= !BUTTON_ATTACK;
+            if !self.strike_held {
+                self.strike_pressed = true;
+            }
+        }
+        self.strike_held = striking;
         if command.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK) != 0 {
             self.attacked = true;
         }
@@ -657,7 +673,9 @@ impl Mining {
         now: Instant,
         mut ground: impl FnMut([f32; 3]) -> Option<([f32; 3], [f32; 3])>,
     ) {
-        let used = std::mem::take(&mut self.use_pressed);
+        let used = std::mem::take(&mut self.use_pressed)
+            | std::mem::take(&mut self.strike_pressed)
+            | self.strike_held;
         let attacked = std::mem::take(&mut self.attacked);
         let health = self.health.replace(frame.health);
         if self
@@ -673,7 +691,7 @@ impl Mining {
                 self.next_rock = None;
                 self.said.push(Say::EmptyHands);
                 self.said.push(Say::Centre(
-                    "Pickaxe out: boulders come up round you. Strike one with Use, and strike as it glints!",
+                    "Pickaxe out: boulders come up round you. Strike one with Attack, and strike as it glints!",
                 ));
             } else {
                 self.said.push(Say::Centre("Mining waits until you play."));
@@ -1357,11 +1375,11 @@ mod tests {
     }
 
     fn press_use(mining: &mut Mining) {
-        mining.shape_command(&UserCommand {
+        mining.shape_command(&mut UserCommand {
             buttons: BUTTON_USE,
             ..UserCommand::default()
         });
-        mining.shape_command(&UserCommand::default());
+        mining.shape_command(&mut UserCommand::default());
     }
 
     /// One swing from `now`, its blow landed; returns when it is over. No new boulder
@@ -1505,14 +1523,25 @@ mod tests {
         let now = Instant::now();
         let mut mining = Mining::default();
         take_out(&mut mining, now);
-        mining.shape_command(&UserCommand {
+        mining.shape_command(&mut UserCommand {
             forward_move: 127,
             ..UserCommand::default()
         });
         mining.update(frame(), now, |_| None);
         assert!(mining.on());
-        mining.shape_command(&UserCommand {
+        // The attack button swings the pickaxe, and is kept from the weapon.
+        let mut attack = UserCommand {
             buttons: BUTTON_ATTACK,
+            ..UserCommand::default()
+        };
+        mining.shape_command(&mut attack);
+        assert_eq!(attack.buttons, 0);
+        mining.update(frame(), now, |_| None);
+        assert!(mining.on());
+        assert!(mining.swing.is_some());
+        // An alt attack puts it away.
+        mining.shape_command(&mut UserCommand {
+            buttons: BUTTON_ALT_ATTACK,
             ..UserCommand::default()
         });
         mining.update(frame(), now, |_| None);

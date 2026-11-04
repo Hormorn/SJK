@@ -263,7 +263,7 @@ const TOYS: [Toy; TOY_COUNT] = [
         name: "Mining",
         tag: "Break the boulders that come up round you for ore.",
         title: "Mining",
-        what: "Take a pickaxe and boulders come up out of the ground round you. Walk up to one and strike it with Use, your whole body in the swing; a few blows break it for ore or rubble, and another comes up elsewhere. When it glints, strike: a clean strike counts twice and digs out rarer ore. Other SJK players see your pickaxe; the boulders are yours alone.",
+        what: "Take a pickaxe and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and another comes up elsewhere. When it glints, strike: a clean strike counts twice and digs out rarer ore. Other SJK players see your pickaxe; the boulders are yours alone.",
         more: Some(
             "Three boulders wait at a time. Attacking or getting hurt puts the pickaxe away. Your finds are in mining_log.txt.",
         ),

@@ -6025,7 +6025,7 @@ on top of fishing); that needs the hub.
 
 - **`toy_mining`** (a bind, the quick wheel's Toys catalogue, Collection > Toys, "Pickaxe
   out") takes the pickaxe in hand or puts it away. The player may walk with it;
-  attacking, getting hurt, dying or leaving the game puts it away (health over the
+  an alt attack, getting hurt, dying or leaving the game puts it away (health over the
   maximum counting down after a spawn is no hurt). The hands go empty: the fists when the
   player has them (`weapmelee`), else a lit saber is switched off; the pickaxe then
   replaces whatever that hand holds. It is held as a hilt is: on the right hand's bolt,
@@ -6045,11 +6045,12 @@ on top of fishing); that needs the hub.
   A boulder more than 1400 units from the player goes, and another
   comes up nearer; another map has none. They are the player's own: nobody else sees
   them, and they do not block anyone.
-- **A swing** is `+use`: 0.7 seconds of the whole body playing the strong saber style's
+- **A swing** is the attack button (MB1; `+use` too): the attack is kept from the
+  weapon in hand while the pickaxe is out, so nothing fires. 0.7 seconds of the whole body playing the strong saber style's
   blow from overhead down (`BOTH_A3_T__B_`, both hands on the handle; the legs too while
   they stand, blended in over 100 ms), the pickaxe following the hands down to the ground
   before the feet, its blow landing 0.42 seconds in (presses during a swing are not kept,
-  so spamming swings no faster). The blow strikes the nearest boulder
+  so spamming swings no faster; held, the attack swings again and again). The blow strikes the nearest boulder
   within 64 units before the player (about 57 degrees either side of the way they face),
   or says to walk up to one. Others see the pickaxe held, not the swing: swings are not
   sent.

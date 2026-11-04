@@ -4,7 +4,7 @@
 pickaxe in the right hand, held as a hilt is (turned with the hand bolt, so it stays in
 the grip in every pose and in first person; the strong saber stance), and three
 boulders come up out of the ground round the player, in sight, on flat dry ground
-([client.md](client.md#mining)). `+use` swings: the whole body plays `BOTH_A3_T__B_`
+([client.md](client.md#mining)). The attack button (MB1, kept from the weapon; `+use` too) swings, held again and again: the whole body plays `BOTH_A3_T__B_`
 from the swing's start (`actor_pose_steps.rs`, the own player only; legs while standing),
 and the blow strikes the nearest boulder within 64 units before the player. 10 to 14 blows
 break it; a glint flashes on it now and then, and a blow landing while it shines is a clean
@@ -12,7 +12,7 @@ strike (two blows, less rubble, the ore one tier rarer but never into the Heart)
 rubble, 9 ores, the Heart of the Mountain with Old Whiskers' kind of bad luck protection)
 jumps to the feet and is counted in `mining_log.txt`; another boulder comes up 4 to 8
 seconds later (balanced against Fishing: about six boulders a minute, the Heart some
-100 minutes; a 15 to 25 second wait was tried and felt slow). The player may walk with it; attacking or getting hurt puts it away, and it
+100 minutes; a 15 to 25 second wait was tried and felt slow). The player may walk with it; an alt attack or getting hurt puts it away, and it
 and the fishing rod put each other away. Boulders and swings are the miner's own (not
 sent); others see the pickaxe held. The fists are selected when the player has them,
 else a lit saber is switched off, and the pickaxe replaces what the hand held. Health
