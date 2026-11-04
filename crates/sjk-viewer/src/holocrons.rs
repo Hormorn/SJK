@@ -404,6 +404,9 @@ pub(crate) fn pace_text(progress: &HolocronProgress) -> String {
     if let Some(activity) = progress.activity {
         let minutes = (activity.combat_window / 60).max(1);
         match activity.pace {
+            Some(0) if activity.fishing_window > 0 => {
+                parts.push("Not earning: move around, fight or fish to earn holocrons".to_owned())
+            }
             Some(0) => parts.push("Not earning: move around or fight to earn holocrons".to_owned()),
             Some(pace) if pace < 100 => parts.push(format!(
                 "{} pace: no fight in the last {minutes} minutes. Fight, get hit or duel for \
@@ -722,6 +725,9 @@ mod tests {
             combat_window: 600,
             peaceful: 50,
             move_min: 200,
+            last_bite: 0,
+            fishing_window: 0,
+            fishing: 0,
         };
         let half = HolocronProgress {
             activity: Some(activity),
@@ -741,6 +747,20 @@ mod tests {
         assert_eq!(
             pace_text(&idle),
             "Not earning: move around or fight to earn holocrons"
+        );
+        // A hub that counts fishing says so.
+        let idle_by_water = HolocronProgress {
+            activity: Some(sjk_identity::ActivityState {
+                pace: Some(0),
+                fishing_window: 300,
+                fishing: 100,
+                ..activity
+            }),
+            ..progress(600, 1)
+        };
+        assert_eq!(
+            pace_text(&idle_by_water),
+            "Not earning: move around, fight or fish to earn holocrons"
         );
         let full = HolocronProgress {
             activity: Some(sjk_identity::ActivityState {

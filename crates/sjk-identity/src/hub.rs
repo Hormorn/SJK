@@ -3071,7 +3071,7 @@ mod tests {
             claim_body_with("1.2.3.4:29070", 3, "Sol", true, Some(&play)),
             json!({"server": "1.2.3.4:29070", "slot": 3, "name": "Sol", "active": true,
                 "play": {"moved": 900, "attacks": 3, "hits": 2, "hurt": 0, "kills": 0,
-                    "deaths": 0}})
+                    "deaths": 0, "bites": 0}})
         );
         assert_eq!(
             claim_body_with("1.2.3.4:29070", 3, "Sol", false, Some(&play)),

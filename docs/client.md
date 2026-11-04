@@ -6039,6 +6039,11 @@ brings up are the ones the hub drops anyway.
   the holocron comes up on the line and its card shows. Missed twice, or with the rod put
   away, the card shows all the same. Fishing never brings an Echo the hub did not drop:
   the caps stay as they are ([holocrons.md](holocrons.md)).
+- **Play time** (04/11/2026, headshotsmcgee117's question in #ideas): each bite hooked in
+  time is a play signal (`bites`), and the hub counts the time of a player standing at
+  the water toward holocrons while the last one came within 5 minutes
+  ([holocrons.md](holocrons.md), "Play signals"). A press of Use without a bite scares the
+  fish off, so a held or repeated key hooks nothing.
 - **Achievements:** First Bite (a fish), Angler (50 fish), Every Fish in the Pond (every kind), Echo Angler (10
   Echoes on the line) and Old Whiskers (hidden), counted on servers only, as the others
   ([identity.md](identity.md#achievements)).

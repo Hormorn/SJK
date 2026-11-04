@@ -10,7 +10,9 @@
 //! brings its card. Missed twice, or the rod put away, the card comes as it always does.
 //! Phase 1 changes nothing at the hub: the Echo is the player's from the moment the hub
 //! drops it, by the usual clock and caps, and the fish are a local log, no credits, no
-//! shards. So fishing earns nothing that playing does not.
+//! shards. So fishing earns nothing that playing does not. Since 04/11/2026 a bite
+//! hooked in time is a play signal (`crate::holocrons::signals::bite`), so the hub counts
+//! the time of a player standing at the water toward holocrons as it does a moving one's.
 //!
 //! No game server knows of it: it travels through the SJK hub as a toy in the player's
 //! look ([`TOY`]), so other SJK players see the rod, the bucket and the float (where
@@ -891,6 +893,9 @@ impl Fishing {
             }
             Phase::Biting(bite) => {
                 if used {
+                    // A bite answered in time is play: the hub counts the time of a
+                    // player standing at the water by these.
+                    crate::holocrons::signals::bite();
                     self.said.push(Say::Sound(CATCH));
                     if bite.echo {
                         self.echo = Echo::Free;
