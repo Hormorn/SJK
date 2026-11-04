@@ -272,6 +272,10 @@ pub(crate) struct ViewerConsole {
     fishing_on: bool,
     /// The Toys tab asked to get the rod out (`true`) or put it away, not yet taken.
     pending_fishing: Option<bool>,
+    /// The pickaxe is in hand, mirrored as [`Self::order66_on`] is.
+    mining_on: bool,
+    /// The Toys tab asked to take the pickaxe (`true`) or put it away, not yet taken.
+    pending_mining: Option<bool>,
     /// The Monitor toy is on, mirrored as [`Self::order66_on`] is.
     monitor_on: bool,
     /// The Toys tab asked to turn the Monitor on (`true`) or off, not yet taken.

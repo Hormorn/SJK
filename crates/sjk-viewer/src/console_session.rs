@@ -644,6 +644,8 @@ impl ViewerConsole {
             pending_boombox: None,
             fishing_on: false,
             pending_fishing: None,
+            mining_on: false,
+            pending_mining: None,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,

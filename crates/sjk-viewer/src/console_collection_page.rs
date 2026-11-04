@@ -194,6 +194,10 @@ impl ViewerConsole {
                 self.pending_fishing = Some(on);
                 self.fishing_on = on;
             }
+            PanelAction::Mining(on) => {
+                self.pending_mining = Some(on);
+                self.mining_on = on;
+            }
             PanelAction::Monitor(on) => {
                 self.pending_monitor = Some(on);
                 self.monitor_on = on;
@@ -314,6 +318,16 @@ impl ViewerConsole {
     /// The Toys tab asked to get the rod out (`true`) or put it away, once.
     pub(crate) fn take_fishing_request(&mut self) -> Option<bool> {
         self.pending_fishing.take()
+    }
+
+    /// The viewer says whether the pickaxe is in hand, once a frame.
+    pub(crate) fn set_mining_on(&mut self, on: bool) {
+        self.mining_on = on;
+    }
+
+    /// The Toys tab asked to take the pickaxe (`true`) or put it away, once.
+    pub(crate) fn take_mining_request(&mut self) -> Option<bool> {
+        self.pending_mining.take()
     }
 
     /// The viewer says whether the Monitor toy is on, once a frame.
@@ -466,6 +480,7 @@ impl ViewerConsole {
         let box_hunt = self.box_hunt_on;
         let banana = self.banana_on;
         let fishing = self.fishing_on;
+        let mining = self.mining_on;
         let stock = self.stock_blade();
         // Tiles unless the list is chosen (`ui_shaderList 1`).
         let grid = self.integer_cvar(super::collection_panel::SHADER_VIEW_CVAR) != Some(1);
@@ -534,6 +549,7 @@ impl ViewerConsole {
                 box_hunt,
                 banana,
                 fishing,
+                mining,
                 name: &name,
                 stock,
                 grid,
@@ -570,6 +586,7 @@ impl ViewerConsole {
             box_hunt,
             banana,
             fishing,
+            mining,
             name: &name,
             stock,
             grid,

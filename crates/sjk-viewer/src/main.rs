@@ -196,6 +196,7 @@ mod menu_stage;
 mod menu_widgets;
 mod menu_world;
 mod mimic;
+mod mining;
 mod missile_trails;
 mod mod_notice_card;
 mod model_materials;
@@ -587,6 +588,11 @@ struct GpuState {
     fishing: fishing::Fishing,
     /// The Fishing toy's sounds to play this frame.
     fishing_cues: Vec<&'static str>,
+    /// The Mining toy (`toy_mining`): the player's own pickaxe and vein, and the pickaxes
+    /// of others.
+    mining: mining::Mining,
+    /// The Mining toy's sounds to play this frame.
+    mining_cues: Vec<&'static str>,
     /// The Order 66 toy (`toy_order66`, `order66`): the order and the pieces flying.
     order66: order66::Order66,
     /// The Hax toy (`toy_hax`): a hack under way, the player steered or steering.
@@ -1604,6 +1610,8 @@ impl GpuState {
             cardboard_box: Default::default(),
             fishing: Default::default(),
             fishing_cues: Vec::with_capacity(4),
+            mining: Default::default(),
+            mining_cues: Vec::with_capacity(4),
             order66: Default::default(),
             hax: Default::default(),
             drone: Default::default(),
@@ -2802,6 +2810,7 @@ impl GpuState {
         self.submit_illuminate(presentation_time, visual_now);
         self.submit_cardboard_boxes(presentation_time, visual_now);
         self.submit_fishing(presentation_time, visual_now);
+        self.submit_mining(visual_now);
         self.submit_order66(presentation_time, visual_now);
         self.submit_drones(presentation_time, visual_now);
         self.submit_monitors(presentation_time);

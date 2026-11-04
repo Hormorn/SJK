@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Mining toy: `toy_mining` (the quick wheel's Toys catalogue, Collection > Toys) puts a pickaxe in your hand. Strike rock with Use: the first blow opens a vein, a few more break it for ore or rubble, and a blow as the vein glints is a clean strike that counts twice and digs out rarer ore. Nine ores to find for your mining log; a broken vein leaves the rock round it spent for a while, so move on _(Slash)_
+
 ## 2026.1103.2 (Alpha) | 03/11/2026
 
 Clan chats for JoF and S, holocrons earned by playing, tag copies to break down or craft, loadouts, fishing and many fixes.

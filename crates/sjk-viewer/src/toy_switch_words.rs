@@ -24,7 +24,7 @@ pub(crate) fn switched(name: &str, on: bool) -> String {
 }
 
 /// Every toy: its name, its switch and what it does and how, in `toy_help`'s order.
-pub(crate) const TOYS: [(&str, &str, &str); 12] = [
+pub(crate) const TOYS: [(&str, &str, &str); 14] = [
     (
         "Illuminate",
         "toy_illuminate",
@@ -84,6 +84,16 @@ pub(crate) const TOYS: [(&str, &str, &str); 12] = [
         "Prop gun",
         "toy_propgun",
         "hold a gun from a pk3 instead of your weapon (propgun chooses it); its bolts knock down players who have it on",
+    ),
+    (
+        "Fishing",
+        "toy_fishing",
+        "stand still and cast; press Use when the float dips to land a fish or junk for your fish log",
+    ),
+    (
+        "Mining",
+        "toy_mining",
+        "strike rock with Use to break veins for ore; strike as the vein glints for a clean strike",
     ),
 ];
 

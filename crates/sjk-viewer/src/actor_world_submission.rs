@@ -61,6 +61,8 @@ struct Sinks<'a> {
     /// and where each rod's tip is drawn (for the next frame's catch).
     fishing: (Option<usize>, Option<usize>, crate::fishing::Lines),
     fishing_tips: &'a mut [Option<[f32; 3]>; 64],
+    /// The pickaxe's model and each miner's pickaxe ([`crate::mining`]).
+    mining: (Option<usize>, crate::mining::Picks),
     /// The prop gun each player holds, by slot ([`crate::propgun`]).
     propgun: [Option<crate::propgun_frame::HeldDraw>; crate::looks::SLOTS],
     /// How bright each player's Screen Saver shell is ([`crate::monitor::saver`]).
@@ -302,6 +304,12 @@ pub(crate) fn submit(
             gpu.fishing.lines,
         ),
         fishing_tips: &mut gpu.fishing.tips,
+        mining: (
+            gpu.object_meshes
+                .iter()
+                .position(|mesh| mesh.appearance.model == crate::mining::PICK),
+            gpu.mining.picks,
+        ),
         propgun,
         world: active_world,
         actor_meshes: &gpu.actor_meshes,
@@ -942,6 +950,38 @@ fn submit_actor(
                 sinks.object_groups[line_mesh].push(line);
             }
             sinks.fishing_tips[usize::from(number)] = Some(tip.to_array());
+        }
+    }
+    // A miner's pickaxe in their right hand, as the rod: in first person the own one is
+    // held in view instead.
+    if entity.kind == EntityKind::Actor
+        && let (Some(mesh), (Some(pick), picks)) = (mesh, sinks.mining)
+        && number < 64
+        && let Some(pitch) = picks.pitch[usize::from(number)]
+        && e_flags & EF_DEAD_FLAG == 0
+        && !trick.hidden
+    {
+        let actor = &sinks.actor_meshes[mesh];
+        if let Some(mut instance) = actor.animator.requested.and_then(|_| {
+            crate::mining::pick_in_hand(
+                &actor.preview,
+                actor.animator.matrices(),
+                *transform,
+                pitch,
+            )
+        }) {
+            instance.view_flags = sinks.entity_view_flags | u32::from(!draw_actor);
+            sinks.object_groups[pick].push(instance);
+        }
+        if !draw_actor && Some(entity.id.get()) == local_entity_id {
+            let mut held = crate::mining::pick_in_view(
+                sinks.camera_position,
+                sinks.camera_yaw,
+                sinks.camera_pitch,
+                pitch,
+            );
+            held.view_flags = sinks.entity_view_flags;
+            sinks.object_groups[pick].push(held);
         }
     }
     // Everything after stock's mind-trick cut-off is skipped for a hidden trickster:

@@ -26,8 +26,8 @@ const ROWS_X: f32 = LEFT_X - 12.0;
 const ROWS_WIDTH: f32 = 860.0;
 const HEADS_Y: f32 = 300.0;
 const ROWS_Y: f32 = 336.0;
-const ROW_HEIGHT: f32 = 58.0;
-const ROW_GAP: f32 = 3.0;
+const ROW_HEIGHT: f32 = 52.0;
+const ROW_GAP: f32 = 2.0;
 const ROW_ART: f32 = 50.0;
 /// A row's key column: its width, and the room the switch keeps at the row's right.
 const KEY_WIDTH: f32 = 150.0;
@@ -50,7 +50,7 @@ const SIGHT_ROW: f32 = 48.0;
 /// ([`Inputs::toy_keys`]): each toy's switch, Order 66's order after its own, the
 /// Monitor's throw (held, it charges) after its own, and the Banana peel's drop after its
 /// own.
-pub(crate) const COMMANDS: [&str; 14] = [
+pub(crate) const COMMANDS: [&str; 15] = [
     "toy_illuminate",
     "toy_box",
     "toy_order66",
@@ -65,6 +65,7 @@ pub(crate) const COMMANDS: [&str; 14] = [
     "toy_banana",
     "banana_drop",
     crate::fishing::COMMAND,
+    crate::mining::COMMAND,
 ];
 
 /// One toy as the tab shows it.
@@ -257,6 +258,21 @@ const TOYS: [Toy; TOY_COUNT] = [
         options: &[],
         token: FISHING_TOKEN,
     },
+    Toy {
+        icon: "mining",
+        name: "Mining",
+        tag: "Strike rock, break the vein, dig out ore.",
+        title: "Mining",
+        what: "Take a pickaxe and strike rock with Use: the first blow opens a vein, a few more break it for ore or rubble. When the vein glints, strike: a clean strike counts twice and digs out rarer ore. A broken vein leaves the rock round it spent for a while, so move on to the next. Other SJK players see your pickaxe.",
+        more: Some(
+            "You may walk with it; attacking or getting hurt puts it away. Your finds are in mining_log.txt.",
+        ),
+        commands: &[(crate::mining::COMMAND, "Your key")],
+        switch: "Pickaxe out",
+        sight: None,
+        options: &[],
+        token: MINING_TOKEN,
+    },
 ];
 
 /// The Toy Master's achievements the player holds: the toys they found.
@@ -370,6 +386,7 @@ fn states(inputs: &Inputs<'_>) -> [bool; TOY_COUNT] {
         inputs.box_hunt,
         inputs.banana,
         inputs.fishing,
+        inputs.mining,
     ]
 }
 
@@ -382,7 +399,7 @@ impl Panel {
             0 => "Switch them here or in a match; other SJK players on your server see what you turn on.".to_owned(),
             lit => format!("{lit} on now. Switch them here or in a match; other SJK players on your server see what you turn on."),
         };
-        self.lead(frame, "10 toys", &line);
+        self.lead(frame, "12 toys", &line);
         self.toy_heads(frame);
         let chosen = self.toy.min(TOY_COUNT - 1);
         for (index, toy) in TOYS.iter().enumerate() {
@@ -522,7 +539,7 @@ impl Panel {
             &mut self.ui,
             TextFamily::Display,
             format_args!("{}", toy.name),
-            frame.rect(words_x, y + 6.0, words_width, 30.0 * k),
+            frame.rect(words_x, y + 3.0, words_width, 28.0 * k),
             23.0 * s,
             if chosen {
                 color::GOLD_BRIGHT
@@ -536,7 +553,7 @@ impl Panel {
             &mut self.ui,
             TextFamily::Body,
             format_args!("{}", toy.tag),
-            frame.rect(words_x, y + 8.0 + 30.0 * k, words_width, 22.0 * k),
+            frame.rect(words_x, y + 3.0 + 27.0 * k, words_width, 22.0 * k),
             15.0 * s,
             color::MUTED,
             FontWeight::Regular,

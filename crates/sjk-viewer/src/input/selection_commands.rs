@@ -34,6 +34,10 @@ pub(super) fn register(shell: &mut sjk_shell::Shell) -> Result<(), sjk_shell::Co
             "Toy: fish facing water, or put the rod away (+use when the float bobs under hooks the catch)",
         ),
         (
+            crate::mining::COMMAND,
+            "Toy: take a pickaxe in hand, or put it away (+use strikes rock; strike as it glints)",
+        ),
+        (
             crate::order66::COMMAND,
             "Toy: Order 66 on or off (every player who has it on dies when one of them executes it)",
         ),

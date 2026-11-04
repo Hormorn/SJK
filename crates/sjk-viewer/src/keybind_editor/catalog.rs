@@ -110,6 +110,7 @@ pub(crate) const ACTIONS: &[BindableAction] = &[
         "",
     ),
     action(Interaction, "Toy: Fishing", crate::fishing::COMMAND, ""),
+    action(Interaction, "Toy: Mining", crate::mining::COMMAND, ""),
     // Order 66: the toy's switch, then the order every player with it on obeys.
     action(Interaction, "Toy: Order 66", crate::order66::COMMAND, ""),
     action(
