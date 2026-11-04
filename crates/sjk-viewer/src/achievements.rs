@@ -132,6 +132,10 @@ pub(crate) enum Counter {
     EchoesLanded,
     /// Old Whiskers, the great catfish, landed.
     GreatCatfish,
+    /// Kinds of junk fished up (bits of [`junk_kind`]; 04/11/2026).
+    JunkKinds,
+    /// The most fish bites hooked in a row, none let go between (04/11/2026).
+    HookStreak,
 }
 
 /// How far a monitor must fly to its hit for Long Distance Call (game units, from where
@@ -140,7 +144,7 @@ pub(crate) enum Counter {
 pub(crate) const MONITOR_FAR: f32 = 1_575.0;
 
 impl Counter {
-    const COUNT: usize = 44;
+    const COUNT: usize = 46;
     const ALL: [Self; Self::COUNT] = [
         Self::Kills,
         Self::SaberKills,
@@ -186,6 +190,8 @@ impl Counter {
         Self::FishKinds,
         Self::EchoesLanded,
         Self::GreatCatfish,
+        Self::JunkKinds,
+        Self::HookStreak,
     ];
 
     /// Its name in `achievements.json`.
@@ -235,15 +241,23 @@ impl Counter {
             Self::FishKinds => "fish_kinds",
             Self::EchoesLanded => "echoes_landed",
             Self::GreatCatfish => "great_catfish",
+            Self::JunkKinds => "junk_kinds",
+            Self::HookStreak => "hook_streak",
         }
     }
 
     /// Whether the count is the size of a set the record keeps (maps, servers, weapons,
-    /// duel partners, kinds of fish, the toys' players by name) rather than a number.
+    /// duel partners, kinds of fish and of junk, the toys' players by name) rather than a
+    /// number.
     const fn is_set(self) -> bool {
         matches!(
             self,
-            Self::Maps | Self::Servers | Self::Weapons | Self::DuelPartners | Self::FishKinds
+            Self::Maps
+                | Self::Servers
+                | Self::Weapons
+                | Self::DuelPartners
+                | Self::FishKinds
+                | Self::JunkKinds
         ) || self.is_named()
     }
 
@@ -443,7 +457,7 @@ use Counter as C;
 use Source::{Client, Hub};
 
 /// Every achievement, in the hub's catalogue order.
-pub(crate) const ALL: [Kind; 73] = [
+pub(crate) const ALL: [Kind; 75] = [
     kind(
         "first_blood",
         "First Blood",
@@ -1027,8 +1041,10 @@ pub(crate) const ALL: [Kind; 73] = [
     kind(
         "echo_angler",
         "Echo Angler",
-        "Land 10 Echoes on the line.",
-        10,
+        "Land 5 Echoes on the line.",
+        // 10 until 04/11/2026: an Echo drops about every 30 minutes of play, at most 8 a
+        // day, so ten on the line took two days of fishing.
+        5,
         Fishing,
         Client(C::EchoesLanded),
     ),
@@ -1041,6 +1057,23 @@ pub(crate) const ALL: [Kind; 73] = [
         Client(C::GreatCatfish),
     )
     .secret(),
+    // 04/11/2026 (Slash): junk to collect, and one for a steady hand rather than time.
+    kind(
+        "junk_kinds",
+        "Beachcomber",
+        "Fish up every kind of junk.",
+        crate::fishing::JUNK_KINDS as u64,
+        Fishing,
+        Client(C::JunkKinds),
+    ),
+    kind(
+        "fish_steady",
+        "Steady Hand",
+        "Hook 10 bites in a row without letting one get away.",
+        10,
+        Fishing,
+        Client(C::HookStreak),
+    ),
 ];
 
 /// The bit of the fish `id` in [`Record`]'s kinds of fish: its place among the fish of
@@ -1049,6 +1082,16 @@ pub(crate) fn fish_kind(id: &str) -> Option<u32> {
     crate::fishing::CATCHES
         .iter()
         .filter(|catch| catch.kind == crate::fishing::Kind::Fish)
+        .position(|catch| catch.id == id)
+        .map(|index| 1 << index)
+}
+
+/// The bit of the junk `id` in [`Record`]'s kinds of junk: its place among the junk of
+/// [`crate::fishing::CATCHES`] (fish have none).
+pub(crate) fn junk_kind(id: &str) -> Option<u32> {
+    crate::fishing::CATCHES
+        .iter()
+        .filter(|catch| catch.kind == crate::fishing::Kind::Junk)
         .position(|catch| catch.id == id)
         .map(|index| 1 << index)
 }
@@ -1234,6 +1277,8 @@ pub(crate) struct Record {
     weapons: u32,
     /// Kinds of fish landed (bits of [`fish_kind`]).
     fish: u32,
+    /// Kinds of junk fished up (bits of [`junk_kind`]).
+    junk: u32,
     /// The toys' sets of players ([`Counter::is_named`]), by the counter's key: names
     /// without colours, lower case.
     named: BTreeMap<String, BTreeSet<String>>,
@@ -1267,6 +1312,7 @@ impl Record {
         partners: BTreeSet::new(),
         weapons: 0,
         fish: 0,
+        junk: 0,
         named: BTreeMap::new(),
         spare_ms: [0; Counter::COUNT],
         floors: [0; Counter::COUNT],
@@ -1282,6 +1328,7 @@ impl Record {
             Counter::DuelPartners => self.partners.len() as u64,
             Counter::Weapons => u64::from(self.weapons.count_ones()),
             Counter::FishKinds => u64::from(self.fish.count_ones()),
+            Counter::JunkKinds => u64::from(self.junk.count_ones()),
             _ if counter.is_named() => self
                 .named
                 .get(counter.key())
@@ -1323,17 +1370,30 @@ impl Record {
     }
 
     /// A catch the Fishing toy landed: `catch` (none when the hook came up empty) or an
-    /// Echo (`echo`). Whether a count changed.
-    pub(crate) fn fished(&mut self, catch: Option<&crate::fishing::Catch>, echo: bool) -> bool {
+    /// Echo (`echo`), `streak` fish bites hooked in a row with it. Whether a count
+    /// changed.
+    pub(crate) fn fished(
+        &mut self,
+        catch: Option<&crate::fishing::Catch>,
+        echo: bool,
+        streak: u32,
+    ) -> bool {
         if echo {
             self.add(Counter::EchoesLanded, 1);
             return true;
         }
+        let best = self.counts[Counter::HookStreak as usize];
+        self.raise(Counter::HookStreak, u64::from(streak));
+        let longer = self.counts[Counter::HookStreak as usize] > best;
         let Some(catch) = catch else {
-            return false;
+            return longer;
         };
         match catch.kind {
-            crate::fishing::Kind::Junk => false,
+            crate::fishing::Kind::Junk => {
+                let before = self.junk;
+                self.junk |= junk_kind(catch.id).unwrap_or(0);
+                longer || self.junk != before
+            }
             crate::fishing::Kind::Fish => {
                 self.add(Counter::FishCaught, 1);
                 self.fish |= fish_kind(catch.id).unwrap_or(0);
@@ -1399,6 +1459,11 @@ impl Record {
             Counter::FishKinds => {
                 while u64::from(self.fish.count_ones()) > below {
                     self.fish &= self.fish - 1;
+                }
+            }
+            Counter::JunkKinds => {
+                while u64::from(self.junk.count_ones()) > below {
+                    self.junk &= self.junk - 1;
                 }
             }
             _ => {
@@ -1578,6 +1643,7 @@ impl Record {
             "partners": self.partners,
             "weapons": self.weapons,
             "fish": self.fish,
+            "junk": self.junk,
             "named": self.named,
             "spare_ms": spare_ms,
             "floors": floors,
@@ -1621,6 +1687,7 @@ impl Record {
         }
         record.weapons = u32::try_from(number(json.get("weapons"))).unwrap_or(0);
         record.fish = u32::try_from(number(json.get("fish"))).unwrap_or(0);
+        record.junk = u32::try_from(number(json.get("junk"))).unwrap_or(0);
         if let Some(unlocked) = json["unlocked"].as_object() {
             for (id, at) in unlocked {
                 if let (Some(kind), Some(at)) = (find(id), at.as_i64()) {
@@ -1874,8 +1941,9 @@ mod tests {
     use super::*;
 
     /// A fish counts towards Angler and its kind, Old Whiskers towards its own, an Echo
-    /// on the line towards Echo Angler; junk and an empty hook count nothing, and the
-    /// kinds of fish are kept in the file.
+    /// on the line towards Echo Angler, junk towards Beachcomber by its kind and the
+    /// longest run of hooked bites towards Steady Hand; an empty hook counts only its
+    /// bite, and the kinds of fish and junk are kept in the file.
     #[test]
     fn fishing_counts_fish_their_kinds_echoes_and_the_catfish() {
         let catch = |id: &str| {
@@ -1885,18 +1953,29 @@ mod tests {
                 .unwrap()
         };
         let mut record = Record::default();
-        assert!(!record.fished(None, false));
-        assert!(!record.fished(Some(catch("boot")), false));
-        assert!(record.fished(Some(catch("silver_darter")), false));
-        assert!(record.fished(Some(catch("silver_darter")), false));
-        assert!(record.fished(Some(catch(crate::fishing::GREAT_CATFISH)), false));
-        assert!(record.fished(None, true));
+        assert!(!record.fished(None, false, 0));
+        assert!(record.fished(Some(catch("boot")), false, 0));
+        assert!(!record.fished(Some(catch("boot")), false, 0));
+        assert!(record.fished(Some(catch("silver_darter")), false, 0));
+        assert!(record.fished(Some(catch("silver_darter")), false, 0));
+        assert!(record.fished(Some(catch(crate::fishing::GREAT_CATFISH)), false, 0));
+        assert!(record.fished(None, true, 0));
         assert_eq!(record.count(Counter::FishCaught), 3);
         assert_eq!(record.count(Counter::FishKinds), 2);
         assert_eq!(record.count(Counter::GreatCatfish), 1);
         assert_eq!(record.count(Counter::EchoesLanded), 1);
+        assert_eq!(record.count(Counter::JunkKinds), 1);
+        assert!(record.fished(Some(catch("hilt")), false, 0));
+        assert_eq!(record.count(Counter::JunkKinds), 2);
+        // The streak keeps its best; an empty hook's bite counts for it too.
+        assert!(record.fished(None, false, 4));
+        assert!(!record.fished(None, false, 3));
+        assert_eq!(record.count(Counter::HookStreak), 4);
         assert_eq!(crate::fishing::FISH_KINDS, 12);
         assert_eq!(find("fish_kinds").unwrap().goal, 12);
+        assert_eq!(crate::fishing::JUNK_KINDS, 6);
+        assert_eq!(find("junk_kinds").unwrap().goal, 6);
+        assert_eq!(find("echo_angler").unwrap().goal, 5);
         assert_eq!(find("fish_first").unwrap().category.page(), Page::Fun);
         assert_eq!(Record::from_json(&record.to_json()), record);
     }
@@ -2045,6 +2124,8 @@ mod tests {
                 "fish_kinds",
                 "echo_angler",
                 "old_whiskers",
+                "junk_kinds",
+                "fish_steady",
             ]
         );
         assert_eq!(ALL[20].id, "decorated");

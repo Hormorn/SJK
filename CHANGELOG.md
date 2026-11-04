@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Fishing: bites come every 15 to 40 seconds (were 20 to 60), and Old Whiskers bites more often the longer you go without it. Echo Angler needs 5 Echoes (was 10). Two new achievements: Beachcomber (every kind of junk) and Steady Hand (10 bites hooked in a row) _(Slash, PR #TBD)_
+
 ## 2026.1103.2 (Alpha) | 03/11/2026
 
 Clan chats for JoF and S, holocrons earned by playing, tag copies to break down or craft, loadouts, fishing and many fixes.

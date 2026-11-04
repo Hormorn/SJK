@@ -1,6 +1,6 @@
 //! Fishing, SJK's own toy (`toy_fishing`; Sanji's idea from #ideas, 29/10/2026, phase 1
 //! of Slash's design): facing water, the player props a rod beside them, sets a bucket at
-//! their feet and casts. Every 20 to 60 seconds the float bobs under (a bite) and `+use`
+//! their feet and casts. Every 15 to 40 seconds the float bobs under (a bite) and `+use`
 //! within about a second hooks the catch: nothing, junk or a fish, counted in the
 //! player's fish log (`fishing_log.txt`). Moving, jumping, attacking, taking damage or
 //! dying puts the rod away.
@@ -182,8 +182,9 @@ const REEL_BEND: f32 = 0.18;
 /// The torso's pose while holding the rod: a two-handed weapon's ready pose, both hands
 /// before the chest (`TORSO_WEAPONREADY3`, the rifles').
 const HOLD_POSE: &str = "TORSO_WEAPONREADY3";
-/// The wait for a bite, in seconds.
-const BITE_WAIT: (f32, f32) = (20.0, 60.0);
+/// The wait for a bite, in seconds (20 to 60 until 04/11/2026: too long a stare at the
+/// float).
+const BITE_WAIT: (f32, f32) = (15.0, 40.0);
 /// A fish's bite holds this long (seconds): the time to press `+use`.
 const BITE_WINDOW: (f32, f32) = (0.8, 1.2);
 /// An Echo's bite holds longer, and comes this soon after the Echo dropped.
@@ -248,6 +249,9 @@ pub(crate) const FISH_KINDS: usize = {
     count
 };
 
+/// How many kinds of junk [`CATCHES`] holds (Beachcomber).
+pub(crate) const JUNK_KINDS: usize = CATCHES.len() - FISH_KINDS;
+
 /// Everything a bite can bring up but nothing: SJK's own names.
 pub(crate) const CATCHES: [Catch; 18] = [
     junk("boot", "an old boot"),
@@ -273,9 +277,28 @@ pub(crate) const CATCHES: [Catch; 18] = [
 /// The chance a hooked bite brings nothing, junk or a fish, in percent.
 const NOTHING_CHANCE: u32 = 15;
 const JUNK_CHANCE: u32 = 30;
+/// Bad luck protection for Old Whiskers (04/11/2026): its weight rises by one for every
+/// this many fish landed since the last one ([`Log::whiskers_wait`]). At its weight of 1
+/// alone (one fish in 106) a tenth of players waited over 240 fish; with this, about 37
+/// on average and a tenth over 67.
+const WHISKERS_PITY: u32 = 10;
+/// The fish log's count of the fish landed since the last Old Whiskers, kept as a catch's
+/// count is: `whiskers_wait <count>`.
+const WHISKERS_WAIT: &str = "whiskers_wait";
 
-/// Roll a hooked bite's catch from `roll`, a uniform number below `u32::MAX`.
-pub(crate) fn roll_catch(roll: u32, pick: u32) -> Option<&'static Catch> {
+/// The weight of `catch` among its kind, `whiskers_wait` fish after the last Old
+/// Whiskers.
+fn weight(catch: &Catch, whiskers_wait: u32) -> u32 {
+    if catch.id == GREAT_CATFISH {
+        catch.weight.saturating_add(whiskers_wait / WHISKERS_PITY)
+    } else {
+        catch.weight
+    }
+}
+
+/// Roll a hooked bite's catch from `roll`, a uniform number below `u32::MAX`, and
+/// `pick`, `whiskers_wait` fish after the last Old Whiskers.
+pub(crate) fn roll_catch(roll: u32, pick: u32, whiskers_wait: u32) -> Option<&'static Catch> {
     let percent = roll % 100;
     let kind = if percent < NOTHING_CHANCE {
         return None;
@@ -287,14 +310,15 @@ pub(crate) fn roll_catch(roll: u32, pick: u32) -> Option<&'static Catch> {
     let total: u32 = CATCHES
         .iter()
         .filter(|c| c.kind == kind)
-        .map(|c| c.weight)
+        .map(|c| weight(c, whiskers_wait))
         .sum();
     let mut left = pick % total;
     CATCHES.iter().filter(|c| c.kind == kind).find(|c| {
-        if left < c.weight {
+        let weight = weight(c, whiskers_wait);
+        if left < weight {
             true
         } else {
-            left -= c.weight;
+            left -= weight;
             false
         }
     })
@@ -439,6 +463,11 @@ impl Log {
         text
     }
 
+    /// The fish landed since the last Old Whiskers (all of them before the first).
+    pub(crate) fn whiskers_wait(&self) -> u32 {
+        self.count(WHISKERS_WAIT)
+    }
+
     /// The last fish caught.
     pub(crate) fn last(&self) -> Option<&'static Catch> {
         self.last
@@ -448,6 +477,11 @@ impl Log {
     pub(crate) fn caught(&mut self, catch: &'static Catch) -> u32 {
         if catch.kind == Kind::Fish {
             self.last = Some(catch);
+            if catch.id == GREAT_CATFISH {
+                self.counts.retain(|(known, _)| known != WHISKERS_WAIT);
+            } else {
+                self.add(WHISKERS_WAIT);
+            }
         }
         self.add(catch.id)
     }
@@ -499,6 +533,9 @@ pub(crate) struct Fishing {
     yaw: f32,
     stood: [f32; 3],
     echo: Echo,
+    /// Fish bites hooked in a row, none let go since (Steady Hand); an Echo's bite neither
+    /// counts nor breaks it.
+    streak: u32,
     /// `+use` went down since the last frame.
     use_pressed: bool,
     use_held: bool,
@@ -538,6 +575,7 @@ impl Default for Fishing {
             yaw: 0.0,
             stood: [0.0; 3],
             echo: Echo::None,
+            streak: 0,
             use_pressed: false,
             use_held: false,
             stirred: false,
@@ -799,8 +837,10 @@ impl Fishing {
                             echo: Some(frame.echo_tier.unwrap_or(0)),
                         });
                     } else {
+                        self.streak = self.streak.saturating_add(1);
                         let (roll, pick) = (self.dice.next(), self.dice.next());
-                        let catch = roll_catch(roll, pick);
+                        let whiskers_wait = self.log.as_ref().map_or(0, Log::whiskers_wait);
+                        let catch = roll_catch(roll, pick, whiskers_wait);
                         match catch {
                             Some(catch) => {
                                 let count = self.log.get_or_insert_with(Log::default).caught(catch);
@@ -815,6 +855,9 @@ impl Fishing {
                         });
                     }
                 } else if now >= bite.until {
+                    if !bite.echo {
+                        self.streak = 0;
+                    }
                     if bite.echo
                         && let Echo::Hooked { misses, .. } = self.echo
                     {
@@ -1179,7 +1222,8 @@ impl GpuState {
         });
         if !was_landed && let Some(Phase::Landed { catch, echo, .. }) = self.fishing.phase {
             if counts {
-                crate::achievements::update(|record| record.fished(catch, echo.is_some()));
+                let streak = self.fishing.streak;
+                crate::achievements::update(|record| record.fished(catch, echo.is_some(), streak));
             }
             if let Some(directory) = self
                 .console
@@ -1485,7 +1529,7 @@ mod tests {
             unreachable!()
         };
         let wait = bite - now;
-        assert!(wait >= Duration::from_secs(19) && wait <= Duration::from_secs(61));
+        assert!(wait >= Duration::from_secs(14) && wait <= Duration::from_secs(41));
         fishing.update(frame(false), bite, || None);
         assert!(matches!(
             fishing.phase,
@@ -1515,7 +1559,7 @@ mod tests {
         let Some(Phase::Waiting { bite }) = fishing.phase else {
             unreachable!()
         };
-        assert!(bite - later >= Duration::from_secs(29));
+        assert!(bite - later >= Duration::from_secs(24));
     }
 
     #[test]
@@ -1592,7 +1636,7 @@ mod tests {
     fn the_catch_table_follows_its_chances() {
         let (mut nothing, mut junk, mut fish) = (0, 0, 0);
         for roll in 0..100 {
-            match roll_catch(roll, roll * 7) {
+            match roll_catch(roll, roll * 7, 0) {
                 None => nothing += 1,
                 Some(c) if c.kind == Kind::Junk => junk += 1,
                 Some(_) => fish += 1,
@@ -1603,12 +1647,81 @@ mod tests {
         for catch in &CATCHES {
             let kind_roll = if catch.kind == Kind::Junk { 30 } else { 90 };
             assert!(
-                (0..1000).any(|pick| roll_catch(kind_roll, pick) == Some(catch)),
+                (0..1000).any(|pick| roll_catch(kind_roll, pick, 0) == Some(catch)),
                 "{}",
                 catch.id
             );
             assert_eq!(CATCHES.iter().filter(|c| c.id == catch.id).count(), 1);
         }
+    }
+
+    /// Old Whiskers' weight rises by one for every ten fish since the last, the others'
+    /// stay as they are.
+    #[test]
+    fn old_whiskers_comes_sooner_the_longer_it_is_missed() {
+        let whiskers = |wait: u32, picks: u32| {
+            (0..picks)
+                .filter(|&pick| roll_catch(90, pick, wait).map(|c| c.id) == Some(GREAT_CATFISH))
+                .count()
+        };
+        assert_eq!(whiskers(0, 106), 1);
+        assert_eq!(whiskers(9, 106), 1);
+        assert_eq!(whiskers(10, 107), 2);
+        assert_eq!(whiskers(1000, 206), 101);
+        // The fish before it in the table keep their own share.
+        let darters = (0..206)
+            .filter(|&pick| roll_catch(90, pick, 1000).map(|c| c.id) == Some("silver_darter"))
+            .count();
+        assert_eq!(darters, 20);
+    }
+
+    /// The log counts the fish since the last Old Whiskers, junk aside, and keeps the count.
+    #[test]
+    fn the_log_counts_the_wait_for_old_whiskers() {
+        let catch = |id: &str| CATCHES.iter().find(|c| c.id == id).expect("a catch");
+        let mut log = Log::default();
+        log.caught(catch("silver_darter"));
+        log.caught(catch("moon_eel"));
+        log.caught(catch("boot"));
+        assert_eq!(log.whiskers_wait(), 2);
+        assert_eq!(Log::parse(&log.text()), log);
+        log.caught(catch(GREAT_CATFISH));
+        assert_eq!(log.whiskers_wait(), 0);
+        log.caught(catch("sun_carp"));
+        assert_eq!(Log::parse(&log.text()).whiskers_wait(), 1);
+        // A log from before it, or a malformed line, starts from none.
+        assert_eq!(Log::parse("silver_darter 40\n").whiskers_wait(), 0);
+        assert_eq!(Log::parse("whiskers_wait lots\n").whiskers_wait(), 0);
+        // It is no catch: the kinds caught leave it out.
+        assert_eq!(Log::parse("whiskers_wait 30\n").species(), (0, 12));
+    }
+
+    /// Each fish bite hooked adds to the streak; one let go ends it; an Echo's does neither.
+    #[test]
+    fn the_streak_counts_bites_hooked_in_a_row() {
+        let now = Instant::now();
+        let mut fishing = Fishing::default();
+        cast(&mut fishing, now);
+        let hook = |fishing: &mut Fishing, take: bool| {
+            let Some(Phase::Waiting { bite }) = fishing.phase else {
+                unreachable!()
+            };
+            fishing.update(frame(false), bite, || None);
+            if take {
+                press_use(fishing);
+            }
+            fishing.update(frame(false), bite + Duration::from_secs(2), || None);
+            if take {
+                fishing.update(frame(false), bite + Duration::from_secs(5), || None);
+            }
+        };
+        hook(&mut fishing, true);
+        hook(&mut fishing, true);
+        assert_eq!(fishing.streak, 2);
+        hook(&mut fishing, false);
+        assert_eq!(fishing.streak, 0);
+        hook(&mut fishing, true);
+        assert_eq!(fishing.streak, 1);
     }
 
     #[test]
