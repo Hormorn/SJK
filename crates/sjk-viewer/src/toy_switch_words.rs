@@ -93,7 +93,7 @@ pub(crate) const TOYS: [(&str, &str, &str); 14] = [
     (
         "Mining",
         "toy_mining",
-        "strike rock with Use to break veins for ore; strike as the vein glints for a clean strike",
+        "boulders come up round you; strike one with Use to break it for ore, and strike as it glints for a clean strike",
     ),
 ];
 

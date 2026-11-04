@@ -1,7 +1,7 @@
 """Make the Mining toy's game files (`toy_mining`, SJK's own).
 
-A pickaxe in the hand, the vein that shows on the rock where it strikes, the glint that
-says when to strike, and what a broken vein gives. Nothing here comes from another game:
+A pickaxe in the hand, the boulders that come up out of the ground round the player to
+be broken, the glint that says when to strike, and what a broken boulder gives. Nothing here comes from another game:
 every part is tubes, lumps and flat colours made here, and the rock is drawn with the
 installed game's own rock texture (named in `mining.shader`; nothing of it is copied
 here). This script writes, into the output folder:
@@ -11,10 +11,10 @@ here). This script writes, into the output folder:
   added);
 - `mining_pick.md3`: a pickaxe along +X, its handle 34 units from its butt (the origin)
   to its head, the pick's spike pointing down (-Z) and its chisel up;
-- `mining_vein.md3`: a lump of rock with mineral crystals in it, its origin where it
-  meets the wall, standing out along +X;
+- `mining_boulder.md3`: a boulder with mineral crystals in it, its origin in the middle
+  of where it meets the ground, standing up along +X (turned to the ground's normal);
 - `mining_glint.md3`: the glint, three crossed squares round its origin;
-- `mining_rubble.md3`: a broken lump of rock, its origin in its middle (what a vein
+- `mining_rubble.md3`: a broken lump of rock, its origin in its middle (what a boulder
   gives when it gives junk);
 - `mining_ore_<id>.md3`, one for each ore (`ORES`): a lump of rock with that ore's
   crystals in it, its origin in its middle, the glowing ones drawn full bright;
@@ -188,9 +188,9 @@ def pick(output: Path) -> None:
     mesh.write(output, "mining_pick")
 
 
-# Where the vein's crystals stand out of its lump: (up, across) on the wall, as a part
-# of its radius, the way they lean, and their length.
-VEIN_CRYSTALS = [
+# Where the boulder's crystals stand out of it: (up, across) on its face, as a part of
+# its radius, the way they lean, and their length.
+BOULDER_CRYSTALS = [
     (0.1, 0.0, (1.0, 0.1, 0.2), 6.5),
     (0.45, -0.35, (1.0, -0.5, 0.6), 5.0),
     (-0.4, 0.4, (1.0, 0.5, -0.5), 4.5),
@@ -201,17 +201,17 @@ VEIN_CRYSTALS = [
 ]
 
 
-def vein(output: Path) -> None:
-    radius, depth = 11.0, 4.0
-    rock = lump(radius, depth, 3, half=True, rough=0.22)
+def boulder(output: Path) -> None:
+    radius, height = 15.0, 14.0
+    rock = lump(radius, height, 3, half=True, rough=0.2)
     crystals = Mesh()
-    for index, (up, across, way, length) in enumerate(VEIN_CRYSTALS):
-        y, z = across * radius, up * radius
-        spread = math.sqrt(max(0.0, 1.0 - (up * up + across * across)))
-        base = (depth * spread * 0.6, y, z)
-        crystal(crystals, base, way, length, 1.0 + 0.25 * (index % 2),
+    for index, (up, across, way, length) in enumerate(BOULDER_CRYSTALS):
+        y, z = across * radius * 0.8, up * radius * 0.8
+        spread = math.sqrt(max(0.0, 1.0 - (up * up + across * across) * 0.64))
+        base = (height * spread * 0.7, y, z)
+        crystal(crystals, base, way, length * 2.1, 1.5 + 0.4 * (index % 2),
                 "vein" if index % 3 else "vein_pale")
-    write(output, "mining_vein", [(rock, ROCK_SHADER), (crystals, GLOW_SHADER)])
+    write(output, "mining_boulder", [(rock, ROCK_SHADER), (crystals, GLOW_SHADER)])
 
 
 def glint(output: Path) -> None:
@@ -324,7 +324,7 @@ def main() -> None:
     atlas(output)
     glint_picture(output)
     pick(output)
-    vein(output)
+    boulder(output)
     glint(output)
     chunks(output)
     icon(output)

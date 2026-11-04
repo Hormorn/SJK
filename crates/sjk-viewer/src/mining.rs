@@ -1,14 +1,15 @@
 //! Mining, SJK's own toy (`toy_mining`; Slash's design, 04/11/2026, phase 1): the player
-//! takes a pickaxe in hand and strikes rock with `+use`. The first blow opens a vein
-//! where it lands; six to nine more break it, and it gives rubble or ore, counted in the
-//! player's mining log (`mining_log.txt`). Now and then a glint flashes on the vein: a
-//! blow that lands while it shines is a clean strike, worth two, and each one makes the
-//! vein give better ([`roll_find`]). A broken vein leaves the rock round it spent for a
-//! while ([`SPENT_FOR`]), so the player moves on to the next.
+//! takes a pickaxe in hand, and boulders come up out of the ground round them, a few at a
+//! time ([`ROCKS`]). The player walks up to one and strikes it with `+use`, the whole body
+//! in the swing (`BOTH_TUSKENATTACK1`, the Tusken's two-handed blow); six to nine blows
+//! break it, and it gives rubble or ore, counted in the player's mining log
+//! (`mining_log.txt`). Another boulder comes up elsewhere a few seconds later. Now and then
+//! a glint flashes on a boulder being broken: a blow that lands while it shines is a clean
+//! strike, worth two, and each one makes the boulder give better ([`roll_find`]).
 //!
-//! Unlike Fishing it is no waiting game: the player may walk with the pickaxe out, and
+//! Unlike Fishing it is no waiting game: the player walks from boulder to boulder, and
 //! the pace is theirs, a swing at a time. Attacking, taking damage or dying puts the
-//! pickaxe away; walking away from a vein leaves it.
+//! pickaxe away.
 //!
 //! Phase 1 changes nothing at the hub: the finds are a local log, no credits, no
 //! shards, no achievements. Selling them (phase 2) is to share the Fishing junk's daily
@@ -16,7 +17,8 @@
 //! does alone.
 //!
 //! No game server knows of it: it travels through the SJK hub as a toy in the player's
-//! look ([`TOY`]), so other SJK players see the pickaxe in their hand; players on stock
+//! look ([`TOY`]), so other SJK players see the pickaxe in their hand (at rest: swings are
+//! not sent); the boulders are the miner's own, seen by no one else. Players on stock
 //! clients see a player with empty hands.
 //!
 //! The models, pictures, shader and icon are bundled ([`FILES`], made by
@@ -37,14 +39,14 @@ pub(crate) const COMMAND: &str = "toy_mining";
 /// The toy's id in a look's `toys` (`PROTOCOL.md`, "Looks").
 pub(crate) const TOY: &str = "mining";
 pub(crate) const PICK: &str = "models/sjk/mining_pick.md3";
-pub(crate) const VEIN: &str = "models/sjk/mining_vein.md3";
+pub(crate) const BOULDER: &str = "models/sjk/mining_boulder.md3";
 pub(crate) const GLINT: &str = "models/sjk/mining_glint.md3";
-/// What a vein gives when it gives rubble.
+/// What a boulder gives when it gives rubble.
 pub(crate) const RUBBLE: &str = "models/sjk/mining_rubble.md3";
 pub(crate) const ICON: &str = "gfx/sjk/toy_mining.png";
 /// The models, in the order [`GpuState::submit_mining`] finds their meshes (each ore's
 /// own in [`ORE_MODELS`]).
-pub(crate) const MODELS: [&str; 4] = [PICK, VEIN, GLINT, RUBBLE];
+pub(crate) const MODELS: [&str; 4] = [PICK, BOULDER, GLINT, RUBBLE];
 /// A swing through the air.
 const SWING: &str = "sound/weapons/melee/swing1.mp3";
 /// A blow on the rock, the two taken in turn.
@@ -54,9 +56,9 @@ const HIT: [&str; 2] = [
 ];
 /// A clean strike: the pick rings.
 const CLEAN: &str = "sound/weapons/flechette/ricochet1.wav";
-/// The glint flashing on the vein.
+/// The glint flashing on a boulder.
 const GLINT_SOUND: &str = "sound/ambience/spark1.wav";
-/// The vein breaking.
+/// A boulder breaking.
 const BREAK: &str = "sound/effects/stone_break1.mp3";
 /// The rarest find.
 const RARE: &str = "sound/interface/secret_area.mp3";
@@ -111,7 +113,7 @@ fn ore_model(id: &str) -> Option<usize> {
 /// The bundled files at their game paths (and the ores, [`ORE_MODELS`]).
 const FILES: [(&str, &[u8]); 8] = [
     (PICK, bundled!("mining_pick.md3")),
-    (VEIN, bundled!("mining_vein.md3")),
+    (BOULDER, bundled!("mining_boulder.md3")),
     (GLINT, bundled!("mining_glint.md3")),
     (RUBBLE, bundled!("mining_rubble.md3")),
     ("models/sjk/mining.png", bundled!("mining.png")),
@@ -132,6 +134,8 @@ const BUTTON_ATTACK: u16 = 1;
 const BUTTON_USE: u16 = 32;
 const BUTTON_ALT_ATTACK: u16 = 128;
 const CONTENTS_SOLID: u32 = 1;
+/// Lava, slime and water: no boulder comes up in them.
+const CONTENTS_LIQUID: u32 = 8 | 16 | 4;
 const SURF_SKY: u32 = 0x2000;
 const SURF_NOIMPACT: u32 = 0x0008_0000;
 const ET_PLAYER: u8 = 1;
@@ -140,38 +144,54 @@ const EF_NODRAW: u32 = 1 << 8;
 const PMF_FOLLOW: u16 = 4096;
 /// From the player's origin down to their feet (`DEFAULT_MINS_2`).
 const FEET: f32 = -24.0;
-/// How far from the eye a blow reaches.
-pub(crate) const REACH: f32 = 72.0;
-/// A swing, from the press to the pick back at rest, and when in it the blow lands.
+/// How many boulders wait round the player at once.
+pub(crate) const ROCKS: usize = 3;
+/// A boulder comes up this far from the player (level distance), at least this far from
+/// any other; one farther from them than [`ROCK_FAR`] goes.
+const ROCK_RANGE: (f32, f32) = (140.0, 420.0);
+const ROCK_APART: f32 = 110.0;
+const ROCK_FAR: f32 = 1_400.0;
+/// The next boulder comes up this long after one broke (seconds); the first ones, this
+/// soon after the pickaxe is taken out.
+const ROCK_AGAIN: (f32, f32) = (3.0, 7.0);
+const ROCK_FIRST: (f32, f32) = (0.3, 1.0);
+/// The first ones come quickly for this long after the pickaxe is out.
+const FIRST_WHILE: Duration = Duration::from_secs(4);
+/// Spots tried for a boulder each frame.
+const PLACE_TRIES: usize = 4;
+/// A boulder rises out of the ground this long, from this far below.
+const RISE: Duration = Duration::from_millis(600);
+const RISE_FROM: f32 = 16.0;
+/// A blow reaches a boulder whose middle is this near the player (level distance), this
+/// far round from where they face (radians each side), and not far above or below.
+pub(crate) const STRIKE_REACH: f32 = 64.0;
+const STRIKE_ARC: f32 = 1.0;
+const STRIKE_HEIGHT: f32 = 72.0;
+/// A swing, from the press to the pick back at rest, and when in it the blow lands
+/// (`BOTH_TUSKENATTACK1`: 15 frames at 20 a second).
 const SWING_TIME: Duration = Duration::from_millis(750);
-const IMPACT: Duration = Duration::from_millis(320);
-/// The blows a vein takes, a clean strike counting two.
-const VEIN_HITS: (u32, u32) = (6, 9);
-/// A blow this near a vein strikes it; farther, it opens another (the first is lost).
-const VEIN_NEAR: f32 = 20.0;
-/// Walking this far from the vein leaves it.
-const VEIN_LEFT: f32 = 160.0;
-/// The first glint comes this long after the vein opened, the next this long after the
-/// last went (seconds); each shines this long.
+const IMPACT: Duration = Duration::from_millis(380);
+/// The animation the whole body plays for a swing.
+const SWING_POSE: &str = "BOTH_TUSKENATTACK1";
+/// The blows a boulder takes, a clean strike counting two.
+const ROCK_HITS: (u32, u32) = (6, 9);
+/// The first glint on a boulder comes this long after its first blow, the next this long
+/// after the last went (seconds); each shines this long.
 const GLINT_FIRST: (f32, f32) = (1.0, 2.5);
 const GLINT_GAP: (f32, f32) = (1.5, 4.0);
 const GLINT_WINDOW: Duration = Duration::from_millis(800);
-/// The rock this near a broken vein is spent this long; at most so many are kept.
-const SPENT_NEAR: f32 = 80.0;
-pub(crate) const SPENT_FOR: Duration = Duration::from_secs(8 * 60);
-const SPENT_MAX: usize = 64;
-/// What a broken vein gives flies out and lies at the player's feet this long.
+/// What a broken boulder gives flies out and lies at the player's feet this long.
 const SHOW_FIND: Duration = Duration::from_millis(1800);
 const FLY: Duration = Duration::from_millis(450);
 /// The pickaxe's pitch (radians, up positive): at rest, raised for the blow and when it
-/// lands.
+/// lands, low before the feet (the boulders are on the ground).
 const PICK_REST: f32 = 0.35;
 const PICK_RAISED: f32 = 2.3;
-const PICK_STRUCK: f32 = 0.95;
+const PICK_STRUCK: f32 = -0.6;
 /// The hand holds the pickaxe this far up from its butt (`mining_assets.py`'s grip).
 const GRIP: f32 = 5.0;
 
-/// What a broken vein gives.
+/// What a broken boulder gives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
     Rubble,
@@ -208,7 +228,8 @@ const fn ore(id: &'static str, name: &'static str, weight: u32) -> Find {
 
 /// The rarest ore's id: bad luck protection raises its weight ([`HEART_PITY`]).
 pub(crate) const HEART: &str = "heart_of_the_mountain";
-/// Everything a vein can give: SJK's own names.
+
+/// Everything a boulder can give: SJK's own names.
 pub(crate) const FINDS: [Find; 13] = [
     rubble("rubble", "a handful of rubble"),
     rubble("slag", "a lump of slag"),
@@ -225,8 +246,8 @@ pub(crate) const FINDS: [Find; 13] = [
     ore(HEART, "the Heart of the Mountain", 1),
 ];
 
-/// The chance a vein gives rubble, in percent, less this much for each clean strike, but
-/// never under the floor.
+/// The chance a boulder gives rubble, in percent, less this much for each clean strike,
+/// but never under the floor.
 const RUBBLE_CHANCE: u32 = 40;
 const CLEAN_RUBBLE_CUT: u32 = 10;
 const RUBBLE_FLOOR: u32 = 10;
@@ -265,7 +286,7 @@ fn pick_of(kind: Kind, pick: u32, heart_wait: u32) -> &'static Find {
         .unwrap_or(&FINDS[0])
 }
 
-/// Roll a broken vein's find from `roll` and `picks`, uniform numbers, after `clean`
+/// Roll a broken boulder's find from `roll` and `picks`, uniform numbers, after `clean`
 /// clean strikes, `heart_wait` ores after the last Heart: rubble less often for each
 /// clean strike, and the ore rolled once more for each (at most [`CLEAN_ROLLS`]), the
 /// rarest of the rolls kept.
@@ -303,10 +324,14 @@ impl Dice {
         (self.0.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 32) as u32
     }
 
+    /// A number from 0 to 1.
+    fn unit(&mut self) -> f32 {
+        self.next() as f32 / u32::MAX as f32
+    }
+
     /// A number in `range`, seconds.
     fn seconds(&mut self, (low, high): (f32, f32)) -> Duration {
-        let unit = self.next() as f32 / u32::MAX as f32;
-        Duration::from_secs_f32(low + (high - low) * unit)
+        Duration::from_secs_f32(low + (high - low) * self.unit())
     }
 
     /// A whole number from `low` to `high`, both in.
@@ -315,20 +340,30 @@ impl Dice {
     }
 }
 
-/// The vein being broken.
+/// A boulder on the ground.
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Vein {
-    /// Where it sits on the rock, and the way the rock faces there.
+struct Rock {
+    /// Where it stands on the ground, and the way the ground faces there.
     at: [f32; 3],
     normal: [f32; 3],
+    /// Its turn about the ground's normal (radians), and when it came up.
+    spin: f32,
+    rose: Instant,
     /// The blows it takes in all, and still.
     hits: u32,
     left: u32,
     /// The clean strikes it took.
     clean: u32,
-    /// A glint shines on it until then; or the next comes then.
+    /// A glint shines on it until then; or the next comes then (none before its first
+    /// blow).
     glint: Option<Instant>,
-    next_glint: Instant,
+    next_glint: Option<Instant>,
+}
+
+impl Rock {
+    fn struck(&self) -> bool {
+        self.left < self.hits
+    }
 }
 
 /// A swing under way: it started then, and its blow has landed.
@@ -338,8 +373,7 @@ struct Swing {
     landed: bool,
 }
 
-/// A broken vein's find, flying out of the rock and lying at the player's feet until
-/// then.
+/// A broken boulder's find, flying out and lying at the player's feet for a while.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Shown {
     find: &'static Find,
@@ -355,17 +389,9 @@ pub(crate) struct Frame {
     pub(crate) playing: Option<bool>,
     /// Their health.
     pub(crate) health: i32,
-    /// Where they stand (their origin).
+    /// Where they stand (their origin), and the way they face (radians).
     pub(crate) origin: [f32; 3],
-}
-
-/// What a blow found: where it landed on the rock and the way the rock faces there; or
-/// it struck what no pick digs (the sky, a forcefield) or nothing in reach.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Blow {
-    Rock { at: [f32; 3], normal: [f32; 3] },
-    Undiggable,
-    Air,
+    pub(crate) yaw: f32,
 }
 
 /// What the toy asks the frame to say or play.
@@ -469,15 +495,17 @@ impl Default for Picks {
 
 /// The toy's state.
 pub(crate) struct Mining {
-    /// The pickaxe is in hand.
+    /// The pickaxe is in hand, since then.
     on: bool,
+    on_since: Option<Instant>,
     /// `toy_mining` was asked for.
     asked: bool,
     swing: Option<Swing>,
-    vein: Option<Vein>,
-    /// Where veins broke, and until when the rock there is spent.
-    spent: Vec<([f32; 3], Instant)>,
-    /// The map the spent rock is on.
+    /// The boulders round the player (kept while the pickaxe is away, drawn while it is
+    /// out), and when the next comes up.
+    rocks: Vec<Rock>,
+    next_rock: Option<Instant>,
+    /// The map the boulders are on.
     map: String,
     shown: Option<Shown>,
     /// The blows struck, for the two hit sounds in turn.
@@ -503,10 +531,11 @@ impl Default for Mining {
     fn default() -> Self {
         Self {
             on: false,
+            on_since: None,
             asked: false,
             swing: None,
-            vein: None,
-            spent: Vec::new(),
+            rocks: Vec::with_capacity(ROCKS),
+            next_rock: None,
             map: String::new(),
             shown: None,
             blows: 0,
@@ -524,7 +553,7 @@ impl Default for Mining {
     }
 }
 
-/// The pickaxe's pitch `since` a swing started at `now`: raised, brought down to the
+/// The pickaxe's pitch `since` a swing started: raised over the head, brought down to the
 /// blow at [`IMPACT`], back to rest by [`SWING_TIME`].
 fn swing_pitch(since: Duration) -> f32 {
     let t = since.as_secs_f32();
@@ -542,6 +571,19 @@ fn swing_pitch(since: Duration) -> f32 {
     } else {
         PICK_REST
     }
+}
+
+/// The level distance from `a` to `b`, and the way from `a` to `b` (radians).
+fn level_way(a: Vec3, b: Vec3) -> (f32, f32) {
+    let d = (b - a).truncate();
+    (d.length(), d.y.atan2(d.x))
+}
+
+/// The smallest turn (radians) between two ways.
+fn turn_between(a: f32, b: f32) -> f32 {
+    let tau = std::f32::consts::TAU;
+    let d = (b - a).rem_euclid(tau);
+    d.min(tau - d)
 }
 
 impl Mining {
@@ -576,17 +618,20 @@ impl Mining {
 
     pub(crate) fn put_away(&mut self) {
         self.on = false;
+        self.on_since = None;
         self.asked = false;
         self.swing = None;
-        self.vein = None;
+        for rock in &mut self.rocks {
+            rock.glint = None;
+        }
     }
 
-    /// The map being played is `map`: rock spent on another is not spent here.
+    /// The map being played is `map`: boulders on another are gone.
     pub(crate) fn set_map(&mut self, map: &str) {
         if self.map != map {
             map.clone_into(&mut self.map);
-            self.spent.clear();
-            self.vein = None;
+            self.rocks.clear();
+            self.next_rock = None;
             self.shown = None;
         }
     }
@@ -598,12 +643,23 @@ impl Mining {
         })
     }
 
-    /// Move the toy on to `now`. `blow` finds what a blow landing now strikes.
-    pub(crate) fn update(&mut self, frame: Frame, now: Instant, blow: impl FnOnce() -> Blow) {
+    /// How far into its swing the pickaxe is (none at rest).
+    fn swinging(&self, now: Instant) -> Option<Duration> {
+        self.swing
+            .map(|swing| now.saturating_duration_since(swing.started))
+    }
+
+    /// Move the toy on to `now`. `ground` says where a boulder may stand near a spot (the
+    /// ground under it, in sight, and the way the ground faces there).
+    pub(crate) fn update(
+        &mut self,
+        frame: Frame,
+        now: Instant,
+        mut ground: impl FnMut([f32; 3]) -> Option<([f32; 3], [f32; 3])>,
+    ) {
         let used = std::mem::take(&mut self.use_pressed);
         let attacked = std::mem::take(&mut self.attacked);
         let health = self.health.replace(frame.health);
-        self.spent.retain(|(_, until)| now < *until);
         if self
             .shown
             .is_some_and(|shown| now >= shown.since + SHOW_FIND)
@@ -613,9 +669,11 @@ impl Mining {
         if std::mem::take(&mut self.asked) && !self.on {
             if frame.playing == Some(true) {
                 self.on = true;
+                self.on_since = Some(now);
+                self.next_rock = None;
                 self.said.push(Say::Command("weapmelee"));
                 self.said.push(Say::Centre(
-                    "Pickaxe out: strike rock with Use. Strike as it glints!",
+                    "Pickaxe out: boulders come up round you. Strike one with Use, and strike as it glints!",
                 ));
             } else {
                 self.said.push(Say::Centre("Mining waits until you play."));
@@ -634,21 +692,19 @@ impl Mining {
             return;
         }
         let origin = Vec3::from_array(frame.origin);
-        if self
-            .vein
-            .is_some_and(|vein| Vec3::from_array(vein.at).distance(origin) > VEIN_LEFT)
-        {
-            self.vein = None;
-        }
-        // The glint: it shines a while, then the next waits.
-        if let Some(vein) = self.vein.as_mut() {
-            match vein.glint {
-                Some(until) if now >= until => {
-                    vein.glint = None;
-                    vein.next_glint = now + self.dice.seconds(GLINT_GAP);
+        self.rocks
+            .retain(|rock| level_way(origin, Vec3::from_array(rock.at)).0 <= ROCK_FAR);
+        self.place_rocks(origin, now, &mut ground);
+        // The glints on the boulders being broken: each shines a while, then the next
+        // waits.
+        for rock in &mut self.rocks {
+            match (rock.glint, rock.next_glint) {
+                (Some(until), _) if now >= until => {
+                    rock.glint = None;
+                    rock.next_glint = Some(now + self.dice.seconds(GLINT_GAP));
                 }
-                None if now >= vein.next_glint => {
-                    vein.glint = Some(now + GLINT_WINDOW);
+                (None, Some(next)) if now >= next => {
+                    rock.glint = Some(now + GLINT_WINDOW);
                     self.said.push(Say::Sound(GLINT_SOUND));
                 }
                 _ => {}
@@ -661,106 +717,139 @@ impl Mining {
             });
             self.said.push(Say::Sound(SWING));
         }
-        if let Some(swing) = self.swing.as_mut() {
+        if let Some(swing) = self.swing {
             if !swing.landed && now >= swing.started + IMPACT {
-                swing.landed = true;
-                self.strike(blow(), frame.origin, now);
+                self.swing = Some(Swing {
+                    landed: true,
+                    ..swing
+                });
+                self.strike(frame, now);
             }
-            if self
-                .swing
-                .is_some_and(|swing| now >= swing.started + SWING_TIME)
-            {
+            if now >= swing.started + SWING_TIME {
                 self.swing = None;
             }
         }
     }
 
-    /// A blow lands on what `blow` found, the player standing at `origin`.
-    fn strike(&mut self, blow: Blow, origin: [f32; 3], now: Instant) {
-        let (at, normal) = match blow {
-            Blow::Rock { at, normal } => (at, normal),
-            Blow::Undiggable => {
-                self.said.push(Say::Sound(CLEAN));
-                self.said.push(Say::Centre("Your pick bounces off."));
-                return;
-            }
-            Blow::Air => {
-                self.said
-                    .push(Say::Centre("Nothing to strike: get closer to the rock."));
-                return;
-            }
-        };
-        self.blows = self.blows.wrapping_add(1);
-        let hit = HIT[self.blows as usize % HIT.len()];
-        let point = Vec3::from_array(at);
-        if self
-            .spent
-            .iter()
-            .any(|(spent, _)| Vec3::from_array(*spent).distance(point) < SPENT_NEAR)
-        {
-            self.said.push(Say::Sound(hit));
-            self.said
-                .push(Say::Centre("This rock is spent. Try another spot."));
+    /// Bring up a boulder if one is due: a spot [`ROCK_RANGE`] from the player at `origin`,
+    /// apart from the others, where `ground` finds the ground.
+    fn place_rocks(
+        &mut self,
+        origin: Vec3,
+        now: Instant,
+        ground: &mut impl FnMut([f32; 3]) -> Option<([f32; 3], [f32; 3])>,
+    ) {
+        if self.rocks.len() >= ROCKS {
+            self.next_rock = None;
             return;
         }
-        let near = self
-            .vein
-            .is_some_and(|vein| Vec3::from_array(vein.at).distance(point) < VEIN_NEAR);
-        if !near {
-            let hits = self.dice.between(VEIN_HITS);
-            self.vein = Some(Vein {
+        let first = self.on_since.is_some_and(|since| now < since + FIRST_WHILE);
+        let due = *self.next_rock.get_or_insert_with(|| {
+            now + self
+                .dice
+                .seconds(if first { ROCK_FIRST } else { ROCK_AGAIN })
+        });
+        if now < due {
+            return;
+        }
+        for _ in 0..PLACE_TRIES {
+            let angle = self.dice.unit() * std::f32::consts::TAU;
+            let distance = ROCK_RANGE.0 + (ROCK_RANGE.1 - ROCK_RANGE.0) * self.dice.unit();
+            let spot = origin + Vec3::new(angle.cos(), angle.sin(), 0.0) * distance;
+            let Some((at, normal)) = ground(spot.to_array()) else {
+                continue;
+            };
+            let point = Vec3::from_array(at);
+            if self
+                .rocks
+                .iter()
+                .any(|rock| Vec3::from_array(rock.at).distance(point) < ROCK_APART)
+            {
+                continue;
+            }
+            let hits = self.dice.between(ROCK_HITS);
+            self.rocks.push(Rock {
                 at,
                 normal,
+                spin: self.dice.unit() * std::f32::consts::TAU,
+                rose: now,
                 hits,
                 left: hits,
                 clean: 0,
                 glint: None,
-                next_glint: now + self.dice.seconds(GLINT_FIRST),
+                next_glint: None,
             });
-        }
-        let Some(vein) = self.vein.as_mut() else {
+            self.next_rock = None;
             return;
-        };
-        if vein.glint.is_some_and(|until| now < until) {
-            vein.clean += 1;
-            vein.left = vein.left.saturating_sub(2);
-            vein.glint = None;
-            vein.next_glint = now + self.dice.seconds(GLINT_GAP);
-            self.said.push(Say::Sound(CLEAN));
-            self.said.push(Say::Centre("Clean strike!"));
-        } else {
-            vein.left = vein.left.saturating_sub(1);
-            self.said.push(Say::Sound(hit));
-        }
-        if vein.left == 0 {
-            let vein = *vein;
-            self.vein = None;
-            self.break_vein(vein, origin, now);
         }
     }
 
-    fn break_vein(&mut self, vein: Vein, origin: [f32; 3], now: Instant) {
+    /// The boulder a blow from a player standing at `origin` facing `yaw` strikes: the
+    /// nearest in reach before them.
+    fn target(&self, origin: Vec3, yaw: f32) -> Option<usize> {
+        self.rocks
+            .iter()
+            .enumerate()
+            .filter_map(|(index, rock)| {
+                let at = Vec3::from_array(rock.at);
+                let (distance, way) = level_way(origin, at);
+                (distance <= STRIKE_REACH
+                    && (at.z - origin.z).abs() <= STRIKE_HEIGHT
+                    && (distance < 16.0 || turn_between(yaw, way) <= STRIKE_ARC))
+                    .then_some((index, distance))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(index, _)| index)
+    }
+
+    /// A blow lands, the player standing and facing as `frame` says.
+    fn strike(&mut self, frame: Frame, now: Instant) {
+        let Some(index) = self.target(Vec3::from_array(frame.origin), frame.yaw) else {
+            self.said
+                .push(Say::Centre("Walk up to a boulder and face it to strike."));
+            return;
+        };
+        self.blows = self.blows.wrapping_add(1);
+        let hit = HIT[self.blows as usize % HIT.len()];
+        let rock = &mut self.rocks[index];
+        if rock.next_glint.is_none() {
+            rock.next_glint = Some(now + self.dice.seconds(GLINT_FIRST));
+        }
+        if rock.glint.is_some_and(|until| now < until) {
+            rock.clean += 1;
+            rock.left = rock.left.saturating_sub(2);
+            rock.glint = None;
+            rock.next_glint = Some(now + self.dice.seconds(GLINT_GAP));
+            self.said.push(Say::Sound(CLEAN));
+            self.said.push(Say::Centre("Clean strike!"));
+        } else {
+            rock.left = rock.left.saturating_sub(1);
+            self.said.push(Say::Sound(hit));
+        }
+        if rock.left == 0 {
+            let rock = self.rocks.remove(index);
+            self.break_rock(rock, frame.origin, now);
+        }
+    }
+
+    fn break_rock(&mut self, rock: Rock, origin: [f32; 3], now: Instant) {
         let heart_wait = self.log.as_ref().map_or(0, Log::heart_wait);
         let roll = self.dice.next();
         let picks = [self.dice.next(), self.dice.next(), self.dice.next()];
-        let find = roll_find(roll, picks, vein.clean, heart_wait);
+        let find = roll_find(roll, picks, rock.clean, heart_wait);
         let count = self.log.get_or_insert_with(Log::default).found(find);
         self.said.push(Say::Sound(BREAK));
         if find.id == HEART {
             self.said.push(Say::Sound(RARE));
         }
         self.said.push(Say::Found(find, count));
-        if self.spent.len() >= SPENT_MAX {
-            self.spent.remove(0);
-        }
-        self.spent.push((vein.at, now + SPENT_FOR));
-        // It falls out of the rock to the ground before the player.
-        let from = Vec3::from_array(vein.at) + Vec3::from_array(vein.normal) * 4.0;
+        self.next_rock = None;
+        // It jumps out of the broken boulder to the ground before the player.
+        let at = Vec3::from_array(rock.at);
+        let from = at + Vec3::Z * 10.0;
         let feet = Vec3::from_array(origin) + Vec3::Z * FEET;
-        let toward = (feet - from).truncate().normalize_or_zero();
-        let to = (from + (toward * 14.0).extend(0.0))
-            .truncate()
-            .extend(feet.z + 2.0);
+        let toward = (feet - at).truncate().normalize_or_zero();
+        let to = (at.truncate() + toward * 18.0).extend(feet.z.max(at.z) + 2.0);
         self.shown = Some(Shown {
             find,
             from: from.to_array(),
@@ -795,30 +884,66 @@ impl Mining {
     }
 }
 
-/// What a blow from `eye` along `forward` strikes within [`REACH`]: `trace` sweeps a point
-/// and says the fraction, the end, the hit plane's normal and the surface flags.
-pub(crate) fn blow_from(
+/// Where a boulder may stand by `spot` (a point at the player's height): the ground under
+/// it, seen from `eye`, flat enough, dry and diggable. `trace` sweeps a point and says
+/// whether it started in solid, the fraction, the end, the hit plane's normal, the surface
+/// flags and the contents it met.
+pub(crate) fn ground_at(
     eye: Vec3,
-    forward: Vec3,
-    trace: impl FnOnce([f32; 3], [f32; 3]) -> (f32, [f32; 3], Option<[f32; 3]>, u32),
-) -> Blow {
-    let end = eye + forward * REACH;
-    let (fraction, at, normal, flags) = trace(eye.to_array(), end.to_array());
-    match normal {
-        Some(_) if fraction >= 1.0 => Blow::Air,
-        None => Blow::Air,
-        Some(_) if flags & (SURF_SKY | SURF_NOIMPACT) != 0 => Blow::Undiggable,
-        Some(normal) => Blow::Rock { at, normal },
+    spot: [f32; 3],
+    mut trace: impl FnMut([f32; 3], [f32; 3], u32) -> Trace,
+) -> Option<([f32; 3], [f32; 3])> {
+    let top = [spot[0], spot[1], spot[2] + 16.0];
+    let sight = trace(eye.to_array(), top, CONTENTS_SOLID);
+    if sight.start_solid || sight.fraction < 1.0 {
+        return None;
     }
+    let below = [top[0], top[1], top[2] - 200.0];
+    let down = trace(top, below, CONTENTS_SOLID | CONTENTS_LIQUID);
+    let normal = down.normal?;
+    (!down.start_solid
+        && down.fraction < 1.0
+        && down.contents & CONTENTS_LIQUID == 0
+        && down.flags & (SURF_SKY | SURF_NOIMPACT) == 0
+        && normal[2] >= 0.75)
+        .then_some((down.end, normal))
+}
+
+/// What a point sweep met, for [`ground_at`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Trace {
+    pub(crate) start_solid: bool,
+    pub(crate) fraction: f32,
+    pub(crate) end: [f32; 3],
+    pub(crate) normal: Option<[f32; 3]>,
+    pub(crate) flags: u32,
+    pub(crate) contents: u32,
 }
 
 /// Who holds a pickaxe this frame (bits by slot), for the pose ([`holding_pick`]).
 static HOLDING: AtomicU64 = AtomicU64::new(0);
+/// The own swing this frame: the slot plus one in the high half, how far into it
+/// (milliseconds) in the low; 0 with none ([`swinging`]).
+static SWINGING: AtomicU64 = AtomicU64::new(0);
 
 /// Whether the player in `slot` holds a pickaxe this frame: their torso takes the rod's
 /// pose, both hands before the chest (`fishing::hold_pose`, `actor_pose_steps.rs`).
 pub(crate) fn holding_pick(slot: usize) -> bool {
     slot < SLOTS && HOLDING.load(Ordering::Relaxed) & (1 << slot) != 0
+}
+
+/// How far (milliseconds) the player in `slot` is into a swing this frame: their whole
+/// body plays [`swing_pose`] from its start (`actor_pose_steps.rs`).
+pub(crate) fn swinging(slot: usize) -> Option<i64> {
+    let swing = SWINGING.load(Ordering::Relaxed);
+    (swing >> 32 == slot as u64 + 1).then_some((swing & 0xFFFF_FFFF) as i64)
+}
+
+/// The protocol animation of the swing.
+pub(crate) fn swing_pose() -> Option<(usize, &'static str)> {
+    static POSE: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    POSE.get_or_init(|| sjk_game_jka::legacy_animation_index(SWING_POSE))
+        .map(|index| (index, SWING_POSE))
 }
 
 /// The pickaxe in the right hand of a body posed with `matrices`, placed at `transform`:
@@ -863,29 +988,36 @@ pub(crate) fn pick_in_view(camera: Vec3, yaw: f32, pitch: f32, pick: f32) -> Act
     ActorInstance::new(butt.to_array(), tilt.to_array(), [1.0; 3])
 }
 
-/// The vein at `vein`, shrunk as it is broken.
-fn vein_instance(vein: &Vein) -> ActorInstance {
-    let normal = Vec3::from_array(vein.normal).normalize_or(Vec3::X);
-    let rotation = Quat::from_rotation_arc(Vec3::X, normal);
-    let scale = 0.55 + 0.45 * vein.left as f32 / vein.hits.max(1) as f32;
-    ActorInstance::new(vein.at, rotation.to_array(), [scale; 3])
+/// The boulder `rock` at `now`: rising out of the ground, then shrinking as it is broken,
+/// shaken a moment by a blow.
+fn rock_instance(rock: &Rock, now: Instant, shake: f32) -> ActorInstance {
+    let normal = Vec3::from_array(rock.normal).normalize_or(Vec3::Z);
+    let rotation =
+        Quat::from_axis_angle(normal, rock.spin) * Quat::from_rotation_arc(Vec3::X, normal);
+    let risen =
+        (now.saturating_duration_since(rock.rose).as_secs_f32() / RISE.as_secs_f32()).min(1.0);
+    let eased = risen * risen * (3.0 - 2.0 * risen);
+    let scale = 0.6 + 0.4 * rock.left as f32 / rock.hits.max(1) as f32;
+    let at = Vec3::from_array(rock.at) - normal * (1.0 - eased) * RISE_FROM
+        + Vec3::new(shake, -shake, 0.0);
+    ActorInstance::new(at.to_array(), rotation.to_array(), [scale; 3])
 }
 
-/// The glint on `vein`, turning and swelling `t` seconds into its shine.
-fn glint_instance(vein: &Vein, t: f32) -> ActorInstance {
-    let normal = Vec3::from_array(vein.normal).normalize_or(Vec3::X);
-    let at = Vec3::from_array(vein.at) + normal * 5.0;
+/// The glint on `rock`, turning and swelling `t` seconds into its shine.
+fn glint_instance(rock: &Rock, t: f32) -> ActorInstance {
+    let normal = Vec3::from_array(rock.normal).normalize_or(Vec3::Z);
+    let scale = 0.6 + 0.4 * rock.left as f32 / rock.hits.max(1) as f32;
+    let at = Vec3::from_array(rock.at) + normal * 16.0 * scale;
     let window = GLINT_WINDOW.as_secs_f32();
     let swell = (t / window * std::f32::consts::PI).sin().max(0.0);
-    let scale = 0.4 + 1.2 * swell;
     ActorInstance::new(
         at.to_array(),
         Quat::from_rotation_z(t * 3.0).to_array(),
-        [scale; 3],
+        [0.5 + 1.4 * swell; 3],
     )
 }
 
-/// A broken vein's find `t` seconds after it broke: flying out in an arc, then lying
+/// A broken boulder's find `t` seconds after it broke: jumping out in an arc, then lying
 /// still.
 fn shown_instance(shown: &Shown, t: f32) -> ActorInstance {
     let along = (t / FLY.as_secs_f32()).min(1.0);
@@ -910,7 +1042,7 @@ impl GpuState {
         self.mining.toggle();
     }
 
-    /// The toy's frame: the own pickaxe's logic, then the vein and every pickaxe (the
+    /// The toy's frame: the own pickaxe's logic, then the boulders and every pickaxe (the
     /// own and other SJK players' whose look has it), and what it says.
     pub(crate) fn submit_mining(&mut self, now: Instant) {
         self.mining_frame(now);
@@ -920,8 +1052,9 @@ impl GpuState {
     fn mining_frame(&mut self, now: Instant) {
         self.mining.picks = Picks::default();
         let Some(session) = self.live_session.as_ref() else {
-            self.mining.update(Frame::default(), now, || Blow::Air);
+            self.mining.update(Frame::default(), now, |_| None);
             HOLDING.store(0, Ordering::Relaxed);
+            SWINGING.store(0, Ordering::Relaxed);
             return;
         };
         let snapshot = session.latest_snapshot();
@@ -951,27 +1084,21 @@ impl GpuState {
             playing: Some(alive && !spectating),
             health: player.health(),
             origin,
+            yaw: self.camera_yaw,
         };
         let eye = Vec3::from_array(origin) + Vec3::Z * player.view_height() as f32;
-        let (yaw, pitch) = (self.camera_yaw, self.camera_pitch);
-        let forward = Vec3::new(
-            yaw.cos() * pitch.cos(),
-            yaw.sin() * pitch.cos(),
-            pitch.sin(),
-        );
         let bsp = &self.bsp;
-        self.mining.update(frame, now, || {
-            blow_from(eye, forward, |start, end| {
-                let trace = bsp.trace_box(start, end, sjk_bsp::Aabb::POINT, CONTENTS_SOLID);
-                if trace.start_solid {
-                    return (1.0, end, None, 0);
+        self.mining.update(frame, now, |spot| {
+            ground_at(eye, spot, |start, end, mask| {
+                let trace = bsp.trace_box(start, end, sjk_bsp::Aabb::POINT, mask);
+                Trace {
+                    start_solid: trace.start_solid,
+                    fraction: trace.fraction,
+                    end: trace.end_position,
+                    normal: trace.plane.map(|plane| plane.normal),
+                    flags: trace.surface_flags,
+                    contents: trace.content_flags,
                 }
-                (
-                    trace.fraction,
-                    trace.end_position,
-                    trace.plane.map(|plane| plane.normal),
-                    trace.surface_flags,
-                )
             })
         });
         let broke = self
@@ -996,22 +1123,46 @@ impl GpuState {
                 .iter()
                 .position(|mesh| mesh.appearance.model == model)
         };
-        let [_, vein_mesh, glint_mesh, rubble_mesh] = MODELS.map(mesh_of);
+        let [_, rock_mesh, glint_mesh, rubble_mesh] = MODELS.map(mesh_of);
         let ore_meshes = ORE_MODELS.map(|ore| mesh_of(ore.model));
         let mut holding = 0_u64;
+        let mut swinging = 0_u64;
         if self.mining.on
             && let Some(own) = own
         {
             holding |= 1 << own;
             self.mining.picks.pitch[own] = Some(self.mining.pitch(now));
+            if let Some(since) = self.mining.swinging(now) {
+                swinging = (own as u64 + 1) << 32 | since.as_millis().min(0xFFFF_FFFF) as u64;
+            }
         }
-        if let (Some(mesh), Some(vein)) = (vein_mesh, self.mining.vein.as_ref()) {
-            self.object_groups[mesh].push(vein_instance(vein));
-            if let (Some(glint), Some(until)) = (glint_mesh, vein.glint) {
-                let t = GLINT_WINDOW
-                    .saturating_sub(until.saturating_duration_since(now))
-                    .as_secs_f32();
-                self.object_groups[glint].push(glint_instance(vein, t));
+        if self.mining.on {
+            // The boulder just struck shakes a moment.
+            let shake_on = self
+                .mining
+                .swinging(now)
+                .filter(|since| *since >= IMPACT && *since < IMPACT + Duration::from_millis(120))
+                .and_then(|_| {
+                    self.mining
+                        .target(Vec3::from_array(origin), self.camera_yaw)
+                });
+            for (index, rock) in self.mining.rocks.iter().enumerate() {
+                let shake = if shake_on == Some(index) {
+                    (now.elapsed().as_secs_f32() * 90.0).sin() * 0.8
+                } else {
+                    0.0
+                };
+                if let Some(mesh) = rock_mesh {
+                    self.object_groups[mesh].push(rock_instance(rock, now, shake));
+                }
+                if let (Some(glint), Some(until)) = (glint_mesh, rock.glint)
+                    && rock.struck()
+                {
+                    let t = GLINT_WINDOW
+                        .saturating_sub(until.saturating_duration_since(now))
+                        .as_secs_f32();
+                    self.object_groups[glint].push(glint_instance(rock, t));
+                }
             }
         }
         if let Some(shown) = self.mining.shown.as_ref() {
@@ -1040,6 +1191,7 @@ impl GpuState {
             self.mining.picks.pitch[slot] = Some(PICK_REST);
         }
         HOLDING.store(holding, Ordering::Relaxed);
+        SWINGING.store(swinging, Ordering::Relaxed);
     }
 
     /// Say on the centre of the screen what the toy has to say; its sounds wait for
@@ -1057,7 +1209,7 @@ impl GpuState {
                             find.name
                         ),
                         Kind::Ore => format!("You dug out {} ({count} so far).", find.name),
-                        Kind::Rubble => format!("The vein crumbled: {}.", find.name),
+                        Kind::Rubble => format!("The boulder crumbled: {}.", find.name),
                     }
                 }
                 Say::Sound(path) => {
@@ -1120,19 +1272,35 @@ mod tests {
             playing: Some(true),
             health: 100,
             origin: [0.0; 3],
+            yaw: 0.0,
         }
     }
 
-    const ROCK: Blow = Blow::Rock {
-        at: [40.0, 0.0, 20.0],
-        normal: [-1.0, 0.0, 0.0],
-    };
+    /// Flat ground under every spot.
+    fn flat(spot: [f32; 3]) -> Option<([f32; 3], [f32; 3])> {
+        Some(([spot[0], spot[1], FEET], [0.0, 0.0, 1.0]))
+    }
 
     fn take_out(mining: &mut Mining, now: Instant) {
         mining.toggle();
-        mining.update(frame(), now, || Blow::Air);
+        mining.update(frame(), now, |_| None);
         assert!(mining.on());
         mining.take_said().for_each(drop);
+    }
+
+    /// A boulder of `hits` blows just before the player (who faces +X).
+    fn rock_ahead(mining: &mut Mining, now: Instant, hits: u32) {
+        mining.rocks.push(Rock {
+            at: [40.0, 0.0, FEET],
+            normal: [0.0, 0.0, 1.0],
+            spin: 0.0,
+            rose: now,
+            hits,
+            left: hits,
+            clean: 0,
+            glint: None,
+            next_glint: None,
+        });
     }
 
     fn press_use(mining: &mut Mining) {
@@ -1143,13 +1311,14 @@ mod tests {
         mining.shape_command(&UserCommand::default());
     }
 
-    /// One swing at `blow` from `now`, its blow landed; returns when it is over.
-    fn swing(mining: &mut Mining, now: Instant, blow: Blow) -> Instant {
+    /// One swing from `now`, its blow landed; returns when it is over. No new boulder
+    /// comes up meanwhile.
+    fn swing(mining: &mut Mining, now: Instant) -> Instant {
         press_use(mining);
-        mining.update(frame(), now, || unreachable!("no blow yet"));
-        mining.update(frame(), now + IMPACT, || blow);
+        mining.update(frame(), now, |_| None);
+        mining.update(frame(), now + IMPACT, |_| None);
         let over = now + SWING_TIME;
-        mining.update(frame(), over, || unreachable!("one blow a swing"));
+        mining.update(frame(), over, |_| None);
         assert!(mining.swing.is_none());
         over
     }
@@ -1158,44 +1327,70 @@ mod tests {
     fn the_pickaxe_waits_until_the_player_plays() {
         let mut mining = Mining::default();
         mining.toggle();
-        mining.update(Frame::default(), Instant::now(), || Blow::Air);
+        mining.update(Frame::default(), Instant::now(), |_| None);
         assert!(!mining.on());
         assert!(matches!(mining.take_said().next(), Some(Say::Centre(_))));
     }
 
     #[test]
-    fn a_blow_opens_a_vein_and_enough_break_it() {
+    fn boulders_come_up_round_the_player_apart_and_in_range() {
+        let mut now = Instant::now();
+        let mut mining = Mining::default();
+        take_out(&mut mining, now);
+        for _ in 0..200 {
+            now += Duration::from_millis(100);
+            mining.update(frame(), now, flat);
+        }
+        assert_eq!(mining.rocks.len(), ROCKS);
+        for (index, rock) in mining.rocks.iter().enumerate() {
+            let (distance, _) = level_way(Vec3::ZERO, Vec3::from_array(rock.at));
+            assert!(distance >= ROCK_RANGE.0 - 0.01 && distance <= ROCK_RANGE.1 + 0.01);
+            for other in &mining.rocks[index + 1..] {
+                assert!(
+                    Vec3::from_array(rock.at).distance(Vec3::from_array(other.at)) >= ROCK_APART
+                );
+            }
+        }
+        // Nowhere to stand, none comes up.
+        let mut bare = Mining::default();
+        take_out(&mut bare, now);
+        for step in 0..50 {
+            bare.update(frame(), now + Duration::from_millis(100 * step), |_| None);
+        }
+        assert!(bare.rocks.is_empty());
+    }
+
+    #[test]
+    fn blows_break_a_boulder_for_a_find_and_another_comes_up() {
         let mut now = Instant::now();
         let mut mining = Mining {
             log_read: true,
             ..Mining::default()
         };
         take_out(&mut mining, now);
-        now = swing(&mut mining, now, ROCK);
-        let vein = mining.vein.expect("a vein");
-        assert_eq!(vein.left, vein.hits - 1);
-        assert!((VEIN_HITS.0..=VEIN_HITS.1).contains(&vein.hits));
-        // No glint till it breaks: the next one is pushed off each blow.
-        for _ in 1..vein.hits {
-            if let Some(vein) = mining.vein.as_mut() {
-                vein.next_glint = now + Duration::from_secs(60);
+        rock_ahead(&mut mining, now, 6);
+        for blow in 1..=6 {
+            // No glint: the next one is pushed off each blow.
+            if let Some(rock) = mining.rocks.first_mut() {
+                rock.next_glint = Some(now + Duration::from_secs(60));
             }
-            now = swing(&mut mining, now, ROCK);
+            now = swing(&mut mining, now);
+            if blow < 6 {
+                assert_eq!(mining.rocks[0].left, 6 - blow);
+            }
         }
-        assert!(mining.vein.is_none());
+        assert!(mining.rocks.is_empty());
         let said: Vec<Say> = mining.take_said().collect();
         assert!(said.iter().any(|say| matches!(say, Say::Found(_, 1))));
         assert!(mining.shown.is_some());
         let log = mining.log.as_ref().expect("a log");
         assert_eq!(FINDS.iter().map(|f| log.count(f.id)).sum::<u32>(), 1);
-        // The rock round it is spent.
-        swing(&mut mining, now, ROCK);
-        assert!(mining.vein.is_none());
-        assert!(
-            mining
-                .take_said()
-                .any(|say| say == Say::Centre("This rock is spent. Try another spot."))
-        );
+        // The next comes up a few seconds later.
+        for _ in 0..80 {
+            now += Duration::from_millis(100);
+            mining.update(frame(), now, flat);
+        }
+        assert!(!mining.rocks.is_empty());
     }
 
     #[test]
@@ -1203,17 +1398,34 @@ mod tests {
         let now = Instant::now();
         let mut mining = Mining::default();
         take_out(&mut mining, now);
-        let after = swing(&mut mining, now, ROCK);
-        let left = mining.vein.expect("a vein").left;
-        if let Some(vein) = mining.vein.as_mut() {
-            vein.next_glint = after;
-        }
-        mining.update(frame(), after, || Blow::Air);
-        assert!(mining.vein.expect("a vein").glint.is_some());
-        swing(&mut mining, after, ROCK);
-        let vein = mining.vein.expect("a vein");
-        assert_eq!((vein.left, vein.clean), (left - 2, 1));
-        assert!(vein.glint.is_none());
+        rock_ahead(&mut mining, now, 9);
+        let after = swing(&mut mining, now);
+        mining.rocks[0].next_glint = Some(after);
+        mining.update(frame(), after, |_| None);
+        assert!(mining.rocks[0].glint.is_some());
+        swing(&mut mining, after);
+        let rock = mining.rocks[0];
+        assert_eq!((rock.left, rock.clean), (9 - 3, 1));
+        assert!(rock.glint.is_none());
+    }
+
+    #[test]
+    fn a_blow_reaches_only_a_boulder_close_before_the_player() {
+        let now = Instant::now();
+        let mut mining = Mining::default();
+        rock_ahead(&mut mining, now, 6);
+        assert_eq!(mining.target(Vec3::ZERO, 0.0), Some(0));
+        // Behind them, out of reach, far below.
+        assert_eq!(mining.target(Vec3::ZERO, std::f32::consts::PI), None);
+        assert_eq!(mining.target(Vec3::new(-60.0, 0.0, 0.0), 0.0), None);
+        assert_eq!(mining.target(Vec3::new(0.0, 0.0, 200.0), 0.0), None);
+        // Standing on it, any way.
+        assert_eq!(mining.target(Vec3::new(36.0, 0.0, 0.0), 2.0), Some(0));
+        // Nothing before them: the swing says so.
+        let mut empty = Mining::default();
+        take_out(&mut empty, now);
+        swing(&mut empty, now);
+        assert!(empty.take_said().any(|say| matches!(say, Say::Centre(_))));
     }
 
     #[test]
@@ -1221,39 +1433,18 @@ mod tests {
         let now = Instant::now();
         let mut mining = Mining::default();
         take_out(&mut mining, now);
+        rock_ahead(&mut mining, now, 9);
         press_use(&mut mining);
-        mining.update(frame(), now, || Blow::Air);
+        mining.update(frame(), now, |_| None);
         // Presses during the swing are not kept.
         for step in 1..5 {
             press_use(&mut mining);
-            mining.update(frame(), now + Duration::from_millis(step * 50), || ROCK);
+            mining.update(frame(), now + Duration::from_millis(step * 50), |_| None);
         }
-        mining.update(frame(), now + IMPACT, || ROCK);
-        mining.update(frame(), now + SWING_TIME, || Blow::Air);
+        mining.update(frame(), now + IMPACT, |_| None);
+        mining.update(frame(), now + SWING_TIME, |_| None);
         assert!(mining.swing.is_none());
-        assert_eq!(mining.vein.map(|v| v.hits - v.left), Some(1));
-    }
-
-    #[test]
-    fn a_blow_elsewhere_opens_another_vein_and_walking_off_leaves_it() {
-        let now = Instant::now();
-        let mut mining = Mining::default();
-        take_out(&mut mining, now);
-        let after = swing(&mut mining, now, ROCK);
-        let other = Blow::Rock {
-            at: [40.0, 60.0, 20.0],
-            normal: [-1.0, 0.0, 0.0],
-        };
-        swing(&mut mining, after, other);
-        let vein = mining.vein.expect("a vein");
-        assert_eq!((vein.at, vein.left), ([40.0, 60.0, 20.0], vein.hits - 1));
-        let away = Frame {
-            origin: [400.0, 0.0, 0.0],
-            ..frame()
-        };
-        mining.update(away, after + SWING_TIME, || Blow::Air);
-        assert!(mining.on());
-        assert!(mining.vein.is_none());
+        assert_eq!(mining.rocks[0].hits - mining.rocks[0].left, 1);
     }
 
     #[test]
@@ -1265,38 +1456,86 @@ mod tests {
             forward_move: 127,
             ..UserCommand::default()
         });
-        mining.update(frame(), now, || Blow::Air);
+        mining.update(frame(), now, |_| None);
         assert!(mining.on());
         mining.shape_command(&UserCommand {
             buttons: BUTTON_ATTACK,
             ..UserCommand::default()
         });
-        mining.update(frame(), now, || Blow::Air);
+        mining.update(frame(), now, |_| None);
         assert!(!mining.on());
         take_out(&mut mining, now);
         let hurt = Frame {
             health: 80,
             ..frame()
         };
-        mining.update(hurt, now, || Blow::Air);
+        mining.update(hurt, now, |_| None);
         assert!(!mining.on());
     }
 
     #[test]
-    fn spent_rock_recovers_and_another_map_has_none() {
+    fn boulders_far_behind_or_on_another_map_go() {
         let now = Instant::now();
         let mut mining = Mining::default();
         mining.set_map("mp/ffa1");
-        mining.spent.push(([40.0, 0.0, 20.0], now + SPENT_FOR));
         take_out(&mut mining, now);
-        swing(&mut mining, now, ROCK);
-        assert!(mining.vein.is_none());
-        let later = now + SPENT_FOR;
-        swing(&mut mining, later, ROCK);
-        assert!(mining.vein.is_some());
-        mining.spent.push(([40.0, 0.0, 20.0], later + SPENT_FOR));
+        rock_ahead(&mut mining, now, 6);
+        let away = Frame {
+            origin: [2_000.0, 0.0, 0.0],
+            ..frame()
+        };
+        mining.update(away, now, |_| None);
+        assert!(mining.rocks.is_empty());
+        rock_ahead(&mut mining, now, 6);
+        mining.set_map("mp/ffa1");
+        assert_eq!(mining.rocks.len(), 1);
         mining.set_map("mp/ffa3");
-        assert!(mining.spent.is_empty() && mining.vein.is_none());
+        assert!(mining.rocks.is_empty());
+    }
+
+    #[test]
+    fn the_ground_must_be_seen_flat_and_dry() {
+        let eye = Vec3::new(0.0, 0.0, 36.0);
+        let open = Trace {
+            start_solid: false,
+            fraction: 1.0,
+            end: [0.0; 3],
+            normal: None,
+            flags: 0,
+            contents: 0,
+        };
+        let floor = |normal: [f32; 3], contents: u32| {
+            move |_: [f32; 3], end: [f32; 3], mask: u32| {
+                if mask & CONTENTS_LIQUID == 0 {
+                    Trace { end, ..open }
+                } else {
+                    Trace {
+                        fraction: 0.2,
+                        end: [end[0], end[1], -24.0],
+                        normal: Some(normal),
+                        contents,
+                        ..open
+                    }
+                }
+            }
+        };
+        let spot = [200.0, 0.0, 0.0];
+        assert_eq!(
+            ground_at(eye, spot, floor([0.0, 0.0, 1.0], CONTENTS_SOLID)),
+            Some(([200.0, 0.0, -24.0], [0.0, 0.0, 1.0]))
+        );
+        assert_eq!(
+            ground_at(eye, spot, floor([0.7, 0.0, 0.7], CONTENTS_SOLID)),
+            None
+        );
+        assert_eq!(ground_at(eye, spot, floor([0.0, 0.0, 1.0], 4)), None);
+        // Behind a wall, none.
+        let walled = |_: [f32; 3], end: [f32; 3], _: u32| Trace {
+            fraction: 0.5,
+            end,
+            ..open
+        };
+        assert_eq!(ground_at(eye, spot, walled), None);
     }
 
     #[test]
@@ -1381,27 +1620,6 @@ mod tests {
     }
 
     #[test]
-    fn a_blow_strikes_rock_in_reach_but_not_the_sky() {
-        let eye = Vec3::new(0.0, 0.0, 36.0);
-        let rock = blow_from(eye, Vec3::X, |_, _| {
-            (0.5, [36.0, 0.0, 36.0], Some([-1.0, 0.0, 0.0]), 0)
-        });
-        assert_eq!(
-            rock,
-            Blow::Rock {
-                at: [36.0, 0.0, 36.0],
-                normal: [-1.0, 0.0, 0.0]
-            }
-        );
-        let sky = blow_from(eye, Vec3::X, |_, _| {
-            (0.5, [36.0, 0.0, 36.0], Some([-1.0, 0.0, 0.0]), SURF_SKY)
-        });
-        assert_eq!(sky, Blow::Undiggable);
-        let air = blow_from(eye, Vec3::X, |_, end| (1.0, end, None, 0));
-        assert_eq!(air, Blow::Air);
-    }
-
-    #[test]
     fn the_swing_raises_the_pick_then_brings_it_down_to_the_blow() {
         assert!((swing_pitch(Duration::ZERO) - PICK_REST).abs() < 1e-4);
         let raised = swing_pitch(Duration::from_secs_f32(IMPACT.as_secs_f32() * 0.55));
@@ -1411,22 +1629,34 @@ mod tests {
     }
 
     #[test]
+    fn the_own_swing_is_told_to_the_pose_for_the_own_slot_only() {
+        SWINGING.store((3 + 1) << 32 | 250, Ordering::Relaxed);
+        assert_eq!(swinging(3), Some(250));
+        assert_eq!(swinging(2), None);
+        SWINGING.store(0, Ordering::Relaxed);
+        assert_eq!(swinging(0), None);
+        assert!(swing_pose().is_some());
+    }
+
+    #[test]
     fn the_find_falls_at_the_feet_before_the_player() {
         let now = Instant::now();
         let mut mining = Mining::default();
-        let vein = Vein {
-            at: [40.0, 0.0, 20.0],
-            normal: [-1.0, 0.0, 0.0],
+        let rock = Rock {
+            at: [40.0, 0.0, FEET],
+            normal: [0.0, 0.0, 1.0],
+            spin: 0.0,
+            rose: now,
             hits: 6,
             left: 0,
             clean: 0,
             glint: None,
-            next_glint: now,
+            next_glint: None,
         };
-        mining.break_vein(vein, [0.0; 3], now);
+        mining.break_rock(rock, [0.0; 3], now);
         let shown = mining.shown.expect("shown");
         assert!((shown.to[2] - (FEET + 2.0)).abs() < 1e-4);
-        assert!(shown.to[0] < shown.from[0]);
+        assert!(shown.to[0] < 40.0);
         let end = shown_instance(&shown, FLY.as_secs_f32());
         assert!(Vec3::from_array(end.position).distance(Vec3::from_array(shown.to)) < 1e-3);
     }

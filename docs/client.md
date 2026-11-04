@@ -6017,10 +6017,11 @@ game), and mounted below all game data. See
 ## Mining
 
 Mining (Slash's design, 04/11/2026; phase 1) is a toy for every SJK player, and unlike
-[Fishing](#fishing) no waiting game: a pickaxe in the hand, and veins broken a blow at a
-time at the player's own pace. Phase 1 gives nothing the economy counts: finds go to the
-player's own mining log. Selling them (phase 2) is to share Fishing junk's daily cap
-(one cap for both, so mining earns nothing on top of fishing); that needs the hub.
+[Fishing](#fishing) no waiting game: a pickaxe in the hand, boulders coming up out of the
+ground round the player, and each broken a blow at a time at the player's own pace. Phase 1
+gives nothing the economy counts: finds go to the player's own mining log. Selling them
+(phase 2) is to share Fishing junk's daily cap (one cap for both, so mining earns nothing
+on top of fishing); that needs the hub.
 
 - **`toy_mining`** (a bind, the quick wheel's Toys catalogue, Collection > Toys, "Pickaxe
   out") takes the pickaxe in hand or puts it away. The player may walk with it;
@@ -6028,34 +6029,40 @@ player's own mining log. Selling them (phase 2) is to share Fishing junk's daily
   (`weapmelee`) and the upper body takes the rod's pose (`TORSO_WEAPONREADY3`); in first
   person the own pickaxe is held in view, low on the right. Taking it puts the fishing rod
   away and getting the rod out puts it away: `+use` is both toys'.
-- **A swing** is `+use`: 0.75 seconds, the pick raised and brought down, its blow landing
-  0.32 seconds in (presses during a swing are not kept, so spamming swings no faster).
-  The blow strikes what lies within 72 units of the eye along the view: any solid surface
-  but the sky and no-impact ones (the pick bounces off those), or nothing in reach.
-- **A vein** opens where the first blow lands (a lump of rock with crystals, standing out
-  of the surface) and takes 6 to 9 blows, shrinking as it breaks. A blow within 20 units
-  of it strikes it; farther away it opens another, and walking 160 units off leaves it.
-- **The glint:** 1 to 2.5 seconds after the vein opens, then every 1.5 to 4 seconds, a
-  star flashes on it for 0.8 seconds with a spark sound. A blow that lands while it
-  shines is a **clean strike**: it counts two blows, rings, and makes the find better.
+- **Boulders** (three at a time) come up out of the ground 140 to 420 units from the
+  player, at least 110 apart, rising over 0.6 seconds: the first ones within a second of
+  the pickaxe coming out, the next 3 to 7 seconds after one breaks. A spot must be in the
+  player's sight, on ground flat enough (its normal at least 0.75 up), not in water, lava
+  or slime, nor the sky. A boulder more than 1400 units from the player goes, and another
+  comes up nearer; another map has none. They are the player's own: nobody else sees
+  them, and they do not block anyone.
+- **A swing** is `+use`: 0.75 seconds of the whole body playing the Tusken's two-handed
+  blow (`BOTH_TUSKENATTACK1`; the legs too while they stand, blended in over 100 ms), the
+  pickaxe raised and brought down, its blow landing 0.38 seconds in (presses during a
+  swing are not kept, so spamming swings no faster). The blow strikes the nearest boulder
+  within 64 units before the player (about 57 degrees either side of the way they face),
+  or says to walk up to one. Others see the pickaxe at rest: swings are not sent.
+- **Blows:** a boulder takes 6 to 9, shrinking as it breaks and shaking at each.
+- **The glint:** 1 to 2.5 seconds after a boulder's first blow, then every 1.5 to 4
+  seconds, a star flashes on it for 0.8 seconds with a spark sound. A blow that lands
+  while it shines is a **clean strike**: it counts two blows, rings, and makes the find
+  better.
 - **The find:** rubble 40% of the time (four kinds), 10 points less for each clean strike
   (never under 10%), else an ore (nine kinds, from iron ore to the Heart of the Mountain,
-  one ore in 75), rolled once more for each clean strike (at most twice), the rarest
-  roll kept. The Heart's weight rises by one for every 10 ores dug since the last one, as
-  Old Whiskers' does. The find flies out of the rock to the player's feet and is said in
-  the centre of the screen; each is counted in `mining_log.txt` in the settings folder
-  (`<id> <count>` a line, and `heart_wait <count>`).
-- **Spent rock:** the rock within 80 units of a broken vein gives nothing for 8 minutes
-  (a blow there says so), on this map; another map has none spent. So the player moves on.
+  one ore in 75), rolled once more for each clean strike (at most twice), the rarest roll
+  kept. The Heart's weight rises by one for every 10 ores dug since the last one, as Old
+  Whiskers' does. The find jumps out of the broken boulder to the player's feet and is
+  said in the centre of the screen; each is counted in `mining_log.txt` in the settings
+  folder (`<id> <count>` a line, and `heart_wait <count>`).
 - **Sounds:** Settings > Sound > Toys, "Mining sounds" (`s_toyMiningSound`), all retail
   game sounds (the melee swing, stone blows and breaking, a ricochet's ring, a spark).
 
 No game server knows of it. The pickaxe is a toy in the player's look (`toys: ["mining"]`),
-so other SJK players draw it in the miner's hand, at rest (swings and veins are not sent);
-players on stock clients see empty hands. The models, pictures, shader and icon are
-bundled, made by [mining_assets.py](../scripts/mining_assets.py) from shapes (nothing taken
-from another game; the rock is the installed game's Yavin rock), and mounted below all
-game data. See [mining.rs](../crates/sjk-viewer/src/mining.rs).
+so other SJK players draw it in the miner's hand, at rest; players on stock clients see
+empty hands. The models, pictures, shader and icon are bundled, made by
+[mining_assets.py](../scripts/mining_assets.py) from shapes (nothing taken from another
+game; the rock is the installed game's Yavin rock), and mounted below all game data. See
+[mining.rs](../crates/sjk-viewer/src/mining.rs).
 
 ## Toy sounds
 

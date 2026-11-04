@@ -9,7 +9,7 @@ models/sjk/mining
 	}
 }
 
-// The vein's crystals and the glowing ores: the same atlas, full bright, so they shine
+// The boulder's crystals and the glowing ores: the same atlas, full bright, so they shine
 // in a dark cave.
 models/sjk/mining_glow
 {
@@ -20,7 +20,7 @@ models/sjk/mining_glow
 	}
 }
 
-// The rock of the vein and of every chunk: Yavin's rock from the installed game (only its
+// The rock of the boulder and of every chunk: Yavin's rock from the installed game (only its
 // name is here, as the Fishing pond's stones).
 models/sjk/mining_rock
 {
@@ -30,7 +30,7 @@ models/sjk/mining_rock
 	}
 }
 
-// The glint on the vein, the moment to strike: a star added over the world.
+// The glint on the boulder, the moment to strike: a star added over the world.
 models/sjk/mining_glint
 {
 	cull none

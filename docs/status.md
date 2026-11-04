@@ -1,23 +1,28 @@
 ## Mining toy (phase 1)
 
 04/11/2026, `feat/mining`, based on `main` `c0d603eb` (Slash's design): `toy_mining` puts a
-pickaxe in the right hand (the rod's pose; in first person held in view) and `+use` swings
-it ([client.md](client.md#mining)). The first blow on rock within 72 units opens a vein
-there, 6 to 9 blows break it; a glint flashes on it now and then, and a blow landing while
-it shines is a clean strike (two blows, less rubble, the ore rolled again with the rarest
-kept). The find (4 rubble, 9 ores, the Heart of the Mountain with Old Whiskers' kind of
-bad luck protection) flies to the feet and is counted in `mining_log.txt`; the rock round a
-broken vein is spent 8 minutes on that map. The player may walk with it; attacking or
-getting hurt puts it away, and it and the fishing rod put each other away. Collection >
-Toys has its twelfth row (rows 52 high with a gap of 2, the name and tagline moved up, so
-twelve fit at 1080 lines), the quick wheel's catalogue its icon, Key bindings its row,
-`toy_help` its line (and Fishing's, which it lacked), Settings > Sound > Toys
-`s_toyMiningSound`. The look has the toy `mining` (after `fishing`). Assets from
-`scripts/mining_assets.py` (it reuses `fishing_assets.py`'s MD3 and PNG writers). No hub
-change, no achievements, no credits: phase 2 (selling finds under the Fishing junk's daily
-cap, shared) needs the hub. Verified: fmt, build, the mining, collection, looks, quick wheel,
-settings and input tests. Not verified: anything in game (the pickaxe in the hand and in
-view, the vein on walls, the glint, sounds), other players seeing the pickaxe.
+pickaxe in the right hand (the rod's pose; in first person held in view), and three
+boulders come up out of the ground round the player, in sight, on flat dry ground
+([client.md](client.md#mining)). `+use` swings: the whole body plays `BOTH_TUSKENATTACK1`
+from the swing's start (`actor_pose_steps.rs`, the own player only; legs while standing),
+and the blow strikes the nearest boulder within 64 units before the player. 6 to 9 blows
+break it; a glint flashes on it now and then, and a blow landing while it shines is a clean
+strike (two blows, less rubble, the ore rolled again with the rarest kept). The find (4
+rubble, 9 ores, the Heart of the Mountain with Old Whiskers' kind of bad luck protection)
+jumps to the feet and is counted in `mining_log.txt`; another boulder comes up 3 to 7
+seconds later. The player may walk with it; attacking or getting hurt puts it away, and it
+and the fishing rod put each other away. Boulders and swings are the miner's own (not
+sent); others see the pickaxe at rest. Collection > Toys has its twelfth row (rows 52 high
+with a gap of 2, the name and tagline moved up, so twelve fit at 1080 lines), the quick
+wheel's catalogue its icon, Key bindings its row, `toy_help` its line (and Fishing's, which
+it lacked), Settings > Sound > Toys `s_toyMiningSound`. The look has the toy `mining`
+(after `fishing`). Assets from `scripts/mining_assets.py` (it reuses `fishing_assets.py`'s
+MD3 and PNG writers). No hub change, no achievements, no credits: phase 2 (selling finds
+under the Fishing junk's daily cap, shared) needs the hub. A first take struck veins on
+walls; Slash asked for boulders on the ground and the whole body in the swing (04/11/2026).
+Verified: fmt, build, the mining, pose, collection, looks, quick wheel, settings and input
+tests. Not verified: anything in game (the swing pose and the pickaxe following it, the
+boulders' size and placement, the glint, sounds), other players seeing the pickaxe.
 
 ## Holocron catch-up, play signals, tag copies (client side)
 

@@ -123,6 +123,44 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
             }
         }
     }
+    // A miner's swing is the whole body's (`mining`): the Tusken's two-handed blow from
+    // the swing's start, the legs too while they stand (a step plays as sent), blended in
+    // over 100 ms as `CG_SetLerpFrameAnimation` blends the torso.
+    if !mesh.corpse_pool
+        && mesh.animator.humanoid()
+        && let Some(slot) = mesh
+            .entity_id
+            .and_then(|id| usize::try_from(id.get().checked_sub(1)?).ok())
+        && let Some(elapsed) = crate::mining::swinging(slot)
+        && let Some((swing, name)) = crate::mining::swing_pose()
+        && mesh.preview.config.get_exact(name).is_some()
+    {
+        let started = presentation_time - elapsed;
+        let legs = standing_clip(state.lower.clip);
+        for (track, play) in [(&mut state.upper, true), (&mut state.lower, legs)] {
+            if !play {
+                continue;
+            }
+            let outgoing = *track;
+            track.clip = swing;
+            track.started_at_millis = started;
+            track.phase_millis = 0;
+            track.speed_milli = 1_000;
+            track.forced_frame = None;
+            track.transition = (elapsed < 100 && outgoing.clip != swing).then_some(
+                sjk_runtime::AnimationTrackTransition {
+                    clip: outgoing.clip,
+                    revision: outgoing.revision,
+                    started_at_millis: outgoing.started_at_millis,
+                    phase_millis: outgoing.phase_millis,
+                    speed_milli: outgoing.speed_milli,
+                    forced_frame: outgoing.forced_frame,
+                    blend_started_at_millis: started,
+                    blend_duration_millis: 100,
+                },
+            );
+        }
+    }
     // A fisher holds the rod before the chest, as a rifle's ready pose (`fishing`), and a
     // miner the pickaxe (`mining`): only a standing torso, so a jump or a hit plays as
     // sent (and puts the rod away).
