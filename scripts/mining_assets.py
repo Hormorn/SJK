@@ -150,8 +150,10 @@ def lump(radius: float, depth: float, seed: int, half: bool, rough: float = 0.18
         loops.append(loop)
     for lower, upper in zip(loops, loops[1:]):
         for j in range(sides):
-            mesh.triangles += [(lower[j], upper[j + 1], upper[j]),
-                               (lower[j], lower[j + 1], upper[j + 1])]
+            # Wound as `fishing_assets.rock`'s, so the outside faces out (the rock's
+            # shader culls the back).
+            mesh.triangles += [(lower[j], upper[j], upper[j + 1]),
+                               (lower[j], upper[j + 1], lower[j + 1])]
     return mesh
 
 

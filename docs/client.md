@@ -6025,23 +6025,33 @@ on top of fishing); that needs the hub.
 
 - **`toy_mining`** (a bind, the quick wheel's Toys catalogue, Collection > Toys, "Pickaxe
   out") takes the pickaxe in hand or puts it away. The player may walk with it;
-  attacking, getting hurt, dying or leaving the game puts it away. The hands go empty
-  (`weapmelee`) and the upper body takes the rod's pose (`TORSO_WEAPONREADY3`); in first
-  person the own pickaxe is held in view, low on the right. Taking it puts the fishing rod
-  away and getting the rod out puts it away: `+use` is both toys'.
+  attacking, getting hurt, dying or leaving the game puts it away (health over the
+  maximum counting down after a spawn is no hurt). The hands go empty: the fists when the
+  player has them (`weapmelee`), else a lit saber is switched off; the pickaxe then
+  replaces whatever that hand holds. It is held as a hilt is: on the right hand's bolt,
+  turned with it (its handle along the bolt's +Z out of the top of the fist, its spike
+  forward along -Y, fitted in game against a hilt), so it stays in the grip in every pose,
+  first person included, where the own hands hold it. The upper body takes the strong
+  saber stance (`BOTH_SABERSLOW_STANCE`), both hands on the handle, while it stands.
+  Taking it puts the fishing rod away and getting the rod out puts it away: `+use` is both
+  toys'.
 - **Boulders** (three at a time) come up out of the ground 140 to 420 units from the
   player, at least 110 apart, rising over 0.6 seconds: the first ones within a second of
   the pickaxe coming out, the next 3 to 7 seconds after one breaks. A spot must be in the
   player's sight, on ground flat enough (its normal at least 0.75 up), not in water, lava
-  or slime, nor the sky. A boulder more than 1400 units from the player goes, and another
+  or slime, nor the sky, at most 64 units below the feet (not the floor under a ledge),
+  the boulder itself in sight, and 56 units clear of the map's items (weapons, pickups).
+  A boulder more than 1400 units from the player goes, and another
   comes up nearer; another map has none. They are the player's own: nobody else sees
   them, and they do not block anyone.
-- **A swing** is `+use`: 0.75 seconds of the whole body playing the Tusken's two-handed
-  blow (`BOTH_TUSKENATTACK1`; the legs too while they stand, blended in over 100 ms), the
-  pickaxe raised and brought down, its blow landing 0.38 seconds in (presses during a
-  swing are not kept, so spamming swings no faster). The blow strikes the nearest boulder
+- **A swing** is `+use`: 0.7 seconds of the whole body playing the strong saber style's
+  blow from overhead down (`BOTH_A3_T__B_`, both hands on the handle; the legs too while
+  they stand, blended in over 100 ms), the pickaxe following the hands down to the ground
+  before the feet, its blow landing 0.42 seconds in (presses during a swing are not kept,
+  so spamming swings no faster). The blow strikes the nearest boulder
   within 64 units before the player (about 57 degrees either side of the way they face),
-  or says to walk up to one. Others see the pickaxe at rest: swings are not sent.
+  or says to walk up to one. Others see the pickaxe held, not the swing: swings are not
+  sent.
 - **Blows:** a boulder takes 6 to 9, shrinking as it breaks and shaking at each.
 - **The glint:** 1 to 2.5 seconds after a boulder's first blow, then every 1.5 to 4
   seconds, a star flashes on it for 0.8 seconds with a spark sound. A blow that lands
@@ -6058,7 +6068,7 @@ on top of fishing); that needs the hub.
   game sounds (the melee swing, stone blows and breaking, a ricochet's ring, a spark).
 
 No game server knows of it. The pickaxe is a toy in the player's look (`toys: ["mining"]`),
-so other SJK players draw it in the miner's hand, at rest; players on stock clients see
+so other SJK players draw it in the miner's hands; players on stock clients see
 empty hands. The models, pictures, shader and icon are bundled, made by
 [mining_assets.py](../scripts/mining_assets.py) from shapes (nothing taken from another
 game; the rock is the installed game's Yavin rock), and mounted below all game data. See

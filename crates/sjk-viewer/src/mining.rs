@@ -1,7 +1,8 @@
 //! Mining, SJK's own toy (`toy_mining`; Slash's design, 04/11/2026, phase 1): the player
 //! takes a pickaxe in hand, and boulders come up out of the ground round them, a few at a
 //! time ([`ROCKS`]). The player walks up to one and strikes it with `+use`, the whole body
-//! in the swing (`BOTH_TUSKENATTACK1`, the Tusken's two-handed blow); six to nine blows
+//! in the swing (`BOTH_A3_T__B_`, the strong saber style's blow from overhead, the
+//! pickaxe held as a hilt is); six to nine blows
 //! break it, and it gives rubble or ore, counted in the player's mining log
 //! (`mining_log.txt`). Another boulder comes up elsewhere a few seconds later. Now and then
 //! a glint flashes on a boulder being broken: a blow that lands while it shines is a clean
@@ -139,9 +140,15 @@ const CONTENTS_LIQUID: u32 = 8 | 16 | 4;
 const SURF_SKY: u32 = 0x2000;
 const SURF_NOIMPACT: u32 = 0x0008_0000;
 const ET_PLAYER: u8 = 1;
+const ET_ITEM: u8 = 2;
 const EF_DEAD: u32 = 1 << 1;
 const EF_NODRAW: u32 = 1 << 8;
 const PMF_FOLLOW: u16 = 4096;
+/// Health above this counts down by itself (`STAT_MAX_HEALTH`'s default).
+const MAX_HEALTH: i32 = 100;
+const WP_SABER: u8 = 3;
+/// How long the hands are tried to be emptied for the pickaxe.
+const EMPTY_HANDS_FOR: Duration = Duration::from_secs(2);
 /// From the player's origin down to their feet (`DEFAULT_MINS_2`).
 const FEET: f32 = -24.0;
 /// How many boulders wait round the player at once.
@@ -150,6 +157,8 @@ pub(crate) const ROCKS: usize = 3;
 /// any other; one farther from them than [`ROCK_FAR`] goes.
 const ROCK_RANGE: (f32, f32) = (140.0, 420.0);
 const ROCK_APART: f32 = 110.0;
+/// Nor nearer than this to an item on the map (a weapon, a pickup).
+const ITEM_CLEAR: f32 = 56.0;
 const ROCK_FAR: f32 = 1_400.0;
 /// The next boulder comes up this long after one broke (seconds); the first ones, this
 /// soon after the pickaxe is taken out.
@@ -162,17 +171,23 @@ const PLACE_TRIES: usize = 4;
 /// A boulder rises out of the ground this long, from this far below.
 const RISE: Duration = Duration::from_millis(600);
 const RISE_FROM: f32 = 16.0;
+/// A boulder's ground is at most this far below the player's feet (a step down, a slope).
+const DROP: f32 = 64.0;
 /// A blow reaches a boulder whose middle is this near the player (level distance), this
 /// far round from where they face (radians each side), and not far above or below.
 pub(crate) const STRIKE_REACH: f32 = 64.0;
 const STRIKE_ARC: f32 = 1.0;
 const STRIKE_HEIGHT: f32 = 72.0;
 /// A swing, from the press to the pick back at rest, and when in it the blow lands
-/// (`BOTH_TUSKENATTACK1`: 15 frames at 20 a second).
-const SWING_TIME: Duration = Duration::from_millis(750);
-const IMPACT: Duration = Duration::from_millis(380);
-/// The animation the whole body plays for a swing.
-const SWING_POSE: &str = "BOTH_TUSKENATTACK1";
+/// (`BOTH_A3_T__B_`: 27 frames at 40 a second).
+const SWING_TIME: Duration = Duration::from_millis(700);
+const IMPACT: Duration = Duration::from_millis(420);
+/// The animation the whole body plays for a swing: the strong saber style's blow from
+/// over the head down, both hands on the hilt (here the pickaxe's handle).
+const SWING_POSE: &str = "BOTH_A3_T__B_";
+/// The torso's pose with the pickaxe in hand: the strong style's stance, both hands on
+/// the hilt.
+const HOLD_POSE: &str = "BOTH_SABERSLOW_STANCE";
 /// The blows a boulder takes, a clean strike counting two.
 const ROCK_HITS: (u32, u32) = (6, 9);
 /// The first glint on a boulder comes this long after its first blow, the next this long
@@ -183,11 +198,6 @@ const GLINT_WINDOW: Duration = Duration::from_millis(800);
 /// What a broken boulder gives flies out and lies at the player's feet this long.
 const SHOW_FIND: Duration = Duration::from_millis(1800);
 const FLY: Duration = Duration::from_millis(450);
-/// The pickaxe's pitch (radians, up positive): at rest, raised for the blow and when it
-/// lands, low before the feet (the boulders are on the ground).
-const PICK_REST: f32 = 0.35;
-const PICK_RAISED: f32 = 2.3;
-const PICK_STRUCK: f32 = -0.6;
 /// The hand holds the pickaxe this far up from its butt (`mining_assets.py`'s grip).
 const GRIP: f32 = 5.0;
 
@@ -402,8 +412,9 @@ pub(crate) enum Say {
     /// A find, with how many the log now holds of it.
     Found(&'static Find, u32),
     Sound(&'static str),
-    /// A console command to run (`weapmelee`: empty hands for the pickaxe).
-    Command(&'static str),
+    /// Empty the hands for the pickaxe: the fists if held, else the saber switched off
+    /// ([`GpuState::empty_hands`]).
+    EmptyHands,
 }
 
 /// The mining log: how many of each find the player dug out.
@@ -479,16 +490,18 @@ impl Log {
     }
 }
 
-/// Each holder's pickaxe this frame, by slot: its pitch (radians, up positive).
+/// Who holds a pickaxe this frame, by slot, and how it is turned in the hand.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Picks {
-    pub(crate) pitch: [Option<f32>; SLOTS],
+    pub(crate) held: [bool; SLOTS],
+    pub(crate) turn: Quat,
 }
 
 impl Default for Picks {
     fn default() -> Self {
         Self {
-            pitch: [None; SLOTS],
+            held: [false; SLOTS],
+            turn: pick_turn(),
         }
     }
 }
@@ -525,6 +538,9 @@ pub(crate) struct Mining {
     /// Each holder's pickaxe, for the actors to draw ([`pick_in_hand`]).
     pub(crate) picks: Picks,
     sounds_registered: Option<u64>,
+    /// The hands are to be emptied, tried until then (the saber's switch waits while
+    /// the weapon is busy).
+    empty_hands_until: Option<Instant>,
 }
 
 impl Default for Mining {
@@ -549,28 +565,15 @@ impl Default for Mining {
             said: Vec::with_capacity(4),
             picks: Picks::default(),
             sounds_registered: None,
+            empty_hands_until: None,
         }
     }
 }
 
-/// The pickaxe's pitch `since` a swing started: raised over the head, brought down to the
-/// blow at [`IMPACT`], back to rest by [`SWING_TIME`].
-fn swing_pitch(since: Duration) -> f32 {
-    let t = since.as_secs_f32();
-    let raise = IMPACT.as_secs_f32() * 0.55;
-    let impact = IMPACT.as_secs_f32();
-    let end = SWING_TIME.as_secs_f32();
-    let ease = |x: f32| x * x * (3.0 - 2.0 * x);
-    if t < raise {
-        PICK_REST + (PICK_RAISED - PICK_REST) * ease(t / raise)
-    } else if t < impact {
-        let x = (t - raise) / (impact - raise);
-        PICK_RAISED + (PICK_STRUCK - PICK_RAISED) * x * x
-    } else if t < end {
-        PICK_STRUCK + (PICK_REST - PICK_STRUCK) * ease((t - impact) / (end - impact))
-    } else {
-        PICK_REST
-    }
+/// Whether health going from `before` to `now` is a hit: not health over the maximum
+/// counting down a point a second, as it does after a spawn (105 to 100).
+fn hurt(before: i32, now: i32) -> bool {
+    now < before && (before <= MAX_HEALTH || before - now > 1)
 }
 
 /// The level distance from `a` to `b`, and the way from `a` to `b` (radians).
@@ -636,13 +639,6 @@ impl Mining {
         }
     }
 
-    /// The pickaxe's pitch now.
-    fn pitch(&self, now: Instant) -> f32 {
-        self.swing.map_or(PICK_REST, |swing| {
-            swing_pitch(now.saturating_duration_since(swing.started))
-        })
-    }
-
     /// How far into its swing the pickaxe is (none at rest).
     fn swinging(&self, now: Instant) -> Option<Duration> {
         self.swing
@@ -671,7 +667,7 @@ impl Mining {
                 self.on = true;
                 self.on_since = Some(now);
                 self.next_rock = None;
-                self.said.push(Say::Command("weapmelee"));
+                self.said.push(Say::EmptyHands);
                 self.said.push(Say::Centre(
                     "Pickaxe out: boulders come up round you. Strike one with Use, and strike as it glints!",
                 ));
@@ -683,7 +679,7 @@ impl Mining {
         if !self.on {
             return;
         }
-        let hurt = health.is_some_and(|before| frame.health < before);
+        let hurt = health.is_some_and(|before| hurt(before, frame.health));
         if frame.playing != Some(true) || attacked || hurt {
             self.put_away();
             if frame.playing == Some(true) {
@@ -885,7 +881,8 @@ impl Mining {
 }
 
 /// Where a boulder may stand by `spot` (a point at the player's height): the ground under
-/// it, seen from `eye`, flat enough, dry and diggable. `trace` sweeps a point and says
+/// it, at most [`DROP`] below the player's feet (not a floor below a ledge), seen from
+/// `eye`, flat enough, dry and diggable. `trace` sweeps a point and says
 /// whether it started in solid, the fraction, the end, the hit plane's normal, the surface
 /// flags and the contents it met.
 pub(crate) fn ground_at(
@@ -898,15 +895,21 @@ pub(crate) fn ground_at(
     if sight.start_solid || sight.fraction < 1.0 {
         return None;
     }
-    let below = [top[0], top[1], top[2] - 200.0];
+    let below = [top[0], top[1], spot[2] + FEET - DROP];
     let down = trace(top, below, CONTENTS_SOLID | CONTENTS_LIQUID);
     let normal = down.normal?;
-    (!down.start_solid
-        && down.fraction < 1.0
-        && down.contents & CONTENTS_LIQUID == 0
-        && down.flags & (SURF_SKY | SURF_NOIMPACT) == 0
-        && normal[2] >= 0.75)
-        .then_some((down.end, normal))
+    if down.start_solid
+        || down.fraction >= 1.0
+        || down.contents & CONTENTS_LIQUID != 0
+        || down.flags & (SURF_SKY | SURF_NOIMPACT) != 0
+        || normal[2] < 0.75
+    {
+        return None;
+    }
+    // The boulder itself in sight, not round a corner of the ledge.
+    let seen = [down.end[0], down.end[1], down.end[2] + 8.0];
+    let sight = trace(eye.to_array(), seen, CONTENTS_SOLID);
+    (!sight.start_solid && sight.fraction >= 1.0).then_some((down.end, normal))
 }
 
 /// What a point sweep met, for [`ground_at`].
@@ -939,6 +942,13 @@ pub(crate) fn swinging(slot: usize) -> Option<i64> {
     (swing >> 32 == slot as u64 + 1).then_some((swing & 0xFFFF_FFFF) as i64)
 }
 
+/// The protocol animation of the pose holding the pickaxe.
+pub(crate) fn hold_pose() -> Option<(usize, &'static str)> {
+    static POSE: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    POSE.get_or_init(|| sjk_game_jka::legacy_animation_index(HOLD_POSE))
+        .map(|index| (index, HOLD_POSE))
+}
+
 /// The protocol animation of the swing.
 pub(crate) fn swing_pose() -> Option<(usize, &'static str)> {
     static POSE: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
@@ -946,46 +956,38 @@ pub(crate) fn swing_pose() -> Option<(usize, &'static str)> {
         .map(|index| (index, SWING_POSE))
 }
 
+/// The pickaxe in the hand's frame, as a saber's hilt is held: its handle (the model's
+/// +X) out of the top of the fist along the hand bolt's +Z, its spike (the model's -Z)
+/// forward along -Y, where a gun's barrel points (`propgun_frame::HAND_TURN`). Fitted in
+/// game against a held hilt (04/11/2026).
+pub(crate) fn pick_turn() -> Quat {
+    Quat::from_mat3(&glam::Mat3::from_cols(Vec3::Z, Vec3::X, Vec3::Y))
+}
+
 /// The pickaxe in the right hand of a body posed with `matrices`, placed at `transform`:
-/// held near its butt, its handle pointing ahead where the body faces, raised by `pitch`
-/// (radians).
+/// gripped near its butt, turned with the hand (so it follows every pose and swing as a
+/// hilt does), `turn` from the hand's frame ([`pick_turn`]).
 pub(crate) fn pick_in_hand(
     preview: &crate::PlayerPreview,
     matrices: &[[[f32; 4]; 3]],
     transform: sjk_runtime::Transform,
-    pitch: f32,
+    turn: Quat,
 ) -> Option<ActorInstance> {
     let hand = crate::saber::attachment_from_matrices(preview, matrices, crate::saber::HAND_BOLT)?;
     let rotation = crate::weapon_view::actor_world_rotation(transform.rotation);
-    let (grip, _) =
-        crate::saber::world_attachment(Vec3::from_array(transform.translation), rotation, hand);
-    let forward = Quat::from_array(transform.rotation) * Vec3::X;
-    let yaw = forward.y.atan2(forward.x);
-    let tilt = Quat::from_rotation_z(yaw) * Quat::from_rotation_y(-pitch);
-    let butt = grip - tilt * Vec3::X * GRIP;
+    let (grip, hand) = crate::saber::world_attachment(
+        Vec3::from_array(transform.translation),
+        rotation,
+        hand.scaled(transform.scale),
+    );
+    let held = (hand * turn).normalize();
+    let scale = Vec3::from_array(transform.scale);
+    let butt = grip - held * (Vec3::X * GRIP * scale.x);
     Some(ActorInstance::new(
         butt.to_array(),
-        tilt.to_array(),
-        [1.0; 3],
+        held.to_array(),
+        scale.to_array(),
     ))
-}
-
-/// Where the own pickaxe is held in first person, in the camera's frame (ahead, left, up)
-/// from the eye: low on the right, as a weapon is.
-const VIEW_GRIP: Vec3 = Vec3::new(8.0, -9.0, -14.0);
-/// How far in towards the middle of the view the own pickaxe points.
-const VIEW_IN: f32 = 0.22;
-/// Its pitch in first person is the hand's less this: the view looks down on it.
-const VIEW_DROP: f32 = 0.25;
-
-/// The own pickaxe in first person, where the body's hand is not drawn: held from the
-/// eye at `camera` looking `yaw` and `pitch` (radians, up positive), the pick raised by
-/// `pick` (radians).
-pub(crate) fn pick_in_view(camera: Vec3, yaw: f32, pitch: f32, pick: f32) -> ActorInstance {
-    let view = Quat::from_rotation_z(yaw) * Quat::from_rotation_y(-pitch);
-    let tilt = view * Quat::from_rotation_z(VIEW_IN) * Quat::from_rotation_y(-(pick - VIEW_DROP));
-    let butt = camera + view * VIEW_GRIP - tilt * Vec3::X * GRIP;
-    ActorInstance::new(butt.to_array(), tilt.to_array(), [1.0; 3])
 }
 
 /// The boulder `rock` at `now`: rising out of the ground, then shrinking as it is broken,
@@ -1047,6 +1049,45 @@ impl GpuState {
     pub(crate) fn submit_mining(&mut self, now: Instant) {
         self.mining_frame(now);
         self.say_mining();
+        if let Some(until) = self.mining.empty_hands_until {
+            if !self.mining.on || now >= until || self.empty_hands() {
+                self.mining.empty_hands_until = None;
+            }
+        }
+    }
+
+    /// Empty the hands for the pickaxe, once: the fists if the player holds them (as
+    /// `weapmelee`), else a lit saber switched off (the saber switch, as `weapon 1` with
+    /// the saber out). `false` while the weapon is busy, to try again the next frame.
+    fn empty_hands(&mut self) -> bool {
+        let Some(session) = &self.live_session else {
+            return true;
+        };
+        let player = &session.latest_snapshot().player;
+        let (weapon, weapon_time) = self
+            .local_prediction
+            .predicted_state()
+            .map_or((player.weapon(), player.weapon_time()), |state| {
+                (state.weapon, state.weapon_time)
+            });
+        let current = self.selected_weapon.unwrap_or(weapon);
+        let inventory = sjk_client::LegacyWeaponInventory::from_player_state(player);
+        if sjk_client::legacy_melee_weapon(&inventory, current).is_some() {
+            if let Some(console) = self.console.as_mut()
+                && let Err(error) = console.queue_command("weapmelee")
+            {
+                crate::log::progress(format_args!("mining: weapmelee: {error}"));
+            }
+            return true;
+        }
+        if weapon != WP_SABER || player.saber_holstered() != 0 {
+            return true;
+        }
+        if weapon_time >= 1 {
+            return false;
+        }
+        self.pending_generic_command = crate::input::generic_commands::GENCMD_SABER_SWITCH;
+        true
     }
 
     fn mining_frame(&mut self, now: Instant) {
@@ -1088,7 +1129,18 @@ impl GpuState {
         };
         let eye = Vec3::from_array(origin) + Vec3::Z * player.view_height() as f32;
         let bsp = &self.bsp;
+        let items: Vec<Vec3> = snapshot
+            .entities
+            .iter()
+            .filter(|entity| entity.entity_type() == ET_ITEM)
+            .map(|entity| Vec3::from_array(entity.trajectory_base()))
+            .collect();
         self.mining.update(frame, now, |spot| {
+            let near_item = |at: [f32; 3]| {
+                items
+                    .iter()
+                    .any(|item| item.distance(Vec3::from_array(at)) < ITEM_CLEAR)
+            };
             ground_at(eye, spot, |start, end, mask| {
                 let trace = bsp.trace_box(start, end, sjk_bsp::Aabb::POINT, mask);
                 Trace {
@@ -1100,6 +1152,7 @@ impl GpuState {
                     contents: trace.content_flags,
                 }
             })
+            .filter(|(at, _)| !near_item(*at))
         });
         let broke = self
             .mining
@@ -1131,7 +1184,7 @@ impl GpuState {
             && let Some(own) = own
         {
             holding |= 1 << own;
-            self.mining.picks.pitch[own] = Some(self.mining.pitch(now));
+            self.mining.picks.held[own] = true;
             if let Some(since) = self.mining.swinging(now) {
                 swinging = (own as u64 + 1) << 32 | since.as_millis().min(0xFFFF_FFFF) as u64;
             }
@@ -1175,7 +1228,7 @@ impl GpuState {
                 self.object_groups[mesh].push(shown_instance(shown, t));
             }
         }
-        // Other players' pickaxes, at rest: their swings are not sent.
+        // Other players' pickaxes, in their hands: their swings are not sent.
         let followed = slots.followed().filter(|&slot| slot < SLOTS);
         for entity in &snapshot.entities {
             let slot = usize::from(entity.number());
@@ -1188,7 +1241,7 @@ impl GpuState {
                 continue;
             }
             holding |= 1 << slot;
-            self.mining.picks.pitch[slot] = Some(PICK_REST);
+            self.mining.picks.held[slot] = true;
         }
         HOLDING.store(holding, Ordering::Relaxed);
         SWINGING.store(swinging, Ordering::Relaxed);
@@ -1216,12 +1269,8 @@ impl GpuState {
                     self.mining_cues.push(path);
                     continue;
                 }
-                Say::Command(command) => {
-                    if let Some(console) = self.console.as_mut()
-                        && let Err(error) = console.queue_command(command)
-                    {
-                        crate::log::progress(format_args!("mining: {command}: {error}"));
-                    }
+                Say::EmptyHands => {
+                    self.mining.empty_hands_until = Some(Instant::now() + EMPTY_HANDS_FOR);
                     continue;
                 }
             };
@@ -1471,6 +1520,15 @@ mod tests {
         };
         mining.update(hurt, now, |_| None);
         assert!(!mining.on());
+        // Health over the maximum counting down after a spawn is no hit.
+        take_out(&mut mining, now);
+        let over = |health| Frame { health, ..frame() };
+        mining.update(over(105), now, |_| None);
+        mining.update(over(104), now, |_| None);
+        mining.update(over(103), now, |_| None);
+        assert!(mining.on());
+        mining.update(over(90), now, |_| None);
+        assert!(!mining.on());
     }
 
     #[test]
@@ -1617,15 +1675,6 @@ mod tests {
         for (_, bytes) in FILES {
             assert!(!bytes.is_empty());
         }
-    }
-
-    #[test]
-    fn the_swing_raises_the_pick_then_brings_it_down_to_the_blow() {
-        assert!((swing_pitch(Duration::ZERO) - PICK_REST).abs() < 1e-4);
-        let raised = swing_pitch(Duration::from_secs_f32(IMPACT.as_secs_f32() * 0.55));
-        assert!((raised - PICK_RAISED).abs() < 1e-3);
-        assert!((swing_pitch(IMPACT) - PICK_STRUCK).abs() < 1e-3);
-        assert!((swing_pitch(SWING_TIME) - PICK_REST).abs() < 1e-4);
     }
 
     #[test]

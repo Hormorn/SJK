@@ -123,8 +123,8 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
             }
         }
     }
-    // A miner's swing is the whole body's (`mining`): the Tusken's two-handed blow from
-    // the swing's start, the legs too while they stand (a step plays as sent), blended in
+    // A miner's swing is the whole body's (`mining`): the strong saber style's blow from
+    // overhead, from the swing's start, the legs too while they stand (a step plays as sent), blended in
     // over 100 ms as `CG_SetLerpFrameAnimation` blends the torso.
     if !mesh.corpse_pool
         && mesh.animator.humanoid()
@@ -169,12 +169,27 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
         && mesh
             .entity_id
             .and_then(|id| usize::try_from(id.get().checked_sub(1)?).ok())
-            .is_some_and(|slot| {
-                crate::fishing::holding_rod(slot) || crate::mining::holding_pick(slot)
+            .and_then(|slot| {
+                if crate::mining::holding_pick(slot) {
+                    crate::mining::hold_pose()
+                } else if crate::fishing::holding_rod(slot) {
+                    crate::fishing::hold_pose()
+                } else {
+                    None
+                }
             })
+            .is_some_and(|(_, name)| mesh.preview.config.get_exact(name).is_some())
         && standing_clip(state.upper.clip)
-        && let Some((hold, name)) = crate::fishing::hold_pose()
-        && mesh.preview.config.get_exact(name).is_some()
+        && let Some((hold, _)) = mesh
+            .entity_id
+            .and_then(|id| usize::try_from(id.get().checked_sub(1)?).ok())
+            .and_then(|slot| {
+                if crate::mining::holding_pick(slot) {
+                    crate::mining::hold_pose()
+                } else {
+                    crate::fishing::hold_pose()
+                }
+            })
     {
         state.upper.clip = hold;
         state.upper.forced_frame = None;

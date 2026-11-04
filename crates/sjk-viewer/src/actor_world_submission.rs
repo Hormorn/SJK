@@ -952,12 +952,13 @@ fn submit_actor(
             sinks.fishing_tips[usize::from(number)] = Some(tip.to_array());
         }
     }
-    // A miner's pickaxe in their right hand, as the rod: in first person the own one is
-    // held in view instead.
+    // A miner's pickaxe in their right hand, turned with it as a hilt is, so it follows
+    // the hold and the swing; in first person too, where the own hands hold it. The
+    // weapon or saber that hand held is not drawn (`submit_weapons`).
     if entity.kind == EntityKind::Actor
         && let (Some(mesh), (Some(pick), picks)) = (mesh, sinks.mining)
         && number < 64
-        && let Some(pitch) = picks.pitch[usize::from(number)]
+        && picks.held[usize::from(number)]
         && e_flags & EF_DEAD_FLAG == 0
         && !trick.hidden
     {
@@ -967,21 +968,11 @@ fn submit_actor(
                 &actor.preview,
                 actor.animator.matrices(),
                 *transform,
-                pitch,
+                picks.turn,
             )
         }) {
-            instance.view_flags = sinks.entity_view_flags | u32::from(!draw_actor);
+            instance.view_flags = sinks.entity_view_flags;
             sinks.object_groups[pick].push(instance);
-        }
-        if !draw_actor && Some(entity.id.get()) == local_entity_id {
-            let mut held = crate::mining::pick_in_view(
-                sinks.camera_position,
-                sinks.camera_yaw,
-                sinks.camera_pitch,
-                pitch,
-            );
-            held.view_flags = sinks.entity_view_flags;
-            sinks.object_groups[pick].push(held);
         }
     }
     // Everything after stock's mind-trick cut-off is skipped for a hidden trickster:
@@ -1419,6 +1410,14 @@ fn submit_equipment(
             instance.view_flags = sinks.entity_view_flags;
             sinks.object_groups[prop.mesh].push(instance);
         }
+        return;
+    }
+    // A pickaxe in the hand (`mining`) replaces the weapon or saber there.
+    if usize::try_from(entity.id.get())
+        .ok()
+        .and_then(|id| id.checked_sub(1))
+        .is_some_and(|slot| sinks.mining.1.held.get(slot).copied().unwrap_or(false))
+    {
         return;
     }
     let team_plain = crate::team_sabers::of(&sinks.team_blades, entity.id.get()).plain;
