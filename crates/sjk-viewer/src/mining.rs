@@ -4,7 +4,7 @@
 //! in the swing (`BOTH_A3_T__B_`, the strong saber style's blow from overhead, the
 //! pickaxe held as a hilt is); ten to fourteen blows
 //! break it, and it gives rubble or ore, counted in the player's mining log
-//! (`mining_log.txt`). Another boulder comes up elsewhere 15 to 25 seconds later. Now and then
+//! (`mining_log.txt`). Another boulder comes up elsewhere 4 to 8 seconds later. Now and then
 //! a glint flashes on a boulder being broken: a blow that lands while it shines is a clean
 //! strike, worth two, and any makes the boulder give better ([`roll_find`]).
 //!
@@ -152,7 +152,7 @@ const EMPTY_HANDS_FOR: Duration = Duration::from_secs(2);
 /// From the player's origin down to their feet (`DEFAULT_MINS_2`).
 const FEET: f32 = -24.0;
 /// How many boulders wait round the player at once.
-pub(crate) const ROCKS: usize = 2;
+pub(crate) const ROCKS: usize = 3;
 /// A boulder comes up this far from the player (level distance), at least this far from
 /// any other; one farther from them than [`ROCK_FAR`] goes.
 const ROCK_RANGE: (f32, f32) = (140.0, 420.0);
@@ -160,9 +160,10 @@ const ROCK_APART: f32 = 110.0;
 /// Nor nearer than this to an item on the map (a weapon, a pickup).
 const ITEM_CLEAR: f32 = 56.0;
 const ROCK_FAR: f32 = 1_400.0;
-/// The next boulder comes up this long after one broke (seconds), about three a minute
-/// at most; the first ones, this soon after the pickaxe is taken out.
-const ROCK_AGAIN: (f32, f32) = (15.0, 25.0);
+/// The next boulder comes up this long after one broke (seconds), so another always
+/// waits (about six a minute, the blows the pace); the first ones, this soon after the
+/// pickaxe is taken out.
+const ROCK_AGAIN: (f32, f32) = (4.0, 8.0);
 const ROCK_FIRST: (f32, f32) = (0.3, 1.0);
 /// The first ones come quickly for this long after the pickaxe is out.
 const FIRST_WHILE: Duration = Duration::from_secs(4);
@@ -245,14 +246,14 @@ pub(crate) const FINDS: [Find; 13] = [
     rubble("slag", "a lump of slag"),
     rubble("drill_bit", "a worn drill bit"),
     rubble("fossil", "a fossil shell"),
-    ore("iron_ore", "a chunk of iron ore", 110),
-    ore("copper_ore", "a chunk of copper ore", 98),
-    ore("silver_nugget", "a silver nugget", 65),
-    ore("glowstone", "a glowstone", 49),
-    ore("sunstone", "a sunstone", 32),
-    ore("moonstone", "a moonstone", 22),
-    ore("star_quartz", "a star quartz", 13),
-    ore("void_crystal", "a void crystal", 10),
+    ore("iron_ore", "a chunk of iron ore", 221),
+    ore("copper_ore", "a chunk of copper ore", 196),
+    ore("silver_nugget", "a silver nugget", 130),
+    ore("glowstone", "a glowstone", 98),
+    ore("sunstone", "a sunstone", 64),
+    ore("moonstone", "a moonstone", 44),
+    ore("star_quartz", "a star quartz", 26),
+    ore("void_crystal", "a void crystal", 20),
     ore(HEART, "the Heart of the Mountain", 1),
 ];
 
@@ -263,8 +264,8 @@ const CLEAN_RUBBLE_CUT: u32 = 10;
 const RUBBLE_FLOOR: u32 = 20;
 /// Bad luck protection for the Heart of the Mountain, as Fishing's for Old Whiskers: its
 /// weight rises by one for every this many ores dug since the last one. With the weights
-/// above, one in about 300 boulders (some 100 minutes at three a minute).
-const HEART_PITY: u32 = 150;
+/// above, one in about 600 boulders (some 100 minutes at six a minute).
+const HEART_PITY: u32 = 300;
 /// The mining log's count of the ores dug since the last Heart: `heart_wait <count>`.
 const HEART_WAIT: &str = "heart_wait";
 
@@ -1437,8 +1438,8 @@ mod tests {
         assert!(mining.shown.is_some());
         let log = mining.log.as_ref().expect("a log");
         assert_eq!(FINDS.iter().map(|f| log.count(f.id)).sum::<u32>(), 1);
-        // The next comes up 15 to 25 seconds later.
-        for _ in 0..260 {
+        // The next comes up 4 to 8 seconds later.
+        for _ in 0..90 {
             now += Duration::from_millis(100);
             mining.update(frame(), now, flat);
         }
@@ -1631,8 +1632,8 @@ mod tests {
     #[test]
     fn a_clean_strike_lifts_the_ore_a_tier_but_not_into_the_heart() {
         let iron = 0;
-        let void = 110 + 98 + 65 + 49 + 32 + 22 + 13;
-        let heart = void + 10;
+        let void = 221 + 196 + 130 + 98 + 64 + 44 + 26;
+        let heart = void + 20;
         assert_eq!(roll_find(99, iron, 0, 0).id, "iron_ore");
         assert_eq!(roll_find(99, iron, 1, 0).id, "copper_ore");
         // Two clean strikes lift it no further than one.
@@ -1647,10 +1648,10 @@ mod tests {
     fn the_heart_grows_likelier_the_longer_it_waits() {
         let mut log = Log::default();
         let iron = &FINDS[4];
-        for _ in 0..310 {
+        for _ in 0..610 {
             log.found(iron);
         }
-        assert_eq!(log.heart_wait(), 310);
+        assert_eq!(log.heart_wait(), 610);
         assert_eq!(weight(&FINDS[12], log.heart_wait()), 3);
         log.found(&FINDS[12]);
         assert_eq!(log.heart_wait(), 0);
