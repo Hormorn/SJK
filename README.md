@@ -101,8 +101,12 @@ Connect directly to a server:
 ./sjk --connect 127.0.0.1:29070
 ```
 
-If keeping the binary elsewhere, use `JKA_GAME_DATA=/path/to/GameData` or the
-saved game-data setting; known installation locations are also checked. The
+Kept elsewhere, SJK finds a Steam copy of the game by itself, in any Steam library
+(another drive included), and a GOG copy on Windows; otherwise use
+`JKA_GAME_DATA=/path/to/GameData` or the saved game-data setting. To start SJK with
+Steam's Play button, set Jedi Academy's launch options in Steam (Properties >
+General) to the client's path followed by `%command%`, for example
+`"C:\Games\SJK\sjk.exe" %command%`. The
 explicit positional form `sjk /path/to/GameData --connect HOST:PORT`
 remains supported. See [client launch](docs/client.md#launch) for discovery order.
 Use the in-game menus for controls, graphics, audio and player settings;

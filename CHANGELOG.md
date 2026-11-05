@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Kept outside the game's GameData, SJK finds a Steam copy of Jedi Academy by itself, in any Steam library (another drive too), and a GOG copy on Windows; and Steam's Play button can start SJK: set Jedi Academy's launch options to the path of sjk.exe followed by %command% _(Slash)_
+
 ## 2026.1105.1 (Alpha) | 05/11/2026
 
 The Saber Lab, finishers, new vehicle HUDs, sharpening, aliases, whisper picking and a JoF anti-cheat fix.

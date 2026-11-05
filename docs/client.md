@@ -127,7 +127,24 @@ in order and uses the first containing `base/assets0.pk3` and `base/assets3.pk3`
 3. The saved `fs_gameData` setting.
 4. The working directory, its `GameData` subdirectory, then its
    `Star Wars Jedi Knight - Jedi Academy/GameData` subdirectory.
-5. The existing Linux Steam and `~/Games/Jedi Academy/GameData` locations.
+5. `~/Games/Jedi Academy/GameData`.
+6. The game stores' installs ([game_stores.rs](../crates/sjk-viewer/src/game_stores.rs)),
+   so a client extracted anywhere (Downloads, say) finds the game by itself:
+   - Steam: its folder from the registry on Windows (`HKCU\Software\Valve\Steam`
+     `SteamPath`, then `HKLM\SOFTWARE\WOW6432Node\Valve\Steam` `InstallPath`) and
+     `Program Files (x86)\Steam`, or `~/.local/share/Steam`, `~/.steam/steam`, Flathub's
+     `~/.var/app/com.valvesoftware.Steam/.local/share/Steam`, Snap's
+     `~/snap/steam/common/.local/share/Steam` and
+     `~/Library/Application Support/Steam`. Every library its
+     `steamapps/libraryfolders.vdf` lists is searched (games on another drive), each for
+     app 6020's `appmanifest_6020.acf`, whose `installdir` names the folder under
+     `steamapps/common`, then for the usual `Jedi Academy` folder: its `GameData`, or the
+     Mac edition's app bundle.
+   - GOG on Windows: the `path` of each game under
+     `HKLM\SOFTWARE\WOW6432Node\GOG.com\Games`, then its `GameData`.
+
+   The registry is read through Windows' `reg.exe`, only when the locations above hold
+   no game.
 
 Thus a drop-in installation wins over a saved location from another installation,
 while an explicit environment or positional path still overrides it. Invalid
@@ -139,6 +156,19 @@ the main menu. Positional launch also accepts a map path and optional player-mod
 directory (`sjk /path/to/GameData maps/mp/ffa3.bsp`); it remains a direct
 world/viewer launch, whereas no arguments opens the main menu. Demo playback
 retains its explicit GameData argument.
+
+Steam can start SJK in the game's place. In Steam's library, Jedi Academy >
+Properties > General > Launch options, write the client's path followed by
+`%command%`, for example `"C:\Games\SJK\sjk.exe" %command%`. Play then starts SJK,
+Steam shows the player in Jedi Academy and its overlay works. Steam passes the
+program it would have run (`GameData\jamp.exe`, or `jasp.exe` for single player) as the
+first argument, or on Linux after Proton's program and verb: when an argument is one of
+the programs in `STORE_LAUNCHED_PROGRAMS`, SJK opens its main menu on that program's folder (or on
+the discovered GameData when that folder lacks the retail files), and of the
+arguments after it keeps only a server to join, `--connect HOST:PORT` or the game's
+`+connect HOST:PORT`. The others were written for the game's program and are
+ignored. The Mac edition's program is not in the table yet (its name inside the app
+bundle is not known), so on a Mac Play still starts the game itself.
 See [launch.rs](../crates/sjk-viewer/src/launch.rs) and
 [app_launch.rs](../crates/sjk-viewer/src/app_launch.rs).
 
