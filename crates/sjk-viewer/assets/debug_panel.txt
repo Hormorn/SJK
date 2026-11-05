@@ -360,7 +360,7 @@ test: Hub with --banner-shatter staff and you staff: hold 2+ Jedi Archives, Brea
 test: First press arms (Confirm...), second within 5 s sends; "+5 kyber shards" line, count -1.
 test: Last copy: warning line, then it leaves Collection and the profile; History "Shattered".
 test: Switch off (or not staff): no Break down button; the Forge shows no banner answer.
-note: Needs the hub's feat/banner-breakdown deployed; --banner-shatter is off by default.
+note: Needs hub shared #18 deployed first; --banner-shatter is off by default (client #369).
 
 [fishing-278]
 area: Gameplay
