@@ -237,6 +237,7 @@ mod tests {
             origin: [0, 0, 24],
             velocity: [0, 0, 0],
             yaw: 0,
+            scale: crate::ragdoll::STOCK_SCALE,
         });
         body.knocks.push(Knock {
             joint: PELVIS,

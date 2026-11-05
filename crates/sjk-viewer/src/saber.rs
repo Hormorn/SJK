@@ -73,6 +73,79 @@ pub(crate) struct Blade {
     pub(crate) radius: f32,
 }
 
+/// When a blade was last lit, for what a skin does a while after (`flash.ignite`). A blade
+/// first seen lit was lit long ago: joining a match or opening a menu is no ignition.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Ignition {
+    lit_at: Option<i64>,
+    /// When it was last put out, once seen lit; when, put out, it had drawn in all the
+    /// way; and whether its emitter's sputter since has ended.
+    out_at: Option<i64>,
+    gone_at: Option<i64>,
+    sputtered: bool,
+    seen: bool,
+}
+
+impl Ignition {
+    /// Note whether the blade is lit at `time` (ms): the seconds since it lit, none while
+    /// it is out.
+    pub(crate) fn update(&mut self, lit: bool, time: i64) -> Option<f32> {
+        let first = !std::mem::replace(&mut self.seen, true);
+        if !lit {
+            if self.lit_at.take().is_some() {
+                self.out_at = Some(time);
+            }
+            return None;
+        }
+        self.out_at = None;
+        self.gone_at = None;
+        self.sputtered = false;
+        let at = *self
+            .lit_at
+            .get_or_insert(if first { i64::MIN / 2 } else { time });
+        // A jump back in time (a demo seek) is no ignition either.
+        if time < at {
+            self.lit_at = Some(i64::MIN / 2);
+            return None;
+        }
+        Some((time - at) as f32 * 0.001)
+    }
+
+    /// Note the blade `length` units long at `time` (ms): put out, it is gone once it has
+    /// drawn in all the way (a match's takes about a second).
+    pub(crate) fn retracted(&mut self, length: f32, time: i64) {
+        if self.out_at.is_some() && self.gone_at.is_none() && length < 0.5 {
+            self.gone_at = Some(time);
+        }
+    }
+
+    /// The seconds since the blade, put out, was gone at `time` (ms) (none while it is
+    /// lit, drawing in, or was never seen lit): what an emitter sputters from.
+    pub(crate) fn gone_for(&self, time: i64) -> Option<f32> {
+        self.gone_at
+            .filter(|at| time >= *at)
+            .map(|at| (time - at) as f32 * 0.001)
+    }
+
+    /// Whether the emitter's sputter of `span` seconds ends at `time` (ms): true once, the
+    /// first time it is asked after the sputter's end.
+    pub(crate) fn sputtered(&mut self, span: f32, time: i64) -> bool {
+        let ended = span > 0.0 && !self.sputtered && self.gone_for(time).is_some_and(|t| t >= span);
+        self.sputtered |= ended;
+        ended
+    }
+}
+
+/// What a skin's emitter stars do at a moment ([`Instance::with_moments`]), each a share
+/// from 0 to 1: surging once lit, sputtering out once put out (what is left of it), and
+/// the heat burst spreading as it lights (what is left of it).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Moments {
+    pub(crate) surge: f32,
+    pub(crate) dying: f32,
+    pub(crate) burst: f32,
+}
+
 /// Per-entity blade extension state mirroring
 /// `codemp/game/bg_saberLoad.c::BG_SI_SetLengthGradual`.
 #[derive(Clone, Copy, Debug, Default)]
@@ -163,8 +236,10 @@ pub(crate) struct Instance {
     /// ([`crate::saber_skins::Chroma`]); 0 for every other blade.
     chroma: f32,
     /// The sections of a skin its wearer switched off
-    /// ([`crate::saber_skins::SkinColor::off`]); 0 for every other blade.
-    off: u32,
+    /// ([`crate::saber_skins::SkinColor::off`]): its low word, then its high one (the
+    /// eighth set's, [`crate::blade_skin_file::extras::Section::Smoke`] on); 0 for every
+    /// other blade.
+    off: [u32; 2],
     /// The blade's motion for the Blade Lab designs ([`crate::saber_motion`]): swing,
     /// seconds since its last clash, since it was lit and since its last swing began.
     motion: [f32; 4],
@@ -188,11 +263,25 @@ pub(crate) struct Instance {
 /// The afterimages' section bit, on an afterimage's own instance (`OFF_GHOSTS` in
 /// `saber.wgsl`): the CPU makes the afterimages, so the shader never reads the bit as a
 /// section switched off, and a dimmed instance with it is an afterimage.
-const AFTERIMAGE: u32 = crate::blade_skin_file::extras::Section::Ghosts.bit();
+const AFTERIMAGE: u32 = crate::blade_skin_file::extras::Section::Ghosts.bit() as u32;
 
 /// Colour alpha marking a skin's first glint ([`Instance::stars`]): neither a glow (a hilt
 /// sprite's radius) nor a core (zero). Glint `n` of an orbit is `STAR - n`.
+/// The share (0 to 1) [`Instance::with_animation`] gives `seed`: the shader's seed for a
+/// blade's own noise, which the light follows too (`saber_lights.rs`).
+pub(crate) fn animation_seed(seed: u32) -> f32 {
+    let mut hash = seed.wrapping_mul(0x9e37_79b9) ^ 0x85eb_ca6b;
+    hash ^= hash >> 15;
+    hash = hash.wrapping_mul(0x2c1b_3c6d);
+    hash ^= hash >> 12;
+    (hash >> 8) as f32 / (1u32 << 24) as f32
+}
+
 const STAR: f32 = -1.0;
+
+/// Colour alpha marking a skin's first emitter star ([`Instance::flashes`]), star `n`'s
+/// `FLASH - n`: below every glint's, so a glint's test (`<= STAR`) takes it too.
+const FLASH: f32 = -16.0;
 
 /// `CG_DoSaber`'s per-frame random draws (`cg_players.c:5359-5469`): `crandom()` for the
 /// glow and core radii and `Q_flrand(0, 1)` for the hilt sprite (tr_surface.cpp:489).
@@ -228,7 +317,7 @@ impl Flicker {
 impl Instance {
     const ATTRIBUTES: [wgpu::VertexAttribute; 12] = wgpu::vertex_attr_array![
         0 => Float32x3, 1 => Float32, 2 => Float32x3, 3 => Float32, 4 => Float32x4, 5 => Uint32,
-        6 => Float32x2, 7 => Uint32x4, 8 => Float32, 9 => Uint32, 10 => Float32x4,
+        6 => Float32x2, 7 => Uint32x4, 8 => Float32, 9 => Uint32x2, 10 => Float32x4,
         11 => Float32x4];
 
     pub(crate) fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -270,8 +359,12 @@ impl Instance {
             _ => [0; 4],
         };
         let (chroma, off, room) = match color {
-            BladeColor::Skin(skin) => (skin.chroma.turn, skin.off, skin.room),
-            _ => (0.0, 0, 0.0),
+            BladeColor::Skin(skin) => (
+                skin.chroma.turn,
+                [skin.off as u32, (skin.off >> 32) as u32],
+                skin.room,
+            ),
+            _ => (0.0, [0; 2], 0.0),
         };
         let make = |radius: f32, hilt| Self {
             base: blade.base,
@@ -321,7 +414,7 @@ impl Instance {
     pub(crate) fn ghost(blade: Blade, color: BladeColor, fade: f32) -> Self {
         let faded = Self::faded(blade, color, fade);
         Self {
-            off: faded.off | AFTERIMAGE,
+            off: [faded.off[0] | AFTERIMAGE, faded.off[1]],
             ..faded
         }
     }
@@ -338,7 +431,7 @@ impl Instance {
                 glow.persona[2],
                 glow.persona[3],
             ],
-            off: glow.off & !AFTERIMAGE,
+            off: [glow.off[0] & !AFTERIMAGE, glow.off[1]],
             ..glow
         }
     }
@@ -346,7 +439,7 @@ impl Instance {
     /// Whether this is an afterimage ([`Self::ghost`]), as `saber.wgsl` tells it.
     #[cfg(test)]
     pub(crate) fn is_afterimage(&self) -> bool {
-        self.persona[0] >> 24 != 255 && self.off & AFTERIMAGE != 0
+        self.persona[0] >> 24 != 255 && self.off[0] & AFTERIMAGE != 0
     }
 
     /// A skin's glints, when its skin has them switched on: the one at `blade`'s tip, or
@@ -373,6 +466,40 @@ impl Instance {
                     ..glow
                 })
             })
+    }
+
+    /// A skin's crackling stars at `blade`'s emitter, when its skin has a flash: quads
+    /// facing the camera that `saber.wgsl` places and shapes.
+    pub(crate) fn flashes(blade: Blade, color: BladeColor) -> impl Iterator<Item = Self> {
+        let flash = match color {
+            BladeColor::Skin(skin) => skin.flash,
+            _ => None,
+        };
+        flash
+            .map(|flash| (flash, Self::pair(blade, color)[0]))
+            .into_iter()
+            .flat_map(move |(flash, glow)| {
+                let (along, reach) = (flash.along, flash.reach);
+                (0..flash.count).map(move |n| Self {
+                    // Its moments ([`Self::with_moments`]), none until given.
+                    color: [0.0, 0.0, 0.0, FLASH - f32::from(n)],
+                    room: reach,
+                    glint: [blade.length * (1.0 - along), 0.0],
+                    ..glow
+                })
+            })
+    }
+
+    /// This instance, when it is an emitter star ([`Self::flashes`]), at `moments` in its
+    /// colour lanes (red its surge, green its sputter, blue its burst), which `saber.wgsl`
+    /// reads for a flash alone; any other instance as it is.
+    pub(crate) fn with_moments(mut self, moments: Moments) -> Self {
+        if self.color[3] <= FLASH + 0.5 {
+            self.color[0] = moments.surge;
+            self.color[1] = moments.dying;
+            self.color[2] = moments.burst;
+        }
+        self
     }
 
     /// A skin's echo of `blade` at `seconds`, when its skin has one switched on: the glow
@@ -452,13 +579,9 @@ impl Instance {
     /// Stamp the skins' animation: presentation time `seconds` and a stable per-blade
     /// `seed` (the same for a blade's glow and core, and from frame to frame).
     pub(crate) fn with_animation(mut self, seconds: f64, seed: u32) -> Self {
-        let mut hash = seed.wrapping_mul(0x9e37_79b9) ^ 0x85eb_ca6b;
-        hash ^= hash >> 15;
-        hash = hash.wrapping_mul(0x2c1b_3c6d);
-        hash ^= hash >> 12;
         self.animation = [
             seconds.rem_euclid(Self::ANIMATION_PERIOD) as f32,
-            (hash >> 8) as f32 / (1u32 << 24) as f32,
+            animation_seed(seed),
         ];
         self
     }
@@ -591,6 +714,7 @@ pub(crate) fn skin_extras(
     seed: u32,
 ) -> impl Iterator<Item = Instance> {
     Instance::stars(blade, color)
+        .chain(Instance::flashes(blade, color))
         .chain(Instance::echo(blade, color, seconds, seed))
         .map(move |instance| instance.with_animation(seconds, seed))
 }
@@ -929,15 +1053,15 @@ mod cutoff_tests {
             crate::saber_skins::MAX_SKINS
         )));
         assert!(shader.contains("var<storage, read> skins: array<Skin, MAX_SKINS>;"));
-        // `Skin` is 97 vec4s, as `SkinUniform`, and the array fits a storage binding.
+        // `Skin` is 105 vec4s, as `SkinUniform`, and the array fits a storage binding.
         assert_eq!(
             std::mem::size_of::<crate::saber_skins::SkinUniform>(),
-            97 * 16
+            105 * 16
         );
-        const { assert!(97 * 16 * crate::saber_skins::MAX_SKINS <= 128 * 1024 * 1024) };
+        const { assert!(105 * 16 * crate::saber_skins::MAX_SKINS <= 128 * 1024 * 1024) };
         let skin = &shader[shader.find("struct Skin {").unwrap()..];
         let skin = &skin[..skin.find('}').unwrap()];
-        assert_eq!(skin.matches(": vec4<f32>,").count(), 97);
+        assert_eq!(skin.matches(": vec4<f32>,").count(), 105);
         // In `SkinUniform`'s order (its lanes are pinned by `saber_skins`' tests).
         let lanes: Vec<&str> = skin
             .lines()
@@ -1043,6 +1167,14 @@ mod cutoff_tests {
                 "chrome_shape",
                 "design",
                 "design_color",
+                "unrest",
+                "unrest_lean",
+                "flash_color",
+                "flash_shape",
+                "flash_motion",
+                "flash_place",
+                "flash_burst",
+                "unrest_clash",
             ]
         );
         assert!(shader.contains(&format!(
@@ -1056,8 +1188,8 @@ mod cutoff_tests {
         assert!(shader.contains("@location(7) persona: vec4<u32>"));
         // The sections a wearer switched off, after the chroma.
         assert_eq!(offset(9), std::mem::offset_of!(Instance, off));
-        assert_eq!(Instance::ATTRIBUTES[9].format, wgpu::VertexFormat::Uint32);
-        assert!(shader.contains("@location(9) off: u32"));
+        assert_eq!(Instance::ATTRIBUTES[9].format, wgpu::VertexFormat::Uint32x2);
+        assert!(shader.contains("@location(9) off: vec2<u32>"));
     }
 
     #[test]
@@ -1246,7 +1378,7 @@ mod skin_extras_tests {
         assert_eq!(stars.len(), 1);
         let star = stars[0];
         assert!(star.is_star());
-        assert_eq!(star.off, 0b101, "the wearer's mask rides along");
+        assert_eq!(star.off, [0b101, 0], "the wearer's mask rides along");
         let (start, end, reach) = star.extent();
         assert_eq!(start, [10.0, 20.0, 70.0]);
         assert_eq!(end, start);

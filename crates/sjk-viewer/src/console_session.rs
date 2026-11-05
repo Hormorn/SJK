@@ -200,8 +200,19 @@ impl ViewerConsole {
         )?;
         let remap_blocked_maps =
             console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::CVAR)?;
+        let remap_allowed_maps = console_cvars::RevisionSetting::bind(
+            &mut cvars,
+            crate::remap_blocked_maps::ALLOWED_CVAR,
+        )?;
+        let remap_map_choice =
+            console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::MAP_CVAR)?;
         let draw_fog = console_cvars::IntegerSetting::bind(&mut cvars, "r_drawfog", 2)?;
         let packet_dup = console_cvars::IntegerSetting::bind(&mut cvars, "cl_packetdup", 1)?;
+        let packet_dup_lifted = console_cvars::IntegerSetting::bind(
+            &mut cvars,
+            crate::server_caps::PACKET_DUP_OVERRIDE_CVAR,
+            0,
+        )?;
         let max_packets = console_cvars::IntegerSetting::bind(
             &mut cvars,
             "cl_maxpackets",
@@ -646,6 +657,8 @@ impl ViewerConsole {
             pending_fishing: None,
             mining_on: false,
             pending_mining: None,
+            fishing_card: Default::default(),
+            pending_fishing_sell: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,
@@ -669,7 +682,10 @@ impl ViewerConsole {
             server_remaps,
             map_edits,
             remap_blocked_maps,
+            remap_allowed_maps,
+            remap_map_choice,
             packet_dup,
+            packet_dup_lifted,
             max_packets,
             gameplay_fps,
             frame_cap: crate::runtime_settings::STOCK_FPS_CAP,
@@ -1024,6 +1040,17 @@ impl ViewerConsole {
                     " (gameplay_fps_nocap 1 lifts it)"
                 }
             ));
+            if let Some(most) = cap.max_packet_dup {
+                self.shell.push_log(format!(
+                    "cl_packetdup: {} servers take {most} repeated packets at most{}",
+                    cap.name,
+                    if self.server_packet_dup_cap().is_none() {
+                        ", but cl_packetdup_nocap 1 lifts the cap"
+                    } else {
+                        " (cl_packetdup_nocap 1 lifts it)"
+                    }
+                ));
+            }
         }
         self.input_health.reset();
         // The same server's free-saber word survives its map changes.

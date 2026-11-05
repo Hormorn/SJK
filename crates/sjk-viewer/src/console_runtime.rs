@@ -61,8 +61,10 @@ impl GpuState {
             }
             self.mining.toggle();
         }
-        // The boombox checks who may carry it, so it is switched once the console is let go.
+        // The boombox checks who may carry it, so it is switched once the console is let
+        // go; the Fishing card's Sell junk too.
         let boombox_request = console.take_boombox_request();
+        let sell_junk = console.take_fishing_sell_request();
         let mut actions = [None; MAX_ACTIONS_PER_FRAME];
         console.advance_command_frame();
         console.pump_console_socket();
@@ -99,6 +101,9 @@ impl GpuState {
             && on != self.boombox.on()
         {
             self.toggle_boombox();
+        }
+        if sell_junk {
+            self.sell_fishing_junk();
         }
         // `toy_illuminate` may have flipped it: tell the Toys tab. Order 66, the Hax, the
         // Drone, the Monitor, Box hunt and the Banana peel stay as last switched, across

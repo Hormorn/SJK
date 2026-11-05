@@ -1,20 +1,26 @@
 //! The map editor's panel (`docs/map-edits.md`, "The panel"): the editor's commands as an
-//! SJK UI column down the window's right edge, as Camera control's, over the live map. The
-//! world-note key opens it on what is under the crosshair while the editor is on; a click
-//! on the scene left of the column selects what is under the pointer; Escape (or Aim)
-//! hides it to aim again, with a strip at the top saying how to come back.
+//! SJK UI column down the window's right edge, as Camera control's, over the live map. It
+//! shows whenever the editor is on: a click on the scene left of the column selects what
+//! is under the pointer (Shift+click adds it to the selection, or takes it out), the right
+//! mouse button held flies the camera ([`super::fly`]), Escape backs out one step at a
+//! time ([`super::editor::escape_step`]) and the key bound to `mapedit` leaves, whatever
+//! has the keyboard.
 //!
-//! Three pages: Selected (hide it, remap its shader to one found by a search), Place (an
-//! MD3 from the game data, then turn, lift, nudge, scale or grab the placed model) and
-//! Edits (the map's edits; delete one, undo and redo); under them the scope of new edits,
-//! the last command's answer (the hub's to Publish too), Publish, Aim and Editor off.
-//! Every button runs the editor's own command ([`super::editor`]), so the console and the
-//! panel stay one editor. Shift held makes the placed model's steps fine.
+//! Three pages: Selected (hide it, remap its shader to one found by a search; on a caulk,
+//! nodraw or sky face: Same plane, Connected and Fill), Place (an MD3 from the game data,
+//! then turn, lift, nudge, scale or grab the placed model) and Edits (the map's edits;
+//! delete one, undo and redo; the Recent rows' switch); under them the scope of new edits,
+//! the last command's answer (the hub's to Publish too), Publish and Editor off. The
+//! shader and model lists start with the Recent rows the browser editor shares
+//! ([`super::recent`]). Every button runs the editor's own command ([`super::editor`]),
+//! so the console, the panel and the browser editor stay one editor. Shift held makes the
+//! placed model's steps fine.
 //!
 //! It is a page of the in-game menu ([`crate::ingame_menu::Page::MapEdit`]), which frees
 //! the pointer and keeps clicks from the game; its state lives with the map's edits.
 
 use super::document::{Kind, Scope};
+use super::linked::Grow;
 use crate::GpuState;
 use crate::ingame_menu::Page;
 use crate::menu_widgets::MenuCanvas;
@@ -35,6 +41,13 @@ pub(crate) const COPY: u16 = 12;
 pub(crate) const REMAP_FIELD: u16 = 13;
 pub(crate) const REMAP: u16 = 14;
 pub(crate) const UNREMAP: u16 = 15;
+/// Selected, on a sky: swap every sky of the map for the chosen one.
+pub(crate) const SKY_ALL: u16 = 16;
+/// Selected, on a caulk, nodraw or sky face: the faces joined to it on its plane, at any
+/// angle, and the nearby texture drawn over the selected faces.
+pub(crate) const LINK_PLANE: u16 = 17;
+pub(crate) const LINK_SURFACE: u16 = 18;
+pub(crate) const FILL: u16 = 19;
 /// Place: the search, placing the chosen model, the placed model's controls.
 pub(crate) const SEARCH: u16 = 20;
 pub(crate) const PLACE: u16 = 21;
@@ -64,14 +77,16 @@ pub(crate) const REDO: u16 = 38;
 pub(crate) const SCOPE_ALL: u16 = 40;
 pub(crate) const SCOPE_SERVER: u16 = 41;
 pub(crate) const PUBLISH: u16 = 42;
-pub(crate) const AIM: u16 = 43;
 pub(crate) const EDITOR_OFF: u16 = 44;
+/// Edits: the Recent rows' switch, and forgetting them.
+pub(crate) const REMEMBER: u16 = 45;
+pub(crate) const FORGET: u16 = 46;
 /// The model list's rows on show are `MODEL_ROW..MODEL_ROW + MODEL_ROWS`, the edits'
 /// `EDIT_ROW..`, the shaders' `SHADER_ROW..`.
 pub(crate) const MODEL_ROW: u16 = 100;
 pub(crate) const MODEL_ROWS: usize = 6;
 pub(crate) const EDIT_ROW: u16 = 200;
-pub(crate) const EDIT_ROWS: usize = 12;
+pub(crate) const EDIT_ROWS: usize = 11;
 pub(crate) const SHADER_ROW: u16 = 300;
 pub(crate) const SHADER_ROWS: usize = 5;
 
@@ -110,6 +125,12 @@ pub(crate) enum Action {
     Copy,
     Remap,
     Unremap,
+    /// Swap every sky of the map for the chosen sky shader.
+    SkyAll,
+    /// Select the faces joined to the selected one.
+    Link(Grow),
+    /// Draw the selected faces with the nearby texture.
+    Fill,
     Place,
     Turn(f32),
     Lift(f32),
@@ -130,8 +151,12 @@ pub(crate) enum Action {
     Redo,
     Scope(Scope),
     Publish,
-    Aim,
+    /// Escape: back out one step ([`super::editor::escape_step`]).
+    Escape,
     EditorOff,
+    /// The Recent rows' switch, and forgetting them.
+    Remember,
+    Forget,
 }
 
 /// What the selection is, as the panel names it.
@@ -147,6 +172,8 @@ pub(crate) enum Picked {
     Entity,
     /// A caulk or nodraw brush side the map draws nothing on: an edit may draw it.
     Face,
+    /// A sky brush side: an edit may cover it with a texture, or swap the sky.
+    Sky,
     /// Nothing an edit changes.
     Other,
 }
@@ -183,6 +210,20 @@ pub(crate) struct Facts {
     pub(crate) unpublished: bool,
     pub(crate) revision: u64,
     pub(crate) selection: Option<Selected>,
+    /// How many the selection holds (a multiple selection's count).
+    pub(crate) count: usize,
+    /// How many placed models a multiple selection holds: the gizmo and the placed
+    /// model's buttons move them all.
+    pub(crate) models: usize,
+    /// What Fill would draw on the selected faces: the nearby vote's first shader and its
+    /// share.
+    pub(crate) fill: Option<(String, f32)>,
+    /// Why the editor has the player's own view, not the free camera, when it has.
+    pub(crate) camera: Option<String>,
+    /// The editor flies (the right mouse button held).
+    pub(crate) flying: bool,
+    /// The first key bound to `mapedit` (the one that leaves), or empty.
+    pub(crate) exit_key: String,
     /// The current placed model's line, when there is one.
     pub(crate) placed: Option<String>,
     /// The map's edits, newest first.
@@ -223,6 +264,9 @@ pub(crate) struct Panel {
     /// once per game data, with the game data's address.
     shaders: Vec<String>,
     shaders_from: usize,
+    /// The sky shaders (their scripts have `skyParms`), lower case and sorted: on a sky
+    /// they come first in the list, and a sky swaps only for one of them.
+    skies: Vec<String>,
     /// The indices of [`Self::shaders`] the remap's search keeps.
     pub(crate) shader_shown: Vec<u32>,
     pub(crate) shader_row: usize,
@@ -242,8 +286,19 @@ pub(crate) struct Panel {
     pub(crate) edit_list: Option<Rect>,
     pub(crate) shader_list: Option<Rect>,
     /// What [`Facts`] were read for: the document's revision, the current placed model,
-    /// grabbing, and whether the map's checksum was known.
-    seen: Option<(u64, Option<u32>, bool, bool)>,
+    /// grabbing, whether the map's checksum was known, the free camera, the flight.
+    seen: Option<(u64, Option<u32>, bool, bool, bool, bool)>,
+    /// The Recent rows (newest first, [`super::recent`]) and their switch.
+    recent_models: Vec<String>,
+    recent_shaders: Vec<String>,
+    pub(crate) remember: bool,
+    /// How many rows at the head of each list are Recent ones.
+    pub(crate) recent_model_rows: usize,
+    pub(crate) recent_shader_rows: usize,
+    /// The faces the last Fill suggestion was voted for.
+    fill_for: Vec<[u32; 2]>,
+    /// The gizmo transforms the placed model: the keys line names its keys.
+    pub(crate) transforming: bool,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -289,6 +344,20 @@ pub(super) fn remap_shaders(
 }
 
 /// Whether `path` matches every word of `query` (lower case).
+/// The sky shaders of `catalog` (their scripts have `skyParms`), as named there: what a
+/// sky swaps for.
+pub(crate) fn sky_shaders(catalog: &sjk_shader::ShaderCatalog) -> Vec<String> {
+    let mut skies: Vec<String> = catalog
+        .names()
+        .filter(|name| !name.contains(':'))
+        .filter(|name| catalog.get(name).is_some_and(|d| d.sky.is_some()))
+        .map(str::to_owned)
+        .collect();
+    skies.sort();
+    skies.dedup();
+    skies
+}
+
 fn matches(path: &str, query: &str) -> bool {
     let path = path.to_ascii_lowercase();
     query.split_whitespace().all(|word| path.contains(word))
@@ -374,7 +443,44 @@ impl Panel {
         }
         self.shaders_from = from;
         self.shaders = remap_shaders(vfs, catalog);
+        self.skies = sky_shaders(catalog)
+            .into_iter()
+            .map(|sky| sky.to_ascii_lowercase())
+            .collect();
+        self.skies.sort();
+        self.skies.dedup();
+        // A sky outside textures/ (a pack's own folder) is still offered on a sky.
+        for sky in &self.skies {
+            if let Err(at) = self.shaders.binary_search(sky) {
+                self.shaders.insert(at, sky.clone());
+            }
+        }
         self.refilter_shaders();
+    }
+
+    /// Whether `shader` (any case) is a sky shader.
+    pub(crate) fn is_sky(&self, shader: &str) -> bool {
+        self.skies.binary_search(&shader_stem(shader)).is_ok()
+    }
+
+    /// Whether the chosen shader is a sky: on a sky, the remap swaps the sky.
+    pub(crate) fn chosen_is_sky(&self) -> bool {
+        self.chosen_shader()
+            .is_some_and(|shader| self.is_sky(shader))
+    }
+
+    /// Take the Recent rows (newest first) and their switch, narrowing the lists again
+    /// when they changed.
+    pub(crate) fn set_recent(&mut self, recent: &super::recent::Recent) {
+        self.remember = recent.remember;
+        if self.recent_models != recent.models {
+            self.recent_models.clone_from(&recent.models);
+            self.refilter();
+        }
+        if self.recent_shaders != recent.shaders {
+            self.recent_shaders.clone_from(&recent.shaders);
+            self.refilter_shaders();
+        }
     }
 
     #[cfg(test)]
@@ -386,6 +492,13 @@ impl Panel {
     #[cfg(test)]
     pub(crate) fn set_shaders(&mut self, shaders: &[&str]) {
         self.shaders = shaders.iter().map(|shader| (*shader).to_owned()).collect();
+        self.skies = self
+            .shaders
+            .iter()
+            .filter(|shader| shader.contains("skies/"))
+            .cloned()
+            .collect();
+        self.skies.sort();
         self.refilter_shaders();
     }
 
@@ -394,6 +507,17 @@ impl Panel {
     pub(crate) fn refilter_shaders(&mut self) {
         let query = self.remap.trim().to_ascii_lowercase();
         self.shader_shown.clear();
+        // The Recent rows first (those the search keeps), then every match.
+        for name in &self.recent_shaders {
+            let stem = shader_stem(name);
+            if matches(&stem, &query)
+                && let Ok(index) = self.shaders.binary_search(&stem)
+                && !self.shader_shown.contains(&(index as u32))
+            {
+                self.shader_shown.push(index as u32);
+            }
+        }
+        self.recent_shader_rows = self.shader_shown.len();
         self.shader_shown.extend(
             self.shaders
                 .iter()
@@ -401,6 +525,18 @@ impl Panel {
                 .filter(|(_, shader)| matches(shader, &query))
                 .map(|(index, _)| index as u32),
         );
+        let on_sky = self
+            .facts
+            .selection
+            .as_ref()
+            .is_some_and(|selection| selection.picked == Picked::Sky);
+        if on_sky {
+            // The skies first: what a sky is most often swapped for.
+            let skies = &self.skies;
+            let shaders = &self.shaders;
+            self.shader_shown[self.recent_shader_rows..]
+                .sort_by_key(|&index| skies.binary_search(&shaders[index as usize]).is_err());
+        }
         let own = self
             .facts
             .selection
@@ -436,13 +572,16 @@ impl Panel {
             return;
         }
         if self.remap.is_empty() || self.remap == self.prefill {
-            let face = self
+            let picked = self
                 .facts
                 .selection
                 .as_ref()
-                .is_some_and(|selection| selection.picked == Picked::Face);
-            // A face draws a wall or floor texture, not another tool shader.
-            self.prefill = if face {
+                .map(|selection| selection.picked);
+            // A face draws a wall or floor texture, not another tool shader; on a sky the
+            // skies come first in the whole list.
+            self.prefill = if picked == Some(Picked::Sky) {
+                String::new()
+            } else if picked == Some(Picked::Face) {
                 "textures/".to_owned()
             } else {
                 shader
@@ -487,6 +626,16 @@ impl Panel {
     fn refilter(&mut self) {
         let query = self.search.to_ascii_lowercase();
         self.shown.clear();
+        // The Recent rows first (those the search keeps), then every match.
+        for name in &self.recent_models {
+            if matches(name, &query)
+                && let Ok(index) = self.models.binary_search(name)
+                && !self.shown.contains(&(index as u32))
+            {
+                self.shown.push(index as u32);
+            }
+        }
+        self.recent_model_rows = self.shown.len();
         self.shown.extend(
             self.models
                 .iter()
@@ -680,6 +829,12 @@ impl Panel {
             COPY => return Some(Action::Copy),
             REMAP | REMAP_FIELD => return Some(Action::Remap),
             UNREMAP => return Some(Action::Unremap),
+            SKY_ALL => return Some(Action::SkyAll),
+            LINK_PLANE => return Some(Action::Link(Grow::Plane)),
+            LINK_SURFACE => return Some(Action::Link(Grow::Surface)),
+            FILL => return Some(Action::Fill),
+            REMEMBER => return Some(Action::Remember),
+            FORGET => return Some(Action::Forget),
             PLACE | SEARCH => return Some(Action::Place),
             TURN_LEFT => return Some(Action::Turn(TURN)),
             TURN_RIGHT => return Some(Action::Turn(-TURN)),
@@ -721,7 +876,6 @@ impl Panel {
             SCOPE_ALL => return Some(Action::Scope(Scope::AllServers)),
             SCOPE_SERVER => return Some(Action::Scope(Scope::ThisServer)),
             PUBLISH => return Some(Action::Publish),
-            AIM => return Some(Action::Aim),
             EDITOR_OFF => return Some(Action::EditorOff),
             row if self.is_model_row(row) => {
                 let index = self.model_first + usize::from(row - MODEL_ROW);
@@ -779,7 +933,7 @@ impl Panel {
             return None;
         };
         match key {
-            KeyCode::Escape if !event.repeat => return Some(Action::Aim),
+            KeyCode::Escape if !event.repeat => return Some(Action::Escape),
             KeyCode::ArrowUp => self.step(canvas, false),
             KeyCode::ArrowDown => self.step(canvas, true),
             KeyCode::Tab if !event.repeat => {
@@ -841,7 +995,7 @@ impl Panel {
     }
 
     /// Show what a command answered: its last line, or why it was refused.
-    pub(super) fn answer(&mut self, result: Result<Vec<String>, String>) {
+    pub(crate) fn answer(&mut self, result: Result<Vec<String>, String>) {
         match result {
             Ok(lines) => {
                 self.status = lines.last().cloned().unwrap_or_default();
@@ -855,15 +1009,21 @@ impl Panel {
     }
 
     /// Read the facts again on the next frame.
-    pub(super) fn stale(&mut self) {
+    pub(crate) fn stale(&mut self) {
         self.seen = None;
     }
 }
 
 impl GpuState {
-    /// Whether the editor's panel is on show.
+    /// Whether the editor's panel is on show with the pointer.
     pub(crate) fn map_edit_panel_open(&self) -> bool {
         self.game_menu && self.game_menu_page == Page::MapEdit
+    }
+
+    /// Whether the editor's panel is drawn: with the pointer, or while the editor flies.
+    pub(crate) fn map_edit_panel_shown(&self) -> bool {
+        self.map_edit_panel_open()
+            || (self.map_edit_flying() && self.game_menu_page == Page::MapEdit)
     }
 
     /// Open the panel over the live map, the pointer freed for it.
@@ -882,7 +1042,7 @@ impl GpuState {
         self.release_pointer();
     }
 
-    /// Hide the panel to aim again; the editor stays on.
+    /// Close the panel (the editor going off, or a world shot).
     pub(crate) fn close_map_edit_panel(&mut self) {
         if self.map_edit_panel_open() {
             self.game_menu = false;
@@ -891,10 +1051,40 @@ impl GpuState {
         }
     }
 
-    /// A key while the panel is open: all of them are its own. False when it is not open.
+    /// A key while the panel is open: all of them are its own; while the editor flies,
+    /// the movement keys go to the game ([`super::fly`]). The key bound to `mapedit`
+    /// leaves the editor either way. False when the editor does not take keys.
     pub(crate) fn map_edit_key(&mut self, event: &KeyEvent) -> bool {
-        if !self.map_edit_panel_open() {
+        let flying = self.map_edit_flying();
+        if !self.map_edit_panel_open() && !flying {
             return false;
+        }
+        let pressed = event.state == ElementState::Pressed;
+        // A letter typed in a search stays the search's, even when it is the bound key.
+        let typing = !flying
+            && matches!(self.map_edits.panel.focus, SEARCH | REMAP_FIELD)
+            && event
+                .text
+                .as_deref()
+                .is_some_and(|text| text.chars().any(|c| !c.is_control()));
+        if pressed && !event.repeat && !typing && self.map_edit_bound_key(event) {
+            let result = self.map_edit_command("mapedit", &["off".to_owned()]);
+            if result.is_err() {
+                self.map_edits.panel.answer(result);
+            }
+            return true;
+        }
+        if flying {
+            if pressed && !event.repeat && event.physical_key == PhysicalKey::Code(KeyCode::Escape)
+            {
+                self.map_edit_escape();
+                return true;
+            }
+            return pressed && self.map_edit_fly_holds_key(event);
+        }
+        // The gizmo's keys (1, 2, 3, L, G, R, T; all of them while it transforms).
+        if self.map_edit_gizmo_key(event) {
+            return true;
         }
         let (shift, control) = self.console.as_ref().map_or((false, false), |console| {
             (console.shift_held(), console.control_held())
@@ -909,18 +1099,76 @@ impl GpuState {
         true
     }
 
-    /// A pointer event while the panel is open: the column's, or a press on the scene,
-    /// which selects what is under the pointer.
+    /// Whether key `event` is bound to `mapedit` (the toggle that leaves).
+    fn map_edit_bound_key(&self, event: &KeyEvent) -> bool {
+        let Some(name) = crate::input::keys::key_name(event) else {
+            return false;
+        };
+        self.console
+            .as_ref()
+            .and_then(|console| console.key_script(name.as_str()))
+            .is_some_and(|script| script.trim().eq_ignore_ascii_case("mapedit"))
+    }
+
+    /// A pointer event while the panel is open: the column's, or one on the scene: a
+    /// click selects what is under the pointer (Shift: adds it, or takes it out; a
+    /// grabbed model: puts it down), the right button held flies, the wheel turns a
+    /// grabbed model.
     pub(crate) fn map_edit_pointer(&mut self, event: InputEvent) {
+        let scene_right = self.map_edits.panel.scene_right;
+        // A grabbed model under the pointer: a click puts it down, before its gizmo.
         if let InputEvent::PointerPress {
             position,
             button: PointerButton::Primary,
         } = event
-            && position.x < self.map_edits.panel.scene_right
+            && position.x < scene_right
+            && self.map_edits.editor.grabbing()
         {
-            let picked = self.map_edit_pick_at([position.x, position.y]);
-            self.map_edit_picked(picked, "Nothing there to edit");
+            let result = self.map_edit_command("mapedit_grab", &[]);
+            let panel = &mut self.map_edits.panel;
+            panel.answer(result);
+            panel.stale();
             return;
+        }
+        // A press on the gizmo's handles, and its drags, are the gizmo's.
+        if self.map_edit_gizmo_pointer(event) {
+            return;
+        }
+        let shift = self
+            .console
+            .as_ref()
+            .is_some_and(|console| console.shift_held());
+        match event {
+            InputEvent::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+            } if position.x < scene_right => {
+                self.map_edit_fly_start([position.x, position.y]);
+                return;
+            }
+            InputEvent::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if position.x < scene_right => {
+                let point = [position.x, position.y];
+                if shift {
+                    let toggled = self.map_edit_toggle_pick(Some(point));
+                    self.map_edit_toggled(toggled);
+                } else {
+                    let picked = self.map_edit_pick_at(point);
+                    self.map_edit_picked(picked, "Nothing there to edit");
+                }
+                return;
+            }
+            InputEvent::PointerWheel { position, delta }
+                if position.x < scene_right && self.map_edits.editor.grabbing() =>
+            {
+                if delta.y != 0.0 {
+                    let _ = self.map_edit_wheel(delta.y > 0.0, shift);
+                }
+                return;
+            }
+            _ => {}
         }
         if let Some(action) = self
             .map_edits
@@ -949,8 +1197,19 @@ impl GpuState {
             action => action,
         };
         let (name, args): (&str, Vec<String>) = match action {
-            Action::Aim => {
-                self.close_map_edit_panel();
+            Action::Escape => {
+                self.map_edit_escape();
+                return;
+            }
+            Action::Remember | Action::Forget => {
+                let remember =
+                    (action == Action::Remember).then_some(!self.map_edits.panel.remember);
+                self.map_edit_set_recent(remember);
+                self.map_edits.panel.answer(Ok(vec![match remember {
+                    Some(true) => "Recent textures and models are remembered".to_owned(),
+                    Some(false) => "Recent textures and models are not remembered".to_owned(),
+                    None => "Recent textures and models forgotten".to_owned(),
+                }]));
                 return;
             }
             Action::BoxPlace | Action::BoxRemove => {
@@ -987,6 +1246,17 @@ impl GpuState {
                 ("mapedit_remap", vec![shader])
             }
             Action::Unremap => ("mapedit_remap", text(&["-"])),
+            Action::Link(Grow::Plane) => ("mapedit_link", text(&["plane"])),
+            Action::Link(Grow::Surface) => ("mapedit_link", text(&["surface"])),
+            Action::Fill => ("mapedit_fill", vec![]),
+            Action::SkyAll => {
+                let panel = &mut self.map_edits.panel;
+                let Some(sky) = panel.chosen_shader().filter(|_| panel.chosen_is_sky()) else {
+                    panel.answer(Err("Choose a sky in the list first".into()));
+                    return;
+                };
+                ("mapedit_sky", vec![sky.to_owned(), "all".to_owned()])
+            }
             Action::Place => {
                 let panel = &mut self.map_edits.panel;
                 let Some(model) = panel.chosen_model().map(str::to_owned) else {
@@ -1008,6 +1278,8 @@ impl GpuState {
             }
             Action::Scale(factor) => ("mapedit_scale", vec![factor.to_string()]),
             Action::Grab => ("mapedit_grab", vec![]),
+            // A set of placed models only: all of them, one step.
+            Action::Remove if self.map_edits.panel.facts.models > 1 => ("mapedit_hide", vec![]),
             Action::Remove => match self.map_edits.editor.current() {
                 Some(id) => ("mapedit_delete", vec![id.to_string()]),
                 None => {
@@ -1058,30 +1330,37 @@ impl GpuState {
         panel.answer(result);
         panel.stale();
         match action {
-            Action::Remap if ok => panel.remap.clear(),
-            // A grabbed model follows the aim: back to aiming.
-            Action::Grab if ok && self.map_edits.editor.grabbing() => self.close_map_edit_panel(),
-            Action::EditorOff if ok => self.close_map_edit_panel(),
+            Action::Remap if ok && self.world_notes.edit_selection_len() <= 1 => {
+                panel.remap.clear();
+            }
+            Action::Link(_) if ok => panel.show(Tab::Selected),
             _ => {}
         }
     }
 
-    /// The strip over play while the editor is on and its panel hidden; whether it is
-    /// drawn this frame.
-    pub(crate) fn append_map_edit_strip(&mut self, viewport: [f32; 2]) -> bool {
-        if !self.map_edits.editor.active || self.map_edit_panel_open() {
-            return false;
+    /// What a Shift+click (or Shift and the world-note key) did, on the answer line.
+    pub(super) fn map_edit_toggled(&mut self, toggled: crate::world_notes::Toggled) {
+        use crate::world_notes::Toggled;
+        let panel = &mut self.map_edits.panel;
+        panel.answer(match toggled {
+            Toggled::Added(1) => Ok(vec!["Selected (Shift+click adds more)".to_owned()]),
+            Toggled::Added(count) => Ok(vec![format!("Added: {count} selected")]),
+            Toggled::Removed(0) => Ok(vec!["Taken out: nothing selected".to_owned()]),
+            Toggled::Removed(count) => Ok(vec![format!("Taken out: {count} selected")]),
+            Toggled::NotAMember => Err(
+                "Shift adds surfaces, faces and placed models; a map prop is selected alone"
+                    .to_owned(),
+            ),
+            Toggled::Full(limit) if limit == crate::world_notes::PLACED_LIMIT => Err(format!(
+                "The selection holds {limit} placed models at most (one step to undo)"
+            )),
+            Toggled::Full(limit) => Err(format!("The selection holds {limit} at most")),
+            Toggled::Nothing => Err("Nothing there to edit".to_owned()),
+        });
+        if matches!(toggled, Toggled::Added(_) | Toggled::Removed(_)) && panel.tab != Tab::Place {
+            panel.show(Tab::Selected);
         }
-        self.refresh_map_edit_panel();
-        let state = &mut self.map_edits;
-        super::panel_view::build_strip(&state.panel.facts, &mut state.strip.0, viewport);
-        crate::ingame_menu::sjk_view::text_target(
-            &mut self.game_fonts,
-            &mut self.text_vertices,
-            &self.ui_font,
-        )
-        .append(&self.map_edits.strip.0, viewport);
-        true
+        panel.stale();
     }
 
     /// The world offset of a nudge `right` of the view and `away` from it, along the
@@ -1154,6 +1433,8 @@ impl GpuState {
             editor.current(),
             editor.grabbing(),
             self.map_edits.map().is_some(),
+            self.free_camera_active(),
+            self.map_edit_flying(),
         );
         if self.map_edits.panel.seen == Some(key) {
             return;
@@ -1161,17 +1442,47 @@ impl GpuState {
         self.map_edits.panel.seen = Some(key);
         let selection = self.map_edit_selected();
         let server = self.map_edits_server();
-        let select_key = self.console.as_ref().map_or_else(String::new, |console| {
-            console
-                .keys_for_command("worldnote")
-                .first()
-                .map(|key| {
-                    let mut name = String::new();
-                    sjk_shell::key_names::push_display_key(&mut name, key);
-                    name
-                })
-                .unwrap_or_default()
-        });
+        let first_key = |command: &str| {
+            self.console.as_ref().map_or_else(String::new, |console| {
+                console
+                    .keys_for_command(command)
+                    .first()
+                    .map(|key| {
+                        let mut name = String::new();
+                        sjk_shell::key_names::push_display_key(&mut name, key);
+                        name
+                    })
+                    .unwrap_or_default()
+            })
+        };
+        let select_key = first_key("worldnote");
+        let exit_key = first_key("mapedit");
+        // What Fill would draw, voted again only when the selected faces change.
+        let faces = self.map_edit_selected_faces();
+        if faces != self.map_edits.panel.fill_for {
+            let fill = if faces.is_empty() {
+                None
+            } else {
+                self.map_edit_vote(&faces)
+                    .into_iter()
+                    .next()
+                    .map(|top| (top.shader, top.share))
+            };
+            self.map_edits.panel.facts.fill = fill;
+            self.map_edits.panel.fill_for = faces;
+        }
+        let fill = self.map_edits.panel.facts.fill.clone();
+        let count = self.world_notes.edit_selection_len();
+        let models = self.map_edit_set_ids().len();
+        let camera = if self.live_session.is_some() && !self.free_camera_active() {
+            Some(self.map_edits.fly.refused.clone().unwrap_or_else(|| {
+                "Own view: the free camera is off (alive, on foot, no duel)".to_owned()
+            }))
+        } else {
+            None
+        };
+        let flying = self.map_edit_flying();
+        let recent = self.map_edit_recent().clone();
         let state = &self.map_edits;
         let document = state.document.as_ref();
         let current = state.editor.current();
@@ -1209,6 +1520,12 @@ impl GpuState {
             unpublished: document.is_some_and(|document| document.unpublished),
             revision: document.map_or(0, |document| document.revision),
             selection,
+            count,
+            models,
+            fill,
+            camera,
+            flying,
+            exit_key,
             placed,
             rows,
             scope: state.editor.scope(),
@@ -1222,6 +1539,7 @@ impl GpuState {
         let vfs = self.vfs.clone();
         let panel = &mut self.map_edits.panel;
         panel.facts = facts;
+        panel.set_recent(&recent);
         Panel::settle(
             &mut panel.edit_row,
             &mut panel.edit_first,
@@ -1296,6 +1614,7 @@ impl GpuState {
                 brush,
                 side,
                 shader,
+                sky,
             } => {
                 let server = self.map_edits_server();
                 let drawn = self.map_edits.document.as_ref().and_then(|document| {
@@ -1311,6 +1630,33 @@ impl GpuState {
                             _ => None,
                         })
                 });
+                if sky {
+                    let swapped = self.map_edits.document.as_ref().and_then(|document| {
+                        document
+                            .active(server.as_deref())
+                            .find_map(|edit| match &edit.kind {
+                                Kind::Remap { from, to } if from.eq_ignore_ascii_case(&shader) => {
+                                    Some(to.clone())
+                                }
+                                _ => None,
+                            })
+                    });
+                    let sky = match swapped {
+                        Some(to) => format!("swapped for {to}"),
+                        None => "the map's sky".to_owned(),
+                    };
+                    return Some(Selected {
+                        picked: Picked::Sky,
+                        name: shader.clone(),
+                        detail: match drawn {
+                            Some(to) => {
+                                format!("brush {brush} side {side} covered with {to}; {sky}")
+                            }
+                            None => format!("brush {brush} side {side}, {sky}"),
+                        },
+                        shader: Some(shader),
+                    });
+                }
                 Selected {
                     picked: Picked::Face,
                     name: shader.clone(),
@@ -1349,6 +1695,13 @@ impl GpuState {
         self.open_map_edit_panel();
         self.map_edits.panel.show(tab);
         self.map_edits.panel.stale();
+    }
+
+    /// The world shots: a Shift+click at `point` (physical pixels).
+    pub(crate) fn shot_map_edit_toggle(&mut self, point: [f32; 2]) -> crate::world_notes::Toggled {
+        let toggled = self.map_edit_toggle_pick(Some(point));
+        self.map_edit_toggled(toggled);
+        toggled
     }
 
     /// The world shots: type `query` in the Place page's search.
@@ -1473,6 +1826,43 @@ mod tests {
     }
 
     #[test]
+    fn the_recent_rows_come_first_in_both_lists_and_follow_the_search() {
+        let mut panel = Panel::default();
+        panel.set_models(&["models/a.md3", "models/b.md3", "models/c.md3"]);
+        panel.set_shaders(&["textures/x/floor", "textures/x/wall", "textures/y/wall"]);
+        let recent = super::super::recent::Recent {
+            remember: true,
+            shaders: vec!["TEXTURES/Y/WALL.jpg".to_owned(), "textures/gone".to_owned()],
+            models: vec!["models/c.md3".to_owned()],
+        };
+        panel.set_recent(&recent);
+        assert_eq!(panel.recent_model_rows, 1);
+        assert_eq!(panel.shown_model(0), Some("models/c.md3"));
+        assert_eq!(panel.shown.len(), 4, "the recent one, then the whole list");
+        // A shader the game data lacks is left out; one of another case is found.
+        assert_eq!(panel.recent_shader_rows, 1);
+        assert_eq!(panel.shown_shader(0), Some("textures/y/wall"));
+        panel.remap = "x/".to_owned();
+        panel.refilter_shaders();
+        assert_eq!(
+            panel.recent_shader_rows, 0,
+            "the search keeps no recent one"
+        );
+        panel.search = "b".to_owned();
+        panel.refilter();
+        assert_eq!((panel.recent_model_rows, panel.shown.len()), (0, 1));
+        // Off: no Recent rows.
+        panel.set_recent(&super::super::recent::Recent {
+            remember: false,
+            ..Default::default()
+        });
+        panel.search.clear();
+        panel.refilter();
+        assert!(!panel.remember);
+        assert_eq!(panel.recent_model_rows, 0);
+    }
+
+    #[test]
     fn textures_stand_for_shaders_by_their_path() {
         assert_eq!(
             texture_shader("textures/Yavin/Floor.JPG").as_deref(),
@@ -1510,6 +1900,12 @@ mod tests {
             })
         );
         assert_eq!(panel.activate(REDO), Some(Action::Redo));
+        assert_eq!(
+            panel.activate(LINK_SURFACE),
+            Some(Action::Link(Grow::Surface))
+        );
+        assert_eq!(panel.activate(FILL), Some(Action::Fill));
+        assert_eq!(panel.activate(REMEMBER), Some(Action::Remember));
         // A model row chooses, then a second click places.
         panel.set_models(&["models/a.md3", "models/b.md3"]);
         assert_eq!(panel.activate(MODEL_ROW + 1), None);

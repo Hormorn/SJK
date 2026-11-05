@@ -1,13 +1,15 @@
 //! Integrated command console over cvars, binds, and persistence.
 
 use crate::{
-    BindTable, CommandBuffer, CommandFileResolver, CommandRegistry, CvarRegistry, NoCommandFiles,
-    ShellError, load_config, tokenize,
+    AliasTable, BindTable, CommandBuffer, CommandFileResolver, CommandRegistry, CvarRegistry,
+    NoCommandFiles, ShellError, load_config, tokenize,
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+#[path = "shell_alias.rs"]
+mod alias_commands;
 #[path = "shell_builtins.rs"]
 mod builtins;
 #[path = "shell_completion.rs"]
@@ -89,6 +91,9 @@ pub struct Shell {
     pub commands: CommandRegistry,
     /// Physical-input command bindings.
     pub binds: BindTable,
+    /// The player's `alias` command lines, kept in `aliases.cfg` beside the config.
+    pub aliases: AliasTable,
+    aliases_state: alias_commands::AliasFileState,
     config_path: Option<PathBuf>,
     config_load_failed: bool,
     config_saver: crate::config_saver::ConfigSaver,
@@ -115,6 +120,8 @@ impl Shell {
             cvars,
             commands: CommandRegistry::new(),
             binds,
+            aliases: AliasTable::new(),
+            aliases_state: Default::default(),
             config_path: None,
             config_load_failed: false,
             config_saver: Default::default(),
@@ -142,6 +149,7 @@ impl Shell {
 
     /// Restore archived cvars and the complete bind table.
     pub fn load(&mut self) -> Result<(), ShellError> {
+        self.load_aliases_once();
         let path = self
             .config_path
             .as_deref()
@@ -173,6 +181,7 @@ impl Shell {
     pub fn save(&mut self) -> Result<(), ShellError> {
         // A failed earlier write is moot once this one lands.
         let _ = self.config_saver.wait_idle();
+        self.save_aliases_if_changed()?;
         self.follow_external_config(None);
         if self.config_load_failed {
             return Err(ShellError::ConfigLoadFailed);
@@ -213,6 +222,7 @@ impl Shell {
         if let Some(error) = self.config_saver.take_error() {
             return Err(error.into());
         }
+        self.save_aliases_if_changed()?;
         self.follow_external_config(Some(now));
         let current = self.config_revision();
         if !self.config_saver.due(current, now) {
@@ -371,6 +381,7 @@ impl Shell {
             .chain(self.commands.iter().map(|(name, _)| name))
             .chain(self.cvars.iter().map(|cvar| cvar.name.as_str()))
             .chain(self.external_command_help.keys().map(String::as_str))
+            .chain(self.aliases.iter().map(|(name, _)| name))
             .filter(|name| ascii_starts_with_ignore_case(name, prefix))
         {
             if found.is_some_and(|current: &str| !current.eq_ignore_ascii_case(name)) {
@@ -462,7 +473,15 @@ impl Shell {
                         continue;
                     };
                     let local = self.recognizes_local_command(name);
-                    if let Some(result) = intercept(&queued.text, &tokens, local, &mut self.cvars) {
+                    // An alias runs before the application sees the name: it is
+                    // no command of the shell's or the application's (`alias`
+                    // refuses those), so it would be forwarded to the server.
+                    if !local && let Some(command) = self.aliases.get(name) {
+                        let command = command.to_owned();
+                        self.expand_alias(name, &command, queued.exec_depth)
+                    } else if let Some(result) =
+                        intercept(&queued.text, &tokens, local, &mut self.cvars)
+                    {
                         result.map_err(ShellError::Application)
                     } else {
                         self.execute_buffered_one(name, arguments, queued.exec_depth, resolver)
@@ -574,6 +593,11 @@ impl Shell {
 
 fn builtin_commands() -> impl Iterator<Item = (&'static str, &'static str)> {
     [
+        (
+            "alias",
+            "alias <name> <commands>: run the commands by typing the name",
+        ),
+        ("aliaslist", "List aliases"),
         ("bind", "Set or inspect a key binding"),
         ("bindlist", "List key bindings"),
         ("clear", "Clear console scrollback"),
@@ -592,6 +616,8 @@ fn builtin_commands() -> impl Iterator<Item = (&'static str, &'static str)> {
         ("set", "Set or create a session cvar"),
         ("seta", "Set or create an archived cvar"),
         ("toggle", "Toggle a boolean/numeric cvar"),
+        ("unalias", "Remove an alias"),
+        ("unaliasall", "Remove every alias"),
         ("unbind", "Remove a key binding"),
         ("unbindall", "Remove all key bindings"),
         ("vstr", "Execute a cvar value as commands"),

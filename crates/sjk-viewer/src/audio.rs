@@ -106,6 +106,9 @@ pub(crate) struct GameAudio {
     dynamic: Option<dynamic::Level>,
     allow_dynamic: bool,
     duel_enabled: bool,
+    /// The viewed player is in a duel ([`crate::duel_blades::in_duel`]), as of the last
+    /// snapshot: the emotes fall silent with `s_muteEmotesInDuel` ([`Self::sync_gains`]).
+    in_duel: bool,
     music_sync: bool,
     music_sync_pending: bool,
     /// `cgs.musicStartTime`: server time the current `CS_MUSIC` track began.
@@ -152,7 +155,24 @@ pub(crate) struct GameAudio {
     /// `cg_fleshSparks` ([`crate::impacts::flesh_sparks`]): below 2 the special saber
     /// hit is silent, as in JoF EJK.
     flesh_sparks: u8,
+    /// The loops asked for this frame with no match looping any ([`Self::menu_loop`]):
+    /// the Saber Lab's hum and buzz.
+    menu_loops: [Option<(SoundHandle, PlayRequest)>; MENU_LOOPS],
+    /// The blade skins' crackle buzzes heard last frame (`hear_sabers`), looped in this
+    /// frame's set, and the dice for which snap sounds.
+    crackle_buzzes: Vec<crate::saber_smoke::Sound>,
+    crackle_roll: u32,
 }
+
+/// The source the blade skins' snaps play from: no entity's, so they stay where they
+/// went (an entity's source follows it), and are muted with the player's own.
+const CRACKLE_SOURCE: SourceId = SourceId(0x6200_0000);
+
+/// The most snaps heard a frame.
+const SNAPS_A_FRAME: usize = 4;
+
+/// The most loops the menus ask for at once.
+const MENU_LOOPS: usize = 4;
 
 impl GameAudio {
     /// Set `cg_fleshSparks` for the snapshots observed next.
@@ -275,6 +295,9 @@ impl GameAudio {
             propgun_loops: Vec::with_capacity(8),
             toy_sounds: Default::default(),
             flesh_sparks: crate::impacts::FLESH_SPARKS_ALL,
+            menu_loops: [None; MENU_LOOPS],
+            crackle_buzzes: Vec::with_capacity(16),
+            crackle_roll: 0,
             map_music: None,
             music_tracks: Vec::with_capacity(8),
             duel_music: None,
@@ -283,6 +306,7 @@ impl GameAudio {
             dynamic: None,
             allow_dynamic: true,
             duel_enabled: true,
+            in_duel: false,
             music_sync: true,
             music_sync_pending: false,
             music_start_time: 0,
@@ -345,6 +369,7 @@ impl GameAudio {
         // the frame put it back, panned the sounds near the player for the mix blocks
         // in between whenever they moved: the saber's hum crackled.
         self.transitions.race = crate::chat::combat::race(game_state, &snapshot.player);
+        self.in_duel = crate::duel_blades::in_duel(Some(game_state), Some(&snapshot.player));
         self.last_server_time = Some(snapshot.server_time);
         if self.music_sync_pending {
             self.music_sync_pending = false;
@@ -605,8 +630,68 @@ impl GameAudio {
         self.output.send(AudioCommand::ClearLoops);
         self.send_frame_loops(snapshot, presented_time, listener_origin, world, bsp);
         self.send_box_music();
+        self.send_crackle_buzzes();
         self.update_flame(snapshot, presented_time, world, predicted);
         self.output.send(AudioCommand::CommitLoops);
+    }
+
+    /// What the frame's blades of skins with a crackle were heard doing (`saber_smoke`):
+    /// their snaps play now where they went, one of the skin's at random, a muted player's
+    /// left out; their buzzes join the next frame's loop set. `heard` is emptied.
+    pub(crate) fn hear_sabers(&mut self, heard: &mut crate::saber_smoke::Heard) {
+        let skins = Arc::clone(&self.blade_skins);
+        for snap in heard.snaps.drain(..).take(SNAPS_A_FRAME) {
+            if self.mute.silences(SourceId(snap.entity), None) {
+                continue;
+            }
+            let Some(crackle) = skins.crackle(snap.skin).filter(|c| !c.snaps.is_empty()) else {
+                continue;
+            };
+            self.crackle_roll = self
+                .crackle_roll
+                .wrapping_mul(0x9e37_79b9)
+                .wrapping_add(snap.entity + 1);
+            let path = &crackle.snaps[(self.crackle_roll >> 16) as usize % crackle.snaps.len()];
+            self.play_on_channel(
+                path,
+                crackle.snap_volume,
+                snap.at,
+                CRACKLE_SOURCE,
+                ChannelId(0),
+            );
+        }
+        heard.snaps.clear();
+        self.crackle_buzzes.clear();
+        self.crackle_buzzes.append(&mut heard.buzzes);
+    }
+
+    /// The blade skins' crackle buzzes heard last frame join the loop set, at their
+    /// emitters, a muted player's left out.
+    fn send_crackle_buzzes(&mut self) {
+        let skins = Arc::clone(&self.blade_skins);
+        for buzz in &self.crackle_buzzes {
+            let source = SourceId(buzz.entity);
+            if self.mute.silences(source, None) {
+                continue;
+            }
+            let Some(crackle) = skins.crackle(buzz.skin).filter(|c| !c.buzz.is_empty()) else {
+                continue;
+            };
+            let Some(handle) = self.find_handle(&crackle.buzz) else {
+                continue;
+            };
+            self.output.send(AudioCommand::SetLoop(
+                handle,
+                PlayRequest {
+                    origin: Some(buzz.at),
+                    source,
+                    channel: ChannelId(0),
+                    volume: crackle.buzz_volume,
+                    attenuation: sjk_client::legacy_sound_attenuation(0),
+                },
+                [0.0; 3],
+            ));
+        }
     }
 
     /// The box music joins the loop set, a loop per boxed player (none for a player

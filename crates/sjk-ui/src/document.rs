@@ -196,4 +196,9 @@ pub struct StyleOverrides {
     /// Shape of an arc meter.
     #[serde(default)]
     pub arc: Option<ArcStyle>,
+    /// A meter drawn as this many separate cells instead of one bar, each lit while
+    /// the ratio covers it and faded by the part it covers (unset or below two: one
+    /// bar).
+    #[serde(default)]
+    pub segments: Option<u8>,
 }

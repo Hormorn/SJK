@@ -85,12 +85,18 @@ fn pack_file_system(directory: &Path) -> VirtualFileSystem {
 /// Mount the packs of `directory`: read their blade skins and make them the current
 /// ones under a new generation. Returns the skins.
 pub(crate) fn mount(directory: &Path) -> Arc<LoadedSkins> {
-    let packs = pack_file_system(directory);
+    let mut packs = pack_file_system(directory);
     let count = packs.mounts().count();
+    // The Saber Lab's folder, over the packs, while the lab is on.
+    crate::saber_lab::mount_over(&mut packs);
     let mut current = lock();
     let generation = GENERATION.load(Ordering::Acquire) + 1;
     crate::cards::faces::install(&packs, generation);
-    let skins = Arc::new(LoadedSkins::load(packs, generation));
+    let mut skins = LoadedSkins::load(packs, generation);
+    if crate::saber_lab::active() {
+        crate::saber_lab::loaded(&mut skins, current.as_deref());
+    }
+    let skins = Arc::new(skins);
     if count > 0 {
         crate::log::progress(format_args!(
             "SJK packs: {count} from {}, blade skins: {}",
@@ -101,6 +107,26 @@ pub(crate) fn mount(directory: &Path) -> Arc<LoadedSkins> {
     *current = Some(Arc::clone(&skins));
     GENERATION.store(generation, Ordering::Release);
     skins
+}
+
+/// Read skin `id` from `def` in place of what it was (the blade-skin editor's change), as
+/// a new generation of the same packs.
+pub(crate) fn edit(id: &str, def: crate::blade_skin_file::BladeSkinDef) -> Result<(), String> {
+    let mut current = lock();
+    let skins = current.as_deref().ok_or("no blade skins are loaded")?;
+    let generation = GENERATION.load(Ordering::Acquire) + 1;
+    let edited = skins.edited(id, def, generation)?;
+    *current = Some(Arc::new(edited));
+    GENERATION.store(generation, Ordering::Release);
+    Ok(())
+}
+
+/// Mount the packs again, from the folder [`mount_at_start`] kept (the Saber Lab's
+/// folder changed, or the lab started or stopped).
+pub(crate) fn remount() {
+    if let Some(directory) = DIRECTORY.get() {
+        mount(directory);
+    }
 }
 
 /// Mount the cached packs into a game file system being built, at its current (lowest)

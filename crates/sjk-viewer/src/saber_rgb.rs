@@ -93,6 +93,12 @@ impl BladeColor {
                 stirred: false,
                 trail_kind: Default::default(),
                 wake: false,
+                flash: None,
+                crackle: false,
+                flash_light: None,
+                smoke: None,
+                ribbon: None,
+                sparks: [None; crate::saber_sparks::MOST_SETS],
             });
         }
         Self::Rgb(tint.map(|c| (c * 255.).round().clamp(0., 255.) as u8))

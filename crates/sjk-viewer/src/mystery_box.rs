@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 /// The box's chest and its lid (bundled, `scripts/mystery_box_model.py`).
 pub(crate) const MODEL: &str = "models/sjk/mystery_box.md3";
-const LID_MODEL: &str = "models/sjk/mystery_box_lid.md3";
+pub(crate) const LID_MODEL: &str = "models/sjk/mystery_box_lid.md3";
 /// What the roll stops on when the box blows up (bundled, `scripts/teddy_bear_model.py`).
 const TEDDY_MODEL: &str = "models/sjk/teddy_bear.md3";
 /// The chest's height and depth (across its front), and how far the lid reaches past it.
@@ -484,6 +484,13 @@ struct PendingPlace {
     server: String,
 }
 
+/// Where the lid of a box at `origin` facing `yaw` degrees hangs: its hinge, the chest's
+/// back top edge.
+pub(crate) fn lid_origin(origin: Vec3, yaw: f32) -> Vec3 {
+    let turn = Quat::from_rotation_z(yaw.to_radians());
+    origin + turn * Vec3::new(-(DEPTH / 2.0 + LID_OVERHANG), 0.0, HEIGHT)
+}
+
 /// The boxes of the loaded map, the openings under way and the sounds to play.
 #[derive(Default)]
 pub(crate) struct MysteryBoxes {
@@ -528,6 +535,15 @@ pub(crate) struct MysteryBoxes {
 }
 
 impl MysteryBoxes {
+    /// The boxes standing on the loaded map: each one's id, where it stands and the way
+    /// it faces, in degrees.
+    pub(crate) fn standing(&self) -> Vec<(i64, Vec3, f32)> {
+        self.here
+            .iter()
+            .map(|here| (here.id, here.origin, here.yaw))
+            .collect()
+    }
+
     /// Note a `+use` press in `command` for the frame's logic.
     pub(crate) fn observe_use(&mut self, command: &UserCommand) {
         let using = command.buttons & BUTTON_USE != 0;
@@ -1366,16 +1382,10 @@ impl GpuState {
                     .ray_hit(eye, forward, 4096.0)
                     .ok_or("Aim at the floor where the box should stand")?;
                 let yaw = forward.y.atan2(forward.x).to_degrees() + 180.0;
-                self.mystery_boxes.pending_place = Some(PendingPlace {
-                    origin: eye + forward * hit.distance,
-                    yaw: yaw.rem_euclid(360.0),
-                    server: if one_server { server } else { String::new() },
-                });
-                let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
-                self.map_edits.want_checksum(&map);
-                Ok(vec![format!(
-                    "Placing a mystery box on {map}{}...",
-                    if one_server { " for this server" } else { "" }
+                Ok(vec![self.mystery_box_place_at(
+                    eye + forward * hit.distance,
+                    yaw,
+                    one_server.then_some(server),
                 )])
             }
             "mysterybox_remove" => {
@@ -1399,6 +1409,30 @@ impl GpuState {
             }
             _ => Err(format!("Unknown command {name}")),
         }
+    }
+
+    /// Ask the hub to place a box at `origin` facing `yaw` degrees, on every server
+    /// running this map file or on `server` only, once the map's checksum is known
+    /// (`mysterybox_place` aims; the browser map editor gives the spot). The caller has
+    /// checked the creator and the server.
+    pub(crate) fn mystery_box_place_at(
+        &mut self,
+        origin: Vec3,
+        yaw: f32,
+        server: Option<String>,
+    ) -> String {
+        let one_server = server.is_some();
+        self.mystery_boxes.pending_place = Some(PendingPlace {
+            origin,
+            yaw: yaw.rem_euclid(360.0),
+            server: server.unwrap_or_default(),
+        });
+        let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
+        self.map_edits.want_checksum(&map);
+        format!(
+            "Placing a mystery box on {map}{}...",
+            if one_server { " for this server" } else { "" }
+        )
     }
 
     fn mystery_box_list(&self) -> Vec<String> {
@@ -1454,10 +1488,8 @@ impl GpuState {
                 ));
                 // The lid on its hinge, the chest's back top edge, pitched open.
                 if let Some(lid) = lid_mesh {
-                    let turn = Quat::from_rotation_z((here.yaw + shake).to_radians());
-                    let hinge = Vec3::new(-(DEPTH / 2.0 + LID_OVERHANG), 0.0, HEIGHT);
                     self.object_groups[lid].push(ActorInstance::new(
-                        (here.origin + turn * hinge).to_array(),
+                        lid_origin(here.origin, here.yaw + shake).to_array(),
                         sjk_client::legacy_angles_to_quaternion([
                             -here.lid.angle(now),
                             here.yaw + shake,

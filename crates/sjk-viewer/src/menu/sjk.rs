@@ -201,7 +201,7 @@ impl ClientMenu {
             *slot = item;
             count += 1;
         }
-        let chat_on = console.is_some_and(|console| console.bool_cvar("cl_sjkChat") != Some(false));
+        let chat_on = console.is_some_and(|console| console.sjk_chat_on());
         if chat_on {
             self.chat_dock.refresh();
         }
@@ -324,8 +324,7 @@ impl ClientMenu {
             home::Action::Update => self.follow_update_notice(console),
             home::Action::SendChat => {
                 let text = self.home.take_draft();
-                self.chat_dock
-                    .send(text, console.bool_cvar("cl_sjkChat") != Some(false));
+                self.chat_dock.send(text, console.sjk_chat_on());
                 MenuAction::None
             }
             home::Action::OpenChat => {

@@ -11,6 +11,8 @@ pub(crate) mod kinds;
 mod mesh;
 mod tiles;
 
+pub(crate) use mesh::each_face;
+
 use crate::GpuState;
 use kinds::KindSet;
 

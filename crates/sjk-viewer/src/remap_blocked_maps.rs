@@ -1,13 +1,24 @@
-//! Maps on which server shader remaps are ignored, as with `cg_remaps 0` there.
+//! Per-map choices for server shader remaps.
 //!
 //! `cg_remapsBlockedMaps` lists map names (`mp/ffa4 mp/duel6`), separated by spaces,
 //! commas or semicolons (a console command needs the list in quotes to hold
-//! semicolons). A listed map still applies its own worldspawn remaps and
-//! local `remapShader` overrides; only the server's table is left out. The frame reads
-//! a cached answer, refreshed when the cvar or the loaded map changes.
+//! semicolons), on which server remaps are ignored, as with `cg_remaps 0` there.
+//! `cg_remapsAllowedMaps` lists maps on which they apply even while
+//! `cg_serverRemaps` is off (Lex's idea). A map in both lists is blocked. A listed
+//! map still applies its own worldspawn remaps and local `remapShader` overrides;
+//! only the server's table is affected.
+//!
+//! `cg_serverRemapsMap` (`default`, `on` or `off`, not archived) shows and sets the
+//! loaded map's choice, for the Settings row: it is rewritten from the lists when
+//! the map or a list changes, and setting it rewrites the lists. The frame reads a
+//! cached answer, refreshed only after one of these changes.
 
-/// The list of maps, archived with the player's settings.
+/// Maps whose server remaps are ignored, archived with the player's settings.
 pub(crate) const CVAR: &str = "cg_remapsBlockedMaps";
+/// Maps whose server remaps apply while `cg_serverRemaps` is off, archived.
+pub(crate) const ALLOWED_CVAR: &str = "cg_remapsAllowedMaps";
+/// The loaded map's [`Choice`], by name; not archived.
+pub(crate) const MAP_CVAR: &str = "cg_serverRemapsMap";
 /// `cg_serverRemaps`: servers' shader remaps apply only while it is on (off by default
 /// since 18/10/2026); `cg_remaps` then filters them as in EternalJK.
 pub(crate) const SERVER_CVAR: &str = "cg_serverRemaps";
@@ -70,56 +81,201 @@ pub(crate) fn without(list: &str, map: &str) -> Option<String> {
     })
 }
 
-/// Whether the loaded map is listed, as of the last cvar change and map path seen.
+/// What a map does with server remaps.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Choice {
+    /// As `cg_serverRemaps` says.
+    #[default]
+    Default,
+    /// Applied, filtered by `cg_remaps`, even with `cg_serverRemaps 0`.
+    On,
+    /// Ignored.
+    Off,
+}
+
+impl Choice {
+    /// The values of [`MAP_CVAR`], in the Settings row's order.
+    pub(crate) const NAMES: [&'static str; 3] = ["default", "on", "off"];
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Default => Self::NAMES[0],
+            Self::On => Self::NAMES[1],
+            Self::Off => Self::NAMES[2],
+        }
+    }
+
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "default" | "" => Some(Self::Default),
+            "on" | "1" => Some(Self::On),
+            "off" | "0" => Some(Self::Off),
+            _ => None,
+        }
+    }
+
+    /// The choice the two lists give `map`; a blocked map stays blocked.
+    pub(crate) fn of(blocked: &str, allowed: &str, map: &str) -> Self {
+        if lists(blocked, map) {
+            Self::Off
+        } else if lists(allowed, map) {
+            Self::On
+        } else {
+            Self::Default
+        }
+    }
+
+    /// The server remap mode: `server_on` is `cg_serverRemaps`, `filter` `cg_remaps`.
+    pub(crate) fn mode(self, server_on: bool, filter: i64) -> i64 {
+        match self {
+            Self::Off => 0,
+            Self::On => filter,
+            Self::Default if server_on => filter,
+            Self::Default => 0,
+        }
+    }
+
+    /// The lists with `map` set to this choice, `(blocked, allowed)`, each `None`
+    /// when unchanged.
+    pub(crate) fn apply(
+        self,
+        blocked: &str,
+        allowed: &str,
+        map: &str,
+    ) -> (Option<String>, Option<String>) {
+        match self {
+            Self::Default => (without(blocked, map), without(allowed, map)),
+            Self::On => (without(blocked, map), with(allowed, map)),
+            Self::Off => (with(blocked, map), without(allowed, map)),
+        }
+    }
+}
+
+/// The change counts of [`CVAR`], [`ALLOWED_CVAR`] and [`MAP_CVAR`].
+pub(crate) type Revisions = [u64; 3];
+
+/// What [`Cache::update`] wants written after a change.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Sync {
+    /// Nothing to write.
+    None,
+    /// The map or a list changed: show this choice in [`MAP_CVAR`].
+    Show(Choice),
+    /// [`MAP_CVAR`] was set: write this choice into the lists.
+    Store(Choice),
+}
+
+/// The loaded map's choice, as of the last changes and map path seen.
 #[derive(Default)]
 pub(crate) struct Cache {
-    revision: Option<u64>,
+    revisions: Option<Revisions>,
     map: String,
-    blocked: bool,
+    choice: Choice,
 }
 
 impl Cache {
-    /// Answer for `map`, reading the list from `list` only after a change.
-    pub(crate) fn blocked<'a>(
+    pub(crate) fn choice(&self) -> Choice {
+        self.choice
+    }
+
+    /// Notice changes; `cvars` reads `(blocked, allowed, map cvar)` only after one.
+    /// A [`MAP_CVAR`] change alone, on the same map, is the player's choice; any
+    /// other change takes the choice from the lists.
+    pub(crate) fn update<'a>(
         &mut self,
-        revision: u64,
+        revisions: Revisions,
         map: &str,
-        list: impl FnOnce() -> Option<&'a str>,
-    ) -> bool {
-        if self.revision != Some(revision) || self.map != map {
-            self.revision = Some(revision);
+        cvars: impl FnOnce() -> (&'a str, &'a str, &'a str),
+    ) -> Sync {
+        let same_map = self.map == map;
+        let seen = self.revisions.replace(revisions);
+        if seen == Some(revisions) && same_map {
+            return Sync::None;
+        }
+        let only_map_cvar = same_map && seen.is_some_and(|seen| seen[..2] == revisions[..2]);
+        if !same_map {
             self.map.clear();
             self.map.push_str(map);
-            self.blocked = list().is_some_and(|list| lists(list, map));
         }
-        self.blocked
+        let (blocked, allowed, shown) = cvars();
+        let loaded = !map_name(map).is_empty();
+        if only_map_cvar && loaded {
+            if let Some(choice) = Choice::parse(shown) {
+                self.choice = choice;
+                return Sync::Store(choice);
+            }
+        }
+        self.choice = if loaded {
+            Choice::of(blocked, allowed, map)
+        } else {
+            Choice::Default
+        };
+        if shown == self.choice.name() {
+            Sync::None
+        } else {
+            Sync::Show(self.choice)
+        }
+    }
+
+    /// Take `revisions` as seen, after this module wrote the cvars itself.
+    pub(crate) fn seen(&mut self, revisions: Revisions) {
+        self.revisions = Some(revisions);
     }
 }
 
 impl crate::GpuState {
-    /// `cg_remaps` for the loaded map: 0 on a map in `cg_remapsBlockedMaps`.
+    /// `cg_remaps` for the loaded map, after its choice and `cg_serverRemaps`.
     pub(crate) fn remap_mode(&mut self) -> i64 {
-        let Some(console) = self.console.as_ref() else {
+        let Some(console) = self.console.as_mut() else {
             return 1;
         };
-        let blocked = self.remap_blocked_maps.blocked(
-            console.remap_blocked_maps_revision(),
-            &self.world_load_map,
-            || console.text_cvar(CVAR).ok(),
-        );
-        if blocked { 0 } else { console.remap_mode() }
+        let map = self.world_load_map.as_str();
+        let sync = self
+            .remap_blocked_maps
+            .update(console.remap_maps_revisions(), map, || {
+                let text = |name| console.text_cvar(name).unwrap_or("");
+                (text(CVAR), text(ALLOWED_CVAR), text(MAP_CVAR))
+            });
+        match sync {
+            Sync::None => {}
+            Sync::Show(choice) => {
+                console.set_cvar(MAP_CVAR, choice.name());
+            }
+            Sync::Store(choice) => {
+                let text = |name| console.text_cvar(name).unwrap_or("").to_owned();
+                let (blocked, allowed) = (text(CVAR), text(ALLOWED_CVAR));
+                let (blocked, allowed) = choice.apply(&blocked, &allowed, map);
+                for (name, value) in [(CVAR, blocked), (ALLOWED_CVAR, allowed)] {
+                    if let Some(value) = value {
+                        console.set_cvar(name, &value);
+                    }
+                }
+                // "1" or "OFF" typed in the console is shown by its name.
+                if console.text_cvar(MAP_CVAR).ok() != Some(choice.name()) {
+                    console.set_cvar(MAP_CVAR, choice.name());
+                }
+            }
+        }
+        if sync != Sync::None {
+            self.remap_blocked_maps.seen(console.remap_maps_revisions());
+        }
+        self.remap_blocked_maps
+            .choice()
+            .mode(console.server_remaps_on(), console.remap_filter())
     }
 
-    /// `blockRemaps` and `unblockRemaps`: list or unlist a map, the loaded one by default.
+    /// `blockRemaps`, `unblockRemaps`, `allowRemaps` and `unallowRemaps` (`command`
+    /// in lower case): set a map's choice, the loaded map by default.
     pub(crate) fn remap_block_command(
         &mut self,
-        block: bool,
+        command: &str,
         args: &[String],
     ) -> Result<Vec<String>, String> {
-        let usage = if block {
-            "usage: blockRemaps [map]"
-        } else {
-            "usage: unblockRemaps [map]"
+        let (choice, undo, usage) = match command {
+            "blockremaps" => (Choice::Off, false, "usage: blockRemaps [map]"),
+            "unblockremaps" => (Choice::Off, true, "usage: unblockRemaps [map]"),
+            "allowremaps" => (Choice::On, false, "usage: allowRemaps [map]"),
+            _ => (Choice::On, true, "usage: unallowRemaps [map]"),
         };
         let map = match args {
             [] => map_name(&self.world_load_map).to_owned(),
@@ -130,20 +286,40 @@ impl crate::GpuState {
             return Err(format!("No loaded map; {usage}"));
         }
         let console = self.console.as_mut().ok_or("Console unavailable")?;
-        let list = console.text_cvar(CVAR).map_err(|error| error.to_string())?;
-        let (changed, message) = if block {
-            (with(list, &map), "Server shader remaps ignored on")
+        let text = |name| {
+            console
+                .text_cvar(name)
+                .map(str::to_owned)
+                .map_err(|error| error.to_string())
+        };
+        let (blocked, allowed) = (text(CVAR)?, text(ALLOWED_CVAR)?);
+        let list = if choice == Choice::Off {
+            CVAR
         } else {
-            (without(list, &map), "Server shader remaps allowed again on")
+            ALLOWED_CVAR
         };
-        let Some(changed) = changed else {
-            let state = if block { "already" } else { "not" };
-            return Ok(vec![format!("{map} is {state} in {CVAR}")]);
+        let current = Choice::of(&blocked, &allowed, &map);
+        let target = match (undo, current == choice) {
+            (false, true) => return Ok(vec![format!("{map} is already in {list}")]),
+            (true, false) => return Ok(vec![format!("{map} is not in {list}")]),
+            (false, false) => choice,
+            (true, true) => Choice::Default,
         };
-        if !console.set_cvar(CVAR, &changed) {
-            return Err(format!("could not set {CVAR}"));
+        let (blocked, allowed) = target.apply(&blocked, &allowed, &map);
+        for (name, value) in [(CVAR, blocked), (ALLOWED_CVAR, allowed)] {
+            if let Some(value) = value {
+                if !console.set_cvar(name, &value) {
+                    return Err(format!("could not set {name}"));
+                }
+            }
         }
-        Ok(vec![format!("{message} {map}")])
+        Ok(vec![match target {
+            Choice::Off => format!("Server shader remaps ignored on {map}"),
+            Choice::On => {
+                format!("Server shader remaps applied on {map}, even with {SERVER_CVAR} 0")
+            }
+            Choice::Default => format!("Server shader remaps on {map} follow {SERVER_CVAR}"),
+        }])
     }
 }
 
@@ -191,12 +367,84 @@ mod tests {
     }
 
     #[test]
-    fn the_cache_reads_the_list_only_after_a_change() {
+    fn choices_come_from_the_lists_and_a_block_wins() {
+        assert_eq!(Choice::of("", "", "mp/ffa4"), Choice::Default);
+        assert_eq!(Choice::of("", "mp/ffa4", "maps/mp/ffa4.bsp"), Choice::On);
+        assert_eq!(Choice::of("mp/ffa4", "", "mp/ffa4"), Choice::Off);
+        assert_eq!(Choice::of("mp/ffa4", "mp/ffa4", "mp/ffa4"), Choice::Off);
+    }
+
+    #[test]
+    fn modes_follow_the_choice_then_cg_server_remaps() {
+        assert_eq!(Choice::Default.mode(false, 2), 0);
+        assert_eq!(Choice::Default.mode(true, 2), 2);
+        assert_eq!(Choice::On.mode(false, 1), 1);
+        assert_eq!(Choice::On.mode(true, 2), 2);
+        assert_eq!(Choice::Off.mode(true, 2), 0);
+    }
+
+    #[test]
+    fn applying_a_choice_moves_the_map_between_lists() {
+        assert_eq!(
+            Choice::On.apply("mp/ffa4 mp/duel6", "", "mp/ffa4"),
+            (Some("mp/duel6".into()), Some("mp/ffa4".into()))
+        );
+        assert_eq!(
+            Choice::Off.apply("", "mp/ffa4", "maps/mp/ffa4.bsp"),
+            (Some("mp/ffa4".into()), Some(String::new()))
+        );
+        assert_eq!(
+            Choice::Default.apply("mp/duel6", "mp/ffa4", "mp/ffa4"),
+            (None, Some(String::new()))
+        );
+        assert_eq!(Choice::Default.apply("", "", "mp/ffa4"), (None, None));
+    }
+
+    #[test]
+    fn names_parse_back() {
+        for choice in [Choice::Default, Choice::On, Choice::Off] {
+            assert_eq!(Choice::parse(choice.name()), Some(choice));
+        }
+        assert_eq!(Choice::parse(" ON "), Some(Choice::On));
+        assert_eq!(Choice::parse("0"), Some(Choice::Off));
+        assert_eq!(Choice::parse("maybe"), None);
+    }
+
+    #[test]
+    fn the_cache_shows_the_lists_choice_on_each_map() {
         let mut cache = Cache::default();
-        assert!(cache.blocked(1, "maps/mp/ffa4.bsp", || Some("mp/ffa4")));
-        assert!(cache.blocked(1, "maps/mp/ffa4.bsp", || panic!("read again")));
-        assert!(!cache.blocked(1, "maps/mp/ffa3.bsp", || Some("mp/ffa4")));
-        assert!(!cache.blocked(2, "maps/mp/ffa3.bsp", || Some("")));
-        assert!(cache.blocked(3, "maps/mp/ffa3.bsp", || Some("mp/ffa3")));
+        let sync = cache.update([0, 0, 0], "maps/mp/ffa4.bsp", || ("", "mp/ffa4", "default"));
+        assert_eq!(sync, Sync::Show(Choice::On));
+        cache.seen([0, 0, 1]);
+        let sync = cache.update([0, 0, 1], "maps/mp/ffa4.bsp", || panic!("read again"));
+        assert_eq!(sync, Sync::None);
+        assert_eq!(cache.choice(), Choice::On);
+        // The next map has no choice: "default" again.
+        let sync = cache.update([0, 0, 1], "maps/mp/ffa3.bsp", || ("", "mp/ffa4", "on"));
+        assert_eq!(sync, Sync::Show(Choice::Default));
+        // Already shown: nothing to write.
+        let mut cache = Cache::default();
+        let sync = cache.update([0, 0, 0], "maps/mp/ffa3.bsp", || ("", "", "default"));
+        assert_eq!(sync, Sync::None);
+    }
+
+    #[test]
+    fn setting_the_map_cvar_stores_the_choice() {
+        let mut cache = Cache::default();
+        cache.update([0, 0, 0], "maps/mp/ffa4.bsp", || ("", "", "default"));
+        let sync = cache.update([0, 0, 1], "maps/mp/ffa4.bsp", || ("", "", "off"));
+        assert_eq!(sync, Sync::Store(Choice::Off));
+        assert_eq!(cache.choice(), Choice::Off);
+        // A word the cvar does not know shows the lists' choice again.
+        let sync = cache.update([0, 0, 2], "maps/mp/ffa4.bsp", || ("", "", "maybe"));
+        assert_eq!(sync, Sync::Show(Choice::Default));
+        // A list change is not the player's choice: the lists win.
+        let sync = cache.update([1, 0, 3], "maps/mp/ffa4.bsp", || ("", "", "off"));
+        assert_eq!(sync, Sync::Show(Choice::Default));
+        // With no map loaded the cvar stays "default".
+        let mut cache = Cache::default();
+        cache.update([0, 0, 0], "", || ("", "", "default"));
+        let sync = cache.update([0, 0, 1], "", || ("", "", "on"));
+        assert_eq!(sync, Sync::Show(Choice::Default));
     }
 }

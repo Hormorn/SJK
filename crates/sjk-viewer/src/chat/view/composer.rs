@@ -53,51 +53,20 @@ impl ChatOverlay {
                 );
             }
         }
-        if input.channel == Channel::Whisper {
-            let name = input
-                .recipient
-                .and_then(|target| self.roster.name(target))
-                .unwrap_or("Player unavailable");
-            // A recipient who takes encrypted whispers gets one: said in its pink.
-            let encrypted = input
-                .recipient
-                .is_some_and(|target| self.takes_encrypted(target.slot()));
-            let (suffix, colour) = if encrypted {
-                (" (encrypted)", super::encrypted_pink(1.0))
-            } else {
-                ("", tint(Channel::Whisper, 1.0))
-            };
-            // Room for " (encrypted)" at the composer's size.
-            let room = g.width
-                - (row_end + 125.0) * g.scale
-                - if encrypted { 96.0 * g.scale } else { 0.0 }
-                - 40.0 * g.scale;
-            let end = layout::fitting_end(name, font, room.max(0.0), 14.0 * g.scale);
-            // Several players whispered you: which one this is, the PM button stepping on.
-            let mut place = String::new();
-            if let Some((at, of)) = self.pm_place() {
-                use std::fmt::Write as _;
-                let _ = write!(place, "  {at}/{of}");
-            }
-            self.ui.text_fmt_aligned(
-                format_args!("To {}{suffix}{place}", &name[..end]),
-                Rect::new(
-                    g.left + row_end * g.scale,
-                    y,
-                    g.width - (row_end + 120.0) * g.scale,
-                    26.0 * g.scale,
-                ),
-                14.0 * g.scale,
-                colour,
-                FontWeight::Semibold,
-                0.0,
-                TextAlign::Start,
-            );
+        // A whisper's recipient on a line of its own under the row (`recipient.rs`),
+        // which moves the field and its notes down.
+        let whisper = input.channel == Channel::Whisper;
+        let sjk = input.channel == Channel::Sjk;
+        let below = if whisper {
+            recipient::ROW * g.scale
+        } else {
+            0.0
+        };
+        if whisper {
+            self.build_recipient(font, g, y + 30.0 * g.scale);
         }
         // SJK chat said in this server's All chat too: a small red note says so.
-        if input.channel == Channel::Sjk
-            && let Some(note) = self.said_in_all.map(|words| words.note)
-        {
+        if sjk && let Some(note) = self.said_in_all.map(|words| words.note) {
             red_note(
                 &mut self.ui,
                 note,
@@ -129,26 +98,36 @@ impl ChatOverlay {
         // A whisper that goes through the game server, not encrypted (the recipient does
         // not take encrypted whispers, or `cl_e2eWhispers` is off): a red note under the
         // field says so for as long as the composer is on it (Sol, 22/10/2026).
-        let plain_whisper = input.channel == Channel::Whisper
-            && !input
-                .recipient
+        let plain_whisper = whisper
+            && !self
+                .input
+                .as_ref()
+                .and_then(|input| input.recipient)
                 .is_some_and(|target| self.takes_encrypted(target.slot()));
-        self.build_draft(font, g, y + 42.0 * g.scale, ms);
+        self.build_draft(font, g, y + 42.0 * g.scale + below, ms);
         if plain_whisper {
             red_note(
                 &mut self.ui,
                 PLAIN_WHISPER_NOTE,
-                [g.left, y + 94.0 * g.scale],
+                [g.left, y + 94.0 * g.scale + below],
                 g.width,
                 font,
                 g,
                 alpha,
             );
         }
-        if !self.notice.is_empty() {
-            let notice_y = y + if plain_whisper { 124.0 } else { 94.0 } * g.scale;
+        // A link just copied with Ctrl+C says so a moment (`chat/links.rs`).
+        let copied = self
+            .link_copied_ms
+            .is_some_and(|at| ms.saturating_sub(at) < super::super::links::COPIED_MS);
+        let notice = match self.notice {
+            "" if copied => super::super::links::COPIED_NOTE,
+            notice => notice,
+        };
+        if !notice.is_empty() {
+            let notice_y = y + if plain_whisper { 124.0 } else { 94.0 } * g.scale + below;
             self.ui.text(
-                self.notice,
+                notice,
                 Rect::new(g.left, notice_y, g.width, 20.0 * g.scale),
                 11.0 * g.scale,
                 Color::new(0.832, 0.87, 0.901, 0.93),
@@ -173,7 +152,9 @@ fn red_note(
 ) {
     let size = 12.0 * g.scale;
     let ink = visible_text_width_face(font, note, size / font.height.max(1.0), TextFace::Semibold);
-    let width = (ink + 20.0 * g.scale).min(room);
+    // A few pixels more than the words: measured to the pixel, the last letter was cut
+    // by rounding ("...can read i").
+    let width = (ink + 24.0 * g.scale).min(room);
     let rect = Rect::new(at[0], at[1], width, 24.0 * g.scale);
     let _ = ui.draw_list_mut().push(DrawCommand::RoundedRect {
         rect,

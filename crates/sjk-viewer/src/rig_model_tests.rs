@@ -645,15 +645,51 @@ fn a_dynamic_tail_wags_while_the_body_stands_still() {
 
 #[test]
 fn a_manifest_names_its_dynamic_joints() {
-    let parsed = manifest("dynamic tail_root\ndynamic hair 0");
+    let parsed = manifest(
+        "dynamic tail_root\ndynamic hair 0\n\
+         dynamic cape_l wag 0 stiffness 120 damping 9 nocollide\ndynamic cape_r 800 wag 0",
+    );
+    let default = dynamics::Settings::default();
     assert_eq!(
         parsed.dynamic,
         [
-            ("tail_root".to_owned(), None),
-            ("hair".to_owned(), Some(0.0))
+            ("tail_root".to_owned(), default),
+            (
+                "hair".to_owned(),
+                dynamics::Settings {
+                    gravity: 0.0,
+                    ..default
+                }
+            ),
+            (
+                "cape_l".to_owned(),
+                dynamics::Settings {
+                    wag: 0.0,
+                    stiffness: 120.0,
+                    damping: 9.0,
+                    collide: false,
+                    ..default
+                }
+            ),
+            (
+                "cape_r".to_owned(),
+                dynamics::Settings {
+                    gravity: 800.0,
+                    wag: 0.0,
+                    ..default
+                }
+            ),
         ]
     );
-    assert!(Manifest::parse("dynamic tail heavy").is_err());
+    for bad in [
+        "dynamic tail heavy",
+        "dynamic tail wag",
+        "dynamic tail stiffness 0",
+        "dynamic tail damping -1",
+        "dynamic tail 0 1",
+    ] {
+        assert!(Manifest::parse(bad).is_err(), "{bad}");
+    }
     let rig = RigModel::fit(rig(), "", &manifest("dynamic nothing"), &driver()).unwrap();
     assert!(rig.chains.is_empty());
 }
@@ -716,11 +752,17 @@ fn dynamic_chains_of_an_installed_rig() {
         .expect("a rig model");
     let mut weightless = manifest.clone();
     for line in &mut weightless.dynamic {
-        line.1 = Some(0.0);
+        line.1.gravity = 0.0;
     }
     let bones = vec![identity_rows(); gla.bones.len()];
     for (label, manifest) in [("manifest", &manifest), ("no gravity", &weightless)] {
         let rig = RigModel::load(&vfs, &directory, manifest, &gla, &glm).unwrap();
+        for capsule in &rig.chains.capsules {
+            println!(
+                "capsule {} to {}: radius {:.1}",
+                rig.joints[capsule.from].name, rig.joints[capsule.to].name, capsule.radius
+            );
+        }
         let mut scratch = Scratch::default();
         rig.pose_after(&bones, None, &mut scratch, None);
         for _ in 0..600 {
@@ -871,4 +913,75 @@ fn stock_bones_are_posed_parents_first() {
     let mut sorted = order.clone();
     sorted.sort_unstable();
     assert_eq!(sorted, vec![0, 1, 2]);
+}
+
+/// The test rig with a `hip` joint half a metre under the pelvis.
+fn rig_with_hip() -> GltfModel {
+    let mut model = rig();
+    model.joints.push(GltfJoint {
+        name: "hip".into(),
+        parent: Some(0),
+        bind: translated(0.0, 0.5, 0.0),
+        inverse_bind: translated(0.0, -0.5, 0.0),
+        rest: translated(0.0, -0.5, 0.0),
+    });
+    model
+}
+
+#[test]
+fn the_pelvis_vertices_make_a_capsule_for_the_dynamic_chains() {
+    let mut model = rig_with_hip();
+    // A two-joint tail behind the pelvis, moving on its own.
+    let tail = |name: &str, parent, z: f32| GltfJoint {
+        name: name.to_owned(),
+        parent: Some(parent),
+        bind: [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0, z],
+        ],
+        inverse_bind: [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, -1.0],
+            [0.0, 0.0, 1.0, -z],
+        ],
+        rest: translated(0.0, 0.0, -0.3),
+    };
+    model.joints.push(tail("tail_root", 0, -0.3));
+    model.joints.push(tail("tail_1", 3, -0.6));
+    // A ring of vertices 0.2 m round the pelvis-to-hip segment, on the pelvis.
+    let primitive = &mut model.primitives[0];
+    for step in 0..12 {
+        let angle = step as f32 * std::f32::consts::TAU / 12.0;
+        for height in [0.6, 0.8] {
+            primitive
+                .positions
+                .push([0.2 * angle.cos(), height, 0.2 * angle.sin()]);
+            primitive.normals.push([0.0, 0.0, 1.0]);
+            primitive.texture_coordinates.push([0.0; 2]);
+            primitive.joints.push([0, 0, 0, 0]);
+            primitive.weights.push([1.0, 0.0, 0.0, 0.0]);
+        }
+    }
+    let rig = RigModel::fit(
+        model.clone(),
+        "",
+        &manifest("map pelvis pelvis hip cranium\ndynamic tail_root"),
+        &driver(),
+    )
+    .unwrap();
+    // 0.2 m at 40 units a metre.
+    assert_eq!(rig.chains.capsules.len(), 1, "{:?}", rig.chains.capsules);
+    let capsule = rig.chains.capsules[0];
+    assert_eq!((capsule.from, capsule.to), (0, 2));
+    assert!((capsule.radius - 8.0).abs() < 0.1, "{capsule:?}");
+    // Without a dynamic chain no capsule is measured.
+    let still = RigModel::fit(
+        model,
+        "",
+        &manifest("map pelvis pelvis hip cranium"),
+        &driver(),
+    )
+    .unwrap();
+    assert!(still.chains.capsules.is_empty());
 }

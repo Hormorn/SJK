@@ -862,6 +862,7 @@ mod tests {
                     origin: [0, 0, 24],
                     velocity: [speed, 0, 0],
                     yaw: 0,
+                    scale: crate::ragdoll::STOCK_SCALE,
                 };
                 let strike = crate::ragdoll::Strike {
                     step: 0,

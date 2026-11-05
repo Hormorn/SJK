@@ -339,7 +339,7 @@ impl RadialPlacement {
 
 /// The radial look's status meters, the pills, arcs and numbers round the crosshair:
 /// what [`RadialPlacement`] moves. The crosshair, its name, the timer and the rest stay.
-const RADIAL_STATUS: [&str; 15] = [
+const RADIAL_STATUS: [&str; 23] = [
     "left_pill",
     "right_pill",
     "health_arc",
@@ -355,12 +355,23 @@ const RADIAL_STATUS: [&str; 15] = [
     "weapon_value",
     "vehicle_arc",
     "vehicle_value",
+    "vehicle_speed_arc",
+    "vehicle_ammo_arc",
+    "vehicle_speed_value",
+    "vehicle_ammo_value",
+    "vehicle_turbo_arc_charging",
+    "vehicle_turbo_arc_ready",
+    "vehicle_turbo_arc_burning",
+    "vehicle_turbo_value",
 ];
 
 /// Which side of the crosshair a status widget is on: -1 left, 1 right, 0 under it. An
 /// arc is centred on the crosshair, so its side is its sweep's; anything else, its
-/// offset's.
+/// offset's. The vehicle's arcs and numbers stay together under it.
 fn radial_side(widget: &sjk_ui::HudWidget) -> f32 {
+    if widget.id.starts_with("vehicle_") {
+        return 0.0;
+    }
     let x = match widget.style.arc {
         Some(arc) => (arc.start_degrees + arc.sweep_degrees * 0.5)
             .to_radians()
@@ -630,9 +641,11 @@ impl HudOverlay {
             timer: !self.match_timer.is_empty(),
             warmup: !self.warmup_text.is_empty(),
             interrupted: self.interrupted,
-            // SJK's own looks draw the vehicle as their layouts' hull meter; the game
-            // HUD look keeps the vector strip, where the game HUD does not draw it.
-            vehicle_ratio: self.vehicle.hull_ratio().filter(|_| look != HudLook::Game),
+            // SJK's own looks draw the vehicle as their layouts' hull, speed and
+            // ammunition meters; the game HUD look keeps the vector strip, where the
+            // game HUD does not draw it.
+            vehicle: self.vehicle.meters().filter(|_| look != HudLook::Game),
+            has_ammo: self.values.is_some_and(|values| values.ammo.is_some()),
         };
         let mut visible = [false; WIDGET_LIMIT];
         for (index, widget) in document.widgets.iter().take(WIDGET_LIMIT).enumerate() {
@@ -896,6 +909,13 @@ impl HudOverlay {
         self.weapon_shown_ms = Some(0);
         self.ratios = [ratios[0], ratios[1], ratios[2]].map(Tween::settled);
         self.ammo_ratio = Tween::settled(ratios[3]);
+    }
+
+    /// Show the speedometer reading `text` with its right edge at `x` (640 units), as
+    /// `cg_speedometer` does, for snapshots.
+    #[cfg(test)]
+    pub(crate) fn preview_speedometer(&mut self, text: &str, x: f32) {
+        self.speed.preview(text, x);
     }
 
     pub(crate) fn displayed_ratios(&self) -> [f32; 3] {

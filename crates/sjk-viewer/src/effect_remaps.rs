@@ -66,9 +66,11 @@ impl ParticleAtlas {
                             .filter(|s| !atlas.animations.contains_key(s)),
                     );
                     let pending = std::mem::take(&mut self.pending);
+                    let admitted = std::mem::take(&mut self.admitted);
                     *self = atlas;
                     self.remaps.unloadable = unloadable;
                     self.pending = pending;
+                    self.admitted = admitted;
                 }
                 Err(error) => result = Err(error),
             }

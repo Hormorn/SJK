@@ -200,6 +200,11 @@ impl Shell {
                     .iter()
                     .map(|(name, description)| Candidate::command(name, description)),
             )
+            .chain(
+                self.aliases
+                    .iter()
+                    .map(|(name, _)| Candidate::command(name, "alias")),
+            )
             .filter(|candidate| ascii_starts_with_ignore_case(candidate.name, prefix))
             .collect::<Vec<_>>();
         commands.sort_by_cached_key(|candidate| candidate.name.to_ascii_lowercase());

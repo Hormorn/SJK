@@ -684,7 +684,7 @@
    "anchor": "center",
    "offset": {
     "x": 0.0,
-    "y": 170.0
+    "y": 238.0
    },
    "offset_fraction": {
     "x": 0.0,
@@ -713,6 +713,411 @@
      "a": 1.0
     },
     "type_scale": 1.4,
+    "weight": "semibold",
+    "centered": true
+   }
+  },
+  {
+   "id": "vehicle_speed_arc",
+   "kind": "arc",
+   "binding": "vehicle_speed_ratio",
+   "anchor": "center",
+   "offset": {
+    "x": 0.0,
+    "y": 0.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 351.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 351.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle"
+   },
+   "layer": 2,
+   "style": {
+    "foreground": {
+     "r": 0.45,
+     "g": 0.85,
+     "b": 1.0,
+     "a": 1.0
+    },
+    "background": {
+     "r": 1,
+     "g": 1,
+     "b": 1,
+     "a": 0.14
+    },
+    "border": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0.5
+    },
+    "border_width": 5.0,
+    "arc": {
+     "start_degrees": 132.0,
+     "sweep_degrees": -36.0,
+     "width": 7.0,
+     "segments": 4,
+     "gap_degrees": 3.0
+    }
+   }
+  },
+  {
+   "id": "vehicle_ammo_arc",
+   "kind": "arc",
+   "binding": "vehicle_ammo_ratio",
+   "anchor": "center",
+   "offset": {
+    "x": 0.0,
+    "y": 0.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 351.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 351.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle_ammo"
+   },
+   "layer": 2,
+   "style": {
+    "foreground": {
+     "r": 1.0,
+     "g": 0.55,
+     "b": 0.15,
+     "a": 1.0
+    },
+    "background": {
+     "r": 1,
+     "g": 1,
+     "b": 1,
+     "a": 0.14
+    },
+    "border": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0.5
+    },
+    "border_width": 5.0,
+    "arc": {
+     "start_degrees": 48.0,
+     "sweep_degrees": 36.0,
+     "width": 7.0,
+     "segments": 4,
+     "gap_degrees": 3.0
+    }
+   }
+  },
+  {
+   "id": "vehicle_speed_value",
+   "kind": "text",
+   "binding": "vehicle_speed_value",
+   "anchor": "center",
+   "offset": {
+    "x": -140.0,
+    "y": 238.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 140.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 32.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle"
+   },
+   "layer": 3,
+   "style": {
+    "foreground": {
+     "r": 0.6,
+     "g": 0.9,
+     "b": 1.0,
+     "a": 1.0
+    },
+    "type_scale": 1.4,
+    "weight": "semibold",
+    "centered": true
+   }
+  },
+  {
+   "id": "vehicle_ammo_value",
+   "kind": "text",
+   "binding": "vehicle_ammo_value",
+   "anchor": "center",
+   "offset": {
+    "x": 140.0,
+    "y": 238.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 140.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 32.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle_ammo"
+   },
+   "layer": 3,
+   "style": {
+    "foreground": {
+     "r": 1.0,
+     "g": 0.66,
+     "b": 0.36,
+     "a": 1.0
+    },
+    "type_scale": 1.4,
+    "weight": "semibold",
+    "centered": true
+   }
+  },
+  {
+   "id": "vehicle_turbo_arc_charging",
+   "kind": "arc",
+   "binding": "vehicle_turbo_ratio",
+   "anchor": "center",
+   "offset": {
+    "x": 0.0,
+    "y": 0.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 323.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 323.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle_turbo_charging"
+   },
+   "layer": 2,
+   "style": {
+    "foreground": {
+     "r": 1.0,
+     "g": 0.35,
+     "b": 0.2,
+     "a": 1.0
+    },
+    "background": {
+     "r": 1,
+     "g": 1,
+     "b": 1,
+     "a": 0.14
+    },
+    "border": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0.5
+    },
+    "border_width": 3.0,
+    "arc": {
+     "start_degrees": 132.0,
+     "sweep_degrees": -36.0,
+     "width": 4.0,
+     "segments": 1,
+     "gap_degrees": 0.0
+    }
+   }
+  },
+  {
+   "id": "vehicle_turbo_arc_ready",
+   "kind": "arc",
+   "binding": "vehicle_turbo_ratio",
+   "anchor": "center",
+   "offset": {
+    "x": 0.0,
+    "y": 0.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 323.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 323.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle_turbo_ready"
+   },
+   "layer": 2,
+   "style": {
+    "foreground": {
+     "r": 0.35,
+     "g": 1.0,
+     "b": 0.45,
+     "a": 1.0
+    },
+    "background": {
+     "r": 1,
+     "g": 1,
+     "b": 1,
+     "a": 0.14
+    },
+    "border": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0.5
+    },
+    "border_width": 3.0,
+    "arc": {
+     "start_degrees": 132.0,
+     "sweep_degrees": -36.0,
+     "width": 4.0,
+     "segments": 1,
+     "gap_degrees": 0.0
+    }
+   }
+  },
+  {
+   "id": "vehicle_turbo_arc_burning",
+   "kind": "arc",
+   "binding": "vehicle_turbo_ratio",
+   "anchor": "center",
+   "offset": {
+    "x": 0.0,
+    "y": 0.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 323.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 323.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle_turbo_burning"
+   },
+   "layer": 2,
+   "style": {
+    "foreground": {
+     "r": 1.0,
+     "g": 0.96,
+     "b": 0.7,
+     "a": 1.0
+    },
+    "background": {
+     "r": 1,
+     "g": 1,
+     "b": 1,
+     "a": 0.14
+    },
+    "border": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0.5
+    },
+    "border_width": 3.0,
+    "arc": {
+     "start_degrees": 132.0,
+     "sweep_degrees": -36.0,
+     "width": 4.0,
+     "segments": 1,
+     "gap_degrees": 0.0
+    }
+   }
+  },
+  {
+   "id": "vehicle_turbo_value",
+   "kind": "text",
+   "binding": "vehicle_turbo_value",
+   "anchor": "center",
+   "offset": {
+    "x": -140.0,
+    "y": 266.0
+   },
+   "offset_fraction": {
+    "x": 0.0,
+    "y": 0.19
+   },
+   "size": {
+    "width": {
+     "unit": "px",
+     "value": 140.0
+    },
+    "height": {
+     "unit": "px",
+     "value": 24.0
+    }
+   },
+   "visibility": {
+    "kind": "flag",
+    "binding": "draw_vehicle_turbo"
+   },
+   "layer": 3,
+   "style": {
+    "foreground": {
+     "r": 1.0,
+     "g": 1.0,
+     "b": 1.0,
+     "a": 1.0
+    },
+    "type_scale": 1.0,
     "weight": "semibold",
     "centered": true
    }

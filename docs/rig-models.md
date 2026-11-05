@@ -64,7 +64,7 @@ in those poses (a clip within a third standing), the rest being how each foot's 
 and heel tilt. The manifest's `lift <units>` raises (or lowers) the result by hand;
 a rig without mapped ankles keeps the pelvis placement alone.
 
-### Dynamic joints (tails)
+### Dynamic joints (tails, capes)
 
 A manifest's `dynamic <joint>` lines make the joints under each named one move on
 their own ([rig_dynamics.rs](../crates/sjk-viewer/src/rig_dynamics.rs), 14/10/2026):
@@ -83,6 +83,32 @@ model's space, per actor (`Scratch`): the chain answers the animation (steps, ju
 turns of the hips, emotes), not the player's run through the world or their turns.
 A frame step over 0.1 s (a hitch, a teleport) starts the chain again where the
 animation puts it.
+
+Each `dynamic` line sets its own chain (04/11/2026): after the joint, an optional bare
+gravity (as before), then any of `gravity <n>`, `wag <units>` (0 for a cape, which
+should not swing side to side), `stiffness <n>` (the spring, per second squared,
+above 0; higher holds the chain closer to its animated shape), `damping <n>` (per
+second, 0 or more; higher stops the swing sooner) and `nocollide`. Left out, each
+keeps the tail's value above (wag 2.5, stiffness 70, damping 7, gravity 1600).
+
+The body pushes the chains away. At load the rig builds a capsule (a segment
+thickened to a radius) for each bone map entry on the driver's trunk and leg bones
+(`COLLISION_BONES` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs): pelvis,
+the lumbar and thoracic bones, femurs and tibias) that aims at another joint, from
+that joint to the one it aims at. Its radius is measured from the bind-pose vertices
+whose strongest joint is that one, or an unmapped joint under it such as a twist
+bone (the chains' own vertices left out): a quarter of them lie closer to the
+segment, so it stays under the skin, and a joint carrying fewer than eight vertices
+makes none. With the mannequin preset that is the pelvis, five spine joints, both
+thighs and both calves. Each frame every chain point is held at its bone's length,
+pushed out of the capsules it is not exempt from (its speed into them stopped) and
+held at its length again. A point is exempt from its chain anchor's capsule and from
+those it already lies in at rest, so a cape hanging from the back, or a tail root
+inside the hips, is not shoved off its own body. A chain whose line says
+`nocollide` passes through. Only the joints collide: a long bone between two of them
+can still cut a corner of a leg, so a chain meant to slide round the body wants more
+joints. The capsules are only measured for a rig with dynamic chains, at most 64 of
+them, and the check is a few vector operations per point and capsule.
 
 ### Bolts on the rig
 
@@ -105,7 +131,7 @@ traces and hit boxes stay the driver's.
 | Manifest, presets, fit (axes, scale, alignments, anchors), pose, CPU skin | [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), tests in `rig_model_tests.rs` |
 | Rig surfaces put in the shared vertex buffer | `append_rig_mesh` in [actor_load.rs](../crates/sjk-viewer/src/actor_load.rs) |
 | Per-frame pose and palette upload (GPU and CPU paths) | [actor_pose_steps.rs](../crates/sjk-viewer/src/actor_pose_steps.rs), `rig_skin_records` in [gpu_skinning.rs](../crates/sjk-viewer/src/gpu_skinning.rs) |
-| Dynamic joints (tails) | `Chains` and `simulate` in [rig_dynamics.rs](../crates/sjk-viewer/src/rig_dynamics.rs), `RigModel::pose_after` |
+| Dynamic joints (tails, capes), their settings and body capsules | `Settings`, `Capsule`, `Chains` and `simulate` in [rig_dynamics.rs](../crates/sjk-viewer/src/rig_dynamics.rs), `dynamic_settings` and `body_capsules` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), `RigModel::pose_after` |
 | Feet planted on the driver's ground | `Feet`, `sole` and `RigModel::with_feet` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), the ignored test `feet_against_the_driver` |
 | Bolts and Force points moved onto the rig | `PlayerPreview::bolt`, `RigModel::retarget_bolt` and `retarget_point`, [force_bones.rs](../crates/sjk-viewer/src/force_bones.rs) |
 | Dismemberment skipped, JoF first-person body off | [dismember.rs](../crates/sjk-viewer/src/dismember.rs), [actor_world_submission.rs](../crates/sjk-viewer/src/actor_world_submission.rs) |
@@ -130,7 +156,7 @@ A model folder (`models/players/<name>/`) with `sjk_rig.cfg` is a rig model; `/m
 | `preset <name>` | the bone map to start from ([`PRESETS`](../crates/sjk-viewer/src/rig_model.rs)) | `mannequin` |
 | `scale <n>` or `scale auto` | game units per glTF metre | `auto` |
 | `lift <units>` | raise (negative: lower) the planted rig by hand | `0` |
-| `dynamic <joint> [gravity]` | the joints under it move on their own (spring, wag, gravity in units per second squared, 1600 when left out), one line per chain | none |
+| `dynamic <joint> [gravity] [gravity <n>] [wag <units>] [stiffness <n>] [damping <n>] [nocollide]` | the joints under it move on their own (spring, wag, gravity in units per second squared), kept out of the body unless `nocollide`, one line per chain (see [Dynamic joints](#dynamic-joints-tails-capes)) | none; gravity 1600, wag 2.5, stiffness 70, damping 7 |
 | `map <joint> <bone>` | the joint follows the JKA bone, bind orientation kept | |
 | `map <joint> <bone> <joint end> <bone end>` | ... aimed along the bone | |
 | `map <joint> <bone> as <other joint>` | ... with another joint's alignment (finger chains) | |
@@ -202,10 +228,11 @@ in one click.
   is exported in its place, with the other armature's bones added under the bone it
   follows where they stand on the rest pose, and the mesh as it stands there with its
   own weights. The other armature's root bones are written as `dynamic` lines
-  (replaced at each export; a `dynamic` line naming one of the armature's own bones,
-  such as a tail added by hand, is kept), so the game moves them on their own, with the
-  panel's Tail gravity (written when it is not the game's 1600). The panel counts
-  them.
+  (replaced at each export, keeping the options written on them by hand, such as
+  `wag 0`, since add-on 1.10.0; a `dynamic` line naming one of the armature's own
+  bones, such as a tail added by hand, is kept as it is), so the game moves them on
+  their own, with the panel's Tail gravity (written when it is not the game's 1600).
+  The panel counts them.
 - **Height adjustment:** written as the manifest's `lift` line (0 removes it), the
   one manifest line the add-on changes in a kept manifest.
 - **Emote settings:** each ticked action takes a sound (`.wav` or `.mp3`, packed as
@@ -429,7 +456,11 @@ plays its glTF's animations on its own skeleton.
   default). The boombox plays on its own channel (15, protected like the emotes'
   from voice stealing) and keeps `s_volume`. Attack ends emote
   (`cg_emoteAttackStop`, off by default) makes an attack or alt attack stop your own
-  emote for everyone; Typing keeps emote (`cg_emoteTypingKeep`, on) keeps a typing
+  emote for everyone; Mute emotes in duels (`s_muteEmotesInDuel`, off by default,
+  Groark's idea, hub report #234) puts the emote channel's gain to 0 while the viewed
+  player is in a private duel or the server plays Duel or Power Duel (the rule of
+  `cg_duelStockBlades`, `duel_blades::in_duel`), so the emotes already playing fall
+  silent too and one still playing when the duel ends is heard again; Typing keeps emote (`cg_emoteTypingKeep`, on) keeps a typing
   player's emote until they move after; alt-tabbing out always silences an emote's
   sound ([hub chat](hub-chat.md#emotes-in-the-client)).
 - The mixer has 128 voices (32 until 15/10/2026, as retail) and, when they are all

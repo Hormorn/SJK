@@ -8,6 +8,15 @@ use std::sync::OnceLock;
 #[path = "platform/storage.rs"]
 mod storage;
 
+#[cfg(target_os = "linux")]
+mod main_stack;
+
+/// Match the link-time main-thread stack allowance on Linux, before client startup.
+pub(crate) fn configure_main_stack() {
+    #[cfg(target_os = "linux")]
+    main_stack::configure();
+}
+
 static CONFIG_FILE: OnceLock<PathBuf> = OnceLock::new();
 
 /// Give mounted PK3 archives the process headroom the host already permits.

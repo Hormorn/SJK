@@ -119,8 +119,8 @@ impl ViewerConsole {
 
     /// Send `text` to the SJK chat, as the page's Send does.
     fn say_in_sjk_chat(&mut self, text: String) -> Result<Vec<String>, String> {
-        if self.bool_cvar("cl_sjkChat") == Some(false) {
-            return Err("SJK chat is off (cl_sjkChat 1 turns it on)".to_owned());
+        if !self.sjk_chat_on() {
+            return Err(crate::sjk_chat_frame::off_reason());
         }
         if !crate::player_identity::chat(text) {
             return Err("the SJK identity is off (cl_identity 1)".to_owned());
@@ -157,8 +157,9 @@ impl ViewerConsole {
                 }
             }
             PanelAction::Send(text) => {
-                if self.bool_cvar("cl_sjkChat") == Some(false) {
-                    self.push_log("^3sjkchat: SJK chat is off (cl_sjkChat 1 turns it on)");
+                if !self.sjk_chat_on() {
+                    let reason = crate::sjk_chat_frame::off_reason();
+                    self.push_log(format!("^3sjkchat: {reason}"));
                 } else if !crate::player_identity::chat(text) {
                     self.push_log("^3sjkchat: the SJK identity is off (cl_identity 1)");
                 }
@@ -238,7 +239,7 @@ impl ViewerConsole {
             failed: state.failed,
             busy: state.busy,
         });
-        let enabled = self.bool_cvar("cl_sjkChat") != Some(false);
+        let enabled = self.sjk_chat_on();
         let now = crate::menu::sjk::recent::now();
         // A copy, drawn once the lock is let go: drawing asks the identity for the
         // player's own key (to keep it off the chosen message and the sender card),

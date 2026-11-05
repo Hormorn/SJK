@@ -261,6 +261,14 @@ impl LocalPrediction {
         }
     }
 
+    /// The map editor's own flight speed while a fake noclip flies (`None`: stock), handed
+    /// to every predictor each frame (`Predictor::set_fake_noclip_boost`).
+    pub(crate) fn set_fake_noclip_boost(&mut self, boost: Option<f32>) {
+        for predictor in self.predictor.iter_mut().chain(self.preview.iter_mut()) {
+            predictor.set_fake_noclip_boost(boost);
+        }
+    }
+
     /// Free camera additionally suppresses gameplay actions and weapon changes.
     pub(crate) fn set_free_camera(&mut self, on: bool, weapon: u8) {
         if on && !self.free_camera {

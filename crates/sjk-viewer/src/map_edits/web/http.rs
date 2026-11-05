@@ -43,6 +43,87 @@ pub(crate) enum GameRequest {
     Lists,
     /// An edit (`POST api/edit`).
     Edit(EditRequest),
+    /// The shaders and models used lately (`GET api/recent`, [`super::recent`]).
+    Recent,
+    /// A change to them (`POST api/recent`).
+    SetRecent(RecentRequest),
+    /// The invisible brush faces as `r_showBrushes` sorts them, and the liquid volumes
+    /// (`GET api/brushes`).
+    Brushes,
+    /// The faces joined to side `side` of brush `brush` that players see, growing by
+    /// `grow` (`GET api/link?brush=&side=&grow=plane|surface`).
+    Link {
+        brush: u32,
+        side: u32,
+        grow: crate::map_edits::linked::Grow,
+    },
+    /// The shaders the drawn surfaces round some faces use (`POST api/suggest`).
+    Suggest(SuggestRequest),
+}
+
+/// Most faces and surfaces one request names (a link takes 512 at most).
+pub(crate) const MAX_MANY: usize = 1024;
+
+/// Faces asking which shader surrounds them.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SuggestRequest {
+    /// Brush and side of each face.
+    pub(crate) faces: Vec<[u32; 2]>,
+}
+
+impl SuggestRequest {
+    pub(crate) fn parse(body: &[u8]) -> Result<Self, String> {
+        let request: Self = serde_json::from_slice(body).map_err(|error| error.to_string())?;
+        if request.faces.is_empty() || request.faces.len() > MAX_MANY {
+            return Err(format!("between 1 and {MAX_MANY} faces"));
+        }
+        Ok(request)
+    }
+}
+
+/// `api/link`'s query: `brush`, `side` and `grow` (`plane`, the default, or `surface`).
+pub(crate) fn link_request(request: &Request) -> Option<GameRequest> {
+    let number = |name: &str| request.field(name)?.parse::<u32>().ok();
+    let grow = match request.field("grow").unwrap_or("plane") {
+        "plane" => crate::map_edits::linked::Grow::Plane,
+        "surface" => crate::map_edits::linked::Grow::Surface,
+        _ => return None,
+    };
+    Some(GameRequest::Link {
+        brush: number("brush")?,
+        side: number("side")?,
+        grow,
+    })
+}
+
+/// A change to the Recent rows the page asks for.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum RecentRequest {
+    /// "Remember recent textures" on or off (off forgets them).
+    Remember { on: bool },
+    /// Forget the lists (a struct variant, so a stray field is refused too).
+    Clear {},
+}
+
+impl RecentRequest {
+    pub(crate) fn parse(body: &[u8]) -> Result<Self, String> {
+        serde_json::from_slice(body).map_err(|error| error.to_string())
+    }
+}
+
+/// Things other systems than map edits stand on the map, which the page places and
+/// removes through their own code ([`super::things`]).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Thing {
+    /// The player's own boombox on the floor (`boombox_place`).
+    Boombox,
+    /// A mystery box (`mysterybox_place`, through the hub).
+    MysteryBox,
+    /// A Toy Master toy (`toymaster_place`, through the hub).
+    Toy,
 }
 
 /// The game thread's answer: JSON, or why not.
@@ -71,18 +152,61 @@ pub(crate) enum EditRequest {
         eye: [f32; 3],
         dir: [f32; 3],
         forward: [f32; 3],
+        /// The brush view's caulk or nodraw face the click met first (brush, side): it
+        /// is selected unless a drawn surface stands in front of it.
+        #[serde(default)]
+        face: Option<[u32; 2]>,
     },
+    /// Drop the selection (Esc in the page).
+    Clear,
     /// `mapedit_hide [group]`
     Hide {
         #[serde(default)]
         group: bool,
     },
-    /// `mapedit_place <model>` where the ray meets the map.
+    /// `mapedit_place <model>` where the ray meets the map; a pasted copy brings its
+    /// angles and its scale (`mapedit_place <model> <angles> <scale>`).
     Place {
         model: String,
         eye: [f32; 3],
         dir: [f32; 3],
         forward: [f32; 3],
+        #[serde(default)]
+        angles: Option<[f32; 3]>,
+        #[serde(default)]
+        scale: Option<[f32; 3]>,
+    },
+    /// Stand `thing` where the ray meets the map, facing the page's view: a boombox
+    /// already down moves there; a toy is of `kind`; `server` for this server only,
+    /// `escort` for a toy shown only where the creator is.
+    PlaceThing {
+        thing: Thing,
+        eye: [f32; 3],
+        dir: [f32; 3],
+        forward: [f32; 3],
+        #[serde(default)]
+        kind: String,
+        #[serde(default)]
+        server: bool,
+        #[serde(default)]
+        escort: bool,
+    },
+    /// Take `thing` `id` away (the boombox: back on the shoulder, no id).
+    RemoveThing {
+        thing: Thing,
+        #[serde(default)]
+        id: i64,
+    },
+    /// A gizmo's drag in the page, put down: `mapedit_set` with each placed model's exact
+    /// origin, angles and scale, one step to undo ([`crate::map_edits::gizmo`]).
+    Set { edits: Vec<SetEdit> },
+    /// The page's gizmo on the player's own boombox: stood again at `origin` (its floor
+    /// under it), facing `yaw`. Boxes and toys have no move (the hub's), so only the
+    /// boombox is taken.
+    SetThing {
+        thing: Thing,
+        origin: [f32; 3],
+        yaw: f32,
     },
     /// `mapedit_turn <degrees>`
     Turn { degrees: f32 },
@@ -92,6 +216,13 @@ pub(crate) enum EditRequest {
     Scale { factor: f32 },
     /// `mapedit_remap <shader>`, `-` removes the remap.
     Remap { shader: String },
+    /// `mapedit_sky <shader> [all]`: the selected sky (every sky of the map with `all`)
+    /// swapped for sky shader `shader`; `-` puts the map's back.
+    Sky {
+        shader: String,
+        #[serde(default)]
+        all: bool,
+    },
     /// `mapedit_scope all|server`
     Scope { scope: String },
     /// Make placed edit `id` the one Turn, Move and Scale act on.
@@ -104,6 +235,36 @@ pub(crate) enum EditRequest {
     Redo,
     /// `mapedit_publish`
     Publish,
+    /// The page's multiple selection: draw caulk or nodraw faces (brush, side) with
+    /// `shader` and remap the surfaces' shaders to it (`-` takes those edits away), one
+    /// step to undo.
+    ApplyMany {
+        #[serde(default)]
+        faces: Vec<[u32; 2]>,
+        #[serde(default)]
+        surfaces: Vec<u32>,
+        shader: String,
+    },
+    /// The page's multiple selection hidden: the surfaces hidden, the faces drawn as
+    /// nothing again, the placed models (by their edit's id) removed, one step to undo.
+    HideMany {
+        #[serde(default)]
+        faces: Vec<[u32; 2]>,
+        #[serde(default)]
+        surfaces: Vec<u32>,
+        #[serde(default)]
+        placed: Vec<u32>,
+    },
+}
+
+/// One placed model of [`EditRequest::Set`].
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SetEdit {
+    pub(crate) id: u32,
+    pub(crate) origin: [f32; 3],
+    pub(crate) angles: [f32; 3],
+    pub(crate) scale: [f32; 3],
 }
 
 /// Longest model or shader name an edit takes (a document keeps 160 at most).
@@ -116,26 +277,77 @@ impl EditRequest {
         let request: Self = serde_json::from_slice(body).map_err(|error| error.to_string())?;
         let finite = |values: &[f32]| values.iter().all(|value| value.is_finite());
         let ok = match &request {
-            Self::Select { eye, dir, forward } => {
-                finite(eye) && finite(dir) && finite(forward) && dir.iter().any(|v| *v != 0.0)
-            }
+            Self::Select {
+                eye, dir, forward, ..
+            } => finite(eye) && finite(dir) && finite(forward) && dir.iter().any(|v| *v != 0.0),
             Self::Place {
                 model,
                 eye,
                 dir,
                 forward,
+                angles,
+                scale,
             } => {
                 name_ok(model)
                     && finite(eye)
                     && finite(dir)
                     && finite(forward)
                     && dir.iter().any(|v| *v != 0.0)
+                    && angles.is_none_or(|angles| finite(&angles))
+                    && scale.is_none_or(|scale| finite(&scale) && scale.iter().all(|v| *v > 0.0))
+            }
+            Self::PlaceThing {
+                thing,
+                eye,
+                dir,
+                forward,
+                kind,
+                ..
+            } => {
+                finite(eye)
+                    && finite(dir)
+                    && finite(forward)
+                    && dir.iter().any(|v| *v != 0.0)
+                    && match thing {
+                        Thing::Toy => name_ok(kind),
+                        _ => kind.is_empty(),
+                    }
+            }
+            Self::RemoveThing { thing, id } => match thing {
+                Thing::Boombox => *id == 0,
+                _ => *id > 0,
+            },
+            Self::Set { edits } => {
+                (1..=crate::map_edits::gizmo::MAX_SET).contains(&edits.len())
+                    && edits.iter().all(|edit| {
+                        finite(&edit.origin)
+                            && finite(&edit.angles)
+                            && finite(&edit.scale)
+                            && edit.scale.iter().all(|v| *v > 0.0)
+                    })
+            }
+            Self::SetThing { thing, origin, yaw } => {
+                *thing == Thing::Boombox && finite(origin) && yaw.is_finite()
             }
             Self::Turn { degrees } => degrees.is_finite(),
             Self::Move { offset } => finite(offset),
             Self::Scale { factor } => factor.is_finite() && *factor > 0.0,
-            Self::Remap { shader } => name_ok(shader),
+            Self::Remap { shader } | Self::Sky { shader, .. } => name_ok(shader),
             Self::Scope { scope } => scope == "all" || scope == "server",
+            Self::ApplyMany {
+                faces,
+                surfaces,
+                shader,
+            } => many_ok(faces, surfaces) && name_ok(shader),
+            Self::HideMany {
+                faces,
+                surfaces,
+                placed,
+            } => {
+                placed.len() <= crate::map_edits::gizmo::MAX_SET
+                    && (many_ok(faces, surfaces)
+                        || (faces.len() + surfaces.len() == 0 && !placed.is_empty()))
+            }
             _ => true,
         };
         if ok {
@@ -146,20 +358,62 @@ impl EditRequest {
     }
 
     /// The editor command and its arguments this edit runs; `None` for the page's own
-    /// steps ([`Self::Select`], [`Self::Current`]; [`Self::Place`] selects first).
+    /// steps ([`Self::Select`], [`Self::Clear`], [`Self::Current`], the things, the
+    /// multiple selection's; [`Self::Place`] selects first).
     pub(crate) fn command(&self) -> Option<(&'static str, Vec<String>)> {
         let number = |value: f32| format!("{value}");
         Some(match self {
-            Self::Select { .. } | Self::Current { .. } => return None,
+            Self::Select { .. }
+            | Self::Clear
+            | Self::Current { .. }
+            | Self::PlaceThing { .. }
+            | Self::RemoveThing { .. }
+            | Self::SetThing { .. }
+            | Self::ApplyMany { .. }
+            | Self::HideMany { .. } => return None,
             Self::Hide { group } => (
                 "mapedit_hide",
                 if *group { vec!["group".into()] } else { vec![] },
             ),
-            Self::Place { model, .. } => ("mapedit_place", vec![model.clone()]),
+            Self::Place {
+                model,
+                angles,
+                scale,
+                ..
+            } => {
+                let mut args = vec![model.clone()];
+                if angles.is_some() || scale.is_some() {
+                    args.extend(angles.unwrap_or([0.0; 3]).map(number));
+                    args.extend(scale.unwrap_or([1.0; 3]).map(number));
+                }
+                ("mapedit_place", args)
+            }
+            Self::Set { edits } => (
+                crate::map_edits::gizmo::COMMAND,
+                edits
+                    .iter()
+                    .flat_map(|edit| {
+                        std::iter::once(edit.id.to_string()).chain(
+                            edit.origin
+                                .into_iter()
+                                .chain(edit.angles)
+                                .chain(edit.scale)
+                                .map(number),
+                        )
+                    })
+                    .collect(),
+            ),
             Self::Turn { degrees } => ("mapedit_turn", vec![number(*degrees)]),
             Self::Move { offset } => ("mapedit_move", offset.iter().copied().map(number).collect()),
             Self::Scale { factor } => ("mapedit_scale", vec![number(*factor)]),
             Self::Remap { shader } => ("mapedit_remap", vec![shader.clone()]),
+            Self::Sky { shader, all } => {
+                let mut args = vec![shader.clone()];
+                if *all {
+                    args.push("all".into());
+                }
+                ("mapedit_sky", args)
+            }
             Self::Scope { scope } => ("mapedit_scope", vec![scope.clone()]),
             Self::Delete { id } => ("mapedit_delete", vec![id.to_string()]),
             Self::Undo => ("mapedit_undo", vec![]),
@@ -167,6 +421,12 @@ impl EditRequest {
             Self::Publish => ("mapedit_publish", vec![]),
         })
     }
+}
+
+/// A multiple selection: one face or surface at least, [`MAX_MANY`] at most.
+fn many_ok(faces: &[[u32; 2]], surfaces: &[u32]) -> bool {
+    let count = faces.len() + surfaces.len();
+    (1..=MAX_MANY).contains(&count)
 }
 
 fn name_ok(name: &str) -> bool {
@@ -599,6 +859,20 @@ fn handle(request: &Request, context: &Context) -> Response {
             Ok(edit) => ask_game(context, GameRequest::Edit(edit)),
             Err(why) => Response::text(422, &why),
         },
+        ("GET", "/api/recent") => ask_game(context, GameRequest::Recent),
+        ("POST", "/api/recent") => match RecentRequest::parse(&request.body) {
+            Ok(change) => ask_game(context, GameRequest::SetRecent(change)),
+            Err(why) => Response::text(422, &why),
+        },
+        ("GET", "/api/brushes") => ask_game(context, GameRequest::Brushes),
+        ("GET", "/api/link") => match link_request(request) {
+            Some(link) => ask_game(context, link),
+            None => Response::text(422, "brush, side and grow (plane or surface)"),
+        },
+        ("POST", "/api/suggest") => match SuggestRequest::parse(&request.body) {
+            Ok(suggest) => ask_game(context, GameRequest::Suggest(suggest)),
+            Err(why) => Response::text(422, &why),
+        },
         _ => Response::text(404, "not found"),
     }
 }
@@ -930,11 +1204,246 @@ mod tests {
         assert!(parse(r#"{"op":"hide","extra":1}"#).is_err());
         assert!(parse(r#"{"op":"remap","shader":"a; quit"}"#).is_err());
         assert!(parse(r#"{"op":"remap","shader":""}"#).is_err());
+        assert_eq!(
+            parse(r#"{"op":"sky","shader":"textures/skies/night"}"#)
+                .unwrap()
+                .command(),
+            Some(("mapedit_sky", vec!["textures/skies/night".to_owned()]))
+        );
+        assert_eq!(
+            parse(r#"{"op":"sky","shader":"-","all":true}"#)
+                .unwrap()
+                .command(),
+            Some(("mapedit_sky", vec!["-".to_owned(), "all".to_owned()]))
+        );
+        assert!(parse(r#"{"op":"sky","shader":"a b"}"#).is_err());
+        assert!(parse(r#"{"op":"sky","shader":"a","all":"yes"}"#).is_err());
+
         assert!(parse(r#"{"op":"scale","factor":0}"#).is_err());
         assert!(parse(r#"{"op":"scale","factor":-1}"#).is_err());
         assert!(parse(r#"{"op":"scope","scope":"everywhere"}"#).is_err());
         assert!(parse(r#"{"op":"select","eye":[0,0,0],"dir":[0,0,0],"forward":[1,0,0]}"#).is_err());
         assert!(parse("not json").is_err());
+    }
+
+    #[test]
+    fn a_gizmo_drag_is_one_set_of_every_model() {
+        let parse = |json: &str| EditRequest::parse(json.as_bytes());
+        let set = parse(
+            r#"{"op":"set","edits":[{"id":3,"origin":[1,2,3.5],"angles":[0,90,0],"scale":[1,1,2]},{"id":4,"origin":[0,0,0],"angles":[10,0,0],"scale":[1,1,1]}]}"#,
+        )
+        .unwrap();
+        let (name, args) = set.command().unwrap();
+        assert_eq!(name, "mapedit_set");
+        assert_eq!(args.len(), 20);
+        assert_eq!(&args[..4], ["3", "1", "2", "3.5"]);
+        let sets = crate::map_edits::gizmo::parse_set(&args).unwrap();
+        assert_eq!(sets[0].scale, Some([1.0, 1.0, 2.0]));
+        assert_eq!(sets[1].angles, [10.0, 0.0, 0.0]);
+        // Refused: none, a scale of 0, a missing scale, an unknown field.
+        assert!(parse(r#"{"op":"set","edits":[]}"#).is_err());
+        assert!(parse(r#"{"op":"set","edits":[{"id":3,"origin":[1,2,3],"angles":[0,0,0],"scale":[1,0,1]}]}"#).is_err());
+        assert!(
+            parse(r#"{"op":"set","edits":[{"id":3,"origin":[1,2,3],"angles":[0,0,0]}]}"#).is_err()
+        );
+        assert!(parse(r#"{"op":"set","edits":[{"id":3,"origin":[1,2,3],"angles":[0,0,0],"scale":[1,1,1],"x":1}]}"#).is_err());
+        // The boombox stands again; a box or a toy has no move.
+        assert_eq!(
+            parse(r#"{"op":"set_thing","thing":"boombox","origin":[1,2,3],"yaw":90}"#).unwrap(),
+            EditRequest::SetThing {
+                thing: Thing::Boombox,
+                origin: [1.0, 2.0, 3.0],
+                yaw: 90.0
+            }
+        );
+        assert!(
+            parse(r#"{"op":"set_thing","thing":"mystery_box","origin":[1,2,3],"yaw":0}"#).is_err()
+        );
+        assert!(parse(r#"{"op":"set_thing","thing":"toy","origin":[1,2,3],"yaw":0}"#).is_err());
+    }
+
+    #[test]
+    fn a_pasted_copy_brings_its_angles_and_scale() {
+        let parse = |json: &str| EditRequest::parse(json.as_bytes());
+        let ray = r#""eye":[0,0,0],"dir":[1,0,0],"forward":[1,0,0]"#;
+        let place = |extra: &str| {
+            parse(&format!(
+                r#"{{"op":"place","model":"models/a.md3",{ray}{extra}}}"#
+            ))
+        };
+        assert_eq!(
+            place(r#","angles":[0,90,0],"scale":[2,2,1.5]"#)
+                .unwrap()
+                .command(),
+            Some((
+                "mapedit_place",
+                ["models/a.md3", "0", "90", "0", "2", "2", "1.5"]
+                    .map(str::to_owned)
+                    .to_vec()
+            ))
+        );
+        assert_eq!(
+            place(r#","angles":[0,45,0]"#)
+                .unwrap()
+                .command()
+                .unwrap()
+                .1
+                .len(),
+            7
+        );
+        assert_eq!(place("").unwrap().command().unwrap().1.len(), 1);
+        assert!(place(r#","scale":[0,1,1]"#).is_err());
+        assert!(place(r#","angles":[1,2]"#).is_err());
+    }
+
+    #[test]
+    fn things_are_placed_and_removed_by_their_own_requests() {
+        let parse = |json: &str| EditRequest::parse(json.as_bytes());
+        let ray = r#""eye":[0,0,0],"dir":[1,0,0],"forward":[1,0,0]"#;
+        let thing = |fields: &str| parse(&format!(r#"{{"op":"place_thing",{fields},{ray}}}"#));
+        let toy = thing(r#""thing":"toy","kind":"cat","server":true,"escort":true"#).unwrap();
+        assert_eq!(
+            toy,
+            EditRequest::PlaceThing {
+                thing: Thing::Toy,
+                eye: [0.0; 3],
+                dir: [1.0, 0.0, 0.0],
+                forward: [1.0, 0.0, 0.0],
+                kind: "cat".into(),
+                server: true,
+                escort: true,
+            }
+        );
+        // Not an editor command: the game thread runs each thing's own code.
+        assert_eq!(toy.command(), None);
+        assert!(thing(r#""thing":"boombox""#).is_ok());
+        assert!(thing(r#""thing":"mystery_box""#).is_ok());
+        // A toy needs a kind without spaces; the others take none.
+        assert!(thing(r#""thing":"toy""#).is_err());
+        assert!(thing(r#""thing":"toy","kind":"a b""#).is_err());
+        assert!(thing(r#""thing":"boombox","kind":"x""#).is_err());
+        assert!(thing(r#""thing":"car""#).is_err());
+        assert!(
+            parse(
+                r#"{"op":"place_thing","thing":"boombox","eye":[0,0,0],"dir":[0,0,0],"forward":[1,0,0]}"#
+            )
+            .is_err()
+        );
+        assert_eq!(
+            parse(r#"{"op":"remove_thing","thing":"mystery_box","id":12}"#).unwrap(),
+            EditRequest::RemoveThing {
+                thing: Thing::MysteryBox,
+                id: 12
+            }
+        );
+        assert!(parse(r#"{"op":"remove_thing","thing":"boombox"}"#).is_ok());
+        assert!(parse(r#"{"op":"remove_thing","thing":"toy"}"#).is_err());
+        assert!(parse(r#"{"op":"remove_thing","thing":"boombox","id":3}"#).is_err());
+    }
+
+    #[test]
+    fn the_multiple_selection_is_read_and_bounded() {
+        let parse = |json: &str| EditRequest::parse(json.as_bytes());
+        let apply = parse(
+            r#"{"op":"apply_many","faces":[[3,17],[4,22]],"surfaces":[9],"shader":"textures/a/b"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            apply,
+            EditRequest::ApplyMany {
+                faces: vec![[3, 17], [4, 22]],
+                surfaces: vec![9],
+                shader: "textures/a/b".into(),
+            }
+        );
+        // not a console command: the game thread runs it as one step
+        assert_eq!(apply.command(), None);
+        assert!(parse(r#"{"op":"apply_many","faces":[[1,2]],"shader":"-"}"#).is_ok());
+        assert!(parse(r#"{"op":"hide_many","surfaces":[1,2,3]}"#).is_ok());
+        // placed models: removed with the rest, or alone; no more than one set takes
+        assert!(parse(r#"{"op":"hide_many","faces":[[1,2]],"placed":[4,5]}"#).is_ok());
+        assert!(parse(r#"{"op":"hide_many","placed":[4,5]}"#).is_ok());
+        let models: Vec<String> = (0..=crate::map_edits::gizmo::MAX_SET)
+            .map(|i| i.to_string())
+            .collect();
+        assert!(
+            parse(&format!(
+                r#"{{"op":"hide_many","placed":[{}]}}"#,
+                models.join(",")
+            ))
+            .is_err()
+        );
+        // refused: nothing named, too many, a shader with a space, a bad face
+        assert!(parse(r#"{"op":"hide_many"}"#).is_err());
+        assert!(parse(r#"{"op":"apply_many","faces":[[1,2]],"shader":"a b"}"#).is_err());
+        assert!(parse(r#"{"op":"apply_many","faces":[[1]],"shader":"x/y"}"#).is_err());
+        let many: Vec<String> = (0..=MAX_MANY).map(|i| i.to_string()).collect();
+        assert!(
+            parse(&format!(
+                r#"{{"op":"hide_many","surfaces":[{}]}}"#,
+                many.join(",")
+            ))
+            .is_err()
+        );
+        // a click on the brush view names its face; Esc clears
+        let select = parse(
+            r#"{"op":"select","eye":[0,0,0],"dir":[0,0,-1],"forward":[1,0,0],"face":[5,30]}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            select,
+            EditRequest::Select {
+                face: Some([5, 30]),
+                ..
+            }
+        ));
+        assert_eq!(parse(r#"{"op":"clear"}"#).unwrap(), EditRequest::Clear);
+    }
+
+    #[test]
+    fn links_and_suggestions_are_read_from_their_requests() {
+        let link = |query: &str| link_request(&with("GET", &format!("/api/link?{query}"), &[]));
+        assert_eq!(
+            link("brush=4&side=31&grow=surface"),
+            Some(GameRequest::Link {
+                brush: 4,
+                side: 31,
+                grow: crate::map_edits::linked::Grow::Surface,
+            })
+        );
+        assert!(matches!(
+            link("brush=4&side=31"),
+            Some(GameRequest::Link {
+                grow: crate::map_edits::linked::Grow::Plane,
+                ..
+            })
+        ));
+        assert_eq!(link("brush=4&side=31&grow=all"), None);
+        assert_eq!(link("brush=-1&side=3"), None);
+        assert_eq!(link("side=3"), None);
+        assert_eq!(
+            SuggestRequest::parse(br#"{"faces":[[1,2],[3,4]]}"#).unwrap(),
+            SuggestRequest {
+                faces: vec![[1, 2], [3, 4]]
+            }
+        );
+        assert!(SuggestRequest::parse(br#"{"faces":[]}"#).is_err());
+        assert!(SuggestRequest::parse(br#"{"faces":[[1,2]],"x":1}"#).is_err());
+    }
+
+    #[test]
+    fn the_recent_rows_take_their_switch_and_a_clear() {
+        assert_eq!(
+            RecentRequest::parse(br#"{"op":"remember","on":false}"#).unwrap(),
+            RecentRequest::Remember { on: false }
+        );
+        assert_eq!(
+            RecentRequest::parse(br#"{"op":"clear"}"#).unwrap(),
+            RecentRequest::Clear {}
+        );
+        assert!(RecentRequest::parse(br#"{"op":"remember"}"#).is_err());
+        assert!(RecentRequest::parse(br#"{"op":"add","name":"x"}"#).is_err());
+        assert!(RecentRequest::parse(br#"{"op":"clear","x":1}"#).is_err());
     }
 
     #[test]

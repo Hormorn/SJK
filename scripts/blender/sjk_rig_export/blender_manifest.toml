@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "sjk_rig_export"
-version = "1.9.0"
+version = "1.10.0"
 name = "SJK Rig Model Export"
 tagline = "Export a rigged character as an SJK rig model player"
 maintainer = "Sol-Vulpes"

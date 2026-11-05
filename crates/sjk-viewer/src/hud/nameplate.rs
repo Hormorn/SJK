@@ -381,6 +381,13 @@ fn head_key(model: &[u8]) -> u64 {
 /// The nameplates' look ([`Style`]).
 pub(crate) const STYLE_CVAR: &str = "cg_nameplateStyle";
 
+/// How solid the plates are drawn (`cg_nameplateAlpha`, 04/11/2026, from #ideas): the
+/// whole plate, in every style, times its own distance and wall fade.
+pub(crate) const OPACITY_CVAR: &str = "cg_nameplateAlpha";
+
+/// The lowest `cg_nameplateAlpha` honoured: `cg_nameplate 0` is how plates go away.
+const MIN_OPACITY: f32 = 0.1;
+
 /// Register the nameplate settings.
 pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarError> {
     cvars.register(CvarDefinition::new(
@@ -407,6 +414,12 @@ pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         0.5_f64,
         CvarFlags::ARCHIVE,
         "Nameplate text size",
+    ))?;
+    cvars.register(CvarDefinition::new(
+        OPACITY_CVAR,
+        1.0_f64,
+        CvarFlags::ARCHIVE,
+        "Nameplate opacity, from 0.1 (faint) to 1 (solid); the distance and wall fades still apply",
     ))?;
     cvars.register(CvarDefinition::new(
         "cg_nameplateBars",
@@ -487,6 +500,8 @@ struct Settings {
     range: f32,
     near: f32,
     scale: f32,
+    /// The plates' opacity (`cg_nameplateAlpha`), [`MIN_OPACITY`] to 1.
+    opacity: f32,
     bars: i64,
     walls: bool,
     npcs: bool,
@@ -515,6 +530,7 @@ impl Default for Settings {
             range: 3000.0,
             near: 1000.0,
             scale: 0.5,
+            opacity: 1.0,
             bars: 2,
             walls: false,
             npcs: false,
@@ -692,6 +708,8 @@ impl State {
             range: number("cg_nameplaterange", 3000.0).clamp(500.0, 10_000.0),
             near: number("cg_nameplatenear", 1000.0).clamp(0.0, 10_000.0),
             scale: crate::cgame_options::scalar(console, "cg_nameplatescale", 0.5).clamp(0.1, 3.0),
+            opacity: crate::cgame_options::scalar(console, "cg_nameplatealpha", 1.0)
+                .clamp(MIN_OPACITY, 1.0),
             bars: console
                 .and_then(|c| c.integer_cvar("cg_nameplatebars"))
                 .unwrap_or(2),
@@ -1638,7 +1656,8 @@ impl State {
                 u,
                 unit,
             };
-            let _ = self.list.push(DrawCommand::PushOpacity(entry.alpha));
+            let opacity = entry.alpha * self.settings.opacity;
+            let _ = self.list.push(DrawCommand::PushOpacity(opacity));
             match self.settings.style {
                 Style::Holo => self.holo(&entry, place, label, icons, font, viewport),
                 Style::Capsule => self.capsule(&entry, place, label, icons, font, viewport),
@@ -2747,6 +2766,45 @@ mod tests {
             state.sample(Some(&console));
             assert_eq!(state.sharing(None).share, shares, "{enabled} {bars}");
             assert_eq!(see_and_share(&console), shares, "{enabled} {bars}");
+        }
+    }
+
+    /// `cg_nameplateAlpha` reads 0.1 to 1 (solid by default), and every style draws its
+    /// whole plate at that opacity times the plate's own fade.
+    #[test]
+    fn the_opacity_setting_fades_every_style() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        let mut state = State::default();
+        state.sample(Some(&console));
+        assert_eq!(state.settings.opacity, 1.0);
+        for (value, read) in [("0.5", 0.5), ("0", MIN_OPACITY), ("3", 1.0)] {
+            console.set_cvar(OPACITY_CVAR, value);
+            state.sample(Some(&console));
+            assert!((state.settings.opacity - read).abs() < 1e-6, "{value}");
+        }
+        let font = crate::text::load_classic().expect("the HUD font");
+        for style in Style::ALL {
+            let mut state = State::default();
+            state.set_style(style);
+            state.settings.opacity = 0.5;
+            state.preview(
+                &[plate()],
+                &["Hello"],
+                &[],
+                &font.font,
+                &mut Vec::new(),
+                [800.0, 600.0],
+            );
+            let first = state
+                .list
+                .commands()
+                .iter()
+                .find_map(|command| match command {
+                    DrawCommand::PushOpacity(value) => Some(*value),
+                    _ => None,
+                });
+            assert_eq!(first, Some(0.5), "{style:?}");
         }
     }
 

@@ -6,6 +6,48 @@
 //! mutes'; nothing is copied unless one changed.
 
 use super::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// The environment variable that keeps the SJK chat off for one run without changing
+/// the saved `cl_sjkChat`: the player appears offline in the menus (the hub lists a key
+/// as online only while it reads the chat, `docs/hub-chat.md`). Any value but empty or
+/// `0` turns it on.
+pub(crate) const APPEAR_OFFLINE: &str = "SJK_APPEAR_OFFLINE";
+
+static OFFLINE: AtomicBool = AtomicBool::new(false);
+
+/// Read [`APPEAR_OFFLINE`] at start.
+pub(crate) fn appear_offline_from_environment() {
+    let on = std::env::var(APPEAR_OFFLINE).is_ok_and(|value| !value.is_empty() && value != "0");
+    OFFLINE.store(on, Ordering::Relaxed);
+    if on {
+        crate::log::progress(format_args!(
+            "SJK chat off for this run ({APPEAR_OFFLINE}): appearing offline"
+        ));
+    }
+}
+
+/// Whether this run keeps the SJK chat off whatever `cl_sjkChat` says.
+pub(crate) fn appears_offline() -> bool {
+    OFFLINE.load(Ordering::Relaxed)
+}
+
+/// Why the chat is off, for a refused Send.
+pub(crate) fn off_reason() -> String {
+    if appears_offline() {
+        format!("SJK chat is off for this run ({APPEAR_OFFLINE}: appearing offline)")
+    } else {
+        "SJK chat is off (cl_sjkChat 1 turns it on)".to_owned()
+    }
+}
+
+impl crate::console::ViewerConsole {
+    /// Whether the SJK chat shows and is read: `cl_sjkChat` on, and this run not
+    /// appearing offline ([`APPEAR_OFFLINE`]).
+    pub(crate) fn sjk_chat_on(&self) -> bool {
+        self.bool_cvar("cl_sjkChat") != Some(false) && !appears_offline()
+    }
+}
 
 impl GpuState {
     /// Follow the SJK chat in the chat feed while `cl_sjkChat` is on.
@@ -14,7 +56,7 @@ impl GpuState {
         let Some(console) = self.console.as_ref() else {
             return;
         };
-        if console.bool_cvar("cl_sjkChat") == Some(false) {
+        if !console.sjk_chat_on() {
             // No hub chat at all: no clan chat buttons either.
             self.chat.set_clan_chats([false; 2]);
             return;

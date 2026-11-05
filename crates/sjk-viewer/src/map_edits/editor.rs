@@ -1,14 +1,26 @@
-//! The in-game map editor, for staff: console commands that act on what the world-note
-//! key selected (or, without a selection, on what is under the crosshair), saved to the
-//! map's document at once and sent to the hub with `mapedit_publish`.
+//! The in-game map editor, for staff: console commands that act on what the panel's
+//! click or the world-note key selected (or, without a selection, on what is under the
+//! crosshair), saved to the map's document at once and sent to the hub with
+//! `mapedit_publish`.
 //!
-//! While `mapedit` is on, the world-note key only selects (its outline shows what an
-//! edit will touch); it opens no note. Every command that changes the map's edits is one
-//! step of [`History`], which `mapedit_undo` and `mapedit_redo` walk.
+//! `mapedit` is a plain toggle (Sol, 04/11/2026): bound to a key, one press enters the
+//! editor (its panel, and the free camera of [`super::fly`]), one press leaves it, from
+//! any state. Escape takes back a gizmo's transform or a grab first, then drops the
+//! selection, then leaves ([`escape_step`]).
+//!
+//! While it is on, the world-note key only selects (its outline shows what an edit will
+//! touch), Shift with it adding to the multiple selection; it opens no note. A multiple
+//! selection (surfaces, hidden faces and placed models, mixed as the browser editor's) is
+//! hidden, remapped and filled at once, one step to undo; Hide removes its placed models
+//! too, and the panel's buttons and the gizmo ([`super::gizmo`]) turn, move and scale them
+//! together about their middle, one `mapedit_set` each time. Every command that changes
+//! the map's edits is one step of [`History`], which `mapedit_undo` and `mapedit_redo`
+//! walk.
 
 use super::document::{Edit, Kind, Scope};
+use super::linked::{Grow, LINK_LIMIT};
 use crate::GpuState;
-use crate::world_notes::{EditTarget, Scene};
+use crate::world_notes::{EditTarget, Member, Scene, Toggled};
 use glam::Vec3;
 
 /// How many surfaces `mapedit_hide group` takes at most.
@@ -27,8 +39,84 @@ const CHANGES: &[&str] = &[
     "mapedit_scale",
     "mapedit_grab",
     "mapedit_remap",
+    "mapedit_sky",
     "mapedit_delete",
+    "mapedit_fill",
+    super::gizmo::COMMAND,
 ];
+
+/// What Escape does in the editor: the first of these that applies.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum EscapeStep {
+    /// Take back the gizmo's drag or G, R, T transform.
+    Transform,
+    /// Put a grabbed model back where it was.
+    Grab,
+    /// Drop the selection (all of a multiple one).
+    Selection,
+    /// Leave the editor.
+    Leave,
+}
+
+/// What Escape does now.
+pub(crate) fn escape_step(transforming: bool, grabbing: bool, selected: bool) -> EscapeStep {
+    if transforming {
+        EscapeStep::Transform
+    } else if grabbing {
+        EscapeStep::Grab
+    } else if selected {
+        EscapeStep::Selection
+    } else {
+        EscapeStep::Leave
+    }
+}
+
+/// `mapedit`'s new state from `args` while it is `active`: none toggles.
+pub(crate) fn toggled(active: bool, args: &[String]) -> Result<bool, String> {
+    match args {
+        [] => Ok(!active),
+        [value] if matches!(value.as_str(), "1" | "on") => Ok(true),
+        [value] if matches!(value.as_str(), "0" | "off") => Ok(false),
+        _ => Err("usage: mapedit [on|off]".into()),
+    }
+}
+
+/// A multiple selection's members as the batch takes them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Members {
+    /// Caulk, nodraw and sky faces (brush, side).
+    pub(crate) faces: Vec<[u32; 2]>,
+    pub(crate) surfaces: Vec<u32>,
+    /// Placed models, by their edit's id.
+    pub(crate) placed: Vec<u32>,
+}
+
+/// A multiple selection's members, split by kind in their order.
+pub(crate) fn split_members(members: &[Member]) -> Members {
+    let mut split = Members::default();
+    for member in members {
+        match *member {
+            Member::Face { brush, side } => split.faces.push([brush, side]),
+            Member::Surface(index) => split.surfaces.push(index as u32),
+            Member::Placed(id) => split.placed.push(id),
+        }
+    }
+    split
+}
+
+/// What a multiple selection's placed models were turned, moved or scaled by, said.
+fn set_line(count: usize, change: super::gizmo::Change) -> String {
+    use super::gizmo::Change;
+    match change {
+        Change::Turn { degrees, .. } => {
+            format!("{count} placed models turned {degrees} degrees about their middle")
+        }
+        Change::Move(by) => format!("{count} placed models moved {} {} {}", by.x, by.y, by.z),
+        Change::Scale { factor, .. } => {
+            format!("{count} placed models scaled by {factor} about their middle")
+        }
+    }
+}
 
 /// The editor's steps on one map: the edits as they were before each change, to undo,
 /// and as they were before each undo, to redo. Cleared when the map changes or the hub
@@ -122,7 +210,10 @@ impl Editor {
 
 /// The console commands, with their help.
 pub(crate) const COMMANDS: &[(&str, &str)] = &[
-    ("mapedit", "Staff: turn the map editor on or off"),
+    (
+        "mapedit",
+        "Staff: turn the map editor on or off (bind it: one press in, one press out)",
+    ),
     (
         "mapedit_panel",
         "Map editor: open its panel (the world-note key does, on what you aim at)",
@@ -155,9 +246,22 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "mapedit_grab",
         "Map editor: the current placed model follows your aim until mapedit_grab again",
     ),
+    (super::gizmo::COMMAND, super::gizmo::HELP),
     (
         "mapedit_remap",
         "Map editor: draw a shader instead of the selected one ('-' removes the remap)",
+    ),
+    (
+        "mapedit_sky",
+        "Map editor: swap the selected sky for another sky shader ('all': every sky of this map; '-' puts the map's back)",
+    ),
+    (
+        "mapedit_link",
+        "Map editor: select the faces joined to the selected caulk, nodraw or sky face ('plane': on its plane; 'surface': at any angle)",
+    ),
+    (
+        "mapedit_fill",
+        "Map editor: draw the selected faces with the texture the surfaces round them use (or the shader given), one step to undo",
     ),
     (
         "mapedit_scope",
@@ -238,6 +342,10 @@ impl GpuState {
         {
             self.map_edits.history.changed(before);
         }
+        if result.is_ok() {
+            // The shaders and models used lately, for the Recent rows.
+            self.map_edit_remember(name, args);
+        }
         result
     }
 
@@ -260,6 +368,13 @@ impl GpuState {
                     [degrees] => number(degrees)?,
                     _ => return Err("usage: mapedit_turn [degrees]".into()),
                 };
+                let turn = super::gizmo::Change::Turn {
+                    axis: Vec3::Z,
+                    degrees,
+                };
+                if let Some(result) = self.map_edit_change_set(turn) {
+                    return result;
+                }
                 self.map_edit_transform(|_, angles, _| angles[1] = (angles[1] + degrees) % 360.0)
             }
             "mapedit_move" => {
@@ -268,6 +383,10 @@ impl GpuState {
                     [x, y, z] => [number(x)?, number(y)?, number(z)?],
                     _ => return Err("usage: mapedit_move <up> | <x> <y> <z>".into()),
                 };
+                let by = super::gizmo::Change::Move(Vec3::from_array(offset));
+                if let Some(result) = self.map_edit_change_set(by) {
+                    return result;
+                }
                 self.map_edit_transform(|origin, _, _| {
                     for axis in 0..3 {
                         origin[axis] += offset[axis];
@@ -282,6 +401,13 @@ impl GpuState {
                 if factor <= 0.0 {
                     return Err("the factor must be above 0".into());
                 }
+                let grow = super::gizmo::Change::Scale {
+                    along: None,
+                    factor,
+                };
+                if let Some(result) = self.map_edit_change_set(grow) {
+                    return result;
+                }
                 self.map_edit_transform(|_, _, scale| {
                     for axis in scale.iter_mut() {
                         *axis = (*axis * factor).clamp(0.01, 64.0);
@@ -289,7 +415,19 @@ impl GpuState {
                 })
             }
             "mapedit_grab" => self.map_edit_grab(),
+            super::gizmo::COMMAND => {
+                // A gizmo's drag or a G, R or T transform: every model at once, one step.
+                let sets = super::gizmo::parse_set(args)?;
+                let line = super::gizmo::set_placed(self.map_edit_document()?, &sets)?;
+                if let [set] = sets.as_slice() {
+                    self.map_edits.editor.current = Some(set.id);
+                }
+                self.map_edit_saved(line)
+            }
             "mapedit_remap" => self.map_edit_remap(args),
+            "mapedit_sky" => self.map_edit_sky(args),
+            "mapedit_link" => self.map_edit_link(args),
+            "mapedit_fill" => self.map_edit_fill(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_undo" => self.map_edit_step(true),
             "mapedit_redo" => self.map_edit_step(false),
@@ -307,45 +445,104 @@ impl GpuState {
     }
 
     fn map_edit_toggle(&mut self, args: &[String]) -> Result<Vec<String>, String> {
-        let active = match args {
-            [] => !self.map_edits.editor.active,
-            [value] if matches!(value.as_str(), "1" | "on") => true,
-            [value] if matches!(value.as_str(), "0" | "off") => false,
-            _ => return Err("usage: mapedit [on|off]".into()),
-        };
-        let editor = &mut self.map_edits.editor;
-        editor.active = active;
-        editor.grabbing = false;
-        self.world_notes.hold_selection(active);
+        let active = toggled(self.map_edits.editor.active, args)?;
         if !active {
-            self.world_notes.cancel_selection();
-            self.close_map_edit_panel();
-            // The browser editor stops with the editor.
-            self.map_edits.web = None;
+            if self.map_edits.editor.active {
+                self.map_edit_leave();
+            }
             return Ok(vec!["Map editor off".into()]);
         }
+        if self.map_edits.editor.active {
+            self.open_map_edit_panel();
+            return Ok(vec!["Map editor on".into()]);
+        }
+        let editor = &mut self.map_edits.editor;
+        editor.active = true;
+        editor.grabbing = false;
+        self.world_notes.hold_selection(true);
         // Start from the hub's latest copies.
         crate::player_identity::refresh_map_edits();
         // A map without a document has no checksum read yet: read it now.
         if self.map_edits.map().is_none() {
             self.map_edits.lookup = super::Lookup::Idle;
         }
-        // In a world, its panel opens on what is under the crosshair.
+        // In a world: the panel, and the free camera when allowed.
         if self.live_session.is_some() || self.resident.exploring() {
-            self.map_edit_pick();
+            self.map_edit_camera_on();
             self.open_map_edit_panel();
         }
-        Ok(vec![
+        let mut lines = vec![
             format!(
-                "Map editor on ({}). The world-note key selects and opens its panel; or:",
+                "Map editor on ({}). Hold the right mouse button to fly, click to select; the same key or Escape leaves. Or:",
                 self.map_edit_scope_text()
             ),
             "  mapedit_hide [group], mapedit_place [model], mapedit_remap <shader|->".into(),
+            "  mapedit_link plane|surface, mapedit_fill [shader]".into(),
             "  mapedit_turn [deg], mapedit_move <up|x y z>, mapedit_scale <f>, mapedit_grab".into(),
             "  mapedit_scope [all|server], mapedit_list, mapedit_delete <id>".into(),
             "  mapedit_undo, mapedit_redo step through this map's changes".into(),
             "  mapedit_publish sends the map's edits to every SJK player".into(),
-        ])
+        ];
+        if let Some(refused) = &self.map_edits.fly.refused {
+            lines.push(format!("  {refused}"));
+        }
+        Ok(lines)
+    }
+
+    /// Leave the editor from any state: a transform or a grab taken back, the flight
+    /// ended, the panel closed, the camera back on the player, the selection dropped,
+    /// the browser editor stopped.
+    fn map_edit_leave(&mut self) {
+        self.map_edit_cancel_transform();
+        self.map_edit_cancel_grab();
+        self.map_edits.editor.active = false;
+        self.map_edit_camera_off();
+        self.close_map_edit_panel();
+        self.world_notes.hold_selection(false);
+        self.world_notes.cancel_selection();
+        // The browser editor stops with the editor.
+        self.map_edits.web = None;
+        // Back to play: the pointer captured again (also after a flight).
+        self.sync_cursor_policy();
+    }
+
+    /// Escape in the editor ([`escape_step`]): what it did.
+    pub(crate) fn map_edit_escape(&mut self) {
+        let step = escape_step(
+            self.map_edits.gizmo.busy(),
+            self.map_edits.editor.grabbing,
+            self.world_notes.edit_selection_len() > 0,
+        );
+        let line = match step {
+            EscapeStep::Transform => {
+                self.map_edit_cancel_transform();
+                return;
+            }
+            EscapeStep::Grab => {
+                self.map_edit_cancel_grab();
+                "Grab taken back: the model is where it was"
+            }
+            EscapeStep::Selection => {
+                self.world_notes.cancel_selection();
+                "Selection dropped (Escape again leaves the editor)"
+            }
+            EscapeStep::Leave => {
+                let result = self.map_edit_command("mapedit", &["off".to_owned()]);
+                self.map_edits.panel.answer(result);
+                return;
+            }
+        };
+        let panel = &mut self.map_edits.panel;
+        panel.answer(Ok(vec![line.to_owned()]));
+        panel.stale();
+    }
+
+    /// Put a grabbed model back where its edit has it, unsaved moves dropped.
+    fn map_edit_cancel_grab(&mut self) {
+        if std::mem::take(&mut self.map_edits.editor.grabbing) {
+            // Drawn again from the document.
+            self.map_edits.revision += 1;
+        }
     }
 
     fn map_edit_scope_text(&self) -> String {
@@ -382,16 +579,107 @@ impl GpuState {
     }
 
     /// The world-note key while the editor is on: a grabbed model is put down where it is
-    /// drawn; else what is under the crosshair is selected. Either way the panel opens.
+    /// drawn; else what is under the crosshair is selected (with Shift, added to the
+    /// selection or taken out of it). The panel opens unless the editor flies.
     pub(crate) fn map_edit_select(&mut self) {
+        let shift = self
+            .console
+            .as_ref()
+            .is_some_and(|console| console.shift_held());
         if self.map_edits.editor.grabbing {
             let result = self.map_edit_command("mapedit_grab", &[]);
             self.map_edits.panel.answer(result);
+        } else if shift {
+            let toggled = self.map_edit_toggle_pick(None);
+            self.map_edit_toggled(toggled);
         } else {
             let picked = self.map_edit_pick().is_some();
             self.map_edit_picked(picked, "Nothing under the crosshair");
         }
-        self.open_map_edit_panel();
+        if !self.map_edit_flying() {
+            self.open_map_edit_panel();
+        }
+    }
+
+    /// Add what is under `point` (physical pixels), or under the crosshair, to the
+    /// multiple selection, or take it out.
+    pub(super) fn map_edit_toggle_pick(&mut self, point: Option<[f32; 2]>) -> Toggled {
+        let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
+        let scene = Scene {
+            bsp: &self.bsp,
+            surfaces: &self.decal_surfaces,
+            scratch: &mut self.trace_scratch,
+            vfs: self.vfs.as_deref(),
+            map: &map,
+            remaps: Vec::new(),
+            markers: Vec::new(),
+            entities: self.map_edits.pick_entities(&self.bsp),
+        };
+        match point {
+            Some(point) => self.world_notes.toggle_for_edit_at(scene, point),
+            None => self.world_notes.toggle_for_edit(scene),
+        }
+    }
+
+    /// The selection's members when it holds more than one: what the batch acts on.
+    fn map_edit_many_members(&self) -> Option<Members> {
+        (self.world_notes.edit_selection_len() > 1).then(|| {
+            let members: Vec<Member> = self
+                .world_notes
+                .edit_selection()
+                .filter_map(crate::world_notes::Selection::member)
+                .collect();
+            split_members(&members)
+        })
+    }
+
+    /// The placed models of a multiple selection still drawn, the newest (the active
+    /// one) first: what the panel's buttons and the gizmo move together. Empty unless the
+    /// selection holds more than one thing.
+    pub(crate) fn map_edit_set_ids(&self) -> Vec<u32> {
+        if self.world_notes.edit_selection_len() < 2 {
+            return Vec::new();
+        }
+        self.world_notes
+            .edit_selection()
+            .filter_map(crate::world_notes::Selection::placed_id)
+            .filter(|id| self.map_edits.placed.iter().any(|placed| placed.id == *id))
+            .collect()
+    }
+
+    /// `mapedit_turn`, `_move` and `_scale` on a multiple selection's placed models: all
+    /// of them about their middle, as the gizmo does, in one `mapedit_set` (one step to
+    /// undo). `None` when the selection holds none.
+    fn map_edit_change_set(
+        &mut self,
+        change: super::gizmo::Change,
+    ) -> Option<Result<Vec<String>, String>> {
+        let ids = self.map_edit_set_ids();
+        if ids.is_empty() {
+            return None;
+        }
+        let start = self.map_edits.placements(&ids);
+        let moved = super::gizmo::apply(&start, super::gizmo::pivot_of(&start), change);
+        let sets = super::gizmo::sets_of(&moved);
+        let result = self
+            .map_edit_document()
+            .and_then(|document| super::gizmo::set_placed(document, &sets));
+        Some(result.and_then(|_| {
+            self.map_edits.editor.current = ids.first().copied();
+            self.map_edit_saved(set_line(sets.len(), change))
+        }))
+    }
+
+    /// The selected caulk, nodraw and sky faces (brush, side), newest first: what Fill
+    /// and the nearby vote take.
+    pub(super) fn map_edit_selected_faces(&self) -> Vec<[u32; 2]> {
+        self.world_notes
+            .edit_selection()
+            .filter_map(|selection| match selection.edit_target() {
+                EditTarget::Face { brush, side, .. } => Some([brush, side]),
+                _ => None,
+            })
+            .collect()
     }
 
     pub(super) fn map_edit_pick(&mut self) -> Option<String> {
@@ -457,6 +745,12 @@ impl GpuState {
             [word] if word == "group" => true,
             _ => return Err("usage: mapedit_hide [group]".into()),
         };
+        if let Some(many) = self.map_edit_many_members() {
+            if group {
+                return Err("Hide whole model takes one surface: select one alone".into());
+            }
+            return self.map_edit_many_change(&many, None);
+        }
         let aim = self.map_edit_aim()?;
         let server = self.map_edit_server()?;
         self.world_notes.cancel_selection();
@@ -481,13 +775,7 @@ impl GpuState {
             }
             EditTarget::Surface { index, shader, .. } => {
                 let surfaces = if group {
-                    let render = self.bsp.render();
-                    let soup = |other: usize| {
-                        render.surfaces().get(other).is_some_and(|surface| {
-                            surface.kind == sjk_bsp::SurfaceKind::TriangleSoup
-                        })
-                    };
-                    self.decal_surfaces.connected(index, soup, GROUP_LIMIT)
+                    self.map_edit_hide_group(index)
                 } else {
                     vec![index]
                 };
@@ -524,21 +812,54 @@ impl GpuState {
                 brush,
                 side,
                 shader,
+                ..
             } => self.map_edit_unshow_face(brush, side, &shader, server),
             EditTarget::Other => Err(format!("{}: not something edits hide", aim.summary)),
         }
     }
 
+    /// The surfaces `mapedit_hide group` takes from surface `index`: those of the model
+    /// the map compiler merged into the world that it is part of.
+    pub(super) fn map_edit_hide_group(&self, index: usize) -> Vec<usize> {
+        let render = self.bsp.render();
+        let soup = |other: usize| {
+            render
+                .surfaces()
+                .get(other)
+                .is_some_and(|surface| surface.kind == sjk_bsp::SurfaceKind::TriangleSoup)
+        };
+        self.decal_surfaces.connected(index, soup, GROUP_LIMIT)
+    }
+
     fn map_edit_place(&mut self, args: &[String]) -> Result<Vec<String>, String> {
         let aim = self.map_edit_aim()?;
         let server = self.map_edit_server()?;
-        let (model, scale) = match (args, &aim.target) {
-            ([model], _) => (model.replace('\\', "/"), [1.0; 3]),
-            ([], EditTarget::Model { model, .. }) => (model.clone(), [1.0; 3]),
+        // A pasted copy (the browser editor's) brings its own angles and scale; else
+        // the model faces the view at its own size.
+        let (model, angles, scale) = match (args, &aim.target) {
+            ([model], _) => (model.replace('\\', "/"), None, [1.0; 3]),
+            ([model, rest @ ..], _) if rest.len() == 3 || rest.len() == 6 => {
+                let numbers = rest
+                    .iter()
+                    .map(|text| number(text))
+                    .collect::<Result<Vec<f32>, String>>()?;
+                let scale = match numbers.get(3..6) {
+                    Some(&[x, y, z]) => [x, y, z].map(|v| v.clamp(0.01, 64.0)),
+                    _ => [1.0; 3],
+                };
+                (
+                    model.replace('\\', "/"),
+                    Some([numbers[0], numbers[1], numbers[2]]),
+                    scale,
+                )
+            }
+            ([], EditTarget::Model { model, .. }) => (model.clone(), None, [1.0; 3]),
             ([], _) => {
                 return Err("usage: mapedit_place <model.md3>, or select a model to copy".into());
             }
-            _ => return Err("usage: mapedit_place [model.md3]".into()),
+            _ => {
+                return Err("usage: mapedit_place [model.md3 [pitch yaw roll [sx sy sz]]]".into());
+            }
         };
         if !model.to_ascii_lowercase().ends_with(".md3") {
             return Err(format!("{model}: only MD3 models can be placed"));
@@ -554,11 +875,14 @@ impl GpuState {
         // Facing the view the selection was made from (the browser editor's when the
         // page selected).
         let yaw = yaw_of(aim.forward) + 180.0;
+        let angles = angles
+            .unwrap_or([0.0, yaw, 0.0])
+            .map(|a| a.rem_euclid(360.0));
         self.world_notes.cancel_selection();
         let kind = Kind::Place {
             model: model.clone(),
             origin: aim.hit.to_array(),
-            angles: [0.0, yaw.rem_euclid(360.0), 0.0],
+            angles,
             scale,
         };
         let id = self.map_edit_document()?.add(kind, server);
@@ -624,6 +948,12 @@ impl GpuState {
     }
 
     fn map_edit_grab(&mut self) -> Result<Vec<String>, String> {
+        let set = self.map_edit_set_ids().len();
+        if set > 1 && !self.map_edits.editor.grabbing {
+            return Err(format!(
+                "Grab takes one model at a time: G moves the {set} selected together"
+            ));
+        }
         let id = self.map_edit_current()?;
         let editor = &mut self.map_edits.editor;
         editor.grabbing = !editor.grabbing;
@@ -648,13 +978,38 @@ impl GpuState {
         })
     }
 
-    /// Once a frame while the editor is on: a grabbed model follows the aim.
+    /// Once a frame: the flight's speed; while the editor is on, its panel shows unless
+    /// it flies or another window has the keys, and a grabbed model follows the pointer
+    /// (the crosshair while flying).
     pub(super) fn editor_frame(&mut self) {
-        let editor = &self.map_edits.editor;
-        if !editor.active || !editor.grabbing {
+        self.map_edit_fly_frame();
+        if !self.map_edits.editor.active {
             return;
         }
-        let (Some(id), Some((eye, forward))) = (editor.current, self.world_notes.view()) else {
+        if !self.map_edit_flying()
+            && !self.key_catcher_active()
+            && (self.live_session.is_some() || self.resident.exploring())
+        {
+            self.open_map_edit_panel();
+        }
+        // Selected placed models keep their outline on them as they move.
+        let placed = &self.map_edits.placed;
+        self.world_notes.follow_placed(|id| {
+            placed
+                .iter()
+                .find(|placed| placed.id == id)
+                .map(|placed| (placed.origin, placed.angles, placed.scale))
+        });
+        let editor = &self.map_edits.editor;
+        if !editor.grabbing {
+            return;
+        }
+        let ray = if self.map_edit_panel_open() {
+            self.world_notes.ray_at(self.cursor_position)
+        } else {
+            self.world_notes.view()
+        };
+        let (Some(id), Some((eye, forward))) = (editor.current, ray) else {
             return;
         };
         let Some(hit) = self.decal_surfaces.ray_hit(eye, forward, 4096.0) else {
@@ -675,14 +1030,35 @@ impl GpuState {
         let [target] = args else {
             return Err("usage: mapedit_remap <shader> | - (removes the remap)".into());
         };
+        if let Some(many) = self.map_edit_many_members() {
+            // Every one at once, the selection kept to try another.
+            return self.map_edit_many_change(&many, Some(target));
+        }
         let aim = self.map_edit_aim()?;
         let server = self.map_edit_server()?;
         if let EditTarget::Face {
             brush,
             side,
             shader,
+            sky,
         } = &aim.target
         {
+            if *sky {
+                // A sky shader swaps the sky; a texture covers this side; `-` takes back
+                // the cover, else the swap.
+                let shown = self.map_edits.document.as_ref().is_some_and(|document| {
+                    document.edits.iter().any(|edit| {
+                        edit.server == server
+                            && matches!(edit.kind, Kind::ShowFace { brush: b, side: s, .. }
+                                if b == *brush && s == *side)
+                    })
+                });
+                if (target == "-" && !shown) || is_sky_shader(&self.shaders, target) {
+                    self.world_notes.cancel_selection();
+                    let skies = [shader.clone()];
+                    return self.map_edit_sky_swap(&skies, target, server);
+                }
+            }
             return self.map_edit_show_face(*brush, *side, shader.clone(), target, server);
         }
         let from = match &aim.target {
@@ -749,6 +1125,11 @@ impl GpuState {
         );
         // The same checks a remap's target passes: a shader or image the game has.
         let (_, to) = crate::world_materials::map_remaps::checked(&vfs, &shaders, &shader, target)?;
+        if is_sky_shader(&shaders, &to) {
+            return Err(format!(
+                "{to} is a sky: a face takes a texture (mapedit_sky swaps the map's sky)"
+            ));
+        }
         let id = self.map_edit_document()?.add(
             Kind::ShowFace {
                 brush,
@@ -788,6 +1169,317 @@ impl GpuState {
         self.map_edit_saved(format!(
             "Edit {id} removed: the face is drawn as nothing again"
         ))
+    }
+
+    /// `mapedit_sky <shader> [all]`: draw sky shader `shader` instead of the selected
+    /// sky, or of every sky of the map with `all`, as remap edits (one step to undo);
+    /// `-` takes those remaps away, putting the map's sky back.
+    fn map_edit_sky(&mut self, args: &[String]) -> Result<Vec<String>, String> {
+        let (target, all) = match args {
+            [target] => (target.as_str(), false),
+            [target, all] if all == "all" => (target.as_str(), true),
+            _ => {
+                return Err(
+                    "usage: mapedit_sky <sky shader> | - [all] (all: every sky of this map)".into(),
+                );
+            }
+        };
+        let skies = if all {
+            let skies = super::faces::map_skies(&self.bsp);
+            if skies.is_empty() {
+                return Err("This map has no sky".into());
+            }
+            skies
+        } else {
+            let aim = self.map_edit_aim()?;
+            match aim.target {
+                EditTarget::Face {
+                    shader, sky: true, ..
+                } => vec![shader],
+                _ => {
+                    return Err(format!(
+                        "{}: not the sky (aim at it, or mapedit_sky {target} all)",
+                        aim.summary
+                    ));
+                }
+            }
+        };
+        let server = self.map_edit_server()?;
+        self.world_notes.cancel_selection();
+        self.map_edit_sky_swap(&skies, target, server)
+    }
+
+    /// Swap each of `skies` for sky shader `target` (`-`: put them back) for `server`'s
+    /// scope, after the checks a remap passes.
+    fn map_edit_sky_swap(
+        &mut self,
+        skies: &[String],
+        target: &str,
+        server: Option<String>,
+    ) -> Result<Vec<String>, String> {
+        let to = if target == "-" {
+            None
+        } else {
+            let vfs = self.vfs.clone().ok_or("No loaded map")?;
+            let mut checked = String::new();
+            for from in skies {
+                checked =
+                    crate::world_materials::map_remaps::checked(&vfs, &self.shaders, from, target)?
+                        .1;
+            }
+            if !is_sky_shader(&self.shaders, &checked) {
+                return Err(format!(
+                    "{checked} is not a sky (no skyParms): a sky swaps only for a sky"
+                ));
+            }
+            Some(checked)
+        };
+        let line = swap_skies(self.map_edit_document()?, server, skies, to.as_deref())?;
+        self.map_edit_saved(line)
+    }
+
+    /// The browser editor's multiple selection: draw caulk or nodraw faces (brush, side)
+    /// with `shader` and remap the surfaces' shaders to it (`-` takes those edits away),
+    /// or, with no `shader`, hide the surfaces, draw the faces as nothing again and
+    /// remove the placed models. One step to undo, whatever the count.
+    pub(crate) fn map_edit_many(
+        &mut self,
+        many: &Members,
+        shader: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        if !crate::player_identity::is_staff() {
+            return Err("The map editor is for SJK staff".into());
+        }
+        if !self.map_edits.editor.active {
+            return Err("Turn the map editor on first: mapedit".into());
+        }
+        if many.faces.is_empty() && many.surfaces.is_empty() && many.placed.is_empty() {
+            return Err("Nothing selected".into());
+        }
+        let before = self.map_edit_edits();
+        let result = self.map_edit_many_change(many, shader);
+        if result.is_ok() && before != self.map_edit_edits() {
+            self.map_edits.history.changed(before);
+        }
+        if result.is_ok()
+            && let Some(shader) = shader.filter(|shader| *shader != "-")
+        {
+            self.map_edit_remember_shader(shader);
+        }
+        result
+    }
+
+    fn map_edit_many_change(
+        &mut self,
+        many: &Members,
+        shader: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        let (faces, surfaces) = (&many.faces, &many.surfaces);
+        if shader.is_some() && faces.is_empty() && surfaces.is_empty() {
+            return Err(
+                "A remap takes surfaces and faces: placed models keep their shaders".into(),
+            );
+        }
+        let server = self.map_edit_server()?;
+        let faces: Vec<(u32, u32, String)> = faces
+            .iter()
+            .map(|&[brush, side]| {
+                super::faces::world_side_shader(&self.bsp, brush, side)
+                    .map(|(shader, _)| (brush, side, shader))
+                    .ok_or_else(|| {
+                        format!(
+                            "Brush {brush} side {side} is not a caulk, nodraw or sky face of this map"
+                        )
+                    })
+            })
+            .collect::<Result<_, _>>()?;
+        let mut surface_shaders: Vec<(u32, String)> = Vec::with_capacity(surfaces.len());
+        for &surface in surfaces.iter() {
+            let shader = self
+                .bsp
+                .render()
+                .surfaces()
+                .get(surface as usize)
+                .and_then(|s| self.bsp.shaders().get(s.shader))
+                .ok_or_else(|| format!("No surface {surface} on this map"))?;
+            surface_shaders.push((surface, shader.name_lossy().into_owned()));
+        }
+        let step = match shader {
+            Some("-") => Many::Remove {
+                faces: &faces,
+                shaders: &surface_shaders,
+            },
+            Some(target) => {
+                let (vfs, shaders) = (
+                    self.vfs.clone().ok_or("No loaded map")?,
+                    self.shaders.clone(),
+                );
+                let checked = |from: &str| {
+                    crate::world_materials::map_remaps::checked(&vfs, &shaders, from, target)
+                };
+                // The target is checked as a remap's is, once per shader it replaces.
+                let to = match (faces.first(), surface_shaders.first()) {
+                    (Some((_, _, from)), _) | (None, Some((_, from))) => checked(from)?.1,
+                    (None, None) => return Err("Nothing selected".into()),
+                };
+                for (_, from) in &surface_shaders {
+                    checked(from)?;
+                }
+                if !faces.is_empty() && is_sky_shader(&shaders, &to) {
+                    return Err(format!(
+                        "{to} is a sky: faces take a texture (Swap sky swaps the map's sky)"
+                    ));
+                }
+                Many::Draw {
+                    faces: &faces,
+                    shaders: &surface_shaders,
+                    to,
+                }
+            }
+            None => {
+                self.world_notes.cancel_selection();
+                Many::Hide {
+                    faces: &faces,
+                    surfaces: &surface_shaders,
+                    placed: &many.placed,
+                }
+            }
+        };
+        let line = apply_many(self.map_edit_document()?, server, step)?;
+        self.map_edit_saved(line)
+    }
+
+    /// `mapedit_link plane|surface`: the selected caulk, nodraw or sky face and every
+    /// face joined to it that players see become the selection (the browser editor's
+    /// Same plane and Connected surface, [`super::linked`]).
+    fn map_edit_link(&mut self, args: &[String]) -> Result<Vec<String>, String> {
+        let grow = match args {
+            [word] if word == "plane" => Grow::Plane,
+            [word] if word == "surface" => Grow::Surface,
+            _ => return Err("usage: mapedit_link plane|surface".into()),
+        };
+        let Some(EditTarget::Face {
+            brush, side, sky, ..
+        }) = self
+            .world_notes
+            .waiting_selection()
+            .map(crate::world_notes::Selection::edit_target)
+        else {
+            return Err("Select a caulk, nodraw or sky face first".into());
+        };
+        let (eye, forward) = self
+            .world_notes
+            .view()
+            .ok_or("No view to select from yet")?;
+        let map_key = self.world_load_map.clone();
+        let sides = self.map_edits.web_cache.sides(&map_key, &self.bsp);
+        let start = sides
+            .find(brush, side)
+            .filter(|&index| sides.side(index).showable)
+            .ok_or_else(|| {
+                format!("Brush {brush} side {side} is not a caulk, nodraw or sky face of this map")
+            })?;
+        let bsp = &self.bsp;
+        let open = |point: Vec3| super::web::caulk::open_at(bsp, point);
+        let linked = sides.link(start, grow, LINK_LIMIT, &open);
+        let faces: Vec<super::faces::Face> = linked
+            .faces
+            .iter()
+            .map(|&index| {
+                let face = sides.side(index);
+                let middle = super::linked::centre(&face.polygon);
+                super::faces::Face {
+                    brush: face.brush,
+                    side: face.side,
+                    shader: face.shader.clone(),
+                    sky: face.sky,
+                    distance: eye.distance(middle),
+                    normal: face.normal,
+                    polygon: face.polygon.iter().map(|p| p.to_array()).collect(),
+                }
+            })
+            .collect();
+        let count = faces.len();
+        let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
+        self.world_notes
+            .select_faces_for_edit(&map, [eye, forward], faces);
+        let what = match (grow, sky) {
+            (Grow::Plane, false) => "Same plane",
+            (Grow::Surface, false) => "Connected surface",
+            (Grow::Plane, true) => "Same plane (sky)",
+            (Grow::Surface, true) => "Connected sky",
+        };
+        let mut line = format!("{what}: {count} face{} selected", plural(count));
+        if linked.buried > 0 {
+            line.push_str(&format!(", {} unseen left out", linked.buried));
+        }
+        if linked.capped {
+            line.push_str(&format!(" (stopped at {LINK_LIMIT})"));
+        }
+        Ok(vec![line])
+    }
+
+    /// The nearby vote for faces `faces` (brush, side): the shaders the drawn surfaces
+    /// round them use, the weightiest first ([`super::nearby`]).
+    pub(super) fn map_edit_vote(&mut self, faces: &[[u32; 2]]) -> Vec<super::nearby::Candidate> {
+        let map = self.world_load_map.clone();
+        let catalog = self.shaders.clone();
+        let (sides, drawn) =
+            self.map_edits
+                .web_cache
+                .sides_and_drawn(&map, &self.bsp, Some(&catalog));
+        let asking: Vec<super::nearby::Asking<'_>> = faces
+            .iter()
+            .filter_map(|&[brush, side]| sides.find(brush, side))
+            .map(|index| {
+                let face = sides.side(index);
+                super::nearby::Asking {
+                    polygon: &face.polygon,
+                    normal: face.normal,
+                    distance: face.distance,
+                }
+            })
+            .collect();
+        drawn.vote(&asking)
+    }
+
+    /// `mapedit_fill [shader]`: draw the selected faces with the shader the nearby vote
+    /// puts first (or `shader`), one step to undo.
+    fn map_edit_fill(&mut self, args: &[String]) -> Result<Vec<String>, String> {
+        let faces = self.map_edit_selected_faces();
+        if faces.is_empty() {
+            return Err(
+                "Fill draws caulk, nodraw or sky faces: select one (Same plane and Connected take its neighbours)"
+                    .into(),
+            );
+        }
+        let (shader, share) = match args {
+            [shader] => (shader.clone(), None),
+            [] => {
+                let top = self
+                    .map_edit_vote(&faces)
+                    .into_iter()
+                    .next()
+                    .ok_or("No drawn surface round these faces to take a texture from")?;
+                (top.shader, Some(top.share))
+            }
+            _ => return Err("usage: mapedit_fill [shader]".into()),
+        };
+        let count = faces.len();
+        let many = Members {
+            faces,
+            ..Members::default()
+        };
+        self.map_edit_many_change(&many, Some(&shader))?;
+        self.map_edit_remember_shader(&shader);
+        Ok(vec![match share {
+            Some(share) => format!(
+                "Filled {count} face{} with {shader} ({:.0} % of the nearby vote)",
+                plural(count),
+                share * 100.0
+            ),
+            None => format!("Filled {count} face{} with {shader}", plural(count)),
+        }])
     }
 
     /// Undo the last change to this map's edits (`undo`), or redo the last undone.
@@ -962,5 +1654,677 @@ impl GpuState {
         angles[1] = (angles[1] + if up { step } else { -step }).rem_euclid(360.0);
         self.map_edits.preview_placement(id, origin, angles);
         true
+    }
+}
+
+#[cfg(test)]
+impl GpuState {
+    /// The world shots: editor command `name` run as `map_edit_command` runs it, without
+    /// the staff check (a shot is not staff), its step kept in the history.
+    pub(crate) fn shot_map_edit_run(
+        &mut self,
+        name: &str,
+        args: &[&str],
+    ) -> Result<Vec<String>, String> {
+        let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
+        let before = CHANGES.contains(&name).then(|| self.map_edit_edits());
+        let result = self.map_edit_change(name, &args);
+        if let Some(before) = before
+            && result.is_ok()
+            && before != self.map_edit_edits()
+        {
+            self.map_edits.history.changed(before);
+        }
+        result
+    }
+
+    /// The world shots: what Fill would draw on the selected faces.
+    pub(crate) fn shot_map_edit_fill_suggestion(&mut self) -> Option<String> {
+        let faces = self.map_edit_selected_faces();
+        self.map_edit_vote(&faces)
+            .into_iter()
+            .next()
+            .map(|top| top.shader)
+    }
+}
+
+fn plural(count: usize) -> &'static str {
+    if count == 1 { "" } else { "s" }
+}
+
+/// What the browser editor's multiple selection does to a map's edits in one step: its
+/// faces (brush, side, shader) and its surfaces (number, shader).
+enum Many<'a> {
+    /// Draw the faces with shader `to` and remap the surfaces' shaders to it.
+    Draw {
+        faces: &'a [(u32, u32, String)],
+        shaders: &'a [(u32, String)],
+        to: String,
+    },
+    /// Take away the edits that draw the faces and remap the surfaces' shaders.
+    Remove {
+        faces: &'a [(u32, u32, String)],
+        shaders: &'a [(u32, String)],
+    },
+    /// Hide the surfaces, draw the faces as nothing again and remove the placed models
+    /// (by their edit's id).
+    Hide {
+        faces: &'a [(u32, u32, String)],
+        surfaces: &'a [(u32, String)],
+        placed: &'a [u32],
+    },
+}
+
+/// The surfaces' shaders, each once: a remap acts on every surface of its shader.
+/// Whether `name` is a sky shader (its script has `skyParms`): what a sky swaps for.
+pub(crate) fn is_sky_shader(shaders: &sjk_shader::ShaderCatalog, name: &str) -> bool {
+    shaders
+        .get(name)
+        .is_some_and(|definition| definition.sky.is_some())
+}
+
+/// Swap each sky shader of `skies` for `to` in `document`'s edits for `server`, as remap
+/// edits; with `to` `None`, or a sky's own name, take that sky's remap edit away (the
+/// map's sky again). Its answer, or why nothing changed.
+fn swap_skies(
+    document: &mut super::Document,
+    server: Option<String>,
+    skies: &[String],
+    to: Option<&str>,
+) -> Result<String, String> {
+    let mut swapped = Vec::new();
+    let mut restored = 0;
+    for from in skies {
+        if let Some(to) = to.filter(|to| !to.eq_ignore_ascii_case(from)) {
+            swapped.push(document.add(
+                Kind::Remap {
+                    from: from.clone(),
+                    to: to.to_owned(),
+                },
+                server.clone(),
+            ));
+            continue;
+        }
+        let ids: Vec<u32> = document
+            .edits
+            .iter()
+            .filter(|edit| {
+                edit.server == server
+                    && matches!(&edit.kind, Kind::Remap { from: f, .. } if f.eq_ignore_ascii_case(from))
+            })
+            .map(|edit| edit.id)
+            .collect();
+        for id in &ids {
+            document.remove(*id);
+        }
+        restored += ids.len();
+    }
+    match (swapped.as_slice(), restored, to) {
+        ([], 0, _) => Err("No sky swap to take back for these servers".into()),
+        ([], _, _) => Ok(match skies {
+            [sky] => format!("{sky}: the map's sky again"),
+            _ => format!("{restored} of {} skies: the map's again", skies.len()),
+        }),
+        ([id], 0, Some(to)) => Ok(format!("Edit {id}: {} swapped for {to}", skies[0])),
+        (ids, _, Some(to)) => Ok(format!("{} skies swapped for {to}", ids.len())),
+        (_, _, None) => unreachable!("nothing is swapped without a target"),
+    }
+}
+
+fn distinct_shaders(surfaces: &[(u32, String)]) -> Vec<&str> {
+    let mut shaders: Vec<&str> = Vec::new();
+    for (_, shader) in surfaces {
+        if !shaders.iter().any(|seen| seen.eq_ignore_ascii_case(shader)) {
+            shaders.push(shader);
+        }
+    }
+    shaders
+}
+
+/// Make `step` in `document`'s edits for `server`: its answer, or why not.
+fn apply_many(
+    document: &mut super::Document,
+    server: Option<String>,
+    step: Many<'_>,
+) -> Result<String, String> {
+    let shows = |edit: &Edit, faces: &[(u32, u32, String)]| {
+        edit.server == server
+            && matches!(&edit.kind, Kind::ShowFace { brush, side, .. }
+                if faces.iter().any(|(b, s, _)| b == brush && s == side))
+    };
+    let remove = |document: &mut super::Document, ids: &[u32]| {
+        for id in ids {
+            document.remove(*id);
+        }
+    };
+    match step {
+        Many::Draw { faces, shaders, to } => {
+            for (brush, side, shader) in faces {
+                document.add(
+                    Kind::ShowFace {
+                        brush: *brush,
+                        side: *side,
+                        shader: shader.clone(),
+                        to: to.clone(),
+                    },
+                    server.clone(),
+                );
+            }
+            let remapped = distinct_shaders(shaders);
+            for from in &remapped {
+                document.add(
+                    Kind::Remap {
+                        from: (*from).to_owned(),
+                        to: to.clone(),
+                    },
+                    server.clone(),
+                );
+            }
+            Ok(match (faces.len(), remapped.len()) {
+                (f, 0) => format!("{f} faces drawn as {to}"),
+                (0, r) => format!("{r} shaders remapped to {to} (every surface with them)"),
+                (f, r) => format!("{f} faces drawn as {to}, {r} shaders remapped to it"),
+            })
+        }
+        Many::Remove { faces, shaders } => {
+            let remapped = distinct_shaders(shaders);
+            let ids: Vec<u32> = document
+                .edits
+                .iter()
+                .filter(|edit| {
+                    shows(edit, faces)
+                        || (edit.server == server
+                            && matches!(&edit.kind, Kind::Remap { from, .. }
+                                if remapped.iter().any(|r| r.eq_ignore_ascii_case(from))))
+                })
+                .map(|edit| edit.id)
+                .collect();
+            if ids.is_empty() {
+                return Err(
+                    "No edit draws these faces or remaps these shaders for these servers".into(),
+                );
+            }
+            remove(document, &ids);
+            Ok(format!("{} edits taken away", ids.len()))
+        }
+        Many::Hide {
+            faces,
+            surfaces,
+            placed,
+        } => {
+            let shown: Vec<u32> = document
+                .edits
+                .iter()
+                .filter(|edit| shows(edit, faces))
+                .map(|edit| edit.id)
+                .collect();
+            let gone: Vec<u32> = document
+                .edits
+                .iter()
+                .filter(|edit| placed.contains(&edit.id) && matches!(edit.kind, Kind::Place { .. }))
+                .map(|edit| edit.id)
+                .collect();
+            if shown.is_empty() && surfaces.is_empty() && gone.is_empty() {
+                return Err(if placed.is_empty() {
+                    "These faces are drawn as nothing already".into()
+                } else {
+                    "These placed models are gone already".into()
+                });
+            }
+            remove(document, &shown);
+            remove(document, &gone);
+            for (surface, shader) in surfaces {
+                document.add(
+                    Kind::HideSurface {
+                        surface: *surface,
+                        shader: shader.clone(),
+                    },
+                    server.clone(),
+                );
+            }
+            let mut parts = Vec::new();
+            if !gone.is_empty() {
+                parts.push(format!("{} placed models removed", gone.len()));
+            }
+            if !surfaces.is_empty() {
+                parts.push(format!("{} surfaces hidden", surfaces.len()));
+            }
+            if !shown.is_empty() {
+                parts.push(format!("{} faces drawn as nothing again", shown.len()));
+            }
+            Ok(parts.join(", "))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_bind_toggles_and_escape_backs_out_one_step_at_a_time() {
+        let words =
+            |text: &str| -> Vec<String> { text.split_whitespace().map(str::to_owned).collect() };
+        // `mapedit` alone: in from any state, out from any state.
+        assert_eq!(toggled(false, &[]), Ok(true));
+        assert_eq!(toggled(true, &[]), Ok(false));
+        assert_eq!(toggled(true, &words("on")), Ok(true));
+        assert_eq!(toggled(false, &words("off")), Ok(false));
+        assert!(toggled(false, &words("maybe")).is_err());
+        // Escape: a transform first, then a grab, then the selection, then out.
+        assert_eq!(escape_step(true, true, true), EscapeStep::Transform);
+        assert_eq!(escape_step(false, true, true), EscapeStep::Grab);
+        assert_eq!(escape_step(false, false, true), EscapeStep::Selection);
+        assert_eq!(escape_step(false, false, false), EscapeStep::Leave);
+    }
+
+    #[test]
+    fn a_multiple_selection_splits_into_faces_and_surfaces_for_one_batch() {
+        let members = [
+            Member::Face { brush: 3, side: 7 },
+            Member::Surface(12),
+            Member::Placed(9),
+            Member::Face { brush: 4, side: 1 },
+            Member::Surface(40),
+            Member::Placed(2),
+        ];
+        let Members {
+            faces,
+            surfaces,
+            placed,
+        } = split_members(&members);
+        assert_eq!(faces, [[3, 7], [4, 1]]);
+        assert_eq!(surfaces, [12, 40]);
+        assert_eq!(placed, [9, 2]);
+        // The batch of a hide over them is one step to undo.
+        let mut document = super::super::Document::new("mp/test", 7);
+        let mut history = History::default();
+        let before = document.edits.clone();
+        let named_faces: Vec<(u32, u32, String)> = faces
+            .iter()
+            .map(|&[b, s]| (b, s, "textures/system/caulk".to_owned()))
+            .collect();
+        let named_surfaces: Vec<(u32, String)> = surfaces
+            .iter()
+            .map(|&s| (s, "textures/a/wall".to_owned()))
+            .collect();
+        apply_many(
+            &mut document,
+            None,
+            Many::Draw {
+                faces: &named_faces,
+                shaders: &named_surfaces,
+                to: "textures/a/stone".into(),
+            },
+        )
+        .unwrap();
+        history.changed(before.clone());
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Hide {
+                faces: &named_faces,
+                surfaces: &named_surfaces,
+                placed: &[],
+            },
+        )
+        .unwrap();
+        assert_eq!(line, "2 surfaces hidden, 2 faces drawn as nothing again");
+        history.changed(document.edits.clone());
+        assert_eq!(
+            history.undo.len(),
+            2,
+            "a fill and a hide: two steps, whatever the count"
+        );
+    }
+
+    fn faces() -> Vec<(u32, u32, String)> {
+        (0..3)
+            .map(|i| (10 + i, 60 + i, "textures/system/caulk".to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn a_fill_of_many_faces_is_one_step_to_undo() {
+        let mut document = super::super::Document::new("mp/test", 7);
+        document.add(
+            Kind::HideSurface {
+                surface: 1,
+                shader: "textures/a/b".into(),
+            },
+            None,
+        );
+        let mut history = History::default();
+        let before = document.edits.clone();
+        let surfaces = [
+            (4, "textures/a/wall".to_owned()),
+            (5, "textures/a/wall".to_owned()),
+            (6, "textures/a/trim".to_owned()),
+        ];
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Draw {
+                faces: &faces(),
+                shaders: &surfaces,
+                to: "textures/a/stone".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            line,
+            "3 faces drawn as textures/a/stone, 2 shaders remapped to it"
+        );
+        // three faces and two remaps (the wall's once): five edits, one step
+        assert_eq!(document.edits.len(), 1 + 5);
+        history.changed(before.clone());
+        assert_eq!(history.can(), (true, false));
+        assert_eq!(history.undo.len(), 1);
+        // the undo puts back the edits as they were before the fill
+        assert_eq!(history.undo.pop().unwrap(), before);
+        // a second fill of the same faces replaces their shader, adding nothing
+        apply_many(
+            &mut document,
+            None,
+            Many::Draw {
+                faces: &faces(),
+                shaders: &[],
+                to: "textures/a/brick".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(document.edits.len(), 6);
+    }
+
+    #[test]
+    fn a_gizmo_set_of_several_models_is_one_step_to_undo() {
+        use super::super::gizmo::{parse_set, set_placed};
+        let words =
+            |text: String| -> Vec<String> { text.split_whitespace().map(str::to_owned).collect() };
+        let mut document = super::super::Document::new("mp/test", 7);
+        let place = |x: f32| Kind::Place {
+            model: "models/map_objects/a.md3".into(),
+            origin: [x, 0.0, 0.0],
+            angles: [0.0; 3],
+            scale: [1.0; 3],
+        };
+        let a = document.add(place(0.0), None);
+        let b = document.add(place(100.0), None);
+        let hidden = document.add(
+            Kind::HideSurface {
+                surface: 1,
+                shader: "textures/a/b".into(),
+            },
+            None,
+        );
+        let mut history = History::default();
+        let before = document.edits.clone();
+        let sets = parse_set(&words(format!(
+            "{a} 0 0 8 0 90 0 1 1 2 {b} 100 0 8 0 90 0 1 1 2"
+        )))
+        .unwrap();
+        assert_eq!(
+            set_placed(&mut document, &sets).unwrap(),
+            "2 placed models set"
+        );
+        history.changed(before.clone());
+        assert_eq!(history.undo.len(), 1, "one step for both");
+        for id in [a, b] {
+            let edit = document.edits.iter().find(|e| e.id == id).unwrap();
+            let Kind::Place {
+                origin,
+                angles,
+                scale,
+                ..
+            } = &edit.kind
+            else {
+                panic!("not placed")
+            };
+            assert_eq!(origin[2], 8.0);
+            assert_eq!(angles[1], 90.0);
+            assert_eq!(*scale, [1.0, 1.0, 2.0]);
+        }
+        assert!(document.unpublished);
+        assert_eq!(history.undo.pop().unwrap(), before);
+        // All or none: a hidden surface is not a placed model, so nothing moves.
+        let now = document.edits.clone();
+        let wrong = parse_set(&words(format!(
+            "{a} 5 5 5 0 0 0 1 1 1 {hidden} 1 1 1 0 0 0 1 1 1"
+        )))
+        .unwrap();
+        assert!(set_placed(&mut document, &wrong).is_err());
+        assert_eq!(document.edits, now);
+    }
+
+    #[test]
+    fn a_sky_swaps_as_remap_edits_and_comes_back() {
+        let mut document = super::super::Document::new("mp/test", 7);
+        let skies = ["textures/skies/a".to_owned(), "textures/skies/b".to_owned()];
+        let line = swap_skies(
+            &mut document,
+            None,
+            &skies[..1],
+            Some("textures/skies/night"),
+        )
+        .unwrap();
+        assert_eq!(
+            line,
+            "Edit 1: textures/skies/a swapped for textures/skies/night"
+        );
+        assert_eq!(
+            document.edits[0].kind,
+            Kind::Remap {
+                from: "textures/skies/a".into(),
+                to: "textures/skies/night".into(),
+            }
+        );
+        // all skies of the map: the first's swap replaced, the second added, in one call
+        // (one step of the history)
+        let line = swap_skies(&mut document, None, &skies, Some("textures/skies/day")).unwrap();
+        assert_eq!(line, "2 skies swapped for textures/skies/day");
+        assert_eq!(document.edits.len(), 2);
+        // a sky swapped for itself is its own again; for another server, nothing to take
+        assert!(
+            swap_skies(
+                &mut document.clone(),
+                Some("1.2.3.4:1".into()),
+                &skies,
+                None
+            )
+            .is_err()
+        );
+        let line = swap_skies(&mut document, None, &skies[1..], Some("TEXTURES/SKIES/B")).unwrap();
+        assert_eq!(line, "textures/skies/b: the map's sky again");
+        let line = swap_skies(&mut document, None, &skies, None).unwrap();
+        assert_eq!(line, "1 of 2 skies: the map's again");
+        assert!(document.edits.is_empty());
+        assert!(swap_skies(&mut document, None, &skies, None).is_err());
+    }
+
+    #[test]
+    fn many_faces_and_surfaces_are_hidden_or_taken_back_at_once() {
+        let mut document = super::super::Document::new("mp/test", 7);
+        let faces = faces();
+        apply_many(
+            &mut document,
+            None,
+            Many::Draw {
+                faces: &faces,
+                shaders: &[(4, "textures/a/wall".to_owned())],
+                to: "textures/a/stone".into(),
+            },
+        )
+        .unwrap();
+        // Remove takes back the faces' and the remap's edits
+        let mut removed = document.clone();
+        let line = apply_many(
+            &mut removed,
+            None,
+            Many::Remove {
+                faces: &faces[..2],
+                shaders: &[(9, "TEXTURES/A/WALL".to_owned())],
+            },
+        )
+        .unwrap();
+        assert_eq!(line, "3 edits taken away");
+        assert_eq!(removed.edits.len(), 1);
+        // for another server's scope, nothing is theirs to take
+        assert!(
+            apply_many(
+                &mut document.clone(),
+                Some("1.2.3.4:29070".into()),
+                Many::Remove {
+                    faces: &faces,
+                    shaders: &[],
+                },
+            )
+            .is_err()
+        );
+        // Hide: the surfaces hidden, the shown faces drawn as nothing again
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Hide {
+                faces: &faces,
+                surfaces: &[
+                    (7, "textures/a/x".to_owned()),
+                    (8, "textures/a/y".to_owned()),
+                ],
+                placed: &[],
+            },
+        )
+        .unwrap();
+        assert_eq!(line, "2 surfaces hidden, 3 faces drawn as nothing again");
+        assert_eq!(document.edits.len(), 1 + 2);
+        assert!(
+            apply_many(
+                &mut document,
+                None,
+                Many::Hide {
+                    faces: &faces,
+                    surfaces: &[],
+                    placed: &[],
+                },
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_set_of_placed_models_is_removed_or_turned_in_one_step() {
+        use super::super::gizmo::{Change, apply, pivot_of, set_placed, sets_of};
+        let mut document = super::super::Document::new("mp/test", 7);
+        let place = |x: f32| Kind::Place {
+            model: "models/map_objects/a.md3".into(),
+            origin: [x, 0.0, 0.0],
+            angles: [0.0; 3],
+            scale: [1.0; 3],
+        };
+        let ids: Vec<u32> = [0.0, 64.0, 128.0]
+            .into_iter()
+            .map(|x| document.add(place(x), None))
+            .collect();
+        let face = (10, 60, "textures/system/caulk".to_owned());
+        document.add(
+            Kind::ShowFace {
+                brush: face.0,
+                side: face.1,
+                shader: face.2.clone(),
+                to: "textures/a/stone".into(),
+            },
+            None,
+        );
+        let mut history = History::default();
+        // The panel's Turn left on the set: about the middle (64 0 0), one mapedit_set.
+        let before = document.edits.clone();
+        let start: Vec<_> = ids
+            .iter()
+            .map(|&id| {
+                let Some(Kind::Place {
+                    origin,
+                    angles,
+                    scale,
+                    ..
+                }) = document.get_mut(id).map(|e| e.kind.clone())
+                else {
+                    panic!("placed")
+                };
+                super::super::gizmo::Placement {
+                    id,
+                    origin: Vec3::from_array(origin),
+                    angles,
+                    scale,
+                }
+            })
+            .collect();
+        let turn = Change::Turn {
+            axis: Vec3::Z,
+            degrees: 90.0,
+        };
+        let moved = apply(&start, pivot_of(&start), turn);
+        set_placed(&mut document, &sets_of(&moved)).unwrap();
+        history.changed(before.clone());
+        assert_eq!(history.undo.len(), 1, "three models turned: one step");
+        assert_eq!(
+            set_line(3, turn),
+            "3 placed models turned 90 degrees about their middle"
+        );
+        let Some(Kind::Place { origin, angles, .. }) =
+            document.get_mut(ids[0]).map(|e| e.kind.clone())
+        else {
+            panic!("placed")
+        };
+        assert!((origin[0] - 64.0).abs() < 1e-3 && (origin[1] + 64.0).abs() < 1e-3);
+        assert!((angles[1] - 90.0).abs() < 1e-3);
+        // Hide on a set of models and a shown face: all gone, one step.
+        let before = document.edits.clone();
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Hide {
+                faces: &[face],
+                surfaces: &[],
+                placed: &ids,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            line,
+            "3 placed models removed, 1 faces drawn as nothing again"
+        );
+        assert!(document.edits.is_empty());
+        history.changed(before.clone());
+        assert_eq!(
+            history.undo.pop().unwrap(),
+            before,
+            "the undo brings all back"
+        );
+        // Placed models alone, and once they are gone.
+        let mut alone = before.clone();
+        let mut document = super::super::Document::new("mp/test", 7);
+        document.edits.append(&mut alone);
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Hide {
+                faces: &[],
+                surfaces: &[],
+                placed: &ids[..2],
+            },
+        )
+        .unwrap();
+        assert_eq!(line, "2 placed models removed");
+        assert!(
+            apply_many(
+                &mut document,
+                None,
+                Many::Hide {
+                    faces: &[],
+                    surfaces: &[],
+                    placed: &ids[..2],
+                },
+            )
+            .is_err()
+        );
     }
 }

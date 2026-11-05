@@ -302,6 +302,12 @@ pub struct Snapshot {
     /// The answer to the last mystery box request, by serial, or why it was refused
     /// (in the player's words).
     pub mystery_box: Option<(u64, Result<BoxDone, String>)>,
+    /// Fished junk selling as the hub last said ([`Service::read_junk`]): `None` until
+    /// read, and when the hub has none or could not be asked (no Sell button then).
+    pub junk: Option<crate::junk::JunkStatus>,
+    /// The answer to the last junk sale ([`Service::sell_junk`]), by serial, or why it
+    /// was refused (in the player's words).
+    pub junk_sale: Option<(u64, Result<crate::junk::JunkSold, String>)>,
     /// The box hunt as last read, by serial, for the server named
     /// ([`Service::read_box_hunt`]).
     pub box_hunt: Option<(u64, String, crate::mystery_box::HuntState)>,
@@ -730,6 +736,8 @@ impl Snapshot {
             mystery_boxes: None,
             mystery_boxes_revision: 0,
             mystery_box: None,
+            junk: None,
+            junk_sale: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,
@@ -885,6 +893,10 @@ enum Command {
     PlaceMysteryBox(crate::mystery_box::MysteryBox),
     /// SJK's creator: remove mystery box `id`.
     RemoveMysteryBox(i64),
+    /// Ask the hub about junk selling.
+    ReadJunk,
+    /// Sell these pieces of fished junk, by id.
+    SellJunk(std::collections::BTreeMap<String, u32>),
     /// Read the box hunt on `server`, the player away or not.
     BoxHunt {
         server: String,
@@ -1085,6 +1097,9 @@ struct Worker {
     /// 23/10/2026): looks go without it, so the blade and the rest still sync and other
     /// players hear the sounds that follow the blade, until the hub changes.
     look_sounds_unsupported: bool,
+    /// The hub refused a look's `finisher` as an unknown field (a hub from before
+    /// 04/11/2026): looks go without it until the hub changes.
+    finisher_unsupported: bool,
     /// The feed id of the last look the hub took from this worker.
     look_id: Option<u64>,
     /// When the own profile may next be read early ([`Worker::profile_soon`]).
@@ -1103,6 +1118,8 @@ struct Worker {
     /// When the hub's mystery boxes are next read, and the last request's serial.
     due_mystery_boxes: Instant,
     mystery_box_serial: u64,
+    /// The last junk sale's serial.
+    junk_serial: u64,
     box_hunt_serial: u64,
     /// When the Toy Master's toys are next read, and the last request's serial.
     due_secrets: Instant,
@@ -1421,6 +1438,7 @@ impl Worker {
             due_look: now,
             look_refused: Vec::new(),
             look_sounds_unsupported: false,
+            finisher_unsupported: false,
             look_refused_for: Vec::new(),
             saber2_unknown: None,
             extras_unknown: None,
@@ -1435,6 +1453,7 @@ impl Worker {
             map_edits_serial: 0,
             due_mystery_boxes: now,
             mystery_box_serial: 0,
+            junk_serial: 0,
             box_hunt_serial: 0,
             due_secrets: now,
             secret_serial: 0,
@@ -1898,6 +1917,8 @@ impl Worker {
                 hub.remove_mystery_box(identity, id)
                     .map(|_| (BoxDone::Removed(id), None))
             }),
+            Command::ReadJunk => self.read_junk(),
+            Command::SellJunk(held) => self.sell_junk(&held),
             Command::UseSecret {
                 id,
                 server,
@@ -1995,6 +2016,7 @@ impl Worker {
         self.release();
         self.hub = None;
         self.look_sounds_unsupported = false;
+        self.finisher_unsupported = false;
         self.registered = false;
         self.name_sent = None;
         self.saber2_unknown = None;
@@ -3225,6 +3247,61 @@ impl Worker {
         });
     }
 
+    /// Ask the hub about junk selling: [`Snapshot::junk`] is what it said, `None` when it
+    /// could not be asked or has none (an older hub).
+    fn read_junk(&mut self) {
+        let status = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.junk_status(&self.identity).ok(),
+            _ => None,
+        };
+        self.update(|snapshot| snapshot.junk = status);
+    }
+
+    /// Sell `held` (pieces of junk by id): the answer goes in [`Snapshot::junk_sale`],
+    /// what is still payable in [`Snapshot::junk`] and the credits in the profile.
+    fn sell_junk(&mut self, held: &std::collections::BTreeMap<String, u32>) {
+        self.junk_serial += 1;
+        let serial = self.junk_serial;
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.sell_junk(&self.identity, held),
+            _ => Err(self.not_connected()),
+        };
+        self.update(|snapshot| {
+            let outcome = match outcome {
+                Ok(sold) => {
+                    if let Some(status) = snapshot.junk.as_mut() {
+                        status.left = sold.left;
+                        status.balance = sold.balance;
+                    }
+                    let credits = u64::try_from(sold.balance).unwrap_or(0);
+                    if let Some(shop) = snapshot.shop.as_mut() {
+                        shop.day.credits = credits;
+                    }
+                    if let Some(me) = snapshot.me.as_mut() {
+                        me.credits = credits;
+                        snapshot.me_revision += 1;
+                    }
+                    Ok(sold)
+                }
+                Err(error) => {
+                    if crate::junk::unsupported(&error) {
+                        snapshot.junk = None;
+                    } else if let HubError::Rejected { code, .. } = &error
+                        && let Some(status) = snapshot.junk.as_mut()
+                    {
+                        match code.as_str() {
+                            "junk_cap" => status.left = 0,
+                            "junk_selling_off" => status.open = false,
+                            _ => {}
+                        }
+                    }
+                    Err(crate::junk::refusal(&error))
+                }
+            };
+            snapshot.junk_sale = Some((serial, outcome));
+        });
+    }
+
     /// Read the Toy Master's toys once registered, if it is time: next time
     /// [`SECRETS_EVERY`] later. Cosmetic: a failure keeps the last list.
     fn keep_secrets(&mut self, now: Instant) {
@@ -3404,6 +3481,9 @@ impl Worker {
         if self.look_sounds_unsupported || self.look_refused.contains(&look.saber_sounds) {
             look.saber_sounds.clear();
         }
+        if self.finisher_unsupported || self.look_refused.contains(&look.finisher) {
+            look.finisher.clear();
+        }
         if self.tag_unknown.is_some()
             || look
                 .tag
@@ -3484,6 +3564,29 @@ impl Worker {
             // again without it (before the older fields are suspected).
             Err(HubError::Rejected { code, .. }) if code == "bad_body" && look.tag.is_some() => {
                 self.tag_unknown = Some(now + SABER2_RETRY);
+                self.due_look = now;
+            }
+            // A hub from before 04/11/2026 refuses the finisher: the look goes again
+            // without it, the newest field, before any older one is suspected.
+            Err(HubError::Rejected {
+                status: 400, code, ..
+            }) if code == "bad_body" && !look.finisher.is_empty() => {
+                self.finisher_unsupported = true;
+                self.due_look = now;
+            }
+            // A finisher the key does not hold, or one the hub does not know: the look
+            // goes again without it until the profile changes.
+            Err(HubError::Rejected { code, .. })
+                if (code == "finisher_not_unlocked" || code == "bad_finisher")
+                    && !look.finisher.is_empty() =>
+            {
+                self.profile_soon(now);
+                self.look_refused_for = lock(&self.snapshot)
+                    .me
+                    .as_ref()
+                    .map(|me| me.unlocks.clone())
+                    .unwrap_or_default();
+                self.look_refused.push(look.finisher.clone());
                 self.due_look = now;
             }
             // A hub from before 26/10/2026 refuses the extras: the look goes again without
@@ -4206,6 +4309,18 @@ impl Service {
     /// SJK's creator: remove mystery box `id`.
     pub fn remove_mystery_box(&self, id: i64) {
         let _ = self.commands.send(Command::RemoveMysteryBox(id));
+    }
+
+    /// Ask the hub whether the player may sell fished junk, at what prices and how much
+    /// it still pays today: the answer arrives in [`Snapshot::junk`].
+    pub fn read_junk(&self) {
+        let _ = self.commands.send(Command::ReadJunk);
+    }
+
+    /// Sell `held`, pieces of fished junk by id: what the hub took arrives in
+    /// [`Snapshot::junk_sale`], the credits after in the profile.
+    pub fn sell_junk(&self, held: std::collections::BTreeMap<String, u32>) {
+        let _ = self.commands.send(Command::SellJunk(held));
     }
 
     /// The player pressed Use `presses` times on the Toy Master's toy `id` on `server` in
@@ -5568,6 +5683,11 @@ mod tests {
             let second = match look.tag.as_ref() {
                 Some(tag) => format!("{second} tag {}", tag.id),
                 None => second,
+            };
+            let second = if look.finisher.is_empty() {
+                second
+            } else {
+                format!("{second} finisher {}", look.finisher)
             };
             Fake::record(
                 self,
@@ -7001,6 +7121,7 @@ mod tests {
             saber2_on: Vec::new(),
             saber_sounds: String::new(),
             tag: None,
+            finisher: String::new(),
         }
     }
 
@@ -7525,6 +7646,58 @@ mod tests {
         worker.tick(at);
         assert!(worker.look_claim.is_none());
         assert!(worker.due_claim <= at + Duration::from_millis(50));
+    }
+
+    /// A hub from before finishers (04/11/2026) refuses `finisher` as an unknown field:
+    /// the look goes again at once without it, and later looks leave it out. A finisher
+    /// the key does not hold is left out the same way, the rest of the look kept.
+    #[test]
+    fn a_finisher_an_older_hub_refuses_or_the_key_lacks_is_left_out() {
+        let t0 = Instant::now();
+        for (status, code) in [(400, "bad_body"), (403, "finisher_not_unlocked")] {
+            let fake = Fake::default();
+            fake.owned.lock().unwrap().push("saber_sun".to_owned());
+            let (mut worker, _) = worker(&fake, t0);
+            worker.handle(Command::Configure(on("https://hub")), t0);
+            worker.handle(Command::Enter(here(3, "Sol")), t0);
+            worker.tick(t0);
+            let sent = fake.looks().len();
+            fake.look_refusals
+                .lock()
+                .unwrap()
+                .push_back(refused(status, code));
+            let at = t0 + LOOK_EVERY;
+            let finishing = Look {
+                finisher: "finisher_disintegrate".to_owned(),
+                ..lit("saber_sun")
+            };
+            worker.handle(Command::Look(finishing.clone()), at);
+            worker.tick(at);
+            worker.tick(at);
+            assert_eq!(
+                fake.looks()[sent..],
+                [
+                    "look 1.2.3.4:29070 \"saber_sun\" true finisher finisher_disintegrate",
+                    "look 1.2.3.4:29070 \"saber_sun\" true",
+                ],
+                "{code}"
+            );
+            // Another look still goes without it.
+            let at = at + LOOK_EVERY;
+            worker.handle(
+                Command::Look(Look {
+                    illuminate: false,
+                    ..finishing
+                }),
+                at,
+            );
+            worker.tick(at);
+            assert_eq!(
+                fake.looks().last().unwrap(),
+                "look 1.2.3.4:29070 \"saber_sun\" false",
+                "{code}"
+            );
+        }
     }
 
     /// A hub from before the sounds choice refuses `saber_sounds` as an unknown field:

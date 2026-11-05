@@ -214,6 +214,9 @@ impl GpuState {
             Instant::now(),
         );
         self.local_actor_state = Default::default();
+        // A blade skin's burns belong to the old timeline: their start times and entity
+        // numbers mean nothing on a new one (`disintegration::Forced`).
+        self.forced_disintegrations = Default::default();
         for mesh in &mut self.actor_meshes {
             mesh.angle_controller = sjk_client::LegacyPlayerAngleController::new();
         }

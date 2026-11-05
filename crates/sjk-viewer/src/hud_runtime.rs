@@ -882,6 +882,7 @@ mod tests {
             saber2_on: Vec::new(),
             saber_sounds: String::new(),
             tag: None,
+            finisher: String::new(),
         }
     }
 

@@ -39,6 +39,8 @@ mod achievements;
 mod banners;
 #[path = "collection_cards.rs"]
 mod cards;
+#[path = "collection_finishers.rs"]
+mod finishers;
 #[path = "collection_forge.rs"]
 pub(crate) mod forge;
 #[path = "collection_forge_view.rs"]
@@ -57,6 +59,12 @@ mod marks_view;
 mod medals;
 #[path = "collection_nameplates.rs"]
 mod nameplates;
+#[path = "collection_saber_lab_builder.rs"]
+mod saber_lab_builder;
+#[path = "collection_saber_lab_editor.rs"]
+mod saber_lab_editor;
+#[path = "collection_saber_lab.rs"]
+mod saber_lab_tab;
 #[path = "collection_shaders.rs"]
 mod shaders;
 #[path = "collection_spin.rs"]
@@ -70,6 +78,7 @@ mod toys;
 #[path = "collection_view.rs"]
 mod view;
 
+pub(crate) use saber_lab_tab::{LAB_SABER_AREA, LabStage, LabView};
 pub(crate) use spin::SaberTurn;
 pub(crate) use toys::{COMMANDS as TOY_COMMANDS, options_on as toy_options, unseen as toys_unseen};
 pub(crate) use view::{MODEL_AREA, SABER_AREA, row_labels};
@@ -128,6 +137,11 @@ const BANANA_TOKEN: u16 = 1_375;
 const FISHING_TOKEN: u16 = 1_378;
 /// Mining's niche on Toys (after the toy cards' own switches, [`TOY_OPTION_TOKEN`]).
 const MINING_TOKEN: u16 = 1_394;
+/// The Fishing card's Sell junk button: past the nameplate styles' and the toy
+/// options' tokens, which a click reads by range.
+const SELL_JUNK_TOKEN: u16 = 1_395;
+/// Fishing's place among the toys (`collection_toys::TOYS`).
+const FISHING_TOY: usize = 10;
 /// The Toys tab's "?", the Toy Master's (`collection_toys::Panel::toy_master_badge`): its
 /// hover card tells of the toys hidden on maps and names those the player found.
 const TOY_MASTER_TOKEN: u16 = 1_376;
@@ -171,6 +185,10 @@ const TOY_TOKENS: [u16; TOY_COUNT] = [
 /// a toy from here on, below [`FAVOURITE_TOKEN`].
 const TOY_SWITCH_BASE: u16 = 1_360;
 const _: () = assert!(TOY_SWITCH_BASE + TOY_COUNT as u16 <= FAVOURITE_TOKEN);
+const _: () = assert!(
+    SELL_JUNK_TOKEN >= STYLE_BASE + crate::hud::nameplate::Style::ALL.len() as u16
+        && SELL_JUNK_TOKEN >= TOY_OPTION_TOKEN + TOY_OPTION_TOKENS as u16
+);
 /// The chosen toy's key, which a click or K waits for a key to bind, and Order 66's
 /// second (the key that executes the order).
 const BIND_TOKEN: u16 = 1_377;
@@ -225,7 +243,10 @@ const OPTION_TOKENS: usize =
 /// The Shaders tab's rows: the stock blade, then every blade skin, the rarest first
 /// ([`unlockables::blade_skins_by_tier`]).
 const SHADER_ROWS: usize = 1 + unlockables::ALL.len();
-const _: () = assert!(SHADER_BASE as usize + SHADER_ROWS <= SHADER_LIMIT as usize);
+/// The rows the tab may hold: [`SHADER_ROWS`] and the Saber Lab's blade while the lab is
+/// on ([`crate::saber_lab`]).
+const SHADER_SLOTS: usize = SHADER_ROWS + 1;
+const _: () = assert!(SHADER_BASE as usize + SHADER_SLOTS <= SHADER_LIMIT as usize);
 /// The Shaders tab's filter (14/10/2026): its tier chips (All, then the five tiers, and
 /// Unique's for a player who holds a Unique shader), the owned-only chip and the search
 /// field.
@@ -378,6 +399,8 @@ pub(crate) enum PanelAction {
     Close,
     /// Set `cg_saberSkin` to this id (`""` for the stock blade).
     Wear(&'static str),
+    /// Set `cg_saberFinisher` to this finisher's id (`""` for none, `crate::finishers`).
+    WearFinisher(&'static str),
     /// Set `cg_saberSkin2` to this (`""`: the first saber's skin, `stock`, or an id).
     WearSecond(&'static str),
     /// Set `cg_saberSkin` to `first` and `cg_saberSkin2` to `second` (what the second wore,
@@ -419,6 +442,8 @@ pub(crate) enum PanelAction {
     /// Take the pickaxe in hand (`true`) or put it away: the same as `toy_mining`, set
     /// rather than toggled.
     Mining(bool),
+    /// Sell the fished junk to the hub: the same as `fishing_sell`.
+    SellJunk,
     /// Set `cg_tag` to this tag's id: the one `toy_tag` sticks.
     /// Pick a tag (or a card) for `toy_tag`, in a finish (`cg_tag`, `cg_tagFinish`).
     ChooseTag(String, &'static str),
@@ -563,6 +588,9 @@ pub(crate) struct StageWish {
     pub(crate) on_both: bool,
     /// The Illuminate holocron floats by the model, lit.
     pub(crate) holocron: bool,
+    /// The Saber Lab tab: the model holds the saber and swings it, the saber floats
+    /// beside it too ([`crate::saber_lab`]).
+    pub(crate) lab: Option<LabStage>,
 }
 
 /// What the page knows this frame.
@@ -601,6 +629,9 @@ pub(crate) struct Inputs<'a> {
     pub(crate) fishing: bool,
     /// The pickaxe is in hand now (kept as [`Self::illuminate`] is).
     pub(crate) mining: bool,
+    /// The Fishing card's catches and junk sale, as the viewer last gave them; none
+    /// lists nothing.
+    pub(crate) fishing_card: Option<&'a crate::fishing_sell::Card>,
     /// The `name` cvar, for the nameplate.
     pub(crate) name: &'a str,
     /// The stock blade's colour (`color1`), for its swatch.
@@ -633,6 +664,8 @@ pub(crate) struct Inputs<'a> {
     pub(crate) tag: &'a str,
     /// `cg_tagFinish`: the finish it sticks it in, when held.
     pub(crate) tag_finish: &'a str,
+    /// `cg_saberFinisher`: the finisher worn, when held (`crate::finishers`).
+    pub(crate) finisher: &'a str,
 }
 
 /// What the last frame showed of a shader's row, for keys and clicks.
@@ -752,6 +785,24 @@ pub(crate) struct Panel {
     card_blade: Option<&'static unlockables::Unlockable>,
     card_blade_craft: bool,
     shader_focus: Option<&'static str>,
+    /// What the Saber Lab tab asks of the stage, what a press on it holds, the style the
+    /// stage's model holds its hilts in, its blade among the lab's
+    /// ([`crate::saber_lab::blades`]) and the worn skin as the last frame's inputs said
+    /// (`cg_saberSkin`, for its Equip).
+    lab: LabStage,
+    lab_drag: Option<saber_lab_tab::LabDrag>,
+    lab_held: crate::player_menu::SaberStyle,
+    lab_blade: usize,
+    lab_setting: String,
+    /// Whether the player may wear the blade the Saber Lab tab shows, as its last frame
+    /// found.
+    lab_wearable: bool,
+    /// The Saber Lab's blade-skin editor while it is open, and why it could not open.
+    lab_edit: Option<saber_lab_editor::LabEdit>,
+    lab_edit_problem: Option<String>,
+    /// The Saber Lab's builder, and whether the tab shows the stage's choices instead.
+    lab_build: saber_lab_builder::LabBuild,
+    lab_stage_view: bool,
     /// How many sealed copies the last frame offered to reveal (0: no Reveal button).
     revealable: u32,
     /// The identity's last reveal when Reveal was pressed: the line under the button
@@ -790,13 +841,17 @@ pub(crate) struct Panel {
     bind_wait: Option<usize>,
     /// How many medals the last frame showed.
     medals_shown: usize,
-    shader_rows: [ShaderRow; SHADER_ROWS],
+    shader_rows: [ShaderRow; SHADER_SLOTS],
     /// The shaders the tab lists now (the filter's), the stock blade's row 0 before them,
     /// and how many rows that makes; read again each frame.
     shader_list: Vec<&'static unlockables::Unlockable>,
     /// The ones of them the player holds, as the last frame's rows said (a lock needs one).
     shader_owned: Vec<&'static str>,
     shader_count: usize,
+    /// The Shaders tab shows the finishers rather than the saber's shaders (its kinds'
+    /// pills, `collection_finishers.rs`), and the finisher worn as last drawn.
+    finishers_shown: bool,
+    finisher_worn: Option<&'static str>,
     shader_filter: ShaderFilter,
     /// The Shaders tab offers Unique's chip: the player holds a Unique shader, as the last
     /// frame's holdings said ([`Panel::tier_chips`]).
@@ -936,6 +991,16 @@ impl Panel {
             shader_focus: None,
             revealable: 0,
             reveal_asked: None,
+            lab: LabStage::default(),
+            lab_drag: None,
+            lab_held: crate::player_menu::SaberStyle::Single,
+            lab_blade: 0,
+            lab_setting: String::new(),
+            lab_wearable: false,
+            lab_edit: None,
+            lab_edit_problem: None,
+            lab_build: saber_lab_builder::LabBuild::default(),
+            lab_stage_view: false,
             shader_first: 0,
             shader_lines: Vec::new(),
             shader_shown: 0,
@@ -949,11 +1014,13 @@ impl Panel {
             jump_to_worn: false,
             bind_wait: None,
             medals_shown: 0,
-            shader_rows: [ShaderRow::default(); SHADER_ROWS],
+            shader_rows: [ShaderRow::default(); SHADER_SLOTS],
             // Until the first frame reads the holdings: what a player who holds nothing sees.
             shader_list: Holdings::IdentityOff.listed().collect(),
             shader_owned: Vec::new(),
             shader_count: 1 + Holdings::IdentityOff.listed_count(),
+            finishers_shown: false,
+            finisher_worn: None,
             shader_filter: ShaderFilter::default(),
             unique_chip: false,
             search_focus: false,
@@ -1001,6 +1068,7 @@ impl Panel {
         if self.skins.generation() != crate::sjk_packs::generation() {
             self.skins = crate::sjk_packs::skins();
         }
+        self.follow_lab_editor();
     }
 
     /// Show the page on `tab` (one of the Collection's), on its own (`hub` false: the
@@ -1069,6 +1137,11 @@ impl Panel {
         self.tab
     }
 
+    /// Whether the Toys tab's chosen toy is Fishing, whose card lists the catches.
+    pub(crate) fn fishing_chosen(&self) -> bool {
+        self.toy == FISHING_TOY
+    }
+
     /// Whether the page is the SJK UI's Collection screen.
     pub(crate) fn is_hub(&self) -> bool {
         self.hub
@@ -1085,10 +1158,21 @@ impl Panel {
         let owned = self.open && self.owns_console;
         // Shown again, the History tab reads the newest lines.
         self.history.shown = false;
+        self.close_lab_editor();
+        self.lab_build.close();
         self.open = false;
         self.owns_console = false;
         self.backstage = Backstage::None;
         owned
+    }
+
+    /// Choose the Saber Lab's blade on Shaders: the first row after the stock blade while
+    /// the lab is on, shown whatever the filter.
+    pub(crate) fn choose_saber_lab(&mut self) {
+        if crate::saber_lab::active() {
+            self.shader = 1;
+            self.shader_first = 0;
+        }
     }
 
     /// Where the model stands this frame.
@@ -1137,6 +1221,7 @@ impl Panel {
                 on_second: self.second_target,
                 on_both: self.both_sides(),
                 holocron: false,
+                lab: None,
             }),
             Tab::Toys => Some(StageWish {
                 skin: PreviewSkin::Worn,
@@ -1144,6 +1229,7 @@ impl Panel {
                 on_second: false,
                 on_both: false,
                 holocron: self.toy == 0,
+                lab: None,
             }),
             Tab::Nameplates => Some(StageWish {
                 skin: PreviewSkin::Worn,
@@ -1151,7 +1237,9 @@ impl Panel {
                 on_second: false,
                 on_both: false,
                 holocron: false,
+                lab: None,
             }),
+            Tab::SaberLab => self.lab_wish(),
             _ => None,
         }
     }
@@ -1205,7 +1293,7 @@ impl Panel {
             Tab::Toys if self.toy == 7 => PanelAction::Monitor(!self.monitor_on),
             Tab::Toys if self.toy == 8 => PanelAction::BoxHunt(!self.box_hunt_on),
             Tab::Toys if self.toy == 9 => PanelAction::Banana(!self.banana_on),
-            Tab::Toys if self.toy == 10 => PanelAction::Fishing(!self.fishing_on),
+            Tab::Toys if self.toy == FISHING_TOY => PanelAction::Fishing(!self.fishing_on),
             Tab::Toys if self.toy == 11 => PanelAction::Mining(!self.mining_on),
             Tab::Toys => PanelAction::Illuminate(!illuminate),
             Tab::Nameplates => PanelAction::SeeAndShare(!self.share_on),
@@ -1215,6 +1303,7 @@ impl Panel {
                 self.card_inspect = self.cards_shown > 0;
                 PanelAction::None
             }
+            Tab::SaberLab => self.lab_equip(&self.lab_setting),
             _ => PanelAction::None,
         }
     }
@@ -1429,6 +1518,14 @@ impl Panel {
                 }
                 _ => {}
             }
+        }
+        if self.tab == Tab::SaberLab
+            && let Some(action) = self
+                .lab_edit_key(event, key, shift, control)
+                .or_else(|| self.lab_build_key(event, key, shift, control))
+                .or_else(|| self.lab_key(key))
+        {
+            return action;
         }
         self.key(key, shift, illuminate)
     }
@@ -1757,6 +1854,13 @@ impl Panel {
 
     /// A pressed key, by its code.
     fn key(&mut self, key: KeyCode, shift: bool, illuminate: bool) -> PanelAction {
+        // The finishers page has no rows to step: Escape and Tab only.
+        if self.tab == Tab::Shaders && self.finishers_shown {
+            return match key {
+                KeyCode::Escape | KeyCode::Tab => self.key_any(key, shift, illuminate, false),
+                _ => PanelAction::None,
+            };
+        }
         let vertical = self.tab == Tab::Shaders;
         if self.tab == Tab::Tags && self.tag_key(key) {
             return PanelAction::None;
@@ -1940,7 +2044,7 @@ impl Panel {
             return Self::loadout_reply(reply);
         }
         // The lone saber turns with a drag that starts on it, wherever it goes after.
-        if self.tab == Tab::Shaders {
+        if matches!(self.tab, Tab::Shaders | Tab::SaberLab) {
             match event {
                 InputEvent::PointerPress { position: at, .. }
                     if self.backstage != Backstage::None
@@ -1948,8 +2052,17 @@ impl Panel {
                             .ui
                             .rect_for(SABER_TOKEN)
                             .is_some_and(|rect| rect.contains(at))
-                        // The target switch over the saber is pressed, not the saber.
-                        && ![TARGET_FIRST_TOKEN, TARGET_SECOND_TOKEN, BOTH_TOKEN].iter().any(|token| {
+                        // The target switch over the saber is pressed, not the saber, and
+                        // so is the Loadouts button in the room's top right corner (hub
+                        // report #245: the stage took its clicks).
+                        && ![
+                            TARGET_FIRST_TOKEN,
+                            TARGET_SECOND_TOKEN,
+                            BOTH_TOKEN,
+                            loadouts::OPEN_TOKEN,
+                        ]
+                        .iter()
+                        .any(|token| {
                             self.ui.rect_for(*token).is_some_and(|rect| rect.contains(at))
                         }) =>
                 {
@@ -1996,6 +2109,14 @@ impl Panel {
                 }
                 _ => {}
             }
+        }
+        if self.tab == Tab::SaberLab
+            && let Some(action) = self
+                .lab_edit_pointer(event)
+                .or_else(|| self.lab_build_pointer(event))
+                .or_else(|| self.lab_pointer(event))
+        {
+            return action;
         }
         if let InputEvent::PointerWheel { delta, .. } = event
             && self.tab == Tab::Forge
@@ -2253,6 +2374,19 @@ impl Panel {
         if event.kind != UiEventKind::Activate {
             return PanelAction::None;
         }
+        if self.tab == Tab::SaberLab
+            && let Some(action) = self
+                .lab_edit_click(token)
+                .or_else(|| self.lab_build_click(token))
+                .or_else(|| self.lab_click(token))
+        {
+            return action;
+        }
+        if self.tab == Tab::Shaders
+            && let Some(action) = self.finishers_click(token)
+        {
+            return action;
+        }
         if let Some(style) = token
             .checked_sub(STYLE_BASE)
             .and_then(|index| crate::hud::nameplate::Style::ALL.get(usize::from(index)))
@@ -2272,6 +2406,7 @@ impl Panel {
             GRID_VIEW_TOKEN => self.set_grid(true),
             WEAR_TOKEN | TOY_SWITCH_TOKEN | SHARE_TOKEN => self.activate(illuminate),
             TOY_SIGHT_TOKEN => self.toy_sight(),
+            SELL_JUNK_TOKEN => PanelAction::SellJunk,
             loadouts::OPEN_TOKEN => {
                 self.loadouts.open();
                 PanelAction::None
@@ -2485,6 +2620,7 @@ impl Panel {
                 }
                 None => BACK_TOKEN,
             },
+            Tab::SaberLab => self.lab_focus(),
             _ => BACK_TOKEN,
         }
     }
@@ -2527,6 +2663,7 @@ mod tests {
             banana: false,
             fishing: false,
             mining: false,
+            fishing_card: None,
             name: "^1Sol^7Vulpes",
             stock: sjk_ui::Color::new(0.16, 0.48, 1.0, 1.0),
             grid: false,
@@ -2540,6 +2677,7 @@ mod tests {
             toy_options: 0,
             tag: "",
             tag_finish: "",
+            finisher: "",
         }
     }
 
@@ -2994,6 +3132,42 @@ mod tests {
         );
     }
 
+    /// The Fishing card's Sell junk button sells (its token is no nameplate style's or
+    /// toy option's, which a click reads by range first).
+    #[test]
+    fn the_fishing_cards_sell_button_sells() {
+        let log = crate::fishing::Log::parse(
+            "boot 3
+hilt 1
+",
+        );
+        let card = crate::fishing_sell::card(&log, Some((8, 15)), false, None);
+        let mut shown = inputs(Holdings::Known(&[]), "");
+        shown.fishing_card = Some(&card);
+        let mut panel = drawn(Tab::Toys, &shown);
+        panel.toy = FISHING_TOY;
+        redraw(&mut panel, &shown);
+        let rect = panel.ui.rect_for(SELL_JUNK_TOKEN).expect("the Sell button");
+        let at = sjk_ui::Vec2::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+        let button = sjk_ui::PointerButton::Primary;
+        let action = [
+            InputEvent::PointerMove(at),
+            InputEvent::PointerPress {
+                position: at,
+                button,
+            },
+            InputEvent::PointerRelease {
+                position: at,
+                button,
+            },
+        ]
+        .into_iter()
+        .map(|event| panel.pointer_at(event, true, Instant::now()))
+        .find(|action| *action != PanelAction::None)
+        .unwrap_or(PanelAction::None);
+        assert_eq!(action, PanelAction::SellJunk);
+    }
+
     /// Order 66 is the third toy: chosen, then turned on or off by the state the page
     /// was told; its row chooses it, its row's own switch runs it.
     #[test]
@@ -3331,6 +3505,69 @@ mod tests {
         // The next frame takes the click: a New one chosen is seen then, not a second later.
         panel.view(Some("saber_sun"));
         assert!(!panel.clicked_shader);
+    }
+
+    /// Finishers (04/11/2026): the Shaders tab's Finishers pill shows them, a held one's
+    /// Equip wears it and its Unequip takes it off, an unheld one has no button, and the
+    /// Saber pill goes back to the shaders.
+    #[test]
+    fn the_finishers_pill_shows_them_and_equips_a_held_one() {
+        use super::finishers::{FINISHER_WEAR_BASE, FINISHERS_KIND_TOKEN, SABER_KIND_TOKEN};
+        let click = |panel: &mut Panel, token: u16| {
+            let rect = panel.ui.rect_for(token).expect("a pointer area");
+            let at = sjk_ui::Vec2::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+            let mut action = PanelAction::None;
+            for event in [
+                InputEvent::PointerMove(at),
+                InputEvent::PointerPress {
+                    position: at,
+                    button: sjk_ui::PointerButton::Primary,
+                },
+                InputEvent::PointerRelease {
+                    position: at,
+                    button: sjk_ui::PointerButton::Primary,
+                },
+            ] {
+                let next = panel.handle_pointer(event, true);
+                if next != PanelAction::None {
+                    action = next;
+                }
+            }
+            action
+        };
+        let held = [Unlock {
+            id: "finisher_disintegrate".into(),
+            ..sun()
+        }];
+        let fonts = crate::text::load_modern(1.0, None).expect("Inter");
+        // Not held: the page shows it without a button.
+        let none = inputs(Holdings::Known(&[]), "");
+        let mut panel = drawn(Tab::Shaders, &none);
+        assert_eq!(click(&mut panel, FINISHERS_KIND_TOKEN), PanelAction::None);
+        panel.build(&none, &fonts.font, [1920.0, 1080.0]);
+        assert!(panel.ui.rect_for(FINISHER_WEAR_BASE).is_none());
+        assert!(!panel.overflowed());
+        // Held: Equip wears it; worn, Unequip takes it off.
+        let holding = inputs(Holdings::Known(&held), "");
+        panel.build(&holding, &fonts.font, [1920.0, 1080.0]);
+        assert_eq!(
+            click(&mut panel, FINISHER_WEAR_BASE),
+            PanelAction::WearFinisher("finisher_disintegrate")
+        );
+        let wearing = Inputs {
+            finisher: "finisher_disintegrate",
+            ..inputs(Holdings::Known(&held), "")
+        };
+        panel.build(&wearing, &fonts.font, [1920.0, 1080.0]);
+        assert_eq!(
+            click(&mut panel, FINISHER_WEAR_BASE),
+            PanelAction::WearFinisher("")
+        );
+        // The Saber pill brings the shaders back.
+        assert_eq!(click(&mut panel, SABER_KIND_TOKEN), PanelAction::None);
+        panel.build(&wearing, &fonts.font, [1920.0, 1080.0]);
+        assert!(!panel.shader_list.is_empty());
+        assert!(panel.ui.rect_for(FINISHER_WEAR_BASE).is_none());
     }
 
     #[test]
@@ -3859,5 +4096,65 @@ mod tests {
             action
         };
         assert_eq!(click(0), PanelAction::None);
+    }
+    /// Hub report #245: a click on the Loadouts button opens the card, as P does, on
+    /// every tab that offers it.
+    #[test]
+    fn a_click_on_the_loadouts_button_opens_the_card() {
+        // Every blade skin held: the wall is as full as it gets.
+        let owned: Vec<Unlock> = unlockables::blade_skins()
+            .map(|skin| Unlock {
+                id: skin.id.into(),
+                ..sun()
+            })
+            .collect();
+        let fonts = crate::text::load_modern(1.0, None).expect("Inter");
+        for tab in [Tab::Shaders, Tab::Tags, Tab::Nameplates] {
+            for grid in [false, true] {
+                for (size, stage) in [[1920.0, 1080.0], [1280.0, 720.0], [2560.0, 1440.0]]
+                    .into_iter()
+                    .flat_map(|size| {
+                        [
+                            Backstage::None,
+                            Backstage::World { head: None },
+                            Backstage::Preview { ready: true },
+                        ]
+                        .map(|stage| (size, stage))
+                    })
+                {
+                    let shown = Inputs {
+                        grid,
+                        ..inputs(Holdings::Known(&owned), "")
+                    };
+                    let mut panel = Panel::new();
+                    panel.open(tab, true, true, ReturnTarget::MainMenu);
+                    // In the game the page always has the stage behind it.
+                    panel.set_backstage(stage);
+                    panel.build(&shown, &fonts.font, size);
+                    let rect = panel.ui.rect_for(loadouts::OPEN_TOKEN).unwrap_or_else(|| {
+                        panic!("{tab:?} grid {grid} {size:?} {stage:?}: no button area")
+                    });
+                    let at =
+                        sjk_ui::Vec2::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+                    for event in [
+                        InputEvent::PointerMove(at),
+                        InputEvent::PointerPress {
+                            position: at,
+                            button: sjk_ui::PointerButton::Primary,
+                        },
+                        InputEvent::PointerRelease {
+                            position: at,
+                            button: sjk_ui::PointerButton::Primary,
+                        },
+                    ] {
+                        let _ = panel.handle_pointer(event, true);
+                    }
+                    assert!(
+                        panel.loadouts.is_open(),
+                        "{tab:?} grid {grid} {size:?} {stage:?}: the click left the card shut"
+                    );
+                }
+            }
+        }
     }
 }

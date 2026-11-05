@@ -132,7 +132,7 @@ impl GpuState {
                 &name,
             )
         });
-        let chat = console.bool_cvar("cl_sjkChat") != Some(false);
+        let chat = console.sjk_chat_on();
         // Pictures are read from the hub the identity talks to, and only while it is on.
         let pictures_from = if settings.enabled {
             settings.hub_url.as_str()

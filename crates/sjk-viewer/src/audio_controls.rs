@@ -107,8 +107,8 @@ pub(super) fn event_handle(
 impl GameAudio {
     /// Apply the live archived `s_volume`, `s_musicvolume`, `s_volumeVoice` and
     /// `s_emoteVolume` values (the emote channel's own gain, apart from `s_volume`,
-    /// #163, so a change reaches the emotes already playing, #188); all 0 while the
-    /// window is muted.
+    /// #163, so a change reaches the emotes already playing, #188; 0 in a duel with
+    /// `s_muteEmotesInDuel`, #234); all 0 while the window is muted.
     pub(crate) fn set_gains(&mut self, effects: f32, music: f32, voice: f32, emotes: f32) {
         self.output
             .send(AudioCommand::Gains(effects, music, voice, emotes));
@@ -193,10 +193,15 @@ impl GameAudio {
         let voice = console
             .and_then(|console| console.float_cvar(VOICE_VOLUME_CVAR))
             .unwrap_or(1.0) as f32;
-        let emotes = console
-            .and_then(|console| console.float_cvar(crate::emotes::VOLUME_CVAR))
-            .unwrap_or(crate::emotes::DEFAULT_VOLUME)
-            .clamp(0.0, crate::emotes::MAX_VOLUME) as f32;
+        let emotes = crate::emotes::heard_volume(
+            console
+                .and_then(|console| console.float_cvar(crate::emotes::VOLUME_CVAR))
+                .unwrap_or(crate::emotes::DEFAULT_VOLUME),
+            console
+                .and_then(|console| console.bool_cvar(crate::emotes::DUEL_MUTE_CVAR))
+                .unwrap_or(crate::emotes::DEFAULT_DUEL_MUTE),
+            self.in_duel,
+        );
         if console.is_some_and(ViewerConsole::window_muted) {
             self.set_gains(0.0, 0.0, 0.0, 0.0);
         } else {
@@ -237,12 +242,39 @@ impl GameAudio {
         &self.output.sonar
     }
 
-    /// Keep background music fed while no live snapshot is producing loops.
+    /// Keep background music fed while no live snapshot is producing loops; the loops
+    /// the menus asked for this frame ([`Self::menu_loop`]) are the set.
     pub(crate) fn idle_frame(&mut self) {
+        self.in_duel = false;
         self.stop_flame();
         self.poll_legacy_load();
         self.output.send(AudioCommand::ClearLoops);
+        for (handle, request) in self.menu_loops.iter_mut().filter_map(Option::take) {
+            self.output
+                .send(AudioCommand::SetLoop(handle, request, [0.0; 3]));
+        }
         self.output.send(AudioCommand::CommitLoops);
+    }
+
+    /// Loop `path` this frame, in both ears at `volume`, for `source`, while no match
+    /// loops any sound (the Saber Lab's hum and buzz): asked again each frame it plays,
+    /// it stops the first frame it is not. A sound not registered is not heard.
+    pub(crate) fn menu_loop(&mut self, path: &str, volume: f32, source: SourceId) {
+        let Some(handle) = self.find_handle(path) else {
+            return;
+        };
+        if let Some(slot) = self.menu_loops.iter_mut().find(|slot| slot.is_none()) {
+            *slot = Some((
+                handle,
+                PlayRequest {
+                    origin: None,
+                    source,
+                    channel: ChannelId(0),
+                    volume,
+                    attenuation: sjk_audio::Attenuation::None,
+                },
+            ));
+        }
     }
 
     /// Lookup-only jetpack switch using the original choice and corrected attribution.
@@ -708,6 +740,70 @@ mod listener_tests {
             .map(|_| source.next().unwrap().abs())
             .fold(0.0_f32, f32::max);
         assert!(loudest < 1e-4, "still heard at {loudest}");
+    }
+
+    /// Hub report #234 (Groark): with `s_muteEmotesInDuel` on, an emote playing falls
+    /// silent when the viewed player's private duel starts (the snapshot's
+    /// `duelInProgress`) and is heard again once it ends.
+    #[test]
+    fn an_emote_playing_is_silent_in_a_duel_with_the_setting() {
+        fn loudest(source: &mut impl Iterator<Item = f32>) -> f32 {
+            let _ = (0..4096).map(|_| source.next().unwrap()).count();
+            (0..4096)
+                .map(|_| source.next().unwrap().abs())
+                .fold(0.0_f32, f32::max)
+        }
+        let snapshot = |duelling: bool| {
+            let mut player = PlayerState::zero();
+            // `duelInProgress` (netfield 119).
+            player.set_raw_field(119, u32::from(duelling));
+            Snapshot {
+                message_sequence: 1,
+                reliable_acknowledge: 0,
+                server_commands: vec![],
+                server_time: 1000,
+                delta_from: None,
+                flags: 0,
+                area_mask: vec![],
+                player,
+                vehicle_player: None,
+                entities: vec![],
+                consumed_bits: 0,
+            }
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let mut console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        assert!(console.set_cvar(crate::emotes::VOLUME_CVAR, "1"));
+        let (output, mut source) = AudioOutput::test_output();
+        let mut audio = GameAudio::with_output(output);
+        audio.sync_gains(Some(&console));
+        let mut vfs = VirtualFileSystem::new();
+        vfs.mount_memory("synthetic", [("sound/emote.wav", constant_wav())])
+            .unwrap();
+        audio.register_vfs_async(&vfs, "sound/emote.wav").unwrap();
+        let deadline = Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            audio.play_emote("sound/emote.wav", 1, None, std::time::Duration::ZERO, None);
+            if (0..2048).any(|_| source.next().unwrap().abs() > 0.001) {
+                break;
+            }
+            assert!(Instant::now() < deadline, "the sound did not start");
+            std::thread::yield_now();
+        }
+        let game = GameState::empty_local(0);
+        // In a duel with the setting off (its default): still heard.
+        audio.observe_snapshot(&snapshot(true), &game, &vfs);
+        audio.sync_gains(Some(&console));
+        assert!(loudest(&mut source) > 0.1);
+        // On: silent while the duel lasts.
+        assert!(console.set_cvar(crate::emotes::DUEL_MUTE_CVAR, "1"));
+        audio.sync_gains(Some(&console));
+        let heard = loudest(&mut source);
+        assert!(heard < 1e-4, "heard in the duel at {heard}");
+        // The duel over: the same sound is heard again, not restarted.
+        audio.observe_snapshot(&snapshot(false), &game, &vfs);
+        audio.sync_gains(Some(&console));
+        assert!(loudest(&mut source) > 0.1);
     }
 }
 

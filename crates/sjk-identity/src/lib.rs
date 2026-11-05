@@ -19,6 +19,7 @@ pub mod emoji;
 pub mod feed;
 pub mod history;
 pub mod hub;
+pub mod junk;
 mod keys;
 pub mod logs;
 pub mod map_edits;

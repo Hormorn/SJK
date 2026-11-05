@@ -2390,6 +2390,8 @@ pub(crate) fn find(id: &str) -> Option<&'static Unlockable> {
     let id = id.trim();
     ALL.iter()
         .find(|unlockable| unlockable.id.eq_ignore_ascii_case(id))
+        // The Saber Lab's own blade, while the lab is on.
+        .or_else(|| crate::saber_lab::blade(id))
 }
 
 /// The blade skin `id` names, if this client knows one by it.
@@ -3157,6 +3159,8 @@ mod tests {
             mystery_boxes: None,
             mystery_boxes_revision: 0,
             mystery_box: None,
+            junk: None,
+            junk_sale: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,

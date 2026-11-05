@@ -156,7 +156,7 @@ fn a_skin_trails_and_lights_as_its_file_says_with_a_gentle_flicker() {
     let mut list = crate::dynamic_lights::PointLightList::default();
     let mut lit = [None; 8];
     lit[0] = Some(blade());
-    lights::append(&mut list, &lit, color, 1, false, 1_000, 3);
+    lights::append(&mut list, &lit, color, 1, false, 1_000, 3, 3, 0.0);
     let gain = 1.8 * skin.flicker.at(1_000, 3);
     let expected = lights::rgb(color).map(|c| c * gain);
     assert!(list.as_slice().iter().any(|light| light.color == expected));
@@ -301,7 +301,7 @@ fn the_uniform_holds_the_files_parameters_where_the_shader_reads_them() {
     // Past the loaded skins, zeros.
     assert!(uniforms[1..].iter().all(|u| *u == SkinUniform::default()));
     let bytes: &[u8] = bytemuck::cast_slice(&uniforms);
-    assert_eq!(bytes.len(), MAX_SKINS * 97 * 16);
+    assert_eq!(bytes.len(), MAX_SKINS * 105 * 16);
     // The array stays inside the storage binding WebGPU guarantees (128 MiB).
     assert!(bytes.len() <= 128 * 1024 * 1024);
 }
@@ -749,6 +749,7 @@ fn following_another_player_draws_their_look_not_the_own_skin() {
         saber2_on: Vec::new(),
         saber_sounds: String::new(),
         tag: None,
+        finisher: String::new(),
     };
     looks.apply_event(5, "Fox", &stock);
     let slots = ViewSlots::of(&game_state, &followed);

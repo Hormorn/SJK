@@ -22,6 +22,8 @@ mod queries;
 mod remaps;
 #[path = "console_restarts.rs"]
 mod restarts;
+/// `vid_restart`'s one argument, for its Tab completion.
+pub(super) use restarts::FORCE as VID_RESTART_FORCE;
 
 /// Completion/help inventory for commands owned by viewer services.
 pub(super) const COMMANDS: &[(&str, &str)] = &[
@@ -41,6 +43,14 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
     (
         "unblockRemaps",
         "Allow server shader remaps on a blocked map again: unblockRemaps [map]",
+    ),
+    (
+        "allowRemaps",
+        "Apply server shader remaps on a map even with cg_serverRemaps 0, the loaded one by default: allowRemaps [map]",
+    ),
+    (
+        "unallowRemaps",
+        "Let a map's server shader remaps follow cg_serverRemaps again: unallowRemaps [map]",
     ),
     ("speedometer", "Configure supported speedometer flags"),
     ("strafehelper", "Configure supported airborne CGAZ flags"),
@@ -180,6 +190,7 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
     ),
     (crate::weather::COMMAND, crate::weather::HELP),
     (super::changelog::COMMAND, super::changelog::HELP),
+    (crate::saber_lab::COMMAND, crate::saber_lab::HELP),
     (super::credits::COMMAND, super::credits::HELP),
     (
         crate::console::PROFILE_COMMAND,
@@ -292,7 +303,7 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
     (crate::mimic::COMMAND, crate::mimic::HELP),
     ("colorname", "Apply selected name colors"),
     ("colorstring", "Configure outgoing chat colors"),
-    ("vid_restart", "Reapply video settings (device is retained)"),
+    ("vid_restart", restarts::VID_RESTART_HELP),
     (crate::fps_help::COMMAND, crate::fps_help::HELP),
     (crate::hud_edit::COMMAND, crate::hud_edit::HELP),
     (crate::map_edits::SYNC_COMMAND, crate::map_edits::SYNC_HELP),
@@ -543,6 +554,11 @@ impl crate::GpuState {
             // The others stop it too; without the identity there is nobody to tell.
             let _ = crate::player_identity::emote(id, None);
             return Ok(Vec::new());
+        }
+        // The vehicle plays its rider's animations; an emote would fight them for the
+        // whole ride (hub report #247).
+        if session.latest_snapshot().player.vehicle_entity_num() != 0 {
+            return Err("Get off the vehicle to emote".to_owned());
         }
         if id == crate::emotes::SYNC {
             let Some(slot) = own else {
@@ -993,8 +1009,8 @@ impl crate::GpuState {
             "remapshader" | "listremaps" | "clearremaps" => {
                 return self.remap_command(&name, args);
             }
-            "blockremaps" | "unblockremaps" => {
-                return self.remap_block_command(name == "blockremaps", args);
+            "blockremaps" | "unblockremaps" | "allowremaps" | "unallowremaps" => {
+                return self.remap_block_command(&name, args);
             }
             name if crate::map_edits::editor::is_command(name) => {
                 return self.map_edit_command(name, args);
@@ -1189,6 +1205,7 @@ impl crate::GpuState {
             crate::official::DEBUG_ANNOUNCE_COMMAND => return self.debug_announce_command(args),
             crate::official::DEBUG_REWARD_COMMAND => return self.debug_reward_command(args),
             crate::saber_skin_command::COMMAND => return self.saber_skin_command(args),
+            crate::saber_lab::COMMAND => return Ok(self.saber_lab_command(args)),
             crate::console::SJK_CHAT_COMMAND => {
                 if let Some(console) = &mut self.console {
                     console.toggle_sjk_chat_panel();
@@ -1336,7 +1353,7 @@ impl crate::GpuState {
             crate::saber_colour_command::COMMAND => return self.saber_colour_command(args),
             crate::saber_hilt_command::COMMAND => return self.saber_hilt_command(args),
             "vid_restart" | "snd_restart" | "in_restart" | "modelist" => {
-                return self.restart_command(&name, audio);
+                return self.restart_command(&name, args, audio);
             }
             "ping" | "serverstatus" | "globalservers" | "localservers" | "rcon" | "showip" => {
                 let server = self.live_session.as_ref().map(|session| session.server());

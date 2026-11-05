@@ -124,8 +124,9 @@ pub(crate) struct SkinColor {
     pub(crate) chroma: Chroma,
     /// The sections its wearer switched off ([`crate::blade_skin_file::extras::Section`]
     /// bits; `saber.wgsl` draws them as absent). The CPU's parts (afterimages, echo,
-    /// glint, the light's beat and hue) are already left out of this colour.
-    pub(crate) off: u32,
+    /// glint, the light's beat and hue, and the emitter's smoke, ribbons, sparks, bolts,
+    /// stars, crackle and burning) are already left out of this colour.
+    pub(crate) off: u64,
     /// How far (units) the glow's quad reaches past the glow, for wisps and haze.
     pub(crate) room: f32,
     /// The glint at the tip, or the glints circling the blade below it, or the black
@@ -149,6 +150,34 @@ pub(crate) struct SkinColor {
     /// Whether its trail bends what is behind it, as heat does (an extra's, the Sun's
     /// Heat wake; `saber_trail.wgsl` `fragment_wake`).
     pub(crate) wake: bool,
+    /// The emitter's crackling stars ([`crate::saber::Instance::flashes`]); none when
+    /// absent.
+    pub(crate) flash: Option<FlashSpec>,
+    /// Whether its emitter is heard crackling (`crackle` in its file).
+    pub(crate) crackle: bool,
+    /// Its light crackling with those stars; none unless its file's `flash.light` asks.
+    pub(crate) flash_light: Option<crate::saber_submission::lights::FlashLight>,
+    /// The smoke from the emitter ([`crate::saber_smoke`]), and its ribbons
+    /// ([`crate::saber_ribbons`]); each none when absent.
+    pub(crate) smoke: Option<crate::saber_smoke::SmokeSpec>,
+    pub(crate) ribbon: Option<crate::saber_ribbons::RibbonSpec>,
+    /// The sparks and bolts from the emitter ([`crate::saber_sparks`]), each set its own
+    /// emitter; none when absent.
+    pub(crate) sparks: [Option<crate::saber_sparks::SparkSpec>; crate::saber_sparks::MOST_SETS],
+}
+
+/// A skin's emitter stars as its blades carry them ([`crate::blade_skin_file::smoke::Flash`]):
+/// how many, where along the blade (a share), how far a star's quad reaches (units, grown,
+/// or the heat burst's ring), and the seconds they surge once lit, sputter once put out and
+/// the burst spreads (each 0: never).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FlashSpec {
+    pub(crate) count: u8,
+    pub(crate) along: f32,
+    pub(crate) reach: f32,
+    pub(crate) ignite: f32,
+    pub(crate) die: f32,
+    pub(crate) burst: f32,
 }
 
 /// Where a skin's glints (or black holes) are, for their quads
@@ -176,6 +205,8 @@ pub(crate) struct Chroma {
     pub(crate) base: Option<f32>,
     /// Turns from the skin's hue to its wearer's colour; 0 draws the file's colours.
     pub(crate) turn: f32,
+    /// Whether its emitter's smoke, ribbons, sparks and bolts turn too (`chroma.effects`).
+    pub(crate) effects: bool,
 }
 
 /// Below this saturation (`(max − min) / max` of a colour) a colour has no hue to take. Kept
@@ -211,11 +242,37 @@ impl SkinColor {
         };
         let turn = hue_of(rgb.map(|channel| f32::from(channel) / 255.0))
             .map_or(0.0, |hue| (hue - base).rem_euclid(1.0));
+        let effects = self.chroma.effects;
+        // The emitter's particles turn with it, when the skin says (`chroma.effects`): by
+        // what is left of the turn, so wearing it again turns nothing.
+        let left = turn - self.chroma.turn;
+        let turned = |rgb: [f32; 3]| {
+            if effects && left != 0.0 {
+                turn_hue(rgb, left)
+            } else {
+                rgb
+            }
+        };
         Self {
             chroma: Chroma {
                 base: Some(base),
                 turn,
+                effects,
             },
+            smoke: self.smoke.map(|smoke| crate::saber_smoke::SmokeSpec {
+                color: turned(smoke.color),
+                ..smoke
+            }),
+            ribbon: self.ribbon.map(|ribbon| crate::saber_ribbons::RibbonSpec {
+                color: turned(ribbon.color),
+                ..ribbon
+            }),
+            sparks: self.sparks.map(|sparks| {
+                sparks.map(|sparks| crate::saber_sparks::SparkSpec {
+                    color: turned(sparks.color),
+                    ..sparks
+                })
+            }),
             ..self
         }
     }
@@ -240,6 +297,30 @@ impl SkinColor {
 }
 
 impl SkinColor {
+    /// What its emitter stars do `since` seconds after the blade lit, or `out` seconds
+    /// after it was put out (each none otherwise): the surge, 1 the moment it lights and
+    /// falling off over the flash's `ignite` seconds; the sputter, what is left of its
+    /// `die` seconds; the heat burst, what is left of its `time`. Nothing without a flash.
+    pub(crate) fn flash_moments(
+        &self,
+        since: Option<f32>,
+        out: Option<f32>,
+    ) -> crate::saber::Moments {
+        let Some(flash) = self.flash else {
+            return crate::saber::Moments::default();
+        };
+        let left = |at: Option<f32>, span: f32| {
+            at.filter(|at| span > 0.0 && *at < span)
+                .map_or(0.0, |at| 1.0 - at / span)
+        };
+        let surge = left(since, flash.ignite);
+        crate::saber::Moments {
+            surge: surge * surge,
+            dying: left(out, flash.die),
+            burst: left(since, flash.burst),
+        }
+    }
+
     /// The light's colour at `time_millis`: the file's, turned with the hue of the
     /// blade's middle when the skin's hue turns.
     pub(crate) fn light_at(&self, time_millis: i64) -> [f32; 3] {
@@ -267,8 +348,8 @@ pub(crate) fn turn_hue(rgb: [f32; 3], turns: f32) -> [f32; 3] {
     std::array::from_fn(|i| (rgb[i] * c + cross[i] * s + along_axis).max(0.0))
 }
 
-/// One skin's parameters as `saber.wgsl`'s `Skin` holds them: 97 `vec4`s (1552 bytes, so
-/// the [`MAX_SKINS`] array is 397312 bytes, a read-only storage binding). The layout is the shader's; see there for what each lane is. A section
+/// One skin's parameters as `saber.wgsl`'s `Skin` holds them: 105 `vec4`s (1680 bytes, so
+/// the [`MAX_SKINS`] array is 430080 bytes, a read-only storage binding). The layout is the shader's; see there for what each lane is. A section
 /// the skin's file leaves out (arcs, motes, hue and the later ones) is zeros, which the
 /// shader draws as nothing.
 #[repr(C)]
@@ -374,6 +455,15 @@ pub(crate) struct SkinUniform {
     design: [f32; 4],
     /// The design's colour (the lab's), for the light at its emitter.
     design_color: [f32; 4],
+    unrest: [f32; 4],
+    unrest_lean: [f32; 4],
+    flash_color: [f32; 4],
+    flash_shape: [f32; 4],
+    flash_motion: [f32; 4],
+    flash_place: [f32; 4],
+    flash_burst: [f32; 4],
+    /// The arcs' climb at a clash (`unrest.clash_time`); zeros without.
+    unrest_clash: [f32; 4],
 }
 
 impl SkinUniform {
@@ -443,6 +533,35 @@ impl SkinUniform {
         .with_lab(def.lab())
         .with_figures(def.figures())
         .with_solids(def.solids())
+        .with_unrest(def.unrest.as_ref())
+        .with_flash(def.flash.as_ref())
+    }
+
+    /// Where the blade is unsettled ([`crate::blade_skin_file::smoke::Unrest`]): 1, reach,
+    /// fade, far; zeros when absent (unsettled all along).
+    fn with_unrest(mut self, unrest: Option<&crate::blade_skin_file::smoke::Unrest>) -> Self {
+        if let Some(u) = unrest {
+            self.unrest = [1.0, u.reach, u.fade, u.far];
+            // The swing's and the clash's units, by the blade's motion (`saber.wgsl`).
+            self.unrest_lean = [u.lean, u.swing, u.haze, u.clash];
+            self.unrest_clash = [u.clash_time, 0.0, 0.0, 0.0];
+        }
+        self
+    }
+
+    /// The emitter's crackling star ([`crate::blade_skin_file::smoke::Flash`]); zeros when
+    /// absent.
+    fn with_flash(mut self, flash: Option<&crate::blade_skin_file::smoke::Flash>) -> Self {
+        if let Some(f) = flash {
+            self.flash_color = [f.color[0], f.color[1], f.color[2], f.brightness];
+            self.flash_shape = [f.rays as f32, f.length, f.width, f.halo];
+            self.flash_motion = [f.rate, f.chaos, f.jitter, f.lean];
+            self.flash_place = [f.along, f.surge, f.grow, 0.0];
+            if let Some(b) = &f.burst {
+                self.flash_burst = [b.strength, b.reach, b.width, 0.0];
+            }
+        }
+        self
     }
 
     /// The seventh set's lanes ([`crate::blade_skin_file::solids`]).
@@ -606,7 +725,7 @@ impl SkinUniform {
             self.arc_shape = [a.width, a.halo, a.jag, a.kinks];
             self.arc_strike = [a.count as f32, a.rate, a.threshold, a.decay];
             self.arc_place = [a.reach, a.span.low, a.span.high, a.tip];
-            self.arc_motion = [a.jitter, a.crawl, 0.0, 0.0];
+            self.arc_motion = [a.jitter, a.crawl, a.root, 0.0];
         }
         self
     }
@@ -647,6 +766,24 @@ pub(crate) struct LoadedSkin {
 }
 
 impl LoadedSkin {
+    /// Its chroma, unturned: a chroma by the catalogue or by its own file (`chroma`, as a
+    /// Saber Lab blade, which has no catalogue entry, is); the default for the others.
+    fn chroma(&self) -> Chroma {
+        let chroma = crate::unlockables::is_chroma(self.id) || self.def.chroma.is_some();
+        let def = self.shown();
+        Chroma {
+            base: chroma
+                .then(|| match self.design_shown() {
+                    // The design's colour is what the shader turns.
+                    Some(design) => hue_of(design.color),
+                    None => hue_of(def.corona.rim_cool).or_else(|| hue_of(def.light.color)),
+                })
+                .flatten(),
+            turn: 0.0,
+            effects: chroma && self.def.chroma.is_none_or(|chroma| chroma.effects),
+        }
+    }
+
     /// Read `def` (the file of unlock `id`), taking its images from `packs`.
     pub(crate) fn new(
         id: &'static str,
@@ -798,16 +935,7 @@ impl LoadedSkin {
                     },
                 ),
             wake: extras.wake,
-            chroma: Chroma {
-                base: crate::unlockables::is_chroma(self.id)
-                    .then(|| match self.design_shown() {
-                        // The design's colour is what the shader turns.
-                        Some(design) => hue_of(design.color),
-                        None => hue_of(def.corona.rim_cool).or_else(|| hue_of(def.light.color)),
-                    })
-                    .flatten(),
-                turn: 0.0,
-            },
+            chroma: self.chroma(),
             off,
             // A design's quad reaches its glow's reach and its particles' room
             // (`saber.wgsl` `blade_vertex`).
@@ -846,6 +974,46 @@ impl LoadedSkin {
                     },
                 }),
             echo: def.echo.filter(|_| on(Section::Echo)),
+            flash: def.flash.filter(|_| on(Section::Flash)).map(|f| {
+                let star = f.length * (1.0 + f.lean) * (1.0 + f.grow) + f.jitter;
+                let ring = f.burst.map_or(0.0, |b| b.reach + b.width);
+                FlashSpec {
+                    count: f.count as u8,
+                    along: f.along,
+                    reach: star.max(ring),
+                    ignite: f.ignite,
+                    die: f.die,
+                    burst: f.burst.map_or(0.0, |b| b.time),
+                }
+            }),
+            crackle: def.crackle.is_some() && on(Section::Crackle),
+            flash_light: def
+                .flash
+                .filter(|f| f.light > 0.0 && on(Section::Flash))
+                .map(|f| crate::saber_submission::lights::FlashLight {
+                    count: f.count as u8,
+                    rays: f.rays as u8,
+                    rate: f.rate,
+                    chaos: f.chaos,
+                    light: f.light,
+                    surge: f.surge,
+                }),
+            smoke: def
+                .smoke
+                .as_ref()
+                .filter(|_| on(Section::Smoke))
+                .map(crate::saber_smoke::SmokeSpec::of),
+            ribbon: self
+                .def
+                .ribbon
+                .as_ref()
+                .filter(|_| on(Section::Ribbon))
+                .map(crate::saber_ribbons::RibbonSpec::of),
+            sparks: crate::saber_sparks::SparkSpec::sets_of(
+                &self.def,
+                on(Section::Sparks),
+                on(Section::Bolts),
+            ),
         }
     }
 
@@ -883,6 +1051,9 @@ pub(crate) struct LoadedSkins {
     packs: Arc<VirtualFileSystem>,
     /// Counts loads; 0 is the empty table before any.
     generation: u64,
+    /// The one skin this table changed from the table of the generation given
+    /// ([`Self::edited`]), so that only it is uploaded again.
+    edit: Option<(u64, u8)>,
 }
 
 impl std::fmt::Debug for LoadedSkins {
@@ -948,7 +1119,54 @@ impl LoadedSkins {
             skins,
             packs: Arc::new(packs),
             generation,
+            edit: None,
         }
+    }
+
+    /// This table with skin `id` read from `def` instead (the blade-skin editor's change,
+    /// `crate::blade_editor`), as generation `generation`: its images made again only when
+    /// what they come from changed.
+    pub(crate) fn edited(
+        &self,
+        id: &str,
+        def: BladeSkinDef,
+        generation: u64,
+    ) -> Result<Self, String> {
+        let index = self
+            .skins
+            .iter()
+            .position(|skin| skin.id == id)
+            .ok_or_else(|| format!("{id} is not loaded"))?;
+        let old = &self.skins[index];
+        let same_images = (
+            &old.def.glow_profile,
+            &old.def.core_profile,
+            &old.def.glow_image,
+            &old.def.core_image,
+        ) == (
+            &def.glow_profile,
+            &def.core_profile,
+            &def.glow_image,
+            &def.core_image,
+        );
+        let skin = if same_images {
+            LoadedSkin { def, ..old.clone() }
+        } else {
+            LoadedSkin::new(old.id, def, &self.packs)?
+        };
+        let mut skins = self.skins.clone();
+        skins[index] = skin;
+        Ok(Self {
+            skins,
+            packs: Arc::clone(&self.packs),
+            generation,
+            edit: Some((self.generation, index as u8)),
+        })
+    }
+
+    /// The skin [`Self::edited`] changed, and the generation of the table it changed.
+    pub(crate) fn edit(&self) -> Option<(u64, u8)> {
+        self.edit
     }
 
     /// Skins made in a test, with no pack behind them.
@@ -958,11 +1176,24 @@ impl LoadedSkins {
             skins,
             packs: Arc::default(),
             generation,
+            edit: None,
         }
     }
 
     pub(crate) fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// Add `skin` (a look kept from an earlier load: the Saber Lab's last good one of a
+    /// file that no longer parses) unless a skin of its id loaded, keeping the id order
+    /// the numbers follow. Returns whether it was added.
+    pub(crate) fn keep(&mut self, skin: LoadedSkin) -> bool {
+        if self.skins.len() == MAX_SKINS || self.get(skin.id).is_some() {
+            return false;
+        }
+        self.skins.push(skin);
+        self.skins.sort_by(|a, b| a.id.cmp(b.id));
+        true
     }
 
     /// The ids of the loaded skins, in their numbers' order.
@@ -1068,6 +1299,31 @@ impl LoadedSkins {
     }
 
     /// The swing skin `index` plays for a stock swing cue's `variant`.
+    /// Skin `index`'s sounds.
+    pub(crate) fn sounds(&self, index: u8) -> Option<&crate::blade_skin_file::Sounds> {
+        self.skins
+            .get(usize::from(index))
+            .map(|skin| &skin.def.sounds)
+    }
+
+    /// Every sound the skins' crackles name, for the audio to decode as they load.
+    pub(crate) fn crackle_sounds(&self) -> Vec<&str> {
+        self.skins
+            .iter()
+            .filter_map(|skin| skin.def.crackle.as_ref())
+            .flat_map(|crackle| std::iter::once(&crackle.buzz).chain(&crackle.snaps))
+            .filter(|path| !path.is_empty())
+            .map(String::as_str)
+            .collect()
+    }
+
+    /// Skin `index`'s crackle heard (`crackle` in its file); none without.
+    pub(crate) fn crackle(&self, index: u8) -> Option<&crate::blade_skin_file::smoke::Crackle> {
+        self.skins
+            .get(usize::from(index))
+            .and_then(|skin| skin.def.crackle.as_ref())
+    }
+
     pub(crate) fn swing(&self, index: u8, variant: usize) -> Option<&str> {
         self.skins
             .get(usize::from(index))
@@ -1510,8 +1766,16 @@ impl GpuState {
         // `cg_saberLabDesigns` changes what the loaded skins draw: upload them again.
         let designs = crate::blade_lab_designs::set_enabled(self.console.as_ref());
         if designs || crate::sjk_packs::generation() != self.blade_skins.generation() {
-            self.blade_skins = crate::sjk_packs::skins();
-            self.saber_gpu.upload_skins(&self.queue, &self.blade_skins);
+            let skins = crate::sjk_packs::skins();
+            // An edit of one skin on the table drawn: that skin alone goes up again
+            // (all of them when the designs were switched).
+            let only = skins
+                .edit()
+                .filter(|(from, _)| !designs && *from == self.blade_skins.generation())
+                .map(|(_, index)| index);
+            self.blade_skins = skins;
+            self.saber_gpu
+                .upload_skins(&self.queue, &self.blade_skins, only);
         }
         let client = self
             .live_session
@@ -1541,6 +1805,7 @@ impl GpuState {
         ));
         let stock = crate::stock_blades::StockBlades::read(self.console.as_ref());
         self.saber_skins.set_stock(stock);
+        self.admit_smoke_shaders();
         let (looks, skins) = (&self.looks, &self.blade_skins);
         let second = |second: crate::looks::SecondSkin, off| match second {
             crate::looks::SecondSkin::Same => Second::Same,
@@ -1631,6 +1896,8 @@ impl GpuState {
                 false,
                 millis,
                 u64::from(seed),
+                seed,
+                0.0,
             );
         }
         // Each swing's trail, laid again every frame ending at the frame's time.

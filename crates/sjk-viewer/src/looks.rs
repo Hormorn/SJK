@@ -107,6 +107,8 @@ pub(crate) struct Worn {
     pub(crate) options_off2: crate::saber_skin_options::OptionsOff,
     /// The saber sounds chosen apart from the blade (`crate::saber_sound_choice`).
     pub(crate) sounds: crate::saber_sound_choice::SoundChoice,
+    /// The finisher worn (`crate::finishers`), a catalogue id; `None` for none.
+    pub(crate) finisher: Option<&'static str>,
 }
 
 /// Archived: the local player's second saber's blade skin, for two sabers: empty for the
@@ -175,7 +177,15 @@ impl Worn {
                 .filter_map(|id| toy_bit(id))
                 .fold(0, |toys, bit| toys | bit),
             sounds: crate::saber_sound_choice::SoundChoice::parse(&look.saber_sounds),
+            finisher: crate::finishers::get(&look.finisher).map(|finisher| finisher.id),
         }
+    }
+
+    /// The same look with the finisher `setting` (`cg_saberFinisher`) chooses, while the
+    /// own profile lists it (`owned`).
+    pub(crate) fn with_finisher(mut self, setting: &str, owned: impl Fn(&str) -> bool) -> Self {
+        self.finisher = crate::finishers::own(setting, owned);
+        self
     }
 
     /// The blade skin whose sounds play for this player's sabers (`None` the stock
@@ -227,6 +237,7 @@ impl Worn {
             second: SecondSkin::Same,
             options_off2: 0,
             sounds: Default::default(),
+            finisher: None,
         }
     }
 
@@ -295,6 +306,7 @@ impl Worn {
             saber_sounds: self.sounds.wire().to_owned(),
             // The tag goes on by the frame (`looks_frame.rs`): it is not part of [`Worn`].
             tag: None,
+            finisher: self.finisher.unwrap_or_default().to_owned(),
         }
     }
 }
@@ -398,6 +410,12 @@ impl Looks {
     /// The options the player in `client` switched off on their blade skin.
     pub(crate) fn options_off(&self, client: usize) -> crate::saber_skin_options::OptionsOff {
         self.shown(client).map_or(0, |worn| worn.options_off)
+    }
+
+    /// The finisher the player in `client` wears (`None` for none, and for a slot out of
+    /// range or muted on this PC).
+    pub(crate) fn finisher(&self, client: usize) -> Option<&'static crate::finishers::Finisher> {
+        crate::finishers::get(self.shown(client)?.finisher?)
     }
 
     /// Whether the player in `client` has their Illuminate holocron lit (and is not
@@ -648,6 +666,7 @@ mod tests {
             saber2_on: Vec::new(),
             saber_sounds: String::new(),
             tag: None,
+            finisher: String::new(),
         }
     }
 
@@ -1081,5 +1100,38 @@ mod tests {
         assert_eq!(looks.options_off(3), own.options_off);
         looks.set_muted(1 << 3);
         assert_eq!(looks.options_off(3), 0);
+    }
+
+    /// A look's finisher (04/11/2026): a known one is worn and goes back on the wire, an
+    /// unknown one is none; the own one only while held.
+    #[test]
+    fn finishers_ride_the_look() {
+        let look = Look {
+            finisher: "finisher_disintegrate".into(),
+            ..Look::default()
+        };
+        let worn = Worn::of(&look);
+        assert_eq!(worn.finisher, Some("finisher_disintegrate"));
+        assert_eq!(worn.to_look("").finisher, "finisher_disintegrate");
+        let unknown = Look {
+            finisher: "finisher_from_later".into(),
+            ..Look::default()
+        };
+        assert_eq!(Worn::of(&unknown).finisher, None);
+        let own = Worn::own("", "", |_| true, false);
+        assert_eq!(
+            own.with_finisher("finisher_disintegrate", |_| false)
+                .finisher,
+            None
+        );
+        let own = own.with_finisher("finisher_disintegrate", |_| true);
+        assert_eq!(own.to_look("").finisher, "finisher_disintegrate");
+        let mut looks = Looks::default();
+        looks.set_own(Some(2), own);
+        assert_eq!(
+            looks.finisher(2).map(|finisher| finisher.name),
+            Some("Disintegrate")
+        );
+        assert_eq!(looks.finisher(3), None);
     }
 }

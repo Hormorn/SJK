@@ -364,19 +364,24 @@ fn options_switch_their_sections_and_the_room_follows() {
     assert_eq!(def.room(0), 9.0);
     assert_eq!(def.room(Section::Wisps.bit()), 3.0);
     assert_eq!(def.room(Section::Wisps.bit() | Section::Haze.bit()), 0.0);
-    // Every section's bit is its place in the list (saber.wgsl's OFF_* constants).
+    // Every section's bit is its place in the list (saber.wgsl's OFF_* constants, then the
+    // second word's OFF2_*).
     let shader = include_str!("saber.wgsl");
     for (index, section) in Section::ALL.into_iter().enumerate() {
         assert_eq!(section.bit(), 1 << index);
         assert_eq!(Section::named(section.name()), Some(section));
+        let (word, bit) = if index < 32 {
+            ("OFF", section.bit())
+        } else {
+            ("OFF2", section.bit() >> 32)
+        };
         let constant = format!(
-            "const OFF_{}: u32 = {}u;",
-            section.name().to_ascii_uppercase(),
-            section.bit()
+            "const {word}_{}: u32 = {bit}u;",
+            section.name().to_ascii_uppercase()
         );
         // The echo is the CPU's (no instance is made for it); the afterimages' bit marks
-        // an afterimage's own instance.
-        if section != Section::Echo {
+        // an afterimage's own instance; of the eighth set the CPU makes all but the unrest.
+        if section != Section::Echo && (index < 32 || section == Section::Unrest) {
             assert!(shader.contains(&constant), "saber.wgsl lost {constant}");
         }
     }
@@ -635,6 +640,10 @@ pub(crate) const LAB_ADDITIONS: &str = r#"{
         {"id": "overheat", "name": "Overheat", "sections": ["front", "segments"]}]
 }"#;
 
+/// The uniform's lanes after the seventh set's: the Blade Lab design's two, then the
+/// unrest's and the flash's eight (`SkinUniform`'s last fields).
+const LANES_AFTER_SETS: usize = 10;
+
 #[test]
 fn the_third_additions_file_brings_the_fifth_set_and_its_lanes() {
     use extras::{Section, option_bit};
@@ -666,9 +675,10 @@ fn the_third_additions_file_brings_the_fifth_set_and_its_lanes() {
     );
     let one = crate::saber_skins::SkinUniform::of(def);
     let lanes: &[[f32; 4]] = bytemuck::cast_slice(std::slice::from_ref(&one));
-    // The thirteen lanes before the sixth and seventh sets' twenty (and the Blade Lab
-    // design's last two lanes) are the fifth set's.
-    let lab = &lanes[lanes.len() - 35..lanes.len() - 22];
+    // The thirteen lanes before the sixth and seventh sets' twenty (and the lanes after
+    // them) are the fifth set's.
+    let end = lanes.len() - LANES_AFTER_SETS;
+    let lab = &lanes[end - 33..end - 20];
     assert_eq!(lab[0], [1.0, 0.1, 0.15, 1.2]);
     assert_eq!(lab[1], [4.0, 0.45, 0.6, 2.0]);
     assert_eq!(lab[2], [1.0, 0.3, 0.0, 0.0]);
@@ -686,11 +696,8 @@ fn the_third_additions_file_brings_the_fifth_set_and_its_lanes() {
     let plain =
         crate::saber_skins::SkinUniform::of(&parse("saber_test", &sample_with_effects()).unwrap());
     let lanes: &[[f32; 4]] = bytemuck::cast_slice(std::slice::from_ref(&plain));
-    assert!(
-        lanes[lanes.len() - 35..lanes.len() - 2]
-            .iter()
-            .all(|lane| *lane == [0.0; 4])
-    );
+    let end = lanes.len() - LANES_AFTER_SETS;
+    assert!(lanes[end - 33..end].iter().all(|lane| *lane == [0.0; 4]));
 }
 
 #[test]
@@ -769,7 +776,8 @@ fn the_fourth_additions_file_brings_the_sixth_set_its_lanes_and_room() {
     assert_eq!(def.room(flight), 0.0);
     let one = crate::saber_skins::SkinUniform::of(def);
     let lanes: &[[f32; 4]] = bytemuck::cast_slice(std::slice::from_ref(&one));
-    let figures = &lanes[lanes.len() - 22..lanes.len() - 7];
+    let end = lanes.len() - LANES_AFTER_SETS;
+    let figures = &lanes[end - 20..end - 5];
     assert_eq!(figures[0], [0.93, 0.95, 1.0, 2.0]);
     assert_eq!(figures[1], [8.0, 0.3, 1.2, 0.3]);
     assert_eq!(figures[3], [8.0, 0.25, 0.8, 0.0]);
@@ -851,7 +859,8 @@ fn the_fifth_additions_file_brings_the_seventh_set_and_its_lanes() {
     assert_eq!(Section::Chrome.bit(), 1 << 31);
     let one = crate::saber_skins::SkinUniform::of(def);
     let lanes: &[[f32; 4]] = bytemuck::cast_slice(std::slice::from_ref(&one));
-    let solids = &lanes[lanes.len() - 7..lanes.len() - 2];
+    let end = lanes.len() - LANES_AFTER_SETS;
+    let solids = &lanes[end - 5..end];
     assert_eq!(solids[0], [0.02, 0.02, 0.03, 0.95]);
     assert_eq!(solids[1], [1.0, 0.9, 0.2, 6.0]);
     assert_eq!(solids[2], [0.35, 1.5, 0.0, 0.0]);
@@ -899,4 +908,69 @@ fn the_seventh_set_is_checked_strictly_by_name() {
             .unwrap_err()
             .contains("ink needs a body, an outline or a halftone")
     );
+}
+
+/// Made-up smoke for the tests: grey puffs from the emitter, a few seconds after.
+pub(crate) const SMOKE_ADDITIONS: &str = r#"{
+  "smoke": {
+    "shader": "gfx/effects/alpha_smoke2", "color": [0.75, 0.75, 0.78], "opacity": 0.8,
+    "rate": 20.0, "after_rate": 14.0, "after": 3.5, "life": 2.5, "size": 4.0,
+    "growth": 16.0, "rise": 8.0, "spread": 2.0, "follow": 0.2, "spin": 0.6, "turn": 180.0,
+    "sway": 0.0, "sway_rate": 0.0, "along": 0.02
+  }
+}"#;
+
+/// The sixth additions file lays the smoke over its skin; a skin without one has none,
+/// as before; a value out of its range refuses the skin.
+#[test]
+fn the_sixth_additions_file_brings_the_smoke() {
+    let mut vfs = sjk_vfs::VirtualFileSystem::new();
+    vfs.mount_memory(
+        "pack",
+        [
+            (
+                "skins/blades/saber_test.bladeskin",
+                SAMPLE.as_bytes().to_vec(),
+            ),
+            (
+                "skins/blades/saber_test.bladeextra6",
+                SMOKE_ADDITIONS.as_bytes().to_vec(),
+            ),
+            (
+                "skins/blades/saber_plain.bladeskin",
+                SAMPLE.as_bytes().to_vec(),
+            ),
+        ],
+    )
+    .unwrap();
+    let skins = load(&vfs);
+    let smoke = skins[1].1.smoke.as_ref().expect("the test skin smokes");
+    assert_eq!(smoke.shader, "gfx/effects/alpha_smoke2");
+    assert_eq!(smoke.after, 3.5);
+    assert!(skins[0].1.smoke.is_none());
+    let too_long = SMOKE_ADDITIONS.replace("\"after\": 3.5", "\"after\": 40.0");
+    let text = extras::merged(SAMPLE, &too_long).unwrap();
+    assert!(parse("saber_test", &text).is_err_and(|why| why.contains("smoke.after")));
+    // Its ribbons, in the same file, beside the puffs or alone.
+    let ribbon = r#"{"ribbon": {
+        "color": [1.0, 1.0, 1.0], "opacity": 0.7, "rate": 40.0, "after": 3.5, "life": 3.0,
+        "width": 0.8, "growth": 5.0, "rise": 9.0, "follow": 0.3, "sway": 4.0,
+        "sway_rate": 0.4, "curl": 3.0, "detail": 0.8, "softness": 0.6, "idle": 1.0,
+        "swinging": 0.0, "swing_speed": 120.0, "ignite": 1.5, "along": 0.02}}"#;
+    let def = parse("saber_test", &extras::merged(SAMPLE, ribbon).unwrap()).unwrap();
+    assert!(def.ribbon.is_some_and(|ribbon| ribbon.rate == 40.0) && def.smoke.is_none());
+    // Its sparks too; a burst out of its range refuses the skin.
+    let sparks = r#"{"sparks": {
+        "shader": "gfx/misc/spark4", "color": [1.0, 0.75, 0.5], "opacity": 1.0, "rate": 2.5,
+        "ignite": 1.2, "ignite_rate": 14.0, "after": 0.8, "after_rate": 8.0, "burst": 5,
+        "speed": 75.0, "speed_jitter": 0.6, "spread": 35.0, "aim": 1.0, "gravity": 420.0, "life": 0.45,
+        "size": 0.7, "length": 3.5, "along": 0.02}}"#;
+    let def = parse("saber_test", &extras::merged(SAMPLE, sparks).unwrap()).unwrap();
+    assert!(def.sparks.is_some_and(|sparks| sparks.sets()[0].burst == 5));
+    let many = sparks.replace("\"burst\": 5", "\"burst\": 40");
+    let text = extras::merged(SAMPLE, &many).unwrap();
+    assert!(parse("saber_test", &text).is_err_and(|why| why.contains("sparks.burst")));
+    let thin = ribbon.replace("\"rate\": 40.0", "\"rate\": 1.0");
+    let text = extras::merged(SAMPLE, &thin).unwrap();
+    assert!(parse("saber_test", &text).is_err_and(|why| why.contains("ribbon.rate")));
 }

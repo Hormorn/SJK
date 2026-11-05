@@ -16,7 +16,8 @@ pub(crate) mod lights;
 /// and second saber, which replace those sabers' colours. `hands` are the bolts already at
 /// the actor's `scale` ([`saber::Attachment::scaled`]); the hilts are drawn at it too, as
 /// stock draws the bolted saber model with the wearer's `modelScale`. `core_scale` is
-/// `cg_saberCoreSize` ([`crate::saber_core`]).
+/// `cg_saberCoreSize` ([`crate::saber_core`]). A skin with smoke lets its puffs go into
+/// `smoke`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn submit(
     entity_id: u64,
@@ -37,6 +38,7 @@ pub(crate) fn submit(
     lights: &mut crate::dynamic_lights::PointLightList,
     attacking: Option<bool>,
     core_scale: f32,
+    smoke: &mut crate::saber_smoke::Sink<'_>,
 ) -> bool {
     if equipment.kind != HeldItemKind::EnergyBlade {
         return false;
@@ -87,6 +89,8 @@ pub(crate) fn submit(
         // second (Sol's request of 21/10/2026), so its light is its own.
         let mut light_blades = [[None; 8]; 2];
         let mut light_colors = [stock; 2];
+        // How far each half's stars surge as its blades light, for its light.
+        let mut surge = [0.0_f32; 2];
         for blade_index in 0..usize::from(hilt.num_blades) {
             // The second skin on the second saber, or on a staff's other half (a blade
             // pointing away from the first; a crossguard's side blades keep the first's).
@@ -111,6 +115,86 @@ pub(crate) fn submit(
             let length = state
                 .extension
                 .update(active, hilt_blade.length, presentation_time);
+            let since = state.ignition.update(active, presentation_time);
+            state.ignition.retracted(length, presentation_time);
+            // A skin's lit blade where a blade or a wall struck it this frame: its unrest
+            // flares up it and its sparks and bolts go at once.
+            let clashed = matches!(color, BladeColor::Skin(_))
+                && length >= 0.5
+                && smoke.clashed(saber::world_blade(
+                    grip,
+                    weapon_rotation,
+                    hilt_blade.socket,
+                    length,
+                    hilt_blade.radius,
+                ));
+            if clashed {
+                state.motion.clash(presentation_time);
+            }
+            let moments = match color {
+                BladeColor::Skin(skin) => {
+                    skin.flash_moments(since, state.ignition.gone_for(presentation_time))
+                }
+                _ => saber::Moments::default(),
+            };
+            // The emitter smokes while lit and a while after, from where it is: puffs,
+            // ribbons or both.
+            if let BladeColor::Skin(skin) = color
+                && (skin.smoke.is_some()
+                    || skin.ribbon.is_some()
+                    || skin.sparks.iter().any(Option::is_some))
+            {
+                let reach = saber::world_blade(
+                    grip,
+                    weapon_rotation,
+                    hilt_blade.socket,
+                    length,
+                    hilt_blade.radius,
+                );
+                let at = |along: f32| {
+                    Vec3::from_array(reach.base)
+                        + Vec3::from_array(reach.direction) * (reach.length * along)
+                };
+                let lit = length >= 0.5;
+                let blade = (saber_index * 8 + blade_index) as u64;
+                if let Some(spec) = skin.smoke {
+                    let seed = (entity_id as u32).wrapping_mul(24) + blade as u32;
+                    state
+                        .smoke
+                        .emit(&spec, at(spec.along), lit, presentation_time, seed, smoke);
+                }
+                let key = entity_id.wrapping_mul(24) + blade;
+                if let Some(spec) = skin.ribbon {
+                    smoke
+                        .ribbons
+                        .emit(key, &spec, at(spec.along), lit, presentation_time);
+                }
+                let blade = Vec3::from_array(reach.direction);
+                for (set, spec) in skin.sparks.iter().enumerate() {
+                    let Some(spec) = spec else { continue };
+                    let key = key.wrapping_mul(8) + set as u64;
+                    if clashed {
+                        smoke.kick(key, spec.clash);
+                    }
+                    let bursts =
+                        smoke.spark(key, spec, at(spec.along), blade, lit, presentation_time);
+                    // A crackle snaps with the bolts.
+                    if skin.crackle
+                        && bursts > 0
+                        && matches!(spec.shape, crate::saber_sparks::Shape::Bolts { .. })
+                    {
+                        smoke.hear(
+                            crate::saber_smoke::Sound {
+                                at: at(spec.along).to_array(),
+                                entity: entity_id.saturating_sub(1) as u32,
+                                skin: skin.index,
+                                count: bursts,
+                            },
+                            false,
+                        );
+                    }
+                }
+            }
             // A design whose words outlast its blade (`SkinColor::linger`): from when the
             // blade begins going in, a whole-length blade that draws only its words, so they
             // float on and can be read (Creyon's round 14). No contact, light or trail.
@@ -140,21 +224,55 @@ pub(crate) fn submit(
                         .with_motion(motion)
                 }));
             }
+            let key = entity_id.wrapping_mul(24) + (saber_index * 8 + blade_index) as u64;
+            let emitter = saber::world_blade(
+                grip,
+                weapon_rotation,
+                hilt_blade.socket,
+                hilt_blade.length,
+                hilt_blade.radius,
+            );
+            // A crackle's sound from the emitter: its buzz while lit, a last snap as its
+            // sputter ends.
+            if let BladeColor::Skin(skin) = color
+                && skin.crackle
+            {
+                let die = skin.flash.map_or(0.0, |flash| flash.die);
+                let ended = length < 0.5 && state.ignition.sputtered(die, presentation_time);
+                if length >= 0.5 || ended {
+                    smoke.hear(
+                        crate::saber_smoke::Sound {
+                            at: emitter.base,
+                            entity: entity_id.saturating_sub(1) as u32,
+                            skin: skin.index,
+                            count: 1,
+                        },
+                        length >= 0.5,
+                    );
+                }
+            }
             if length < 0.5 {
                 // Out: no history kept from where it went out, for when it lights again
                 // (hub report 116: switching sabers, a swing drew a trail slice, and a
                 // skin its afterimages, from the old place to the new).
-                state.trail.hold(
-                    saber::world_blade(
-                        grip,
-                        weapon_rotation,
-                        hilt_blade.socket,
-                        0.0,
-                        hilt_blade.radius,
-                    ),
-                    presentation_time,
+                let out = saber::world_blade(
+                    grip,
+                    weapon_rotation,
+                    hilt_blade.socket,
+                    0.0,
+                    hilt_blade.radius,
                 );
+                state.trail.hold(out, presentation_time);
                 state.ghosts = Default::default();
+                // Put out, a skin's emitter stars sputter on a while (`flash.die`), on the
+                // whole blade's line, where they were while it was lit.
+                if moments.dying > 0.0 {
+                    let blade = emitter;
+                    saber_instances.extend(Instance::flashes(blade, color).map(|i| {
+                        i.with_animation(presentation_time as f64 * 0.001, key as u32)
+                            .with_moments(moments)
+                    }));
+                }
                 continue;
             }
             let blade = saber::world_blade(
@@ -164,7 +282,6 @@ pub(crate) fn submit(
                 length,
                 hilt_blade.radius,
             );
-            let key = entity_id.wrapping_mul(24) + (saber_index * 8 + blade_index) as u64;
             let flicker = saber::Flicker::sample(key, presentation_time);
             // The swing is measured in the wearer's own frame (Creyon's round 11): turning the
             // view or running turns the whole body, which is no swing, and the effects that
@@ -210,12 +327,11 @@ pub(crate) fn submit(
                         .with_frame(across, hilt_blade.length)
                 }),
             );
-            saber_instances.extend(saber::skin_extras(
-                blade,
-                color,
-                presentation_time as f64 * 0.001,
-                key as u32,
-            ));
+            saber_instances.extend(
+                saber::skin_extras(blade, color, presentation_time as f64 * 0.001, key as u32)
+                    .map(|i| i.with_moments(moments).with_motion(motion)),
+            );
+            surge[half] = surge[half].max(moments.surge);
             if let BladeColor::Skin(skin) = color
                 && let Some(spec) = skin.ghosts
             {
@@ -291,6 +407,9 @@ pub(crate) fn submit(
                     hilt.no_dlight,
                     presentation_time,
                     entity_id.wrapping_add((saber_index + half * 8) as u64),
+                    // The blades' own seeds, which their stars crackle by (`skin_flash`).
+                    (entity_id.wrapping_mul(24) + (saber_index * 8) as u64) as u32,
+                    surge[half],
                 );
             }
         }

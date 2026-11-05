@@ -127,6 +127,9 @@ pub(super) fn submit(
             hilt.no_dlight,
             sinks.presentation_time,
             entity.id.get(),
+            // The seeds of its blades' instances (`submit_hilt`).
+            owner_entity.wrapping_mul(24) as u32,
+            0.0,
         );
     }
     true

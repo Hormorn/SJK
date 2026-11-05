@@ -43,8 +43,16 @@ fn fake_game(server: &Server, until: impl Fn() -> bool) {
                     GameRequest::Lists => Ok(serde_json::json!({ "models": [] })),
                     GameRequest::Edit(edit) => Ok(serde_json::json!({
                         "ok": true,
-                        "lines": [format!("{:?}", edit.command())],
+                        "lines": [format!("{:?}", edit.command()), format!("{edit:?}")],
                     })),
+                    GameRequest::Recent => Ok(serde_json::json!({ "remember": true })),
+                    GameRequest::SetRecent(change) => {
+                        Ok(serde_json::json!({ "change": format!("{change:?}") }))
+                    }
+                    GameRequest::Brushes => Ok(serde_json::json!({ "kinds": [], "faces": [] })),
+                    GameRequest::Link { .. } | GameRequest::Suggest(_) => {
+                        Ok(serde_json::json!({ "asked": format!("{:?}", ask.request) }))
+                    }
                 };
                 ask.answer(answer);
             }
@@ -97,6 +105,80 @@ fn the_page_the_map_and_an_edit_are_served_and_strangers_refused() {
         );
         assert_eq!(status, 200);
         assert!(String::from_utf8(answer).unwrap().contains("mapedit_turn"));
+        // The Recent rows: read, and the switch from the page.
+        let (status, recent) = get(port, "/api/recent", Some(&token), None);
+        assert_eq!(status, 200);
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&recent).unwrap()["remember"],
+            true
+        );
+        let post = |path: &str, origin: &str, body: &[u8]| {
+            send(
+                port,
+                &format!(
+                    "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-SJK-Token: {token}\r\n\
+                     Origin: {origin}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+                    body.len()
+                ),
+                body,
+            )
+        };
+        let (status, answer) = post("/api/recent", &origin, br#"{"op":"remember","on":false}"#);
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(answer).unwrap().contains("Remember { on: false }"));
+        assert_eq!(post("/api/recent", &origin, br#"{"op":"forget_all"}"#).0, 422);
+        assert_eq!(
+            post("/api/recent", "http://evil.example", br#"{"op":"clear"}"#).0,
+            403
+        );
+        assert_eq!(get(port, "/api/recent", None, None).0, 403);
+        // A thing placed from the page reaches the game as its own request.
+        let (status, answer) = post(
+            "/api/edit",
+            &origin,
+            br#"{"op":"remove_thing","thing":"mystery_box","id":4}"#,
+        );
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(answer).unwrap().contains("None"));
+        // Round 3: the brush view, a link, a suggestion and a multiple selection's fill.
+        let (status, brushes) = get(port, "/api/brushes", Some(&token), None);
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(brushes).unwrap().contains("kinds"));
+        let (status, link) = get(
+            port,
+            "/api/link?brush=12&side=80&grow=surface",
+            Some(&token),
+            None,
+        );
+        assert_eq!(status, 200);
+        let link = String::from_utf8(link).unwrap();
+        assert!(link.contains("brush: 12") && link.contains("Surface"), "{link}");
+        assert_eq!(get(port, "/api/link?brush=x", Some(&token), None).0, 422);
+        assert_eq!(get(port, "/api/link?brush=1&side=2", None, None).0, 403);
+        let (status, suggest) = post("/api/suggest", &origin, br#"{"faces":[[12,80],[13,86]]}"#);
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(suggest).unwrap().contains("[12, 80]"));
+        assert_eq!(post("/api/suggest", &origin, br#"{"faces":[]}"#).0, 422);
+        assert_eq!(
+            post(
+                "/api/suggest",
+                "http://evil.example",
+                br#"{"faces":[[1,2]]}"#
+            )
+            .0,
+            403
+        );
+        let (status, answer) = post(
+            "/api/edit",
+            &origin,
+            br#"{"op":"apply_many","faces":[[12,80],[13,86]],"shader":"textures/a/b"}"#,
+        );
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(answer).unwrap().contains("ApplyMany"));
+        assert_eq!(
+            post("/api/edit", &origin, br#"{"op":"hide_many","faces":[]}"#).0,
+            422
+        );
         // Refused: no token, a wrong one, another host (DNS rebinding), a post from
         // another site.
         assert_eq!(get(port, "/", None, None).0, 403);
@@ -130,7 +212,8 @@ fn the_page_the_map_and_an_edit_are_served_and_strangers_refused() {
 /// For a look at the page in a browser without the game: serves the retail game data
 /// (`SJK_MAPEDIT_WEB_GAMEDATA`, its `base` folder) as if the game were on
 /// `SJK_MAPEDIT_WEB_MAP` (mp/duel6 by default) for `SJK_MAPEDIT_WEB_SECONDS`, printing
-/// the page's address. Edits are refused: there is no game.
+/// the page's address. Edits are refused, there is no game, but for the brush view's
+/// picks, Esc and fills (printed as `SJK_MAPEDIT_WEB_EDIT=`).
 #[test]
 #[ignore = "serves a page for a manual look in a browser"]
 fn serve_the_page_for_a_browser() {
@@ -144,6 +227,9 @@ fn serve_the_page_for_a_browser() {
     let mut vfs = VirtualFileSystem::new();
     vfs.mount_pk3_directory(std::path::Path::new(&base).join("base"))
         .unwrap();
+    // SJK's own models, as the game mounts them (the boombox, the mystery box).
+    crate::boombox::mount(&mut vfs).unwrap();
+    crate::mystery_box::mount(&mut vfs).unwrap();
     let vfs = Arc::new(vfs);
     let models = crate::map_edits::panel::placeable_models(&vfs);
     // Images of textures/ as shaders to remap to (the game adds its scripts' names).
@@ -191,6 +277,131 @@ fn serve_the_page_for_a_browser() {
         ]));
     }
     let surfaces: Vec<u32> = if demo { (0..40).collect() } else { vec![] };
+    // With the demo, the view looks at the highest big floor left shown, with a placed copy,
+    // the player's boombox and a mystery box on it; SJK_MAPEDIT_WEB_SELECT selects that
+    // floor (`surface`), the copy (`placed`) or a caulk face over it (`face`).
+    let select = std::env::var("SJK_MAPEDIT_WEB_SELECT").unwrap_or_default();
+    let (mut selection, mut view) = (serde_json::Value::Null, serde_json::Value::Null);
+    let mut things = serde_json::json!({ "list": [], "on_server": false, "toy_kinds": ["cat"] });
+    if let (true, Some(bsp)) = (demo, &bsp) {
+        let render = bsp.render();
+        let floor = render
+            .surfaces()
+            .iter()
+            .enumerate()
+            .skip(40)
+            .filter(|(_, surface)| {
+                surface.kind == sjk_bsp::SurfaceKind::Planar
+                    && !bsp.shaders()[surface.shader].name_lossy().contains("/sk")
+            })
+            .filter_map(|(index, surface)| {
+                let corners = &render.vertices()[surface.vertices.clone()];
+                if corners.first()?.normal[2] < 0.9 {
+                    return None;
+                }
+                let (mut low, mut high) = ([f32::MAX; 2], [f32::MIN; 2]);
+                let mut middle = [0.0f32; 3];
+                for corner in corners {
+                    for axis in 0..2 {
+                        low[axis] = low[axis].min(corner.position[axis]);
+                        high[axis] = high[axis].max(corner.position[axis]);
+                    }
+                    for (sum, value) in middle.iter_mut().zip(corner.position) {
+                        *sum += value / corners.len() as f32;
+                    }
+                }
+                Some((index, (high[0] - low[0]) * (high[1] - low[1]), middle))
+            })
+            // the highest of the big ones, which the view from above sees
+            .filter(|(_, area, _)| *area >= 128.0 * 128.0)
+            .max_by(|a, b| a.2[2].total_cmp(&b.2[2]));
+        if let Some((index, _, [x, y, z])) = floor {
+            view = serde_json::json!({ "eye": [x - 300.0, y, z + 260.0], "yaw": 0, "pitch": 40 });
+            let model = placed
+                .first()
+                .map_or(serde_json::Value::Null, |p| p["model"].clone());
+            placed.push(serde_json::json!({
+                "id": 3, "model": model, "origin": [x, y - 80.0, z],
+                "angles": [0, 0, 0], "scale": [1, 1, 1],
+            }));
+            let shader = bsp.shaders()[render.surfaces()[index].shader].name_lossy();
+            let entities =
+                sjk_entity::parse_entity_lump(bsp.entities()).map_or(0, |lump| lump.len());
+            selection = match select.as_str() {
+                "surface" => serde_json::json!({
+                    "summary": format!("Surface {index}: {shader}"), "kind": "surface",
+                    "hit": [x, y, z], "target": {
+                        "surface": index, "shader": shader, "surface_kind": "planar",
+                        "group": [index],
+                    },
+                }),
+                "placed" => serde_json::json!({
+                    "summary": "Placed model", "kind": "placed", "hit": [x, y - 80.0, z],
+                    "target": { "entity": entities + 1, "model": model, "placed": 3, "shader": null },
+                }),
+                "face" => serde_json::json!({
+                    "summary": "Caulk face", "kind": "face", "hit": [x, y, z + 48.0],
+                    "target": {
+                        "brush": 1, "side": 2, "shader": "textures/system/caulk",
+                        "points": [
+                            [x - 48.0, y - 48.0, z + 48.0], [x + 48.0, y - 48.0, z + 48.0],
+                            [x + 48.0, y + 48.0, z + 48.0], [x - 48.0, y + 48.0, z + 48.0],
+                        ],
+                    },
+                }),
+                _ => serde_json::Value::Null,
+            };
+            let part = |model: &str, at: [f32; 3], scale: f32| serde_json::json!({ "model": model, "origin": at, "angles": [0, 180, 0], "scale": scale });
+            things = serde_json::json!({
+                "on_server": true, "toy_kinds": ["cat"],
+                "list": [
+                    {
+                        "thing": "boombox", "id": 0, "label": "Your boombox", "mine": true,
+                        "origin": [x + 64.0, y + 64.0, z],
+                        "parts": [part(crate::boombox::MODEL, [x + 64.0, y + 64.0, z], crate::boombox::SCALE)],
+                    },
+                    {
+                        "thing": "mystery_box", "id": 5, "label": "Mystery box 5", "mine": false,
+                        "origin": [x + 64.0, y - 64.0, z],
+                        "parts": [part(crate::mystery_box::MODEL, [x + 64.0, y - 64.0, z], 1.0)],
+                    },
+                ],
+            });
+        }
+    }
+    // SJK_MAPEDIT_WEB_VIEW ("x y z yaw pitch") puts the player's view there instead.
+    if let Ok(given) = std::env::var("SJK_MAPEDIT_WEB_VIEW") {
+        let v: Vec<f32> = given
+            .split_whitespace()
+            .filter_map(|v| v.parse().ok())
+            .collect();
+        if let [x, y, z, yaw, pitch] = v[..] {
+            view = serde_json::json!({ "eye": [x, y, z], "yaw": yaw, "pitch": pitch });
+        }
+    }
+    let recent = serde_json::json!({
+        "remember": true,
+        "shaders": shaders.iter().take(3).collect::<Vec<_>>(),
+        "models": models.iter().take(2).collect::<Vec<_>>(),
+    });
+    // Round 3: the brush view, links and votes come from the real code on the map; a
+    // click on a face of the brush view (or one the brush ray finds) selects it, Esc
+    // clears, and every edit the page sends is printed (`SJK_MAPEDIT_WEB_EDIT=`).
+    let catalog = Some(sjk_shader::ShaderCatalog::load_with_warnings(
+        &vfs,
+        |_, _| {},
+    ));
+    let brushes = bsp.as_ref().map(super::super::caulk::brushes_json);
+    let sides = bsp.as_ref().map(crate::map_edits::linked::Sides::from_bsp);
+    let drawn = bsp
+        .as_ref()
+        .map(|bsp| super::super::caulk::drawn_surfaces(bsp, catalog.as_ref()));
+    // The sky (04/11/2026): the game data's skies for the page's list; a sky swap and a
+    // cover drawn on a selected face are kept here as the game would draw them.
+    let skies = catalog
+        .as_ref()
+        .map_or_else(Vec::new, |catalog| super::super::sky_list(&vfs, catalog));
+    let mut shown_faces: Vec<serde_json::Value> = Vec::new();
     let server = Server::start(Some(vfs)).unwrap();
     println!("SJK_MAPEDIT_WEB_URL={}", server.url());
     let end = std::time::Instant::now() + Duration::from_secs(seconds);
@@ -199,16 +410,150 @@ fn serve_the_page_for_a_browser() {
             std::thread::sleep(Duration::from_millis(5));
             continue;
         };
+        let face_selection = |face: crate::map_edits::faces::Face, eye: [f32; 3]| {
+            let hit = glam::Vec3::from_array(eye);
+            serde_json::json!({
+                "summary": format!("{} (brush {} side {})", face.shader, face.brush, face.side),
+                "kind": "face", "hit": hit.to_array(),
+                "target": {
+                    "brush": face.brush, "side": face.side, "shader": face.shader,
+                    "points": face.polygon, "sky": face.sky,
+                },
+            })
+        };
         let answer = match &ask.request {
+            GameRequest::Edit(edit) => {
+                println!("SJK_MAPEDIT_WEB_EDIT={edit:?}");
+                let picked = match (edit, &bsp) {
+                    (EditRequest::Select { eye, dir, face, .. }, Some(bsp)) => {
+                        let (at, along) = (
+                            glam::Vec3::from_array(*eye),
+                            glam::Vec3::from_array(*dir).normalize_or_zero(),
+                        );
+                        face.and_then(|[b, s]| crate::map_edits::faces::met(bsp, b, s, at, along))
+                            .or_else(|| crate::map_edits::faces::pick(bsp, at, along, 8192.0))
+                            .map(|face| {
+                                let hit = at + along * face.distance;
+                                face_selection(face, hit.to_array())
+                            })
+                    }
+                    _ => None,
+                };
+                match edit {
+                    EditRequest::Select { .. } => match picked {
+                        Some(picked) => {
+                            selection = picked;
+                            Ok(serde_json::json!({ "ok": true, "lines": [selection["summary"]] }))
+                        }
+                        None => Err("no game: only caulk and nodraw faces are picked here".into()),
+                    },
+                    EditRequest::Clear => {
+                        selection = serde_json::Value::Null;
+                        Ok(serde_json::json!({ "ok": true, "lines": ["Nothing selected"] }))
+                    }
+                    // A gizmo's drag put down: the placed models where it says, as
+                    // `mapedit_set` puts them.
+                    EditRequest::Set { edits } => {
+                        for set in edits {
+                            if let Some(p) = placed.iter_mut().find(|p| p["id"] == set.id) {
+                                p["origin"] = serde_json::json!(set.origin);
+                                p["angles"] = serde_json::json!(set.angles);
+                                p["scale"] = serde_json::json!(set.scale);
+                            }
+                        }
+                        Ok(serde_json::json!({
+                            "ok": true, "lines": [format!("(test) {} placed models set", edits.len())],
+                        }))
+                    }
+                    EditRequest::SetThing { origin, yaw, .. } => {
+                        if let Some(list) = things["list"].as_array_mut()
+                            && let Some(boombox) = list.iter_mut().find(|t| t["thing"] == "boombox")
+                        {
+                            boombox["origin"] = serde_json::json!(origin);
+                            boombox["parts"][0]["origin"] = serde_json::json!(origin);
+                            boombox["parts"][0]["angles"] = serde_json::json!([0.0, yaw, 0.0]);
+                        }
+                        Ok(
+                            serde_json::json!({ "ok": true, "lines": ["(test) boombox stood again"] }),
+                        )
+                    }
+                    EditRequest::ApplyMany { faces, .. } => Ok(serde_json::json!({
+                        "ok": true, "lines": [format!("(test) {} faces filled", faces.len())],
+                    })),
+                    EditRequest::Sky { shader, all } => {
+                        let from: Vec<String> = match (&bsp, *all) {
+                            (Some(bsp), true) => crate::map_edits::faces::map_skies(bsp),
+                            _ => selection["target"]["shader"]
+                                .as_str()
+                                .map(|s| vec![s.to_owned()])
+                                .unwrap_or_default(),
+                        };
+                        remaps.retain(|r| !from.iter().any(|f| r[0].as_str() == Some(f)));
+                        if shader != "-" {
+                            remaps.extend(from.iter().map(|f| serde_json::json!([f, shader])));
+                        }
+                        Ok(
+                            serde_json::json!({ "ok": true, "lines": [format!("(test) {} skies -> {shader}", from.len())] }),
+                        )
+                    }
+                    EditRequest::Remap { shader } if selection["kind"] == "face" => {
+                        let target = &selection["target"];
+                        let (brush, side) = (
+                            target["brush"].as_u64().unwrap_or(0) as u32,
+                            target["side"].as_u64().unwrap_or(0) as u32,
+                        );
+                        let own = target["shader"].as_str().unwrap_or("");
+                        match bsp
+                            .as_ref()
+                            .and_then(|bsp| crate::map_edits::faces::polygon(bsp, brush, side, own))
+                        {
+                            Some((points, normal)) => {
+                                let uv = crate::map_edits::faces::texture_coordinates(
+                                    &points, normal, None,
+                                );
+                                shown_faces.push(serde_json::json!({
+                                    "id": shown_faces.len() + 1, "points": points,
+                                    "normal": normal, "uv": uv, "shader": shader,
+                                }));
+                                Ok(
+                                    serde_json::json!({ "ok": true, "lines": ["(test) face covered"] }),
+                                )
+                            }
+                            None => Err("no such face".into()),
+                        }
+                    }
+                    _ => Err("no game: this is the page's test server".into()),
+                }
+            }
+            GameRequest::Brushes => brushes.clone().ok_or_else(|| "no map".into()),
+            GameRequest::Link { brush, side, grow } => match (&bsp, &sides) {
+                (Some(bsp), Some(sides)) => {
+                    super::super::caulk::link_json(bsp, sides, *brush, *side, *grow)
+                }
+                _ => Err("no map".into()),
+            },
+            GameRequest::Suggest(suggest) => match (&sides, &drawn) {
+                (Some(sides), Some(drawn)) => Ok(super::super::caulk::suggest_json(
+                    sides,
+                    drawn,
+                    &suggest.faces,
+                )),
+                _ => Err("no map".into()),
+            },
             GameRequest::State => Ok(serde_json::json!({
                 "map": map, "checksum": 1, "editor": true, "enabled": true, "scope": "all",
                 "server": null, "revision": 0, "unpublished": false, "edits": [], "current": null,
                 "undo": false, "redo": false, "hidden_props": props, "hidden_surfaces": surfaces,
-                "placed": placed, "remaps": remaps, "faces": [], "selection": null, "view": null,
-                "answer": null, "hub": null,
+                "placed": placed, "remaps": remaps, "faces": shown_faces, "selection": selection,
+                "view": view, "things": things, "answer": null, "hub": null,
+                "skies": bsp.as_ref().map(crate::map_edits::faces::map_skies),
             })),
-            GameRequest::Lists => Ok(serde_json::json!({ "models": models, "shaders": shaders })),
-            GameRequest::Edit(_) => Err("no game: this is the page's test server".into()),
+            GameRequest::Lists => {
+                Ok(serde_json::json!({ "models": models, "shaders": shaders, "skies": skies }))
+            }
+
+            GameRequest::SetRecent(_) => Err("no game: this is the page's test server".into()),
+            GameRequest::Recent => Ok(recent.clone()),
         };
         ask.answer(answer);
     }

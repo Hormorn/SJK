@@ -1502,12 +1502,13 @@ mod tests {
     fn the_renderer_tabs_hold_every_engine_rendering_cvar() {
         // Bookkeeping, diagnostics, the ground HUD (on the HUD tab) and exclusive
         // fullscreen (the Video tab's display-mode row) are not listed.
-        const RENDERER: [&str; 30] = [
+        const RENDERER: [&str; 31] = [
             "r_sceneHdr",
             "r_hdrExposure",
             "r_toneCurve",
             "r_sceneBloom",
             "r_fxaa",
+            "r_sharpen",
             "r_superSample",
             "r_renderScale",
             "r_softParticles",

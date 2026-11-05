@@ -35,6 +35,72 @@ on the player's floor, blows breaking one for a silver nugget in `mining_log.txt
 saber switched off. Not verified: the glint and a clean strike in game, the sounds, other
 players seeing the pickaxe.
 
+## No repeated commands on JoF (Heimdall kicks)
+
+04/11/2026, `personal/jof-packetdup` from `main` `ba165c38`: Turin was kicked by
+Heimdall, JoF's anti-cheat, a few times on 2026.1103.2, and Milamber, who maintains
+Heimdall (closed source), told Sol that `cl_packetdup` is the reason. JoF's entry in
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs) now caps it at 0
+(`max_packet_dup`): each packet carries only its new commands there, whatever the
+player's `cl_packetdup` (default 1), and `cl_packetdup_nocap 1` lifts the cap
+(`gameplay_fps_nocap` does not). JoF EJK repeats one packet whatever its
+`cl_packetdup`, so SJK now differs from it there; why Heimdall judges SJK's repeats
+and not JoF EJK's is not known. Turin's logs showed no kick: the request's 200 KB of
+the session began at the reconnect after one. He also had `gameplay_fps_nocap 1`,
+which brings the grid's past-stamped catch-up commands back on JoF (above); that stays
+as it was. Verified on Windows 11: unit tests (JoF's cap, lifted only by its own cvar,
+other servers unchanged). Not verified: in a game, on JoF, or that Heimdall stops
+kicking.
+
+## Finishers (Disintegrate first)
+
+04/11/2026, `personal/finishers` from `main` `e7cfcc07`, Sol's decision: the Saber Lab's
+kill burn is a category of its own, worn with any blade and droppable later
+([unlockables.md](unlockables.md#finishers)). The blade-skin format lost its
+`disintegrate` section (and the builder its Kills tab); `crate::finishers` holds
+Disintegrate (Mythical, Milamber), `cg_saberFinisher` wears it, the look carries it
+(`sjk_identity::Look::finisher`), and the attacker's look decides the burn
+(`observe_saber_kills`). Collection > Shaders has a Finishers pill and page. Hub branch
+`finishers` (`Kind::Finisher`, look `finisher`, `bad_finisher`, `finisher_not_unlocked`)
+deploys first. Verified on Windows 11: unit tests (finishers, looks, the panel's pill and
+Equip/Unequip, the identity's body and refusals, the hub's look, feed and API), the world
+shot `duel6_sjk_finishers` at 16:9 and 4:3. Not verified: the burn in a real match with a
+second SJK client.
+
+## Linux startup stack allowance
+
+03/11/2026, `fix/linux-startup-stack` from `main` `c0d603eb`, Nobara Linux 44
+x86_64. The installed 2026.1103.2 executable matched the published Linux ZIP.
+In an isolated profile using installed game content, that release aborted with
+`thread 'main' has overflowed its stack` at an 8 MiB soft stack limit; the same
+binary passed that point with 64 MiB. Linux now requests the same 64 MiB allowance
+as the Windows/macOS builds before constructing the client, preserving larger
+limits and the inherited hard limit ([client.md](client.md)). The shared constant
+also defines the existing startup test's quarter-stack budget. Subprocess tests
+cover raising the soft limit, preserving larger/unlimited limits, and capping the
+request at a restrictive hard limit. Verified: formatting, workspace build/tests/clippy
+on Linux CI, the local optimized build, and an isolated no-argument launch of the
+patched client inheriting an 8 MiB limit (world attached, HUD/fonts loaded, still
+running after 100 seconds). The existing 16 MiB startup guard built the menu world
+and rendered its first 30 frames successfully using Mesa llvmpipe software Vulkan.
+Not verified: hardware-GPU behavior, gameplay, a complete in-game update/restart
+round trip, or Windows/macOS runtime behavior.
+## Server remaps per map (`cg_serverRemapsMap`, Lex's idea)
+
+04/11/2026, `feat/server-remaps-per-map` from `main` `c0d603eb`. Lex asked in #ideas
+for `cg_serverRemaps` 1/0 per map from Settings. `cg_remapsAllowedMaps` (archived) lists
+maps whose server remaps apply, filtered by `cg_remaps`, even with `cg_serverRemaps 0`;
+`cg_remapsBlockedMaps` keeps blocking, and wins for a map in both. Settings > GAME >
+"Remaps on this map" is `cg_serverRemapsMap` (`default`, `on`, `off`, not
+archived): [remap_blocked_maps.rs](../crates/sjk-viewer/src/remap_blocked_maps.rs)
+rewrites it from the lists when the map or a list changes, and a change of the cvar alone
+moves the loaded map between the lists. `allowRemaps`/`unallowRemaps [map]` join
+`blockRemaps`/`unblockRemaps`; `listRemaps` says when the map's choice decides
+([client.md](client.md), [rendering.md](rendering.md#server-shader-remaps)). Verified:
+unit tests (choices from the lists, modes, list moves, names, the cache's show/store
+rules), fmt, clippy, `sjk-viewer` tests. Not verified: in a game on a server that remaps
+its map, and the Settings row on screen.
+
 ## Holocron catch-up, play signals, tag copies (client side)
 
 03/11/2026, `personal/economy-ideas` from `main` `69a3d6a0`, built with the hub's
@@ -143,6 +209,18 @@ because it has a width, burst like a rocket. A destroyed vehicle (`EF_DEAD`) pla
 AT-ST camera jump on stopping was fixed on 23/10 (`36523a14`). Not done: a damaged
 fighter's surface smoke (`dmgFX`, `injureFX`) and vehicle trails and exhausts. Verified:
 unit tests, fmt, clippy. Not verified: in a game, or that JoF/JA+ servers tag vehicle shots.
+
+## Loadouts button takes a click on Shaders (hub report #245)
+
+04/11/2026, `fix/loadout-button-245` from `main` `c0d603eb`. On Shaders the "Loadouts (P)"
+button (x 1624 to 1824, y 206) lies inside the stage saber's drag room (`SABER_AREA`, x 1000
+to 1824, y 196 to 496); with a stage behind the page (the menu map or the live preview, so
+always in a running client) a press there grabbed the saber to turn it and never reached the
+button, so only P opened the card. The press now leaves the button out, as it leaves the
+target switch out. Verified: the unit test
+`a_click_on_the_loadouts_button_opens_the_card` (Shaders, Tags and Nameplates, list and
+grid, three window sizes, no stage, the menu map and the live preview), the `collection`
+tests, fmt and clippy (no new warnings).
 
 ## Menu ideas 03/11: report from the menu, loadouts, Hax trap, wheel pictures, HUD switch
 
@@ -483,6 +561,35 @@ Limits: T1_Fatal in Experimental on DX12 stopped at the lamp light cache's page 
 (`SJK lamp cache pages` invalid), not a compile, so that case was checked on duel6. fmt,
 the sjk-viewer tests and Clippy.
 
+## Map editor in game: the page's tools, flight, a clean toggle
+
+04/11/2026, `personal/mapedit-ingame`, based on `main` `7846f944` (Sol's request): the in-game
+editor gets the browser editor's Same plane, Connected surface, Fill and multiple selection
+(Shift+click, Shift and the world-note key; hide, remap and fill act on all of it in one
+step to undo), the shared Recent rows in the panel's lists, the free camera flown with the
+right mouse button held (W A S D, Space and C, Shift faster, the wheel's speed), and
+`mapedit` as a plain toggle with Escape backing out one step at a time; the Aim half-state
+and its strip are gone ([map-edits.md](map-edits.md#the-editor-staff)). Verified on
+Windows 11: unit tests (the selection's add and take-out, the batch, the toggle and
+Escape's order, the flight's speed and keys, the predictor's boost, the Recent rows, the
+panel's pages and key lines) and the world shot `ingame_link_select_and_fill` on retail
+ffa3 (a caulk wall's Connected surface, four faces outlined, one taken out and added back,
+Fill with `textures/desert/stucco_grime_top_bottom` in one undo step, undone to 887
+changed pixels). Not run in a client: the flight with the real mouse and keys, the free
+camera following the editor, the bind leaving from the panel, a real Shift+click.
+
+## Map editor gizmos
+
+04/11/2026, `personal/mapedit-gizmo`, based on `main` `12023ed9` (Sol's request): Blender's
+move, rotate and scale handles for placed models in game and in the browser editor, G, R
+and T with X, Y, Z and typed numbers, snapping and fine steps, several placed models about
+their middle in the page, the own boombox along the floor; every drag is one `mapedit_set`
+([map-edits.md](map-edits.md#gizmos)). Verified on Windows 11: unit tests of the maths, the
+command and its single undo step, the requests; the page in headless Chrome on duel6 with
+the fake game; the world shot `duel6_map_editor_gizmo` (the in-game gizmo drawn and its arrow
+dragged by pointer events). Not run in a client: the in-game keys and drag with the real
+pointer. Mystery boxes and toys get no gizmo (the hub has no move).
+
 ## Map editor in the web browser
 
 03/11/2026, `personal/mapedit-web`, based on `main` `566c944e` (Sol's request, Blackwolf's
@@ -495,6 +602,40 @@ game thread, and the page in headless Chrome
 script errors; the map, props, panel, and a fake state's hidden prop, placed copy, hidden
 surfaces and remap drawn). Not run with the game: the game-thread side (selection by ray,
 the commands, the state) is untested in a running client.
+
+Second round, 03/11/2026, `personal/mapedit-web-2`, based on `main` `7fc4adca` (Sol's
+asks): the selection drawn (tinted, pulsing, outlined; a model's box; a hidden face's
+polygon) and named in the panel, a controls card folded with `?`, Recent shader and
+model rows kept by the game (`map_edits/web_recent.json`) with their switch, panel text
+selectable (it was rewritten every poll), copy and paste in the view, and a World page
+for the boombox, mystery boxes and Toy Master toys (placed and removed through their own
+code; boxes and toys cannot be moved, the hub has no move). Verified on Windows 11: unit
+tests (the Recent file, the new requests, `api/recent` end to end) and the page in
+headless Chrome on retail duel6 (see [map-edits.md](map-edits.md#limits)). Not run with
+the game: the selection's details, the things' placing and removal and the Recent rows'
+recording are untested in a running client.
+
+Third round, 03/11/2026, `personal/mapedit-web-3`, based on `main` `07211e81` (Sol's asks):
+the invisible brushes in the page as `r_showBrushes` sorts them (plus liquid volumes), a
+filter per kind and a click that selects a caulk face; Shift+click multiple selection with
+one-step apply and hide (`apply_many`, `hide_many`); linked caulk (same plane or connected
+surface, faces players see only, 512 at most); and Fill with the nearby texture (a vote of
+the drawn surfaces round the faces). Verified on Windows 11: unit tests (linking, the vote,
+the batch undo, the requests), the routes end to end, the ignored retail-map run on duel6
+and ffa3 (the cover test agrees with q3map2 on 91 % and 99 % of drawn sides; timings in
+[map-edits.md](map-edits.md#limits)) and the page in headless Chrome on duel6. Not run with
+the game: the game-thread side (the face pick, the batch edits, the caches) is untested in
+a running client.
+
+Sky round, 04/11/2026, `personal/mapedit-sky`, based on `main` `12023ed9` (Sol's asks:
+"remap skybox faces", "replace a skybox by another skybox"): the sky is selectable in game
+and in the page (its brush's sky side), a texture covers a sky side (`show_face`, drawn over
+the sky's pushed-back depth), and `mapedit_sky` swaps a sky, or every sky of the map, for a
+sky shader as remap edits; the in-game panel's Sky page, the page's sky list with pictures
+and Recent, its sky drawn as swapped, a `sky` brush kind, sky links and Fill. Verified on
+Windows 11: unit tests, the world shots `sky_face_covered` and `sky_swapped` on ffa3 and
+the page in headless Chrome on ffa3 ([map-edits.md](map-edits.md#limits)). Not run in a
+game. Covered sky sides need a release before publishing: older clients skip them.
 
 ## Map editor made easier
 
@@ -2076,8 +2217,17 @@ main's one-category-per-toy board on 02/11/2026), client-counted on servers only
 (`fish_first`, `fish_50`, `fish_kinds`, `echo_angler`, `old_whiskers` hidden), appended at
 the end of `achievements::ALL` and `kyber::REWARDS`. The
 look has the toy `fishing` (main's u32 toy bits, after the Banana peel). No hub change: the hub needs the five ids in its
+catalogue before they unlock online. Selling junk (capped credits; Sol's yes on #278):
+03/11/2026, `feat/fishing-sell-junk` with the hub's `feat/fishing-junk-sell`
+(`GET /v1/fishing/junk`, `POST /v1/fishing/junk/sell`, 15 credits a day per person and
+address, behind the operator's switch): the Fishing card lists the catches and sells the
+junk held, `fishing_sell` too, `sold` lines in the log ([client.md](client.md#fishing)).
+Verified: the log, card and answer tests; not yet against a hub that has the routes. Verified: fmt, build, the fishing, achievements, kyber and collection tests,
 catalogue before they unlock online; selling junk (capped credits) is proposed to Sol, not
-built. Verified: fmt, build, the fishing, achievements, kyber and collection tests,
+built. 03/11/2026, `feat/fishing-bite-cue`: the bite cue for players with the sound off
+(`cg_fishingBiteCue`, a "!" over the float and a centre line; tests
+`the_bite_cue_follows_its_setting_and_the_sound`, `a_bite_starts_and_ends_with_its_cue`;
+Not verified: in game.) Verified: fmt, build, the fishing, achievements, kyber and collection tests,
 earlier release builds in game (Slash: the rod in third person, the pond, bites; not yet
 the first-person rod or the Fishing band on the Fun page), world shots of the pond on duel6
 (`rods_at_the_first_spawn`). Not verified: the five ids at the hub, other players seeing a
@@ -2634,6 +2784,20 @@ format check, `sjk-viewer` clippy (no warnings in the touched lines) and tests (
 and the GPU render tests of the signatures and lab designs
 (`every_signature_draws_its_blade_and_nothing_at_the_edge`, `blades_seen_as_players_see_them`).
 Not timed again, not tried in a game.
+
+## Emotes muted in duels
+
+03/11/2026, `feat/duel-emote-mute-234`, based on `main` `e9f27a32`, Groark's idea (hub
+report #234). Settings > Sound > Emotes: Mute emotes in duels (`s_muteEmotesInDuel`, off
+by default) puts the emote channel's gain to 0 while the viewed player is in a duel (a
+private duel, `duelInProgress`, or a Duel or Power Duel server, the rule of
+`cg_duelStockBlades`), so emotes already playing go quiet too and one still playing when
+the duel ends is heard again ([rig-models.md](rig-models.md)). Verified on Windows 11:
+unit tests (`emotes_are_silent_in_a_duel_only_with_the_setting`,
+`an_emote_playing_is_silent_in_a_duel_with_the_setting` through the test mixer, a
+snapshot's `duelInProgress` starting and ending the silence; the full `sjk-viewer` release
+suite passes). Not verified with a second
+SJK client.
 
 ## Emotes kept while typing, and silenced when alt-tabbed
 
@@ -3739,6 +3903,39 @@ with the number inside, SJK classic a yellow bar with an `HP` line (layout widge
 for game-data HUDs without `swoopvehiclehud`; the retail vehicle HUD is unchanged.
 Unit tests pin the text HUD run and which look draws the arc, the bar or the strip.
 
+## Vehicle speed and ammo in each HUD style
+
+03/11/2026, `feat/vehicle-hud-ammo-speed`, based on `Sol-Vulpes/SJK` `7fc4adca`: Kushina
+reported that the default HUD showed no ammunition or speed in any vehicle, as the
+per-style vehicle HUD above showed only the health. Each style now adds the speed and,
+for a vehicle with a weapon, the ammunition in its own look: Text only two more numbers
+left and right of the hull (`Frame::simple_hud`, `MAX_TEXTS` 7), SJK radial a cyan speed
+arc and an orange ammunition arc on the inner circle under the crosshair with the three
+numbers in a row below the outer arc (`vehicle_speed_arc`, `vehicle_ammo_arc`,
+`vehicle_speed_value`, `vehicle_ammo_value`), SJK classic `SPD` and `AMMO` bars above the
+`HP` one (`vehicle_speed_label`, `vehicle_speed_meter`, `vehicle_ammo_label`,
+`vehicle_ammo_meter`). `vehicle::State::meters` gives the layouts the three ratios; the
+retail vehicle HUD and the vector strip are unchanged. Unit tests pin the ratios, the new
+strings, the text HUD's runs and that each own look draws the speed and, with a weapon
+only, the ammunition.
+
+The turbo of swoops and animals follows in the same branch: `vehicle::turbo` gives its
+phase (recharging, ready, burning) and charge from the predicted turbo time and the
+`.veh`'s `turboRecharge`; radial draws a thin arc inside the speed arc and the word under
+the speed number, classic a `TURBO` line and bar beside `SPD`, Text only the word left of
+the speed (`MAX_TEXTS` 8). One widget per phase gives each its colour. Tests pin the
+phases, the words and that each look colours the turbo by its phase and leaves it out
+without one.
+
+The SJK classic layout was then redrawn after the user's mockup: three groups along the
+bottom (health and armour left, Force right, the held weapon or the piloted vehicle
+in the middle), at first on dark panels and then, after the user's second mockup, with no
+background (dark meter tracks instead; see [rendering](rendering.md)). New for it: meters drawn as cells
+(`StyleOverrides::segments` in `sjk-ui`), fixed `label_*` words, per-weapon
+`vehicle_ammo1_*`/`vehicle_ammo2_*` bindings, greyed `_none` flags, and
+`draw_weapon_panel`. `menu_snapshot::classic_hud_snapshot` draws it on the CPU (blaster,
+saber, a swoop recharging and ready, an AT-ST) without a map or GPU.
+
 ## Stock vehicle HUD in the game HUD
 
 19/10/2026, `feat/vehicle-hud-sjk-style`, on `fix/vehicle-hud-hide-rider`: a tester
@@ -3780,6 +3977,85 @@ height-selection unit test and [console key documentation](client.md) cover
 the revised shortcuts. Formatting, locked workspace build/tests and all-target
 Clippy pass; the console height-selection test passes. In-game keyboard behavior
 remains unverified.
+
+## Saber Lab
+
+18/10/2026, `feat/saber-lab`, based on `Sol-Vulpes/SJK` `3483b1b2`: implemented the Saber
+Lab (`saberlab <folder>`, `SJK_SABER_LAB`), blade skins read from a folder of loose files
+mounted over the hub's packs and reloaded when one is saved, with a lab blade
+(`saber_lab`) the catalogue knows only while the lab is on, the Shaders tab opening on it,
+a file's mistake named in the tab's lead and its last good look kept. Skin files read with
+a UTF-8 byte-order mark too. The lab's skins are worn on this PC only. A Saber Lab tab in
+the Collection shows the model on the main menu's stage holding the blade and swinging it
+in the style chosen (the game's starts, attacks and returns), and a copy floating beside
+it. The tab then gained the player's own hilts (a staff or two sabers swinging in their
+own style), a speed slider (each swing following the last with no wait), the blade
+lit and put out gradually with the game's draw and put-away flourish as a choice,
+ignition, retraction and swing sounds with a mute (swings as each attack begins, as a
+match's `EV_SABER_ATTACK`), a camera turned and tilted round the model by a drag, and a
+third-person view behind it as in a match, a match's saber trails on the stage, a still
+trail on the floating saber when ticked, and the blade worn shown (the lab's once
+equipped) or any blade previewed, owned or not, and an in-game blade-skin editor: every
+section and field of a skin's six files as rows (ranges from the format's own checks,
+the sections it may add read from the format itself and made as a shipped skin has them
+or as the format says), each change shown at once and written back in
+the files' own order, with undo; and smoke from the emitter, new optional sections in a
+sixth additions file (`.bladeextra6`): puffs of the game's particles, or ribbons (strands
+drawn through drifting points, for wisps), let go while the blade is lit and for a few
+seconds after it is put out, trailing a swing, and sparks crackling out of the emitter
+in bursts (more lighting it, a few putting it out); skins without them draw as before. The hum is not played yet. See
+[client](client.md#saber-lab).
+
+Workspace `cargo fmt --check`, build, test and clippy (no new warnings) passed on
+Windows 11 x86_64, Rust 1.99.0. Unit tests pin the folder's stamp (saves, additions,
+removals), its skin files, a loose folder read like a pack, a broken save keeping the
+last look, a byte-order mark, the lab row after the stock blade and the folder's
+written form, the lab swings' animations and chains, and the tab's keys and clicks. In
+the client the lab started from `SJK_SABER_LAB` and followed a good save, an
+out-of-range value and its fix within half a second each. The world shot
+`duel6_saber_lab` (ignored, `JKA_GAME_DATA` and `SJK_TEST_PACKS`) renders the tab
+standing and swinging in each style: the model on the left with the blade in its
+hands, the copy floating on the right, read by Claude from the pictures; then the
+camera over the model and nearer from behind, the model kept where the shot frames it,
+and both sabers half retracted. Unit tests pin the orbit (the model seen in the same
+place from every turn, tilt and distance), the speed's steps and span, the view's
+bounds, the blade, flourish, sound and view toggles, the paced waits and which
+animations sound as attacks. The world shot `duel6_saber_lab_sounds` mixes the tab
+through the game's mixer with no device: silent before the tab, swings and the
+retraction heard after (it first found the tab silent: the attacks have no cue in
+`animevents.cfg`, and the test skin's sound files are in no pack). `duel6_saber_lab`
+also renders the put-away, the model holstered, the draw, and the third person swinging
+and from above, then the swings with the lab's blade equipped: the model's blade
+trailing and the floating one's still trail, and the Void blade previewed by a profile
+that does not own it (Equip off), then the editor open on the lab's blade and its glow
+turned red by an edit, the model's blade red the next frames, then the sections to add
+under their heading and black holes added, drawn at both blades' tips. A unit test
+builds every section of the format from the format alone: all read but the five a rule
+binds beyond their ranges. The smoke: unit tests pin the sixth additions file laid over
+its skin (none for a skin without one, a value out of range refused) and the emitter's
+rates (lit, falling after, none once done, no burst after a gap), the ribbons' smoothness
+(a fast swing round a circle, posed in steps too, with no corner over 8 degrees nor a
+point thrown off; a swing turning back with no loop; a leap breaking the strand; an emitter held still
+smoking on at its rate, unbroken, its points in order; its strength standing, swinging,
+lighting, put out and the whole time; the sparks' bursts lit, lighting and fizzling out,
+in their cone); `duel6_saber_lab`
+renders the lab's blade smoking lit, put out (a white wisp curling up from the
+floating hilt, one trailing the model's swing) and cleared a few seconds later. Unit tests pin the
+ordered JSON (order, whole numbers, layout), the editor's rows and ranges, a nudge
+within its range, a change that does not read, undo and redo, and the files written
+(the skin file in its order, an added section in its additions file, an emptied one
+taken away). A unit test pins the trail lengths against
+the move table (styled moves only taking the style's group).
+
+03/11/2026: the local `wip/saber-lab` (49 commits to 01/11/2026, the effects from 19/10
+tuned by eye with no new unit tests, at Milamber's request) squashed onto `main` `c0d603eb`
+as `feat/saber-lab` and handed to Sol to finish: what is built, planned and owed before a
+merge (the startup stack check, blade cost, the tests) is in
+[saber-lab-handover.md](saber-lab-handover.md).
+Workspace `cargo fmt --check`, build, test and clippy (no warnings on the branch's lines)
+passed on Windows 11 x86_64, Rust 1.99.0, after four lane-count tests and the instance's
+`off` format test were brought up to date; the startup stack check and
+`scripts/blade_cost.py` were not run.
 
 ## Jetpack effect layers and tail lengths
 

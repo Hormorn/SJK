@@ -6,7 +6,11 @@
 
 const SJK_POLL_MSEC = 700;
 // the last state, the game's lists (models to place, shaders a remap may draw), and the page's choices
-const sjk = { state: null, error: '', lists: null, listsFor: '', world: null, keys: {}, placed: [], faces: [], viewTaken: '', chosenModel: '', chosenShader: '', chosenEdit: null, busy: 0 };
+const sjk = { state: null, error: '', lists: null, listsFor: '', world: null, keys: {}, placed: [], faces: [], things: [], viewTaken: '', chosenModel: '', chosenShader: '', chosenEdit: null,
+	busy: 0, recent: null, chosenThing: null, placeThing: null, clip: null,
+	// the multiple selection (brushes.js): its members, the game's selection it last saw, a click of its own under
+	// way, the nearby shaders of its faces and the last link's note
+	multi: [], selKey: '', ownSelect: false, suggest: null, linkNote: '' };
 
 async function sjkPoll() {
 	try {
@@ -30,6 +34,7 @@ function sjkTake(s) {
 	if (s.map && s.map !== loadedMap) loadMap(s.map);
 	if (s.map && sjk.listsFor !== s.map) sjkLoadLists(s.map);
 	sjkApply();
+	sjkSelectionSeen(s);
 }
 
 // Once the map is there: the camera where the player is (the first time for a map), and the edits drawn.
@@ -68,6 +73,12 @@ function sjkApply() {
 	}
 	sjk.placed = s.placed.map(p => ({ id: p.id, model: p.model, place: sjkPlace(p.origin, p.angles, p.scale) }));
 	if (changed('faces', s.faces)) sjkBuildFaces(s.faces);
+	// the boomboxes, mystery boxes and toys: each part where the game draws it
+	if (changed('things', s.things)) {
+		sjk.things = (s.things ? s.things.list : []).map(t => Object.assign({}, t, {
+			drawn: t.parts.map(p => ({ model: p.model, place: sjkPlace(p.origin, p.angles, [p.scale, p.scale, p.scale]) }))
+		}));
+	}
 }
 
 // where a placed model is drawn: the axes of its angles, each scaled by its own number (as staticList does)
@@ -121,6 +132,34 @@ function sjkDrawEdits() {
 		if (model) drawStatic(model, p.place);
 	}
 	for (const f of sjk.faces) if (f.model) drawStatic(f.model, SJK_IDENTITY);
+	for (const t of sjk.things) for (const p of t.drawn) {
+		const model = staticNow(p.model);
+		if (model) drawStatic(model, p.place);
+	}
+}
+
+// ---- the Recent rows (api/recent): the game keeps them, in a file of its own, so they outlive the page and its port
+
+async function sjkLoadRecent() {
+	try {
+		const res = await fetch('api/recent');
+		const recent = await res.json();
+		if (recent.ok === false) throw new Error(recent.error);
+		sjk.recent = recent;
+	} catch (e) { /* the next edit tries again */ }
+	sjkRenderRecent();
+}
+
+async function sjkSetRecent(change) {
+	try {
+		const res = await fetch('api/recent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
+		const recent = await res.json();
+		if (recent.ok === false) throw new Error(recent.error);
+		sjk.recent = recent;
+	} catch (e) {
+		toast('The game did not keep that: ' + e.message, false);
+	}
+	sjkRenderRecent();
 }
 
 // the camera at a view the game gives: an eye, a yaw and a pitch
@@ -164,6 +203,8 @@ async function sjkEdit(body) {
 		if (res.ok) sjkTake(await res.json());
 	} catch (e) { /* the next poll */ }
 	sjkRender();
+	// a remap, a shown face or a placed model goes first in the Recent rows
+	if (answer.ok && (body.op === 'remap' || body.op === 'sky' || body.op === 'place' || body.op === 'apply_many')) sjkLoadRecent();
 	return answer;
 }
 

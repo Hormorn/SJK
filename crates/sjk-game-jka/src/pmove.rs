@@ -823,6 +823,10 @@ pub struct Predictor {
     /// JoF EternalJK's `cg_fakeNoclip`: this client-side predictor flies in noclip while
     /// the server is told the player stands still (`pm->fakeNoclip`). Never set on a server.
     fake_noclip: bool,
+    /// A client editor's own flight speed for [`Self::fake_noclip`]: the fake noclip's
+    /// speed times this, whatever the size of the move (a walk key halves it no more).
+    /// `None` for the stock flight. Never set on a server.
+    fake_noclip_boost: Option<f32>,
     /// The water level as the slice began (`pml.previous_waterlevel`, taken right after
     /// `PM_SetWaterLevel`, `bg_pmove.c:10705-10707`), which `PM_WaterEvents` compares with.
     water_entry: u8,
@@ -870,6 +874,7 @@ impl Predictor {
             npc: None,
             cleared_box: false,
             fake_noclip: false,
+            fake_noclip_boost: None,
             water_entry: 0,
             slow_fall: false,
             vehicle: None,
@@ -903,6 +908,7 @@ impl Predictor {
             npc: None,
             cleared_box: false,
             fake_noclip: false,
+            fake_noclip_boost: None,
             water_entry: 0,
             slow_fall: false,
             vehicle: None,
@@ -924,6 +930,12 @@ impl Predictor {
     /// (`cg_predict.c:1721-1727`): the move type is forced to `PM_NOCLIP` each command.
     pub fn set_fake_noclip(&mut self, on: bool) {
         self.fake_noclip = on;
+    }
+
+    /// Fly a fake noclip at its speed times `boost` whatever the size of the move, or
+    /// as stock with `None` (a client's map editor sets its own flight speed).
+    pub fn set_fake_noclip_boost(&mut self, boost: Option<f32>) {
+        self.fake_noclip_boost = boost.filter(|boost| boost.is_finite() && *boost > 0.0);
     }
 
     /// Refresh movement policy without discarding the replay state.

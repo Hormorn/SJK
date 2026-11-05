@@ -602,6 +602,26 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Whether this key may sell fished junk, the prices and what is still payable
+    /// today (`GET /v1/fishing/junk`, 03/11/2026).
+    fn junk_status(&mut self, _identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not read junk selling".to_owned(),
+        ))
+    }
+
+    /// Sell `held`, pieces of fished junk by id (`POST /v1/fishing/junk/sell`,
+    /// 03/11/2026): the hub answers what it took.
+    fn sell_junk(
+        &mut self,
+        _identity: &Identity,
+        _held: &std::collections::BTreeMap<String, u32>,
+    ) -> Result<crate::junk::JunkSold, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not sell junk".to_owned(),
+        ))
+    }
+
     /// Every placed mystery box, the price and the odds (`GET /v1/mystery-boxes`,
     /// 27/10/2026).
     fn mystery_boxes(
@@ -1322,7 +1342,9 @@ fn feed_path(
 /// then sends the look without it). `saber_on` and `saber2_on` go only when they name an
 /// extra of their saber's skin (hubs before 26/10/2026 refuse them, and the service then
 /// sends the look without them). `tag` goes only while a tag is stuck (hubs before
-/// 27/10/2026 refuse it, and the service then sends the look without it).
+/// 27/10/2026 refuse it, and the service then sends the look without it). `finisher` goes
+/// only while one is worn (hubs before 04/11/2026 refuse it, and the service then sends
+/// the look without it).
 fn look_body(server: &str, look: &Look) -> Value {
     let mut body = json!({ "server": server, "saber": look.saber, "illuminate": look.illuminate });
     if !look.saber.is_empty() && !look.saber_off.is_empty() {
@@ -1348,6 +1370,9 @@ fn look_body(server: &str, look: &Look) -> Value {
     }
     if let Some(tag) = look.tag.as_ref() {
         body["tag"] = json!(tag);
+    }
+    if !look.finisher.is_empty() {
+        body["finisher"] = json!(look.finisher);
     }
     body
 }
@@ -1991,6 +2016,20 @@ impl Hub for HttpHub {
         identity: &Identity,
     ) -> Result<crate::mystery_box::Boxes, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/mystery-boxes", None)?)
+    }
+
+    fn junk_status(&mut self, identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {
+        parse(self.send(Some(identity), "GET", "/v1/fishing/junk", None)?)
+    }
+
+    fn sell_junk(
+        &mut self,
+        identity: &Identity,
+        held: &std::collections::BTreeMap<String, u32>,
+    ) -> Result<crate::junk::JunkSold, HubError> {
+        let body = crate::junk::sale_body(held)
+            .ok_or_else(|| HubError::Protocol("no junk to sell".to_owned()))?;
+        parse(self.send(Some(identity), "POST", "/v1/fishing/junk/sell", Some(body))?)
     }
 
     fn open_mystery_box(
@@ -2784,6 +2823,21 @@ mod tests {
         );
     }
 
+    /// A look's finisher (04/11/2026) goes only while one is worn.
+    #[test]
+    fn a_look_body_names_the_finisher_only_when_one_is_worn() {
+        let plain = look_body("1.2.3.4:29070", &Look::default());
+        assert!(plain.get("finisher").is_none());
+        let finishing = Look {
+            finisher: "finisher_disintegrate".to_owned(),
+            ..Look::default()
+        };
+        assert_eq!(
+            look_body("1.2.3.4:29070", &finishing)["finisher"],
+            "finisher_disintegrate"
+        );
+    }
+
     #[test]
     fn a_look_sends_exactly_the_protocols_fields() {
         let look = Look {
@@ -2797,6 +2851,7 @@ mod tests {
             saber2_on: Vec::new(),
             saber_sounds: String::new(),
             tag: None,
+            finisher: String::new(),
         };
         assert_eq!(
             look_body("1.2.3.4:29070", &look),

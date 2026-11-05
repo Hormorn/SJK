@@ -939,7 +939,9 @@ own).
 ### Blade-skin files
 
 `skins/blades/<unlock id>.bladeskin` in a pack, a JSON object
-([blade_skin_file.rs](../crates/sjk-viewer/src/blade_skin_file.rs)). Parsing is strict:
+([blade_skin_file.rs](../crates/sjk-viewer/src/blade_skin_file.rs)); the Saber Lab
+([client.md](client.md#saber-lab)) reads them from a folder and reloads them as they
+are saved, to make one. Parsing is strict:
 an unknown or missing field, a wrong type or a value outside its range refuses the file,
 and the log names the file and the field. A file whose id is not a blade skin of the
 client's catalogue is left out (a newer pack may hold skins an older client does not
@@ -994,6 +996,167 @@ section adds light; these are drawn after the blades, alpha-blended, so they can
 dark or opaque ([rendering.md](rendering.md#saber-blade-skins)). They take the last two
 bits of the instance's 32-bit mask of parts switched off: a later section that can be
 switched off needs a wider mask.
+
+The eighth set (18/10/2026, the Saber Lab's red blade with a smoking emitter,
+[blade_skin_smoke.rs](../crates/sjk-viewer/src/blade_skin_smoke.rs)): `smoke`, in the
+**sixth additions file**, `skins/blades/<id>.bladeextra6`. It is not drawn by
+`saber.wgsl` with the blade: each blade's emitter lets puffs of the game's particles go
+into the air ([saber_smoke.rs](../crates/sjk-viewer/src/saber_smoke.rs)), so a swing
+leaves them strung out behind it and a blade put out goes on smoking for `after`
+seconds. The puffs of a frame are spread along the way the emitter came; a frame after a
+gap of more than 250 ms lets none go for the gap. The smoke's shader is added to the
+effect atlas (which holds the map's effects' shaders) when a loaded skin has it, once an
+atlas. It cannot be switched off as an option: the mask has no bit left.
+
+| `smoke` field | Meaning | Range |
+| --- | --- | --- |
+| `shader` | A game shader for the puff (`gfx/effects/jk_smoke5`: stock smoke with texture, alpha-blended; an additive shader fades its colour instead of its opacity, as its blend asks) | game path |
+| `color`, `opacity` | The puff's tint, and how opaque it is when let go (it fades to nothing over its life) | 0-1, 0-1 |
+| `rate`, `after_rate`, `after` | Puffs a second while lit; a second just after it is put out, falling to none over `after` seconds (small faint puffs, many a second, chain into a thin wisp) | 0-200, 0-200, 0-20 |
+| `life` | Seconds a puff lasts (each ±25%) | 0.1-10 |
+| `size`, `growth` | Units across when let go, and when gone | 0.2-32, 0.2-96 |
+| `rise`, `spread` | Units a second up (negative: down), and whichever way at random | -50-100, 0-50 |
+| `follow` | The share of the emitter's own speed a puff keeps (a swing drags it along) | 0-1 |
+| `spin` | How fast a puff turns, either way at random (the game's rotation units) | 0-10 |
+| `turn` | The most a puff is turned when let go, either way (180: any way) | 0-180 |
+| `sway`, `sway_rate` | Units a second the stream sways to the side, and turns a second its way goes round: the chain of puffs curls | 0-50, 0-10 |
+| `along` | Where on the blade it comes from: 0 the emitter, 1 the tip | 0-1 |
+
+`ribbon`, in the same file, beside `smoke` or alone: smoke as strands
+([saber_ribbons.rs](../crates/sjk-viewer/src/saber_ribbons.rs),
+`saber_ribbons.wgsl`). The emitter lays points along its way, one strand through them,
+drawn facing the camera: soft across, torn along by noise that rides with the points.
+Each point is left in the air, rising, keeping a share of the emitter's speed (at most
+40 units a second, dying away at `DRAG` 5 a second), the stream swaying as it is let go
+and the point curling as it goes; it widens and fades as it ages. A swing stays smooth
+(the user, 18/10/2026: "really sharp corners"): points are laid a unit apart however fast
+the emitter goes, a frame behind on the centripetal Catmull-Rom spline through its last
+four places; each keeps the emitter's speed where it was let go (the spline's way there,
+the speed going smoothly from frame to frame) and is moved on to the frame it is laid in;
+a pose held under 100 ms (the stage skins in steps) is no new place on the way; held
+longer (the stance) the emitter smokes where it stands at its rate, the way laid out to it
+first (at first a held place laid nothing at all, and the strand broke off after 250 ms:
+no smoke standing, the user, 18/10/2026); the strand is drawn
+through its points on the spline, each span in three pieces. A frame's move farther than
+64 units (the model put elsewhere) breaks the strand. Put out, the strand is laid on for `after`
+seconds, staying strong a while then thinning away (`1 − (t / after)²`). A gap (the blade
+not drawn for 250 ms) ends a strand; one the emitter left lives out its points. The
+pool holds at most 12 000 points in 256 strands. The strands are counted in the effect
+layer's bounds: at first only the blades were, and a blade put out left its smoke
+undrawn.
+
+| `ribbon` field | Meaning | Range |
+| --- | --- | --- |
+| `color`, `opacity` | The strand's colour, and how opaque where it is let go (it fades as it ages) | 0-1, 0-1 |
+| `rate`, `after` | Points a second (more: a smoother strand), and seconds it goes on once put out | 5-120, 0-20 |
+| `life` | Seconds a point lasts: the strand's length | 0.2-10 |
+| `width`, `growth` | Units across where it is let go, and where it is gone | 0.05-16, 0.05-48 |
+| `rise`, `follow` | Units a second up; the share of the emitter's speed a point keeps | -50-100, 0-1 |
+| `sway`, `sway_rate` | The stream's sway to the side as it is let go, units a second, and turns a second | 0-50, 0-10 |
+| `curl` | Units a second a point curls as it goes | 0-50 |
+| `detail`, `softness` | Noise cycles a unit tearing it along (0: smooth); the share of its half-width its edges fade over | 0-4, 0.05-1 |
+| `idle`, `swinging`, `swing_speed` | How strong it smokes lit and held still, and lit and going `swing_speed` units a second or faster (the speed eased over a quarter of a second; in between, smoothly): `swinging` 0 smokes only standing, lighting and put out, 1 the whole time; at 0 the strand ends, and a new one starts when it slows | 0-1, 0-1, 10-1000 |
+| `ignite` | Seconds it smokes at full strength once lit, swinging or not, thinning at their end (not when a blade first comes into view lit) | 0-10 |
+
+`sparks`, in the same file: sparks crackling out of the emitter
+([saber_sparks.rs](../crates/sjk-viewer/src/saber_sparks.rs)). Bursts come at random
+moments (an exponential wait between them, drawn again when the rate rises, as at
+ignition); a burst is one to `burst` of the game's particles shot out in a cone round
+the world's up, the blade's way or between (`aim`), falling under gravity, each streaking behind it along the way it goes
+now (`PrimitiveShape::Spark`: `CTail::CalcNewEndpoint`'s way; the efx tails keep the way
+they were let go along, as SJK draws them), shrinking and fading as it dies. An additive
+shader fades the colour, as the smoke's does.
+
+| `sparks` field | Meaning | Range |
+| --- | --- | --- |
+| `shader` | A game shader for a spark (`gfx/misc/spark4`: a white-hot point in a warm halo, additive, taking the tint) | game path |
+| `color`, `opacity` | Its tint (over 1 brightens it), and how strong when let go | 0-4, 0-1 |
+| `rate` | Bursts a second while lit | 0-30 |
+| `ignite`, `ignite_rate` | Seconds after lighting, and bursts a second then (when more than `rate`) | 0-10, 0-60 |
+| `after`, `after_rate` | Seconds after putting out, and bursts a second just after, falling to none | 0-10, 0-60 |
+| `burst` | Most sparks a burst (one to this many) | 1-16 |
+| `speed`, `speed_jitter` | Units a second shot out, and the share each may be slower | 0-500, 0-1 |
+| `spread`, `aim` | Degrees the cone opens round its axis; the axis: the world's up at 0, the way the blade points at 1, back out of the hilt at -1, turning between (up where the two would cancel) | 0-180, -1-1 |
+| `gravity` | Units a second² they fall (negative: rise) | -800-2000 |
+| `life`, `size`, `length` | About how long a spark lasts (seconds, ±40%), its width, and its streak's length (units) | 0.05-3, 0.05-8, 0-32 |
+| `along` | Where on the blade they come from: 0 the emitter, 1 the tip | 0-1 |
+
+`sparks` may be one set (an object) or a list of up to three, each its own emitter (a
+welder's spray and embers drifting off, 19/10/2026); in a list a mistake is named
+`sparks[1].speed` and so on. A set with `length` 0 lets go round points, not streaks:
+embers. `bolts` (19/10/2026): jagged bolts of the game's electricity (`CElectricity`, as
+an efx draws it, crackling into a new shape every frame) from the emitter to a point off
+it, struck as sparks' bursts are: `shader` (`gfx/misc/redbolt`), `color`, `opacity`,
+`rate`, `ignite`, `ignite_rate`, `after`, `after_rate`, `burst` (1-8), `reach` (units,
+0.5-64) and `reach_jitter`, `spread` and `aim` as sparks', `width` (0.05-8), `chaos`
+(0-2, how jagged), `branch` (forking), `life` (seconds, 0.02-2), `along`.
+
+A spark set's optional `wander` (units a second², 0-400, default 0) pushes each spark
+about with a force of its own, smooth and tangled (`Motion::with_wander`, slowed at 1.6 a
+second): embers darting and swirling. `unrest` (19/10/2026, `reach`, `fade` in units,
+`far` 0-1): the blade's unrest (granulation, pulled to a steady middle; flares; shimmer;
+the frayed edge; the tongues' noise; the arcs) is whole for `reach` units from the
+emitter, then calms over `fade` to `far` of itself (`skin_unrest` in `saber.wgsl`). The
+arcs hug the blade as it calms (their bulge and zigzag scaled too, not only their light);
+`lean` (default 0, -16 to 16) slants the tongues' spikes toward the tip, units along a
+capsule radius out. `swing` (default 0, 0-64 units): a swinging blade's unrest reaches up
+to `swing` units further, by the blade's swing as `saber_motion.rs` measures it for the
+Blade Lab designs (0 to 1, its `motion.x`, folded into the unrest's reach in `skin_at`).
+`haze` (default 0, 0-1): the heat haze calms with the unrest, 1 bending the scene only
+where the blade is unsettled (`fragment_haze`). `clash` (default 0, 0-64 units) and
+`clash_time` (default 0.6, 0.05-5 s): when the blade clashes its arcs' unrest alone (not
+the edge, grain, flares or tongues) reaches that much further at once, settling as
+(1 - t/clash_time)², from the seconds since the blade's last clash its motion carries
+(`motion.y`, `saber_motion.rs`, which every clash below feeds with `BladeMotion::clash`).
+A spark set's or the bolts' `clash` (default 0, 0-8) lets that many bursts go at once then
+(`Sparks::kick`). A clash is a snapshot's saber block (`impacts::Pool::clashes`, by where
+it struck: within a blade's radius and 6 units of its line), a blade's first touch of a
+wall (`saber_contacts`, the next frame), the clash flares the motion watches itself, or
+the Saber Lab's Clash button (C), which strikes the hand's and the floating copy's blades
+and sounds a stock block. A jagged hotspot at the emitter is a spark set of streaks aimed back
+into the hilt (`aim` -1, nearly still): a streak is drawn behind its spark, so they fan
+out of the emitter up the blade.
+
+`crackle` (19/10/2026, the eighth set): the emitter heard. `buzz` (a game path, or empty
+for none) loops under the hum while the blade is lit at `buzz_volume` (0-2), and one of
+`snaps` (0-8 game paths, at random) sounds at `snap_volume` (0-2) each time a burst of the
+skin's `bolts` leaves the emitter (`saber_sparks` reports its bursts). Heard in the Saber
+Lab (`menu_stage/lab.rs`, which also loops the skin's `hum` there, through
+`GameAudio::menu_loop` with the menus' idle loop set) and in a match (19/10/2026): saber
+submission notes the bolts' bursts and the lit emitters (`saber_smoke::Heard`),
+`GameAudio::hear_sabers` plays the snaps where they went (a source of no entity's, a
+muted player's left out) and loops the buzzes at the emitters in the next frame's set; the
+sounds are decoded as the skins load (`audio_legacy.rs`). The last snap of a sputter
+(`flash.die`) sounds in both.
+
+`chroma` (20/10/2026, the eighth set): the skin is a chroma by its own file, as a
+catalogue chroma is by its entry (a Saber Lab blade has no entry): it takes its wearer's
+saber colour, `color1` or `color2`, the RGB ones too, its colours turned round to that hue
+from its corona's rim's (`SkinColor::worn_with`). `effects` (optional, default true) turns
+its emitter's smoke, ribbons, sparks and bolts with it (their colours turned where the
+wearer's colour is taken), which a catalogue chroma's have none of.
+
+`disintegrate` (19/10/2026 to 04/11/2026, the eighth set) is gone from the format: the
+burn on a saber kill became the first finisher, worn with any blade
+([Finishers](#finishers)).
+
+`flash` (19/10/2026): a crackling star at the emitter, the Sun's glint gone wild, drawn by
+`saber.wgsl` (`skin_flash`) on camera-facing quads of its own (`Instance::flashes`, colour
+alpha `FLASH - n`, -16 and below: a glint's tests take them, the black holes' pass leaves
+them out). Fields: `color`, `brightness` (0-10), `count` (1-4 at once), `rays` (2-12),
+`length` (units, 0.2-24), `width` (a share of the length, 0.01-0.5), `halo` (the heart,
+0-4), `rate` (shuffles a second, 0-60: each star's rays thrown to new angles and lengths,
+its light to a new flicker, its place jumping), `chaos` (0 even, 1 wild), `jitter` (units
+it jumps about its place, 0-8), `lean` (0-1: rays pointing up the blade longer, the ones
+pointing back shorter), `along`, `light` (optional, 0-4, default 0: the blade's dynamic light crackles with the stars, `saber_lights.rs` `FlashLight` following `skin_flash`'s own hashes; at a shuffle's brightest they add that share of the light, 1 doubling it), `ignite` (optional, seconds 0-10, default 0), `surge` (0-8) and `grow` (0-2): for `ignite` seconds once the blade lights the stars are up to `surge` more bright and `grow` more big, falling off as (1 - t/ignite)², the light with them (`saber::Ignition` notes when a blade lit; a blade first seen lit is no ignition; the flash instance's red lane carries the share left, `Instance::with_moments`), `die`
+(optional, seconds 0-5, default 0: once put out and drawn in all the way, which takes a
+match's blade about a second, `Ignition::gone_for`, the stars sputter on without it,
+now out, now flaring, out more often and dimmer as they die, the green lane; the Saber Lab
+snaps once as it ends) and `burst` (optional: `strength` 0-4 units, `reach` 1-64, `time`
+0.05-3 s, `width` 0.2-16: as the blade lights a ring of bent air spreads from the
+emitter, drawn on the first star's quad in the haze pass, the blue lane). The Collection's stage lights the menu map and its model with its hands' blades as a match does (19/10/2026). `arcs.root` (optional, 0-1, default 0): the share of strikes
+rooted at the emitter, running up the blade for their span, instead of anywhere along it.
+| `along` | Where on the blade it comes from: 0 the emitter, 1 the tip | 0-1 |
 
 | Field | Meaning | Range |
 | --- | --- | --- |
@@ -1091,7 +1254,7 @@ switched off needs a wider mask.
 | `chrome.color`, `width` | A liquid mirror: its tint and half-width (blade radii) | 0-1, 0.2-2 |
 | `chrome.ripple`, `beads`, `speed` | How far ripples swell it, beads rolling up it at once, units a second | 0-0.5, 0-8, 0-40 |
 | `echo.fade`, `sway`, `rate`, `lean` | One faint copy of the glow beside the blade, there even held still: its brightness, how far it sways (units, the tip more than the hilt), sways a second, how far it leans (radians) | 0-1, 0-6, 0.02-4, 0-0.3 |
-| `options` | Up to 6 parts the wearer may switch off ([Options](#options)), each `{"id", "name", "sections"}`: `id` 1 to 24 of `a`-`z`, `0`-`9`, `_`; `name` 1 to 24 printable ASCII characters (the Collection shows it); `sections` 1 to 4 of the file's optional sections (`arcs`, `motes`, `hue`, `sputter`, `glitch`, `scan`, `pulse`, `ghosts`, `embers`, `veins`, `team`, `ambient`, `glyphs`, `star`, `wisps`, `haze`, `echo`, `holes`, `bands`, `segments`, `film`, `blobs`, `front`, `sketch`, `hourglass`, `serpent`, `strands`, `butterflies`, `wings`, `copies`, `ink`, `chrome`), each in the file and in one option only. Two ids of a skin may not share a bit of the look's 64 (FNV-1a of the id; the log names the pair to rename) | |
+| `options` | Up to 6 parts the wearer may switch off ([Options](#options)), each `{"id", "name", "sections"}`: `id` 1 to 24 of `a`-`z`, `0`-`9`, `_`; `name` 1 to 24 printable ASCII characters (the Collection shows it); `sections` 1 to 4 of the file's optional sections (`arcs`, `motes`, `hue`, `sputter`, `glitch`, `scan`, `pulse`, `ghosts`, `embers`, `veins`, `team`, `ambient`, `glyphs`, `star`, `wisps`, `haze`, `echo`, `holes`, `bands`, `segments`, `film`, `blobs`, `front`, `sketch`, `hourglass`, `serpent`, `strands`, `butterflies`, `wings`, `copies`, `ink`, `chrome`, and the eighth set's `smoke`, `ribbon`, `sparks`, `bolts`, `unrest`, `flash`, `crackle`, `disintegrate`), each in the file and in one option only. An option naming an eighth-set section belongs in the sixth additions file, which gives `options` anew: a client from before the eighth set reads the earlier file's and never sees it. Two ids of a skin may not share a bit of the look's 64 (FNV-1a of the id; the log names the pair to rename) | |
 | `trail` | Blur trail colour | 0-1 |
 | `light.color` | Dynamic light colour (stock gain) | 0-4 |
 | `light.flicker` | `amount` and up to 2 `waves` (`rate`, `weight`, `phase` per hilt): brightness `1 − amount + amount × Σ weight × sin(t × rate + phase × hilt phase)` | amount 0-1 |
@@ -1134,8 +1297,11 @@ off, and every other SJK player then draws the blade the same way.
   (`SkinColor::off`, `BladeSkinDef::off_mask`), carried by each instance (attribute 9);
   `saber.wgsl` zeroes those sections' lanes as a file without them has
   ([rendering.md](rendering.md#saber-blade-skins)), and the CPU leaves out the parts it
-  makes itself: afterimages, the echo, the glint, the light's beat and hue turning, and
-  the quad's room for wisps and haze.
+  makes itself: afterimages, the echo, the glint, the light's beat and hue turning, the
+  quad's room for wisps and haze, and of the eighth set the smoke, ribbons, sparks, bolts,
+  the emitter's stars and their light, the crackle and the burning (`SkinColor` holds none
+  of them). The mask has 64 bits, the instance two words (`saber.wgsl` `off.x`, `off.y`):
+  the eighth set's sections take the second, of which the shader reads the unrest's alone.
 
 Verified by unit tests (the cvar's words, the look carrying the worn skin's choice and
 reading it back, a muted slot showing none, the option mask and room, the CPU's parts
@@ -1439,6 +1605,34 @@ dropping the field for a hub that refuses it or a set the key lacks while still 
 the blade. World shot `duel6_sjk_saber_page` (the Sounds row with the Void's sounds under
 the Storm blade). Not verified: heard in a game, the preview by ear, another player's
 choice through a hub (the hub's side is tested in the hub's own suite).
+
+## Finishers
+
+Sol's decision, 04/11/2026: what a saber kill does to the body is a category of its own,
+not part of a blade skin, so any blade can wear it and it can drop later. The client's
+catalogue is `crate::finishers` (`finishers.rs`), the hub's the unlocks of kind `finisher`.
+
+- **Disintegrate** (`finisher_disintegrate`, Mythical, by Milamber, from his Saber Lab
+  blade): the victim of the wearer's saber kill (a thrown saber's too, `MOD_SABER`) burns
+  away as a disruptor's kill does, at once. The server knows nothing of it: every SJK
+  client that sees the killer wear it starts it from the kill feed
+  (`GpuState::observe_saber_kills`, `disintegration::Forced`), drawing the frozen pose, burn
+  and smoke the disruptor's take (`track_disintegration`), hides the victim after 1.5 s
+  until they live again, and hides the body the server copies of them as they respawn
+  (`corpse_actors.rs`, its `ircg` body command, which comes before the body is drawn). The
+  server and other clients keep the corpse. Only a killing blow does it. A reconnect or a
+  new timeline forgets the burns pending (`reset_live_presentation`).
+- **Wearing:** one at a time, `cg_saberFinisher` (archived, empty for none), worn and sent
+  only while the own profile lists it. Collection > Shaders has a Finishers pill beside
+  Saber (and Body, to come): its page lists each finisher as a card, Equip or Unequip
+  while held, how to get it otherwise.
+- **The look:** the finisher goes to the hub as the look's `finisher` (hub PROTOCOL.md,
+  Looks) and comes back to other players in presence and look events. A hub before
+  04/11/2026 refuses the field (`bad_body`): the look goes again without it. A finisher the
+  key does not hold (`finisher_not_unlocked`) is left out until the profile changes.
+  Clients before ignore it.
+- **Getting one:** not droppable yet. The hub grants it by hand (`unlock KEY
+  finisher_disintegrate`, the panel or staff); Sol decides when finishers enter holocrons.
 
 ## Medal shaders
 

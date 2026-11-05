@@ -4,6 +4,9 @@ mod backdrop;
 mod composer;
 mod draft;
 mod name;
+mod recipient;
+
+pub(super) use recipient::LIST_MAX as PM_LIST_MAX;
 mod sjk_line;
 
 /// The GIF picker's favourite mark.
@@ -173,6 +176,9 @@ impl ChatOverlay {
         let active = self.is_typing() || self.options.history;
         let limit = self.options.lines;
         self.follow_gif_switch();
+        // The links' places, for Ctrl+C on one while the pointer is free (`links.rs`).
+        self.links.clear();
+        let follow_links = self.is_typing();
         let mut visible = [(0_usize, 0.0_f32, 0.0_f32, None); MAX_VISIBLE];
         let mut count = 0;
         let mut bottom = g.bottom;
@@ -276,6 +282,18 @@ impl ChatOverlay {
                         Color::new(0.982, 0.987, 0.996, alpha),
                     );
                 }
+                if follow_links && !line.muted {
+                    let place = links::RowPlace {
+                        origin: [x, y],
+                        indent: 0.0,
+                        size: g.font,
+                        spacing: g.spacing,
+                        row: g.row,
+                    };
+                    let rows = &line.wrap.rows[..line.wrap.len];
+                    let key = (index, line.received_ms);
+                    self.links.add_line(font, key, &line.body, rows, place);
+                }
                 continue;
             };
             let prefix = sjk_line::Prefix::new(name, marks, font, g);
@@ -322,6 +340,22 @@ impl ChatOverlay {
                 [x, y],
                 alpha,
             );
+            // A muted line shows a note, and a find's words hold no link.
+            if follow_links
+                && !line.muted
+                && line.hub.as_ref().is_none_or(|hub| hub.prize.is_none())
+            {
+                let place = links::RowPlace {
+                    origin: [x, y],
+                    indent: prefix.width(),
+                    size: g.font,
+                    spacing: g.spacing,
+                    row: g.row,
+                };
+                let rows = &line.wrap.rows[..line.wrap.len];
+                let key = (index, line.received_ms);
+                self.links.add_line(font, key, &line.body, rows, place);
+            }
             if let Some(shown) = gif {
                 let rows = if line.muted { 1 } else { line.wrap.len };
                 crate::chat_gifs::draw::paint(
@@ -357,6 +391,13 @@ impl ChatOverlay {
             {
                 self.visible_people[token] = Some(card::Who::Player(target));
                 self.ui.hit_region(token as u16, name);
+            }
+        }
+        // The link under the pointer is lit as a name under it is, on every row it is
+        // drawn on: Ctrl+C copies it (`links.rs`).
+        if let Some(spot) = self.link_under_pointer() {
+            for rect in self.links.pieces(spot) {
+                self.ui.accent_bar(rect, Color::new(0.70, 0.88, 0.98, 0.16));
             }
         }
     }

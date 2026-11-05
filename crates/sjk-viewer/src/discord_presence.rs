@@ -192,7 +192,8 @@ fn tab_words(tab: Tab) -> &'static str {
         Tab::Medals if crate::terms::renamed() => "Looking at honors",
         Tab::Medals => "Looking at medals",
         Tab::Achievements => "Looking at achievements",
-        Tab::Shaders => "Looking at saber shaders",
+        // The Saber Lab is a development tab: told as the shaders are.
+        Tab::Shaders | Tab::SaberLab => "Looking at saber shaders",
         Tab::Toys => "Looking at toys",
         Tab::Tags => "Looking at tags",
         Tab::Banners => "Choosing a profile banner",

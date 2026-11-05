@@ -42,6 +42,10 @@ pub(crate) struct Particle {
 #[derive(Clone, Copy)]
 pub(crate) enum PrimitiveShape {
     Billboard,
+    /// A tail drawn along the way the particle goes now, as `CTail::CalcNewEndpoint`
+    /// draws one: a blade skin's sparks (`saber_sparks.rs`), whose way bends as they
+    /// fall. The efx tails keep the way they were let go along, as before.
+    Spark,
     /// A retained-world sprite replaced each frame rather than simulated over its lifetime.
     FrameBillboard,
     /// An effect `Flash` primitive, drawn over the whole view (`CFlash::Draw`,

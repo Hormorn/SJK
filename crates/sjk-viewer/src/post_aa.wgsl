@@ -22,6 +22,10 @@ override EFFECTS: bool = false;
 override GLOW: bool = false;
 @group(0) @binding(8) var glow_image: texture_2d<f32>;
 @group(0) @binding(9) var<uniform> glow_controls: vec4<f32>;
+// Contrast-adaptive sharpening (`r_sharpen`, `post_color.rs`) against the softness FXAA
+// and the scene's filtering leave: [amount 0..1, unused x3]. Compiled out at 0.
+override SHARPEN: bool = false;
+@group(0) @binding(10) var<uniform> sharpen_controls: vec4<f32>;
 
 @vertex fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
     let p = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));
@@ -62,6 +66,28 @@ fn with_glow(rgb: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
     if glow_controls.y != 0.0 { return scene + glow - scene * glow; }
     return min(scene + glow, vec3<f32>(1.0));
 }
+// RCAS's limits (AMD FidelityFX Super Resolution 1, MIT), as `render_scale_up.wgsl`:
+// the negative lobe of the four neighbours is the largest that neither pushes the pixel
+// below their darkest nor above their brightest channel, so edges get crisper without
+// dark or bright halos. `rgb` is the resolved pixel (FXAA's result when it ran), the
+// neighbours the scene's own display values.
+fn with_sharpen(rgb: vec3<f32>, uv: vec2<f32>, pixel: vec2<f32>) -> vec3<f32> {
+    if !SHARPEN || sharpen_controls.x <= 0.0 { return rgb; }
+    let e = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+    let b = clamp(sample_at(uv - vec2<f32>(0.0, pixel.y)), vec3<f32>(0.0), vec3<f32>(1.0));
+    let d = clamp(sample_at(uv - vec2<f32>(pixel.x, 0.0)), vec3<f32>(0.0), vec3<f32>(1.0));
+    let f = clamp(sample_at(uv + vec2<f32>(pixel.x, 0.0)), vec3<f32>(0.0), vec3<f32>(1.0));
+    let h = clamp(sample_at(uv + vec2<f32>(0.0, pixel.y)), vec3<f32>(0.0), vec3<f32>(1.0));
+    let lowest = min(min(b, d), min(f, h));
+    let highest = max(max(b, d), max(f, h));
+    let hit_low = min(lowest, e) / max(4.0 * highest, vec3<f32>(1e-5));
+    let hit_high = (1.0 - max(highest, e)) / min(4.0 * lowest - 4.0, vec3<f32>(-1e-5));
+    let lobes = max(-hit_low, hit_high);
+    let lobe = max(-0.1875, min(max(lobes.r, max(lobes.g, lobes.b)), 0.0))
+        * min(sharpen_controls.x, 1.0);
+    let sharpened = (lobe * (b + d + f + h) + e) / (4.0 * lobe + 1.0);
+    return clamp(sharpened, vec3<f32>(0.0), vec3<f32>(1.0));
+}
 fn output_color(rgb: vec3<f32>, alpha: f32, uv: vec2<f32>) -> vec4<f32> {
     var encoded = with_glow(with_effects(rgb, uv), uv);
     if controls.z != 1.0 {
@@ -94,7 +120,9 @@ fn output_color(rgb: vec3<f32>, alpha: f32, uv: vec2<f32>) -> vec4<f32> {
     } else if SCENE_EXPOSURE {
         center = vec4(ldr_exposed(center.rgb), center.a);
     }
-    if controls.x == 0.0 { return output_color(center.rgb, center.a, uv); }
+    if controls.x == 0.0 {
+        return output_color(with_sharpen(center.rgb, uv, pixel), center.a, uv);
+    }
     let nw = luma(sample_at(uv + vec2<f32>(-1.0, -1.0) * pixel));
     let ne = luma(sample_at(uv + vec2<f32>(1.0, -1.0) * pixel));
     let sw = luma(sample_at(uv + vec2<f32>(-1.0, 1.0) * pixel));
@@ -102,7 +130,9 @@ fn output_color(rgb: vec3<f32>, alpha: f32, uv: vec2<f32>) -> vec4<f32> {
     let mid = luma(center.rgb);
     let lo = min(mid, min(min(nw, ne), min(sw, se)));
     let hi = max(mid, max(max(nw, ne), max(sw, se)));
-    if hi - lo < max(0.0312, hi * 0.125) { return output_color(center.rgb, center.a, uv); }
+    if hi - lo < max(0.0312, hi * 0.125) {
+        return output_color(with_sharpen(center.rgb, uv, pixel), center.a, uv);
+    }
     let gradient = vec2<f32>(-((nw + ne) - (sw + se)), (nw + sw) - (ne + se));
     let reduce = max((nw + ne + sw + se) * (0.25 * 0.125), 1.0 / 128.0);
     let direction = clamp(gradient / (min(abs(gradient.x), abs(gradient.y)) + reduce),
@@ -112,5 +142,5 @@ fn output_color(rgb: vec3<f32>, alpha: f32, uv: vec2<f32>) -> vec4<f32> {
     let b = a * 0.5 + 0.25 * (sample_at(uv - direction * 0.5)
         + sample_at(uv + direction * 0.5));
     let lb = luma(b);
-    return output_color(select(b, a, lb < lo || lb > hi), center.a, uv);
+    return output_color(with_sharpen(select(b, a, lb < lo || lb > hi), uv, pixel), center.a, uv);
 }

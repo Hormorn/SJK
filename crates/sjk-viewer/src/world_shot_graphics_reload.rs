@@ -41,7 +41,8 @@ fn graphics_reload_menu() {
         assert!(changes.contains(&"sun and sky"), "{changes:?}");
 
         // Reload now: the card says the map is being built again over the old world.
-        gpu.reload_graphics(&mut None).expect("the reload starts");
+        gpu.reload_graphics(&mut None, false)
+            .expect("the reload starts");
         shoot(&mut gpu, 2, "graphics-reload-reloading");
         let started = Instant::now();
         let rebuilt = loop {
@@ -83,7 +84,7 @@ fn graphics_reload_menu() {
 /// One frame as the application runs it (`viewer_app.rs`): draw, adopt a world that
 /// finished installing (parking the menu world), take a rebuilt one, bring the parked
 /// menu world back once off the server. New worlds get the shot's target.
-fn step(gpu: &mut GpuState, parked: &mut crate::menu_world::Parked, size: [u32; 2]) {
+pub(super) fn step(gpu: &mut GpuState, parked: &mut crate::menu_world::Parked, size: [u32; 2]) {
     let _ = gpu.render(&mut None);
     match gpu.poll_world_install() {
         Ok(Some(installed)) => {
@@ -111,7 +112,7 @@ fn step(gpu: &mut GpuState, parked: &mut crate::menu_world::Parked, size: [u32; 
 }
 
 /// Step until `done`, for at most `seconds`.
-fn until(
+pub(super) fn until(
     gpu: &mut GpuState,
     parked: &mut crate::menu_world::Parked,
     size: [u32; 2],

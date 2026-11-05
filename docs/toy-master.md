@@ -177,6 +177,11 @@ or escorted), so the clients there read the toys at once and the toy appears or 
 within seconds. A client from before then never sees an escorted toy. `toymaster_list`
 says which are escorted.
 
+The browser map editor's World page ([map-edits.md](map-edits.md#the-browser-editor-creator-only-for-now))
+shows the toys and hides one of a kind (for this server, escorted) where a click meets the
+floor, or takes one away, through the same code (`toy_master_place_at`, `toymaster_remove
+<id>`); the hub has no move.
+
 All of these are the creator's only. Placing needs the map's BSP checksum (as map edits
 do, `sv_mapChecksum`). The hub takes the creator's request only; every placing and
 removal goes to the staff log.

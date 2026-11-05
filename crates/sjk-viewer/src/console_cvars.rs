@@ -136,6 +136,18 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Maps whose server shader remaps are ignored, as with cg_remaps 0: mp/ffa4 mp/duel6",
         ),
         CvarDefinition::new(
+            crate::remap_blocked_maps::ALLOWED_CVAR,
+            "",
+            archive,
+            "Maps whose server shader remaps apply even with cg_serverRemaps 0: mp/ffa4 mp/duel6",
+        ),
+        CvarDefinition::new(
+            crate::remap_blocked_maps::MAP_CVAR,
+            crate::remap_blocked_maps::Choice::NAMES[0],
+            CvarFlags::NONE,
+            "Server shader remaps on the loaded map: default (as cg_serverRemaps), on or off; kept in cg_remapsAllowedMaps and cg_remapsBlockedMaps",
+        ),
+        CvarDefinition::new(
             "cg_forceEnemyModel",
             "none",
             archive,
@@ -567,6 +579,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Internal migration marker for the emote volume apart from s_volume",
         ),
         CvarDefinition::new(
+            crate::emotes::DUEL_MUTE_CVAR,
+            crate::emotes::DEFAULT_DUEL_MUTE,
+            archive,
+            "Emote sounds are silent while you are in a duel (SJK)",
+        ),
+        CvarDefinition::new(
             crate::toy_sounds::VOLUME_CVAR,
             crate::toy_sounds::DEFAULT_VOLUME,
             archive,
@@ -649,6 +667,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             true,
             archive,
             "Play the Fishing toy's sounds (SJK)",
+        ),
+        CvarDefinition::new(
+            crate::fishing::CUE_CVAR,
+            crate::fishing::CUE_DEFAULT,
+            archive,
+            "Show a fish's bite on screen: 0 never, 1 when the fishing sounds can't be heard, 2 always (SJK)",
         ),
         CvarDefinition::new(
             crate::toy_sounds::Toy::Mining.cvar(),
@@ -1195,6 +1219,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "The blade skin your second saber wears, by unlock id; empty for the same as the first (cg_saberSkin), stock for the stock blade",
         ),
         CvarDefinition::new(
+            crate::finishers::CVAR,
+            "",
+            archive,
+            "The finisher your saber kills play, by unlock id (finisher_disintegrate), worn once your SJK profile holds it; empty for none",
+        ),
+        CvarDefinition::new(
             crate::saber_sound_choice::CVAR,
             "",
             archive,
@@ -1489,7 +1519,15 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "cl_packetdup",
             1_i64,
             archive,
-            "Repeat the previous N packets' usercmds in every packet (0 to 5) so lost packets drop no move",
+            "Repeat the previous N packets' usercmds in every packet (0 to 5) so lost packets drop no move; servers SJK knows to take fewer get fewer (JoF's: none)",
+        ),
+        // SJK's: the servers known to take fewer repeated commands keep their cap
+        // unless lifted (`server_caps.rs`).
+        CvarDefinition::new(
+            crate::server_caps::PACKET_DUP_OVERRIDE_CVAR,
+            0_i64,
+            archive,
+            "1 ignores the servers SJK knows to take fewer repeated packets (JoF's: none, Heimdall kicks for them): cl_packetdup applies as set there too",
         ),
         CvarDefinition::new(
             "cl_timeNudge",

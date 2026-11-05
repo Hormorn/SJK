@@ -1103,6 +1103,7 @@ impl GpuState {
             let origin = Vec3::from_array(presented.sample(time).translation);
             let velocity = Vec3::from_array(entity.trajectory_delta());
             let yaw = entity.angles()[1];
+            let scale = crate::ragdoll::scale_percent(entity.model_scale_percent());
             let standing = Start {
                 moment: time as i32,
                 origin: origin.to_array().map(|c| c.round() as i32),
@@ -1110,6 +1111,7 @@ impl GpuState {
                     .to_array()
                     .map(|c| c.clamp(-3_999.0, 3_999.0).round() as i32),
                 yaw: (yaw.rem_euclid(360.0).round() as u16) % 360,
+                scale,
             };
             let target = match self.ragdoll.points_of(slot) {
                 Some(points) => Target::Limp(points),
@@ -1117,7 +1119,7 @@ impl GpuState {
                     low: origin + Vec3::new(-15.0, -15.0, -24.0),
                     high: origin + Vec3::new(15.0, 15.0, 40.0),
                     velocity,
-                    points: crate::ragdoll::standing(origin, yaw),
+                    points: crate::ragdoll::standing(origin, yaw, scale),
                 },
             };
             others.push((slot, target, standing));
@@ -1271,7 +1273,11 @@ impl GpuState {
             low: origin + Vec3::new(-15.0, -15.0, -24.0),
             high: origin + Vec3::new(15.0, 15.0, top),
             velocity: Vec3::from_array(state.velocity),
-            points: crate::ragdoll::standing(origin, state.view_angles[1]),
+            points: crate::ragdoll::standing(
+                origin,
+                state.view_angles[1],
+                self.ragdoll_own_scale(),
+            ),
         })
     }
 
@@ -1637,7 +1643,7 @@ mod tests {
             low: origin + Vec3::new(-15.0, -15.0, -24.0),
             high: origin + Vec3::new(15.0, 15.0, 40.0),
             velocity: Vec3::ZERO,
-            points: crate::ragdoll::standing(origin, 0.0),
+            points: crate::ragdoll::standing(origin, 0.0, crate::ragdoll::STOCK_SCALE),
         };
         // High: the head; low: a foot; far off: nothing.
         let (head, _) = target.struck(Vec3::new(-20.0, 0.0, 62.0)).unwrap();
@@ -1685,7 +1691,8 @@ mod tests {
 
     #[test]
     fn a_fast_monitor_strikes_a_body_it_passes_through_within_a_step() {
-        let points = crate::ragdoll::standing(Vec3::new(0.0, 0.0, 24.0), 0.0);
+        let points =
+            crate::ragdoll::standing(Vec3::new(0.0, 0.0, 24.0), 0.0, crate::ragdoll::STOCK_SCALE);
         let target = Target::Limp(points);
         let head = points[2];
         // 2,600 units a second: 41.6 units a step, through the head and out.

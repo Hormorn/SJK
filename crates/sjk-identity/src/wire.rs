@@ -1171,6 +1171,11 @@ pub struct Look {
     /// The tag the player stuck on the world (since 27/10/2026); `None` when absent.
     #[serde(default)]
     pub tag: Option<PlacedTag>,
+    /// The finisher the player wears (since 04/11/2026): what their saber kills do to
+    /// the body, a finisher's unlock id; empty for none (absent from older hubs and
+    /// clients).
+    #[serde(default)]
+    pub finisher: String,
 }
 
 /// A tag stuck on the world (`PROTOCOL.md`, "Looks", since 27/10/2026): a tag unlock the
@@ -1242,6 +1247,9 @@ pub struct LookEvent {
     /// The tag the wearer stuck on the world; `None` when absent.
     #[serde(default)]
     pub tag: Option<PlacedTag>,
+    /// The finisher the wearer wears (since 04/11/2026); empty when absent.
+    #[serde(default)]
+    pub finisher: String,
 }
 
 impl LookEvent {
@@ -1258,6 +1266,7 @@ impl LookEvent {
             saber2_on: self.saber2_on.clone(),
             saber_sounds: self.saber_sounds.clone(),
             tag: self.tag.clone(),
+            finisher: self.finisher.clone(),
         }
     }
 }
@@ -2074,6 +2083,7 @@ mod tests {
                 saber2_on: Vec::new(),
                 saber_sounds: String::new(),
                 tag: None,
+                finisher: String::new(),
             })
         );
         let options: Presence = serde_json::from_str(
@@ -2112,6 +2122,7 @@ mod tests {
                 saber2_on: Vec::new(),
                 tag: None,
                 saber_sounds: String::new(),
+                finisher: String::new(),
             }
         );
         let options: Feed = serde_json::from_str(

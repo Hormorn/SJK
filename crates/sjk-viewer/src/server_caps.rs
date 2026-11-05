@@ -5,12 +5,20 @@
 //! never makes commands faster than such a server takes, unless the player lifts the
 //! caps with [`OVERRIDE_CVAR`]. Servers that drop fast inputs and are not listed open
 //! the gameplay FPS card by themselves (`input_health.rs`); one found that way
-//! belongs in `known_servers` and here.
+//! belongs in `known_servers` and here. A family may also take fewer repeated
+//! commands a packet than `cl_packetdup` asks ([`ServerCap::max_packet_dup`]),
+//! which [`PACKET_DUP_OVERRIDE_CVAR`] alone lifts.
 
-/// 1 lifts every cap in [`KNOWN`]: the gameplay FPS applies as set.
+/// 1 lifts every command step in [`KNOWN`]: the gameplay FPS applies as set.
 pub(crate) const OVERRIDE_CVAR: &str = "gameplay_fps_nocap";
 
-/// A server family's shortest command step.
+/// 1 lifts every [`ServerCap::max_packet_dup`]: `cl_packetdup` applies as set. Apart
+/// from [`OVERRIDE_CVAR`], as an anti-cheat that wants fewer repeats kicks whatever
+/// gameplay FPS the player chose.
+pub(crate) const PACKET_DUP_OVERRIDE_CVAR: &str = "cl_packetdup_nocap";
+
+/// What a server family takes: its shortest command step, how commands are paced,
+/// and how many earlier packets a packet may repeat.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct ServerCap {
     /// The family's id in `sjk_mod::known_servers`.
@@ -22,6 +30,9 @@ pub(crate) struct ServerCap {
     /// How a frame slower than the step spreads its commands: the family's own
     /// client's way, which its anti-cheat expects.
     pub(crate) pacing: sjk_client::command_rate::Pacing,
+    /// The most earlier packets whose commands a packet may repeat (`cl_packetdup`),
+    /// when the family takes fewer than the player may set; `None` takes any.
+    pub(crate) max_packet_dup: Option<usize>,
 }
 
 impl ServerCap {
@@ -45,6 +56,11 @@ pub(crate) const KNOWN: &[ServerCap] = &[
         // commands went out stamped up to 32 ms in the past (Krieger, Slash,
         // 02/11/2026).
         pacing: sjk_client::command_rate::Pacing::OnePerFrame,
+        // No repeated commands: Milamber, who maintains Heimdall, told Sol that
+        // `cl_packetdup` is what it kicked SJK players for (Turin's kicks,
+        // 04/11/2026). JoF EJK repeats one packet whatever its `cl_packetdup`
+        // (`CL_WritePacket`, `outgoingSequence - 1 - 1`).
+        max_packet_dup: Some(0),
     },
 ];
 
@@ -72,6 +88,7 @@ mod tests {
         let jof = find(&server(JaPlus, r"\gamename\JA+ Mod v2.5\V\2.5B0")).unwrap();
         assert_eq!((jof.name, jof.step, jof.per_second()), ("JoF", 8, 125));
         assert_eq!(jof.pacing, sjk_client::command_rate::Pacing::OnePerFrame);
+        assert_eq!(jof.max_packet_dup, Some(0));
         assert!(find(&server(JaPlus, r"\V\2.4B7")).is_none());
         assert!(find(&server(BaseJka, r"\V\2.5B0")).is_none());
     }
@@ -80,6 +97,12 @@ mod tests {
     fn every_cap_names_a_known_family_and_a_real_step() {
         for cap in KNOWN {
             assert!((1..=50).contains(&cap.step), "{}", cap.name);
+            assert!(
+                cap.max_packet_dup
+                    .is_none_or(|dup| dup < sjk_client::command_history::MAX_PACKET_DUP),
+                "{}: a cap at the stock clamp caps nothing",
+                cap.name
+            );
             let family = sjk_mod::KNOWN_SERVERS
                 .iter()
                 .find(|family| family.id == cap.family)

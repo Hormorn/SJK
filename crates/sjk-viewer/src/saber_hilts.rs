@@ -232,6 +232,8 @@ pub(crate) fn load_hilts<'a>(
 
 fn default_definition() -> crate::saber_defs::Definition {
     crate::saber_defs::Definition {
+        sound_on: None,
+        sound_off: None,
         name: "single_1".to_owned(),
         sound_spin: None,
         sound_swing: [None, None, None],

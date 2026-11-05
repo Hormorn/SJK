@@ -235,6 +235,9 @@ impl GameAudio {
                     self.handles.remove(&path.to_ascii_lowercase());
                 }
             }
+            for path in self.blade_skins.crackle_sounds() {
+                self.handles.remove(&path.to_ascii_lowercase());
+            }
         }
         if self.legacy.is_some() && self.saber_sets_generation != Some(skins.generation()) {
             self.register_blade_skin_sounds();
@@ -271,6 +274,10 @@ impl GameAudio {
             handles.insert(key, handle);
             Some(handle)
         });
+        // And their crackles' (`hear_sabers`).
+        for path in skins.crackle_sounds() {
+            let _ = self.register_vfs_async(&vfs, path);
+        }
         self.saber_sets_generation = Some(skins.generation());
     }
 }

@@ -58,6 +58,8 @@ pub(crate) struct Runtime {
     bind: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
     parameters: wgpu::Buffer,
+    /// The sharpening amount (`r_sharpen`) at binding 10, when the resolve sharpens.
+    sharpen: Option<wgpu::Buffer>,
     fxaa: bool,
     hdr: hdr::Settings,
     /// Applied controls, allowing steady frames to skip updates.
@@ -126,6 +128,7 @@ impl Runtime {
             && !policy.tonemap
             && !policy.bloom
             && policy.gamma == 1.0
+            && policy.sharpen == 0.0
             && ui_direct
         {
             return None;
@@ -176,8 +179,12 @@ impl Runtime {
     ) -> Self {
         let scene_format = hdr.format(format);
         // As `scene_effects`: this pass resolves the scene before the HUD.
-        let resolves_scene =
-            hdr.mode != 0 || fxaa || policy.tonemap || policy.bloom || effects.is_some();
+        let resolves_scene = hdr.mode != 0
+            || fxaa
+            || policy.tonemap
+            || policy.bloom
+            || policy.sharpen > 0.0
+            || effects.is_some();
         let sample_format = scene_format.remove_srgb_suffix();
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
 
@@ -232,6 +239,7 @@ impl Runtime {
                         ("SCENE_EXPOSURE", f64::from(u8::from(resolves_scene))),
                         ("EFFECTS", f64::from(u8::from(effects.is_some()))),
                         ("GLOW", f64::from(u8::from(glow.is_some()))),
+                        ("SHARPEN", f64::from(u8::from(policy.sharpen > 0.0))),
                     ],
                     ..Default::default()
                 },
@@ -261,6 +269,13 @@ impl Runtime {
             label: Some("SJK color controls"),
             contents: bytemuck::cast_slice(&values),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let sharpen = (policy.sharpen > 0.0).then(|| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("SJK sharpening amount"),
+                contents: bytemuck::cast_slice(&sharpen_values(policy.sharpen)),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            })
         });
         let exposure = resolves_scene.then(|| {
             exposure::Exposure::new(device, &sample, &sampler, size, hdr.mode != 0, hdr.exposure)
@@ -292,6 +307,7 @@ impl Runtime {
             device,
             &pipeline,
             &parameters,
+            sharpen.as_ref(),
             bloom.as_ref(),
             &inputs,
             layer.as_ref(),
@@ -302,6 +318,7 @@ impl Runtime {
             bind,
             pipeline,
             parameters,
+            sharpen,
             fxaa,
             hdr,
             policy,
@@ -314,10 +331,12 @@ impl Runtime {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn bind(
         device: &wgpu::Device,
         pipeline: &wgpu::RenderPipeline,
         parameters: &wgpu::Buffer,
+        sharpen: Option<&wgpu::Buffer>,
         bloom: Option<&bloom::Bloom>,
         inputs: &Inputs,
         effects: Option<&effects::Layer>,
@@ -362,6 +381,11 @@ impl Runtime {
                 resource: glow
                     .map_or(parameters, |glow| glow.controls())
                     .as_entire_binding(),
+            },
+            // Without sharpening its taps are compiled out; the colour controls stand in.
+            wgpu::BindGroupEntry {
+                binding: 10,
+                resource: sharpen.unwrap_or(parameters).as_entire_binding(),
             },
         ];
         device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -408,6 +432,7 @@ impl Runtime {
             device,
             &self.pipeline,
             &self.parameters,
+            self.sharpen.as_ref(),
             self.bloom.as_ref(),
             &self.inputs,
             Some(&layer),
@@ -483,11 +508,34 @@ impl Runtime {
             || self.fxaa
             || self.policy.tonemap
             || self.policy.bloom
+            || self.policy.sharpen > 0.0
             || self.effects.is_some()
     }
 
+    /// Apply an edited gamma and sharpening amount whose on/off state is unchanged: 16-byte
+    /// uploads, without rebuilding pipelines or textures.
+    pub(super) fn set_controls(
+        &mut self,
+        queue: &crate::frame_queue::FrameQueue,
+        policy: color::Policy,
+    ) {
+        if policy.gamma != self.policy.gamma {
+            self.set_gamma(queue, policy.gamma);
+        }
+        if policy.sharpen != self.policy.sharpen {
+            self.policy.sharpen = policy.sharpen;
+            if let Some(sharpen) = &self.sharpen {
+                queue.write_buffer(
+                    sharpen,
+                    0,
+                    bytemuck::cast_slice(&sharpen_values(policy.sharpen)),
+                );
+            }
+        }
+    }
+
     /// Slider changes upload 16 bytes, without rebuilding pipelines or textures.
-    pub(super) fn set_gamma(&mut self, queue: &crate::frame_queue::FrameQueue, gamma: f32) {
+    fn set_gamma(&mut self, queue: &crate::frame_queue::FrameQueue, gamma: f32) {
         self.policy.gamma = gamma;
         if let Some(display) = &mut self.display {
             display.set_gamma(queue, gamma);
@@ -536,11 +584,17 @@ fn needs_display_pass(gamma: f32, ui_direct: bool) -> bool {
     gamma != 1.0 || !ui_direct
 }
 
+/// The sharpening uniform: [amount 0..1, unused x3].
+fn sharpen_values(amount: f32) -> [f32; 4] {
+    [amount.clamp(0.0, 1.0), 0.0, 0.0, 0.0]
+}
+
 fn parameters(fxaa: bool, policy: color::Policy) -> [f32; 4] {
     [
         f32::from(u8::from(fxaa)),
         f32::from(u8::from(policy.tonemap)),
-        if fxaa || policy.tonemap || policy.bloom {
+        // A scene resolve leaves gamma to the display pass after the HUD.
+        if fxaa || policy.tonemap || policy.bloom || policy.sharpen > 0.0 {
             1.0
         } else {
             policy.gamma
@@ -551,7 +605,19 @@ fn parameters(fxaa: bool, policy: color::Policy) -> [f32; 4] {
 
 #[cfg(test)]
 mod tests {
-    use super::needs_display_pass;
+    use super::{color, needs_display_pass, parameters};
+
+    #[test]
+    fn a_sharpening_resolve_leaves_gamma_to_the_display_pass() {
+        let policy = |sharpen| color::Policy {
+            gamma: 1.4,
+            sharpen,
+            ..Default::default()
+        };
+        // Gamma ramps the HUD too, so a scene resolve never applies it itself.
+        assert_eq!(parameters(false, policy(0.5))[2], 1.0);
+        assert_eq!(parameters(false, policy(0.0))[2], 1.4);
+    }
 
     #[test]
     fn display_pass_follows_gamma_and_surface_aliasing() {

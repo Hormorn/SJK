@@ -484,14 +484,16 @@ impl Row {
 
 /// What the second saber (or a staff's other half) wears by its own choice
 /// (`cg_saberSkin2`): `None` when it has none and wears the first's, `Some(None)` for the
-/// stock blade, `Some(Some(id))` for a skin the player holds (one not held is no choice,
-/// as `looks::SecondSkin::own` reads it).
+/// stock blade, `Some(Some(id))` for a skin the player holds or the Saber Lab gives on this
+/// PC (one not held is no choice, as `looks::SecondSkin::own` reads it).
 fn second_own(inputs: &Inputs<'_>) -> Option<Option<&'static str>> {
     match inputs.second.trim() {
         "" => None,
         crate::looks::STOCK_SECOND => Some(None),
         id => unlockables::blade_skin(id)
-            .filter(|skin| inputs.holdings.unlock(skin.id).is_some())
+            .filter(|skin| {
+                inputs.holdings.unlock(skin.id).is_some() || crate::saber_lab::owns(skin.id)
+            })
             .map(|skin| Some(skin.id)),
     }
 }
@@ -543,7 +545,8 @@ impl Columns {
 }
 
 impl Panel {
-    /// The rows: the stock blade, then the shaders the player may see
+    /// The rows: the stock blade, then, while the lab is on (`lab`), the Saber Lab's blade
+    /// ([`crate::saber_lab::active`]), then the shaders the player may see
     /// ([`unlockables::Holdings::listed`]: a Unique one only while held) that `filter` keeps,
     /// by tier (the rarest first), or in the list's order `sort` when not `by_tier`; the
     /// favourites among `marks` first, each part in that order.
@@ -553,10 +556,14 @@ impl Panel {
         sort: ShaderSort,
         by_tier: bool,
         marks: &crate::shader_marks::Marks,
+        lab: bool,
     ) -> Vec<Row> {
-        let worn = inputs
-            .holdings
-            .worn_blade_skin(inputs.setting)
+        // A Saber Lab skin is worn on this PC while the lab is on (`saber_lab::owns`).
+        let wearable = |skin: &unlockables::Unlockable| {
+            inputs.holdings.can_wear(skin) || crate::saber_lab::owns(skin.id)
+        };
+        let worn = unlockables::blade_skin(inputs.setting)
+            .filter(|skin| wearable(skin))
             .map(|skin| skin.id);
         // "2nd blade" only while there is a second saber or a staff's other half to wear it,
         // on a row the first does not wear.
@@ -574,7 +581,7 @@ impl Panel {
             })
             .map(|skin| Row {
                 skin: Some(skin),
-                owned: inputs.holdings.unlock(skin.id).is_some(),
+                owned: wearable(skin),
                 worn: worn == Some(skin.id),
                 second: pair && second == Some(Some(skin.id)) && worn != Some(skin.id),
                 count: inputs
@@ -613,6 +620,22 @@ impl Panel {
             locked: false,
             new: false,
         })
+        // The Saber Lab's blade, first after the stock one while the lab is on, whatever
+        // the filter or the order: only ever previewed.
+        .chain(lab.then_some(Row {
+            skin: Some(&crate::saber_lab::BLADE),
+            owned: true,
+            worn: worn == Some(crate::saber_lab::ID),
+            second: pair
+                && second == Some(Some(crate::saber_lab::ID))
+                && worn != Some(crate::saber_lab::ID),
+            count: 1,
+            // No catalogue number to show.
+            numbered: false,
+            favourite: false,
+            locked: false,
+            new: false,
+        }))
         .chain(skins)
         .collect()
     }
@@ -625,6 +648,16 @@ impl Panel {
             self.second_target = false;
         }
         self.shader_numbers = inputs.holdings.debug();
+        self.finisher_worn = crate::finishers::own(inputs.finisher, |id| {
+            inputs.holdings.debug() || inputs.holdings.unlock(id).is_some()
+        });
+        if self.finishers_shown {
+            let owned = unlockables::blade_skins()
+                .filter(|skin| inputs.holdings.unlock(skin.id).is_some())
+                .count();
+            self.finishers_page(frame, inputs, (owned, inputs.holdings.listed_count()));
+            return;
+        }
         if self.shader_sort == ShaderSort::Number && !self.shader_numbers {
             self.shader_sort = ShaderSort::Tier;
         }
@@ -658,6 +691,7 @@ impl Panel {
             self.shader_sort,
             by_tier,
             &self.marks,
+            crate::saber_lab::active(),
         );
         self.shader_list = rows.iter().filter_map(|row| row.skin).collect();
         self.shader_owned.clear();
@@ -720,9 +754,19 @@ impl Panel {
                 "How your blade looks and sounds, for every SJK player on your server."
             }
         };
-        self.lead(frame, &headline, line);
+        // The Saber Lab's folder and what it last gave, while the lab is on.
+        let lab = crate::saber_lab::status();
+        self.lead(frame, &headline, lab.as_deref().unwrap_or(line));
         self.new_count(frame, &headline);
-        self.kinds(frame, owned, total);
+        let finishers_held = crate::finishers::CATALOGUE
+            .iter()
+            .filter(|f| inputs.holdings.debug() || inputs.holdings.unlock(f.id).is_some())
+            .count();
+        self.kind_pills(
+            frame,
+            (owned, total),
+            (finishers_held, crate::finishers::CATALOGUE.len()),
+        );
         self.view_switches(frame);
         self.toolbar(frame);
         self.tier_strip(frame, inputs);
@@ -747,17 +791,20 @@ impl Panel {
             let row_id = row.skin.map(|skin| skin.id);
             let second_id = row_id.unwrap_or(crate::looks::STOCK_SECOND);
             let second_worn = second.map_or(row.worn, |own| own == row_id);
+            // A Saber Lab skin is worn on this PC as one held is (`saber_lab::owns`).
+            let wearable = row.owned
+                && (unlocks || row.skin.is_some_and(|skin| crate::saber_lab::owns(skin.id)));
             self.shader_rows[index] = ShaderRow {
                 wear: match row.skin {
                     // The stock blade, worn by taking the skin off.
                     None => (!row.worn).then_some(""),
-                    Some(skin) if row.owned && unlocks => Some(if row.worn { "" } else { skin.id }),
+                    Some(skin) if wearable => Some(if row.worn { "" } else { skin.id }),
                     Some(_) => None,
                 },
                 // Offered while the player holds two sabers or a staff: Equip puts it on the
                 // second, Unequip leaves the second the stock blade (the stock row has none).
                 second: if inputs.pair == crate::saber_skins::Pair::None
-                    || !(row.skin.is_none() || (row.owned && unlocks))
+                    || !(row.skin.is_none() || wearable)
                 {
                     None
                 } else if second_worn {
@@ -769,7 +816,7 @@ impl Panel {
                 // Both sides at once ("Both" box): they wear it, the second following the
                 // first; Unequip leaves both the stock blade.
                 both: if inputs.pair == crate::saber_skins::Pair::None
-                    || !(row.skin.is_none() || (row.owned && unlocks))
+                    || !(row.skin.is_none() || wearable)
                     || (row.skin.is_none() && row.worn && second_worn)
                 {
                     None
@@ -1740,58 +1787,6 @@ impl Panel {
         )
     }
 
-    /// The kinds of shader along the lead: Saber (`owned` of the `total` the player sees),
-    /// and Body to come.
-    fn kinds(&mut self, frame: &Frame, owned: usize, total: usize) {
-        let s = frame.s;
-        let x = LEFT_X + 560.0;
-        let y = LEAD_Y - 2.0;
-        let pills: [(&str, String, bool); 2] = [
-            ("Saber", format!("{owned}/{total}"), true),
-            ("Body", "soon".to_owned(), false),
-        ];
-        let mut left = x;
-        for (name, count, lit) in pills {
-            let width = 132.0;
-            let rect = frame.rect(left, y, width, 36.0);
-            let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
-                rect,
-                radius: 18.0 * s,
-                width: 1.2 * s,
-                color: if lit {
-                    color::GOLD
-                } else {
-                    color::alpha(color::HOLO, 0.25)
-                },
-            });
-            text(
-                &mut self.ui,
-                TextFamily::Display,
-                format_args!("{name}"),
-                frame.rect(left + 18.0, y + 5.0, 70.0, 26.0),
-                19.0 * s,
-                if lit {
-                    color::GOLD_BRIGHT
-                } else {
-                    color::QUIET
-                },
-                FontWeight::Semibold,
-                TextAlign::Start,
-            );
-            text(
-                &mut self.ui,
-                TextFamily::Body,
-                format_args!("{count}"),
-                frame.rect(left + 70.0, y + 7.0, width - 84.0, 22.0),
-                14.0 * s,
-                if lit { color::GOLD } else { color::QUIET },
-                FontWeight::Regular,
-                TextAlign::End,
-            );
-            left += width + 12.0;
-        }
-    }
-
     /// How tall the chosen shader's card stands for `row`: its lines as [`Self::shader_card`]
     /// lays them out, the description and the other words wrapped in full.
     fn card_height(&self, row: Row, inputs: &Inputs<'_>) -> f32 {
@@ -1838,6 +1833,13 @@ impl Panel {
             (None, _) => ("Wearing it takes your shader off.".to_owned(), color::MUTED),
             (Some(_), Some(grant)) => (
                 format!("{}  {}", symbols::TICK, owned_line(grant)),
+                color::GOLD,
+            ),
+            (Some(skin), None) if crate::saber_lab::owns(skin.id) => (
+                format!(
+                    "{}  Yours in the Saber Lab, on this PC only: other players see your usual blade.",
+                    symbols::TICK
+                ),
                 color::GOLD,
             ),
             (Some(skin), None) => (
@@ -2768,7 +2770,7 @@ fn paragraph_lines(body: &str, chars: f32) -> usize {
 /// a larger text size), at most `most` lines (the last ellipsised past them); its lines
 /// step with the text size. Returns where the next line would stand.
 #[allow(clippy::too_many_arguments)]
-fn paragraph(
+pub(super) fn paragraph(
     canvas: &mut crate::menu_widgets::MenuCanvas,
     frame: &Frame,
     body: &str,
@@ -2833,6 +2835,46 @@ mod tests {
             medal: None,
             card: None,
         }
+    }
+
+    /// The Saber Lab's blade comes right after the stock one, whatever the filter, can be
+    /// equipped (on this PC only), and fits the rows' table with every catalogue shader.
+    #[test]
+    fn the_lab_blade_is_the_row_after_the_stock_blade() {
+        let inputs = super::super::tests::inputs(Holdings::Known(&[]), "");
+        let plain = Panel::rows(
+            &inputs,
+            &ShaderFilter::default(),
+            ShaderSort::Tier,
+            true,
+            &crate::shader_marks::Marks::default(),
+            false,
+        );
+        let lab = Panel::rows(
+            &inputs,
+            &ShaderFilter::default(),
+            ShaderSort::Tier,
+            true,
+            &crate::shader_marks::Marks::default(),
+            true,
+        );
+        assert_eq!(lab.len(), plain.len() + 1);
+        assert!(lab.len() <= SHADER_SLOTS);
+        assert_eq!(lab[1].skin.map(|skin| skin.id), Some(crate::saber_lab::ID));
+        assert!(lab[1].owned && !lab[1].worn);
+        let owned_only = ShaderFilter {
+            owned: true,
+            ..ShaderFilter::default()
+        };
+        let filtered = Panel::rows(
+            &inputs,
+            &owned_only,
+            ShaderSort::Tier,
+            true,
+            &crate::shader_marks::Marks::default(),
+            true,
+        );
+        assert_eq!(filtered.len(), 2, "the stock blade and the lab blade");
     }
 
     #[test]
@@ -2908,6 +2950,7 @@ mod tests {
             ShaderSort::Tier,
             true,
             &none,
+            false,
         );
         let wall = lines_of(&rows, true, true);
         assert_eq!(
@@ -2942,6 +2985,7 @@ mod tests {
             ShaderSort::Name,
             false,
             &none,
+            false,
         );
         let list = lines_of(&by_name, false, false);
         assert!(list.iter().all(|line| matches!(line, Line::Things(..))));
@@ -2957,6 +3001,7 @@ mod tests {
             ShaderSort::Yours,
             false,
             &none,
+            false,
         );
         assert_eq!(
             yours[1].skin.map(|skin| skin.id),
@@ -2984,6 +3029,7 @@ mod tests {
             ShaderSort::Tier,
             true,
             &marks,
+            false,
         );
         let ids: Vec<_> = rows
             .iter()
@@ -3020,6 +3066,7 @@ mod tests {
             ShaderSort::Name,
             false,
             &marks,
+            false,
         );
         assert!(by_name[1].favourite && by_name[2].favourite && !by_name[3].favourite);
         assert!(
@@ -3032,7 +3079,7 @@ mod tests {
             favourite: true,
             ..ShaderFilter::default()
         };
-        let alone = Panel::rows(&inputs, &only, ShaderSort::Tier, true, &marks);
+        let alone = Panel::rows(&inputs, &only, ShaderSort::Tier, true, &marks, false);
         assert_eq!(alone.len(), 3, "the stock blade and the two favourites");
         // Not held: no padlock in the state, the words say it.
         let storm_row = alone
@@ -3054,6 +3101,7 @@ mod tests {
             ShaderSort::Tier,
             true,
             &crate::shader_marks::Marks::default(),
+            false,
         );
         let lines = lines_of(&rows, true, true);
         // The stock blade alone, then Mythical's twelve: rows 1 to 6 and 7 to 12.
@@ -3140,6 +3188,7 @@ mod tests {
                     ShaderSort::Tier,
                     true,
                     &crate::shader_marks::Marks::default(),
+                    false,
                 )[panel.shader];
                 let height = panel.card_height(row, &inputs);
                 assert!(

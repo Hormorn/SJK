@@ -47,21 +47,31 @@ impl crate::GpuState {
         if lines.is_empty() {
             lines.push("No active shader remaps".into());
         }
-        if self.console.as_ref().is_some_and(|c| !c.server_remaps_on()) {
-            lines.insert(
-                0,
-                format!(
-                    "Server shader remaps are off ({} 0)",
-                    crate::remap_blocked_maps::SERVER_CVAR
-                ),
-            );
-        } else if mode == 0 && self.console.as_ref().is_some_and(|c| c.remap_mode() != 0) {
+        let choice = self.remap_blocked_maps.choice();
+        if choice == crate::remap_blocked_maps::Choice::Off {
             lines.insert(
                 0,
                 format!(
                     "Server shader remaps ignored on {} ({})",
                     crate::remap_blocked_maps::map_name(&self.world_load_map),
                     crate::remap_blocked_maps::CVAR,
+                ),
+            );
+        } else if choice == crate::remap_blocked_maps::Choice::On {
+            lines.insert(
+                0,
+                format!(
+                    "Server shader remaps applied on {} ({})",
+                    crate::remap_blocked_maps::map_name(&self.world_load_map),
+                    crate::remap_blocked_maps::ALLOWED_CVAR,
+                ),
+            );
+        } else if self.console.as_ref().is_some_and(|c| !c.server_remaps_on()) {
+            lines.insert(
+                0,
+                format!(
+                    "Server shader remaps are off ({} 0)",
+                    crate::remap_blocked_maps::SERVER_CVAR
                 ),
             );
         }

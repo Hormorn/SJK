@@ -13,6 +13,23 @@ use super::*;
 use crate::player_menu::ReturnTarget;
 use crate::profile_hub::{Screen, Tab};
 
+/// White wisps from the emitter: a smoke ribbon, the stream swaying and curling, torn
+/// along by its noise.
+const WISPS: &str = r#"{
+  "ribbon": {
+    "color": [1.0, 1.0, 1.0], "opacity": 0.55, "rate": 40.0, "after": 3.5, "life": 3.0,
+    "width": 0.6, "growth": 5.0, "rise": 9.0, "follow": 0.3, "sway": 4.0,
+    "sway_rate": 0.4, "curl": 3.0, "detail": 0.8, "softness": 0.6, "idle": 1.0,
+    "swinging": 0.0, "swing_speed": 120.0, "ignite": 1.5, "along": 0.02
+  },
+  "sparks": {
+    "shader": "gfx/misc/spark4", "color": [1.6, 1.1, 0.7], "opacity": 1.0, "rate": 2.5,
+    "ignite": 1.2, "ignite_rate": 14.0, "after": 0.8, "after_rate": 8.0, "burst": 5,
+    "speed": 75.0, "speed_jitter": 0.6, "spread": 35.0, "aim": 1.0, "gravity": 420.0, "life": 0.45,
+    "size": 0.3, "length": 5.0, "along": 0.02
+  }
+}"#;
+
 /// The made-up grant.
 fn sun() -> sjk_identity::Unlock {
     sjk_identity::Unlock {
@@ -390,6 +407,49 @@ fn duel6_sjk_collection() {
 /// `duel6-rarity-grid-<n>`), the list at two moments, and the Holocrons tab.
 /// The Loadouts card over the Collection (Lex's idea, 03/11/2026), two slots kept, at
 /// 1080 lines and 4:3; the Shaders tab's Loadouts button under the tally first.
+/// The Shaders tab's Finishers page (Sol, 04/11/2026): Disintegrate held and worn, at
+/// 1080 lines and 4:3.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_sjk_finishers() {
+    on_big_stack(|| {
+        let cvars = [
+            ("ui_menuStyle", "sjk"),
+            (crate::settings::quick::HIDE_CVAR, "1"),
+            ("name", "^1Sol^7Vulpes"),
+            (crate::discord_presence::CVAR, "0"),
+            (crate::finishers::CVAR, "finisher_disintegrate"),
+        ];
+        let disintegrate = sjk_identity::Unlock {
+            id: "finisher_disintegrate".to_owned(),
+            ..sun()
+        };
+        for size in [[1920, 1080], [1440, 1080]] {
+            let suffix = if size[0] == 1920 { "" } else { "-4x3" };
+            let Some((mut gpu, _profile)) = open(
+                "maps/mp/duel6.bsp",
+                size,
+                Some(menu::ClientMenu::new(true, String::new())),
+                &cvars,
+            ) else {
+                return;
+            };
+            gpu.looks.shot_owns_unlocks = true;
+            let _ = frame(&mut gpu, 10);
+            if let Some(console) = gpu.console.as_mut() {
+                console.preview_profile(preview());
+                console.preview_collection(Some(vec![sun(), disintegrate.clone()]), 0.8);
+                console.open_profile_hub_page(Tab::Shaders, ReturnTarget::MainMenu);
+                console.preview_finishers();
+            }
+            gpu.ui_epoch -= std::time::Duration::from_millis(3_000);
+            let name = format!("duel6-collection-finishers{suffix}");
+            println!("{}", shoot(&mut gpu, 120, &name).display());
+            assert!(!overflowed(&gpu), "{suffix}");
+        }
+    });
+}
+
 #[test]
 #[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
 fn duel6_sjk_loadouts() {
@@ -1225,5 +1285,324 @@ fn duel6_sjk_toy_master() {
             "{}",
             sheet(&images, 1, 960, "duel6-toy-master-sheet").display()
         );
+    });
+}
+
+/// The Saber Lab tab over the live duel6: the model on the left of the picture holding the
+/// lab blade (the test sample, from a folder of its own), the same saber floating on the
+/// right over the choices; standing in the medium style, then swinging in each style.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_saber_lab() {
+    on_big_stack(|| {
+        let folder = tempfile::tempdir().unwrap();
+        let blades = folder.path().join(crate::blade_skin_file::FOLDER);
+        std::fs::create_dir_all(&blades).unwrap();
+        std::fs::write(
+            blades.join("saber_lab.bladeskin"),
+            crate::blade_skin_file::tests::SAMPLE,
+        )
+        .unwrap();
+        // And white wisps of smoke from its emitter.
+        std::fs::write(blades.join("saber_lab.bladeextra6"), WISPS).unwrap();
+        // Or, when SJK_SHOT_LAB names a lab folder, its lab blade's files instead: copies,
+        // so the shot's edits never touch that folder.
+        if let Some(folder) = std::env::var_os("SJK_SHOT_LAB") {
+            let theirs = std::path::Path::new(&folder).join(crate::blade_skin_file::FOLDER);
+            for entry in std::fs::read_dir(&theirs).into_iter().flatten().flatten() {
+                let name = entry.file_name();
+                if name.to_string_lossy().starts_with("saber_lab.") {
+                    std::fs::copy(entry.path(), blades.join(&name)).unwrap();
+                }
+            }
+        }
+        crate::saber_lab::start(folder.path()).expect("the lab's folder");
+        // Mounted after the lab started, so its folder lies over the packs.
+        super::saber_skins::mount_test_packs();
+        let cvars = [
+            ("ui_menuStyle", "sjk"),
+            (crate::settings::quick::HIDE_CVAR, "1"),
+            ("name", "^1Sol^7Vulpes"),
+            (crate::discord_presence::CVAR, "0"),
+        ];
+        let Some((mut gpu, _profile)) = open(
+            "maps/mp/duel6.bsp",
+            [1920, 1080],
+            Some(menu::ClientMenu::new(true, String::new())),
+            &cvars,
+        ) else {
+            crate::saber_lab::stop();
+            return;
+        };
+        gpu.looks.shot_owns_unlocks = true;
+        let _ = frame(&mut gpu, 10);
+        if let Some(console) = gpu.console.as_mut() {
+            console.preview_profile(preview());
+            console.open_profile_hub_page(Tab::SaberLab, ReturnTarget::MainMenu);
+            console.collection_lab_for_shot(1, false);
+            // The tab shows the blade worn: the lab's, equipped as its Equip does.
+            crate::unlockables::wear(console, crate::saber_lab::ID);
+        }
+        assert_eq!(gpu.profile_hub_tab(), Some(Tab::SaberLab));
+        println!(
+            "{}",
+            shoot(&mut gpu, 150, "duel6-saber-lab-stand").display()
+        );
+        assert!(!overflowed(&gpu), "standing");
+        // Swinging, the blades trail as in a match; the floating one shows its still trail.
+        for (style, name) in [(0, "fast"), (1, "medium"), (2, "strong")] {
+            if let Some(console) = gpu.console.as_mut() {
+                console.collection_lab_for_shot(style, true);
+                console.collection_lab_trail_for_shot(true);
+            }
+            for (frames, moment) in [(25, "a"), (25, "b")] {
+                let shot = format!("duel6-saber-lab-{name}-{moment}");
+                println!("{}", shoot(&mut gpu, frames, &shot).display());
+            }
+        }
+        // The editor open on the lab's blade, then its glow turned red as an edit does.
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_for_shot(1, false);
+            console.collection_lab_edit_for_shot(crate::saber_lab::ID);
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 30, "duel6-saber-lab-editor").display()
+        );
+        if let Some(console) = gpu.console.as_mut() {
+            for (path, value) in [
+                ("corona.rim_cool.0", 1.0),
+                ("corona.rim_cool.1", 0.05),
+                ("corona.rim_cool.2", 0.0),
+                ("corona.rim_hot.0", 1.0),
+                ("corona.rim_hot.1", 0.3),
+                ("corona.rim_hot.2", 0.1),
+                ("corona.inner.0", 1.0),
+                ("corona.inner.1", 0.2),
+                ("corona.inner.2", 0.1),
+            ] {
+                console.collection_lab_edit_set_for_shot(path, value);
+            }
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 30, "duel6-saber-lab-editor-edited").display()
+        );
+        // The sections it may add, then black holes added.
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_edit_adds_for_shot(None);
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 10, "duel6-saber-lab-editor-adds").display()
+        );
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_edit_adds_for_shot(Some("holes"));
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 30, "duel6-saber-lab-editor-holes").display()
+        );
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_for_shot(2, true);
+        }
+        // A blade the made-up profile does not own (it holds the Sun), previewed: the
+        // rarest other of the catalogue.
+        let rarest = crate::unlockables::blade_skins_by_tier()
+            .iter()
+            .find(|skin| skin.id != sun().id)
+            .expect("a blade skin besides the Sun");
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_blade_for_shot(rarest.id);
+        }
+        println!(
+            "{} ({})",
+            shoot(&mut gpu, 30, "duel6-saber-lab-preview").display(),
+            rarest.id
+        );
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_blade_for_shot(crate::saber_lab::ID);
+        }
+        // Round the model and over it, then nearer from behind; and the blade going out.
+        for (view, name) in [
+            (
+                crate::console::collection_panel::LabView {
+                    turn: 1.2,
+                    tilt: 0.7,
+                    distance: 1.0,
+                },
+                "over",
+            ),
+            (
+                crate::console::collection_panel::LabView {
+                    turn: 3.0,
+                    tilt: 0.15,
+                    distance: 0.6,
+                },
+                "behind",
+            ),
+        ] {
+            if let Some(console) = gpu.console.as_mut() {
+                console.collection_lab_view_for_shot(view, true);
+            }
+            let shot = format!("duel6-saber-lab-{name}");
+            println!("{}", shoot(&mut gpu, 60, &shot).display());
+        }
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_for_shot(1, false);
+            console.collection_lab_view_for_shot(Default::default(), true);
+        }
+        let _ = frame(&mut gpu, 60);
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_view_for_shot(Default::default(), false);
+        }
+        // With the flourish: put away, then away and holstered, then drawn again.
+        println!(
+            "{}",
+            shoot(&mut gpu, 10, "duel6-saber-lab-retracting").display()
+        );
+        println!(
+            "{}",
+            shoot(&mut gpu, 90, "duel6-saber-lab-holstered").display()
+        );
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_view_for_shot(Default::default(), true);
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 12, "duel6-saber-lab-igniting").display()
+        );
+        // Behind the model as in a match, swinging; then looking down on it there.
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_chase_for_shot(true);
+            console.collection_lab_for_shot(2, true);
+        }
+        for (frames, moment) in [(60, "a"), (20, "b")] {
+            let shot = format!("duel6-saber-lab-third-person-{moment}");
+            println!("{}", shoot(&mut gpu, frames, &shot).display());
+        }
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_view_for_shot(
+                crate::console::collection_panel::LabView {
+                    turn: 0.0,
+                    tilt: 0.5,
+                    distance: 1.0,
+                },
+                true,
+            );
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 50, "duel6-saber-lab-third-person-over").display()
+        );
+        // The emitter's smoke: standing lit, then put out (still smoking), then gone.
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_chase_for_shot(false);
+            console.collection_lab_for_shot(1, false);
+            console.collection_lab_trail_for_shot(false);
+            console.collection_lab_view_for_shot(
+                crate::console::collection_panel::LabView {
+                    turn: 0.0,
+                    tilt: 0.0,
+                    distance: 0.6,
+                },
+                true,
+            );
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 150, "duel6-saber-lab-smoke-lit").display()
+        );
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_view_for_shot(
+                crate::console::collection_panel::LabView {
+                    turn: 0.0,
+                    tilt: 0.0,
+                    distance: 0.6,
+                },
+                false,
+            );
+        }
+        // A skin's emitter sputtering once the blade has drawn in (`flash.die`, about a
+        // second on), then still smoking.
+        for (frames, moment) in [(48, "a"), (2, "b"), (2, "c"), (2, "d")] {
+            let shot = format!("duel6-saber-lab-sputter-{moment}");
+            println!("{}", shoot(&mut gpu, frames, &shot).display());
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 1, "duel6-saber-lab-smoke-after").display()
+        );
+        println!(
+            "{}",
+            shoot(&mut gpu, 300, "duel6-saber-lab-smoke-gone").display()
+        );
+        crate::saber_lab::stop();
+    });
+}
+
+/// The Saber Lab tab's sounds over the live duel6, mixed by the game's own mixer without a
+/// device: the swings the model's animations cue, and the blade put out and lit again.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_saber_lab_sounds() {
+    on_big_stack(|| {
+        let folder = tempfile::tempdir().unwrap();
+        let blades = folder.path().join(crate::blade_skin_file::FOLDER);
+        std::fs::create_dir_all(&blades).unwrap();
+        std::fs::write(
+            blades.join("saber_lab.bladeskin"),
+            crate::blade_skin_file::tests::SAMPLE,
+        )
+        .unwrap();
+        crate::saber_lab::start(folder.path()).expect("the lab's folder");
+        super::saber_skins::mount_test_packs();
+        let cvars = [
+            ("ui_menuStyle", "sjk"),
+            (crate::settings::quick::HIDE_CVAR, "1"),
+        ];
+        let Some((mut gpu, _profile)) = open(
+            "maps/mp/duel6.bsp",
+            [1280, 720],
+            Some(menu::ClientMenu::new(true, String::new())),
+            &cvars,
+        ) else {
+            crate::saber_lab::stop();
+            return;
+        };
+        let (output, mut source) = crate::audio_output::AudioOutput::test_output();
+        let mut audio = Some(crate::GameAudio::with_output(output));
+        let mut loudest = |gpu: &mut GpuState, audio: &mut Option<crate::GameAudio>, frames| {
+            let mut loudest = 0.0_f32;
+            for _ in 0..frames {
+                let _ = gpu.render(audio);
+                std::thread::sleep(std::time::Duration::from_millis(16));
+                for _ in 0..1_500 {
+                    loudest = loudest.max(source.next().unwrap_or(0.0).abs());
+                }
+            }
+            loudest
+        };
+        let quiet = loudest(&mut gpu, &mut audio, 60);
+        println!("before: {quiet}");
+        if let Some(console) = gpu.console.as_mut() {
+            console.open_profile_hub_page(Tab::SaberLab, ReturnTarget::MainMenu);
+            console.collection_lab_for_shot(2, true);
+        }
+        let swings = loudest(&mut gpu, &mut audio, 240);
+        assert_eq!(quiet, 0.0, "the menu is silent before");
+        println!("swings: {swings}");
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_for_shot(2, false);
+        }
+        let _ = loudest(&mut gpu, &mut audio, 60);
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_lab_view_for_shot(Default::default(), false);
+        }
+        let off = loudest(&mut gpu, &mut audio, 60);
+        println!("off: {off}");
+        crate::saber_lab::stop();
+        assert!(swings > 0.01, "no swing heard");
+        assert!(off > 0.01, "no retraction heard");
     });
 }

@@ -31,66 +31,25 @@ pub(super) struct Mesh {
 }
 
 impl Mesh {
-    /// Build from the world's brushes and those of `trigger_*` entities and of
-    /// movers (doors, lifts, buttons, trains…), the movers where the map file
-    /// puts them, plus the box a door, lift or button moves through. Other
-    /// entities' brushes are left out: the map draws them.
+    /// Build from [`each_face`]'s faces, grouped by kind.
     pub(super) fn build(bsp: &Bsp) -> Self {
         let mut faces: Vec<Vec<Vertex>> = vec![Vec::new(); Kind::ALL.len()];
         let mut edges: Vec<Vec<Vertex>> = vec![Vec::new(); Kind::ALL.len()];
-        let models = bsp.render().models();
-        let placed = placed_models(bsp, models);
-        for (model_index, model) in models.iter().enumerate() {
-            let (trigger, origin) = if model_index == 0 {
-                (None, [0.0; 3])
-            } else if let Some(placed) = &placed[model_index] {
-                (Some(placed.kind), placed.origin)
-            } else {
-                continue;
+        each_face(bsp, |kind, _, points, normal| {
+            let vertex = |position| Vertex {
+                position,
+                normal,
+                kind: kind.index() as u32,
             };
-            if let Some((lower, upper)) = placed.get(model_index).and_then(|p| p.as_ref()?.travel) {
-                push_box(&mut faces, &mut edges, lower, upper);
+            let bucket = &mut faces[kind.index()];
+            for i in 2..points.len() {
+                bucket.extend([points[0], points[i - 1], points[i]].map(vertex));
             }
-            for brush_index in model.brushes.clone() {
-                let Some(brush) = bsp.brushes().get(brush_index) else {
-                    continue;
-                };
-                for side_index in brush.sides.clone() {
-                    let Some(side) = bsp.brush_sides().get(side_index) else {
-                        continue;
-                    };
-                    let Some(kind) = trigger.or_else(|| {
-                        let shader = bsp.shaders().get(side.shader)?;
-                        Kind::of_face(brush.content_flags, shader.surface_flags, shader.name())
-                    }) else {
-                        continue;
-                    };
-                    let mut points = bsp.brush_side_polygon(brush_index, side_index);
-                    for point in &mut points {
-                        for axis in 0..3 {
-                            point[axis] += origin[axis];
-                        }
-                    }
-                    if area(&points) < MIN_AREA {
-                        continue;
-                    }
-                    let normal = bsp.planes()[side.plane].normal;
-                    let vertex = |position| Vertex {
-                        position,
-                        normal,
-                        kind: kind.index() as u32,
-                    };
-                    let bucket = &mut faces[kind.index()];
-                    for i in 2..points.len() {
-                        bucket.extend([points[0], points[i - 1], points[i]].map(vertex));
-                    }
-                    let bucket = &mut edges[kind.index()];
-                    for (i, &point) in points.iter().enumerate() {
-                        bucket.extend([point, points[(i + 1) % points.len()]].map(vertex));
-                    }
-                }
+            let bucket = &mut edges[kind.index()];
+            for (i, &point) in points.iter().enumerate() {
+                bucket.extend([point, points[(i + 1) % points.len()]].map(vertex));
             }
-        }
+        });
         let (faces, face_ranges) = concatenate(faces);
         let (edges, edge_ranges) = concatenate(edges);
         Self {
@@ -98,6 +57,63 @@ impl Mesh {
             face_ranges,
             edges,
             edge_ranges,
+        }
+    }
+}
+
+/// Every invisible face `r_showBrushes` draws, with its kind, its brush and side (none
+/// for a travel box), its corners in order and its plane's normal (out of its brush):
+/// the world's brushes and those of `trigger_*` entities and of movers (doors, lifts,
+/// buttons, trains…), the movers where the map file puts them, plus the box a door,
+/// lift or button moves through. Other entities' brushes are left out: the map draws
+/// them. The browser map editor shows the same faces ([`crate::map_edits::web`]).
+pub(crate) fn each_face(
+    bsp: &Bsp,
+    mut visit: impl FnMut(Kind, Option<(usize, usize)>, &[[f32; 3]], [f32; 3]),
+) {
+    let models = bsp.render().models();
+    let placed = placed_models(bsp, models);
+    for (model_index, model) in models.iter().enumerate() {
+        let (trigger, origin) = if model_index == 0 {
+            (None, [0.0; 3])
+        } else if let Some(placed) = &placed[model_index] {
+            (Some(placed.kind), placed.origin)
+        } else {
+            continue;
+        };
+        if let Some((lower, upper)) = placed.get(model_index).and_then(|p| p.as_ref()?.travel) {
+            travel_box(lower, upper, &mut visit);
+        }
+        for brush_index in model.brushes.clone() {
+            let Some(brush) = bsp.brushes().get(brush_index) else {
+                continue;
+            };
+            for side_index in brush.sides.clone() {
+                let Some(side) = bsp.brush_sides().get(side_index) else {
+                    continue;
+                };
+                let Some(kind) = trigger.or_else(|| {
+                    let shader = bsp.shaders().get(side.shader)?;
+                    Kind::of_face(brush.content_flags, shader.surface_flags, shader.name())
+                }) else {
+                    continue;
+                };
+                let mut points = bsp.brush_side_polygon(brush_index, side_index);
+                for point in &mut points {
+                    for axis in 0..3 {
+                        point[axis] += origin[axis];
+                    }
+                }
+                if area(&points) < MIN_AREA {
+                    continue;
+                }
+                visit(
+                    kind,
+                    Some((brush_index, side_index)),
+                    &points,
+                    bsp.planes()[side.plane].normal,
+                );
+            }
         }
     }
 }
@@ -163,15 +179,18 @@ fn placed_models(bsp: &Bsp, models: &[Model]) -> Vec<Option<Placed>> {
     placed
 }
 
-/// A box as the `Travel` kind's faces and outline.
-fn push_box(faces: &mut [Vec<Vertex>], edges: &mut [Vec<Vertex>], lower: Vec3, upper: Vec3) {
-    let kind = Kind::Travel.index() as u32;
+/// A box as six `Travel` faces.
+fn travel_box(
+    lower: Vec3,
+    upper: Vec3,
+    visit: &mut impl FnMut(Kind, Option<(usize, usize)>, &[[f32; 3]], [f32; 3]),
+) {
     let corner = |i: usize| {
-        Vec3::new(
+        [
             if i & 1 == 0 { lower.x } else { upper.x },
             if i & 2 == 0 { lower.y } else { upper.y },
             if i & 4 == 0 { lower.z } else { upper.z },
-        )
+        ]
     };
     // Per axis: the face at the low and at the high end, as its four corners
     // in order around it.
@@ -184,15 +203,7 @@ fn push_box(faces: &mut [Vec<Vertex>], edges: &mut [Vec<Vertex>], lower: Vec3, u
         ([4, 5, 7, 6], [0.0, 0.0, 1.0]),
     ];
     for (ring, normal) in SIDES {
-        let vertex = |i: usize| Vertex {
-            position: corner(ring[i]).to_array(),
-            normal,
-            kind,
-        };
-        faces[Kind::Travel.index()].extend([0, 1, 2, 0, 2, 3].map(vertex));
-        for i in 0..4 {
-            edges[Kind::Travel.index()].extend([vertex(i), vertex((i + 1) % 4)]);
-        }
+        visit(Kind::Travel, None, &ring.map(corner), normal);
     }
 }
 

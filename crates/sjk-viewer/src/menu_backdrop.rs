@@ -41,6 +41,10 @@ pub(crate) enum Shot {
     /// the 3D holocron, which floats before the camera wherever it is
     /// (`holocrons::stage`). A map without a route for it keeps the main vantage.
     Holocrons,
+    /// The Collection's Saber Lab tab ([`crate::saber_lab`]): the player stage further
+    /// off and to the left of the picture, the floating saber on its right. A map without
+    /// a route for it takes the player's shot ([`Backdrop::flight_for`]).
+    SaberLab,
 }
 
 /// Fraction of the flight over which the destination screen fades in. It
@@ -158,6 +162,7 @@ impl Backdrop {
             Shot::Player,
             Shot::Saber,
             Shot::Holocrons,
+            Shot::SaberLab,
         ]
         .into_iter()
         .filter_map(|shot| routes::route_for(message?, shot))
@@ -260,7 +265,12 @@ impl Backdrop {
     }
 
     fn flight_for(&self, shot: Shot) -> Option<usize> {
-        self.flights.iter().position(|flight| flight.shot == shot)
+        self.flights
+            .iter()
+            .position(|flight| flight.shot == shot)
+            // The Saber Lab stands the model on the player's stage where the map has no
+            // shot of its own for it.
+            .or_else(|| (shot == Shot::SaberLab).then(|| self.flight_for(Shot::Player))?)
     }
 
     /// Whether `ancestor` is `flight` itself or a flight it chains onto.
@@ -605,9 +615,142 @@ pub(crate) fn drive(gpu: &mut GpuState, now: Instant) {
     else {
         return;
     };
+    // The Saber Lab's camera goes round its model, or behind it as a match's third person
+    // (`cg_thirdPersonRange`, `cg_thirdPersonVertOffset`, `cg_thirdPersonAngle`), short
+    // of any wall in the way.
+    let sample = match gpu.menu_stage.lab_camera() {
+        Some(camera) => {
+            let cvar = |name: &str, fallback: f32| {
+                gpu.console
+                    .as_ref()
+                    .and_then(|console| console.float_cvar(name))
+                    .map_or(fallback, |value| value as f32)
+            };
+            let chase = behind(
+                camera.eye,
+                camera.facing + cvar("cg_thirdPersonAngle", 0.0).to_radians(),
+                cvar("cg_thirdPersonRange", 80.0),
+                cvar("cg_thirdPersonVertOffset", 16.0),
+            );
+            let (base, target) = (
+                blend(sample, chase.0, camera.chase),
+                camera.target.lerp(chase.1, camera.chase),
+            );
+            let mut sample = orbit(base, target, camera.view, camera.share);
+            let trace = gpu.bsp.trace_box(
+                target.to_array(),
+                sample.origin.to_array(),
+                sjk_bsp::Aabb::POINT,
+                CONTENTS_SOLID,
+            );
+            if !trace.start_solid && trace.fraction < 1.0 {
+                let way = sample.origin - target;
+                let reach = (way.length() * trace.fraction - WALL_CLEARANCE).max(0.0);
+                sample.origin = target + way.normalize_or_zero() * reach;
+            }
+            // The builder's panels take the left: the camera turns until the model stands
+            // on the right of the picture.
+            if camera.build > 0.0 {
+                let size = [
+                    gpu.configuration.width as f32,
+                    gpu.configuration.height as f32,
+                ];
+                let aspect = size[0] / size[1].max(1.0);
+                let fov = crate::menu_stage::frame_fit_fov(gpu.field_of_view, aspect);
+                let framed = framed_yaw(sample, target, BUILD_FRAME_X, fov, aspect);
+                let turn = (framed - sample.yaw + std::f32::consts::PI)
+                    .rem_euclid(std::f32::consts::TAU)
+                    - std::f32::consts::PI;
+                sample.yaw += turn * camera.build;
+            }
+            sample
+        }
+        None => sample,
+    };
     gpu.camera_position = sample.origin;
     gpu.camera_yaw = sample.yaw;
     gpu.camera_pitch = sample.pitch;
+}
+
+/// A match's third-person camera behind a player whose eye is at `eye`, facing `facing`
+/// (radians), looking level (`CG_OffsetThirdPersonView`): `range` behind the point
+/// `height` over the eye, which it looks at; and that point.
+fn behind(eye: Vec3, facing: f32, range: f32, height: f32) -> (Sample, Vec3) {
+    let target = eye + Vec3::Z * height;
+    let forward = Vec3::new(facing.cos(), facing.sin(), 0.0);
+    (
+        Sample {
+            origin: target - forward * range,
+            yaw: facing,
+            pitch: 0.0,
+        },
+        target,
+    )
+}
+
+/// `share` of the way from `from` to `to`, turning the short way round.
+fn blend(from: Sample, to: Sample, share: f32) -> Sample {
+    let turn = (to.yaw - from.yaw + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)
+        - std::f32::consts::PI;
+    Sample {
+        origin: from.origin.lerp(to.origin, share),
+        yaw: from.yaw + turn * share,
+        pitch: from.pitch + (to.pitch - from.pitch) * share,
+    }
+}
+
+/// Q3 `CONTENTS_SOLID`: what the Saber Lab's camera stays short of.
+const CONTENTS_SOLID: u32 = 1;
+/// How far short of a wall it stays.
+const WALL_CLEARANCE: f32 = 6.0;
+
+/// Where across the Collection's frame (a share of its width) the Saber Lab's builder
+/// shows its model: the middle of the room right of its panels.
+const BUILD_FRAME_X: f32 = 0.78;
+
+/// The yaw (radians) that shows `target`, seen from `sample`'s place, at `frame_x` of the
+/// Collection's frame across, the view `fov` degrees high in a window `aspect` wide: the
+/// frame is 16:9 at most, centred in a wider window.
+pub(crate) fn framed_yaw(sample: Sample, target: Vec3, frame_x: f32, fov: f32, aspect: f32) -> f32 {
+    let way = target - sample.origin;
+    let toward = way.y.atan2(way.x);
+    let frame_share = (16.0 / 9.0 / aspect.max(0.01)).min(1.0);
+    let window_x = 0.5 + (frame_x - 0.5) * frame_share;
+    let half_width = (fov.to_radians() * 0.5).tan() * aspect;
+    // Turned left of the target by its angle off the middle, the target shows right of it.
+    toward + ((2.0 * window_x - 1.0) * half_width).atan()
+}
+
+/// The Saber Lab's camera (`crate::console::collection_panel::LabView`): `sample`'s
+/// turned round `target` by the view's turn, raised over it by its tilt and brought
+/// nearer or taken back by its distance, `share` of the way. The camera's own turn and
+/// tilt go with it, so `target` stays where the shot frames it (the model left of the
+/// tab's choices).
+pub(crate) fn orbit(
+    sample: Sample,
+    target: Vec3,
+    view: crate::console::collection_panel::LabView,
+    share: f32,
+) -> Sample {
+    let share = share.clamp(0.0, 1.0);
+    // The short way round, so that the way back is too.
+    let turn = if view.turn > std::f32::consts::PI {
+        view.turn - std::f32::consts::TAU
+    } else {
+        view.turn
+    } * share;
+    let tilt = view.tilt * share;
+    let distance = 1.0 + (view.distance - 1.0) * share;
+    let yaw = sample.yaw + turn;
+    // Raised over the target, the camera looks down on it as far: the whole view turns
+    // about the camera's right.
+    let right = Vec3::new(yaw.sin(), -yaw.cos(), 0.0);
+    let rotation = glam::Quat::from_axis_angle(right, -tilt) * glam::Quat::from_rotation_z(turn);
+    Sample {
+        origin: target + rotation * (sample.origin - target) * distance,
+        yaw,
+        pitch: sample.pitch - tilt,
+    }
 }
 
 /// Legacy `hud.wgsl` backdrop selector: 4 = console, 3 = a menu screen that
@@ -627,5 +770,68 @@ pub(crate) fn shader_menu_state(gpu: &GpuState) -> f32 {
         3.0
     } else {
         0.0
+    }
+}
+
+#[cfg(test)]
+mod orbit_tests {
+    use super::*;
+    use crate::console::collection_panel::LabView;
+
+    /// Where `point` lies from a camera at `sample`: ahead, to the right and above.
+    fn seen(sample: Sample, point: Vec3) -> Vec3 {
+        let forward = Vec3::new(
+            sample.yaw.cos() * sample.pitch.cos(),
+            sample.yaw.sin() * sample.pitch.cos(),
+            sample.pitch.sin(),
+        );
+        let right = Vec3::new(sample.yaw.sin(), -sample.yaw.cos(), 0.0);
+        let up = right.cross(forward);
+        let way = point - sample.origin;
+        Vec3::new(way.dot(forward), way.dot(right), way.dot(up))
+    }
+
+    /// However the camera goes round, raised or brought nearer, the model stays where the
+    /// shot frames it, only nearer or farther; raised, the camera is higher.
+    #[test]
+    fn the_model_stays_where_the_shot_frames_it() {
+        let target = Vec3::new(-360.0, -360.0, 384.0);
+        let shot = Sample {
+            origin: Vec3::new(-428.0, -456.0, 398.0),
+            yaw: 20_f32.to_radians(),
+            pitch: -4_f32.to_radians(),
+        };
+        let before = seen(shot, target);
+        for view in [
+            LabView {
+                turn: 1.0,
+                tilt: 0.0,
+                distance: 1.0,
+            },
+            LabView {
+                turn: 4.0,
+                tilt: 0.8,
+                distance: 1.0,
+            },
+            LabView {
+                turn: 2.5,
+                tilt: -0.2,
+                distance: 0.5,
+            },
+        ] {
+            for share in [0.3, 1.0] {
+                let moved = orbit(shot, target, view, share);
+                let distance = 1.0 + (view.distance - 1.0) * share;
+                let after = seen(moved, target);
+                assert!(
+                    (after - before * distance).length() < 1e-2,
+                    "{view:?} {after} {before}"
+                );
+                if view.tilt > 0.0 {
+                    assert!(moved.origin.z > shot.origin.z);
+                }
+            }
+        }
+        assert_eq!(orbit(shot, target, LabView::default(), 1.0), shot);
     }
 }

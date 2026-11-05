@@ -18,7 +18,8 @@
 //!
 //! `vid_restart` reloads the graphics when one of those settings changed, as it reloads
 //! the renderer in the original game, and the reload card ([`card`]) offers it once the
-//! player leaves Settings for a menu.
+//! player leaves Settings for a menu. `vid_restart force` reloads them with nothing
+//! changed too ([`wanted`]).
 
 use crate::frame_target::scale::NATIVE;
 use crate::gpu_context::Context;
@@ -145,6 +146,22 @@ impl Startup {
     }
 }
 
+/// Whether `vid_restart` reloads the graphics: when one of the settings changed
+/// (`changes`, [`crate::GpuState::graphics_changes`]), or always when `force`d.
+pub(crate) fn wanted(force: bool, changes: &[&str]) -> bool {
+    force || !changes.is_empty()
+}
+
+/// What a reload changes, in the console's and the log's words: the
+/// [`summary`] of `changes`, or that it was forced with none.
+fn reason(changes: &[&str]) -> String {
+    if changes.is_empty() {
+        "forced, no setting changed".into()
+    } else {
+        summary(changes)
+    }
+}
+
 /// The changes in words: "Sun and sky, sun shadows and light shafts", "HDR, FXAA and 3
 /// more".
 pub(crate) fn summary(changes: &[&str]) -> String {
@@ -210,13 +227,16 @@ impl crate::GpuState {
     }
 
     /// Build the world on show again on a context with the settings read anew. Returns
-    /// the console's answer.
+    /// the console's answer. Without `force` it does nothing while the graphics run with
+    /// the settings; with it the world is built again all the same, on a context that
+    /// reads the same settings.
     pub(crate) fn reload_graphics(
         &mut self,
         audio: &mut Option<crate::GameAudio>,
+        force: bool,
     ) -> Result<String, String> {
         let changes = self.graphics_changes();
-        if changes.is_empty() {
+        if !wanted(force, &changes) {
             return Ok("The graphics already run with these settings".into());
         }
         if self.world_load_task.is_some()
@@ -239,7 +259,7 @@ impl crate::GpuState {
         {
             return Err("Nothing to reload here: the graphics reload with the next map".into());
         }
-        let summary = summary(&changes);
+        let summary = reason(&changes);
         let context = self.context.resampled(self.console.as_ref());
         if on_server {
             // As a map change to the same map (`session_transition`): the session waits
@@ -521,6 +541,20 @@ mod tests {
         // The running value is still the one a later change compares with.
         assert!(running.normal);
         assert!(!material_maps::Settings::read(Some(&console)).normal);
+    }
+
+    #[test]
+    fn only_a_change_or_force_reloads() {
+        assert!(!wanted(false, &[]));
+        assert!(wanted(true, &[]));
+        assert!(wanted(false, &["HDR"]));
+        assert!(wanted(true, &["HDR"]));
+    }
+
+    #[test]
+    fn a_forced_reload_says_nothing_changed() {
+        assert_eq!(reason(&[]), "forced, no setting changed");
+        assert_eq!(reason(&["HDR", "FXAA"]), "HDR and FXAA");
     }
 
     #[test]

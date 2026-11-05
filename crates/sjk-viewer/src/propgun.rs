@@ -829,7 +829,7 @@ refire 300
         let target = Target::Standing {
             low: origin + Vec3::new(-15.0, -15.0, -24.0),
             high: origin + Vec3::new(15.0, 15.0, 40.0),
-            points: crate::ragdoll::standing(origin, 0.0),
+            points: crate::ragdoll::standing(origin, 0.0, crate::ragdoll::STOCK_SCALE),
         };
         let (at, joint) = target
             .struck_along(Vec3::new(0.0, 0.0, 40.0), Vec3::new(200.0, 0.0, 40.0))

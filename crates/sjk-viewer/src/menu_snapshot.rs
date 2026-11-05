@@ -1562,6 +1562,8 @@ fn identity_page(shots: &Snapshot, art: ArtSet) {
         mystery_boxes: None,
         mystery_boxes_revision: 0,
         mystery_box: None,
+        junk: None,
+        junk_sale: None,
         box_hunt: None,
         secrets: None,
         secrets_revision: 0,
@@ -2699,6 +2701,144 @@ fn radial_hud(shots: &mut Snapshot) {
     }
 }
 
+/// Only the classic HUD: on foot with a blaster and with a saber, and piloting a
+/// swoop (one weapon, its turbo recharging) and an AT-ST (two weapons, no turbo,
+/// the rider hidden), with the speedometer on.
+#[test]
+#[ignore = "reads the installed game data named by JKA_GAME_DATA"]
+fn classic_hud_snapshot() {
+    let (_, vfs) = art();
+    let mut shots = Snapshot {
+        font: crate::text::load_modern(1.0, None).expect("build the menu font"),
+        icons: HashMap::from([(crate::ui_renderer::LOGO_TEXTURE.0, logo_icon())]),
+        in_match: match_backdrop(&vfs),
+    };
+    classic_hud(&mut shots);
+}
+
+fn classic_hud(shots: &mut Snapshot) {
+    use crate::hud::vehicle::{Profile, Sample};
+    use crate::hud::{HudLook, HudOverlay, HudVisibility};
+    let visibility = HudVisibility {
+        hud: true,
+        elements: true,
+        status: true,
+        vehicle: true,
+        weapon: true,
+        selection: true,
+        crosshair: true,
+        crosshair_names: false,
+        timer: false,
+        lagometer: false,
+        ground_hud: false,
+        menu_hud: false,
+    };
+    let swoop = Profile {
+        hull: 2_000,
+        shields: 0,
+        speed_max: 1_600.0,
+        turbo_recharge: 3_000,
+        ammo_max: [2_000, 0],
+        has_weapon: [true, false],
+        always_linked: false,
+        hide_rider: false,
+        crosshair: None,
+    };
+    let walker = Profile {
+        hull: 800,
+        shields: 0,
+        speed_max: 160.0,
+        turbo_recharge: 0,
+        ammo_max: [300, 8],
+        has_weapon: [true, true],
+        always_linked: false,
+        hide_rider: true,
+        crosshair: None,
+    };
+    // Name, weapon, ammo, saber style, the ride (profile, hull, speed, ammo, turbo time).
+    type Ride<'a> = Option<(&'a Profile, i32, f32, [i32; 2], Option<i32>)>;
+    type Shot<'a> = (&'a str, u8, Option<i32>, Option<u8>, Ride<'a>);
+    let states: [Shot; 5] = [
+        ("hud-classic-blaster", 5, Some(240), None, None),
+        ("hud-classic-saber", 3, None, Some(2), None),
+        (
+            "hud-classic-swoop",
+            3,
+            None,
+            Some(2),
+            Some((&swoop, 1_837, 640.0, [2_000, 0], Some(7_690))),
+        ),
+        (
+            "hud-classic-swoop-ready",
+            3,
+            None,
+            Some(2),
+            Some((&swoop, 900, 0.0, [450, 0], Some(1_000))),
+        ),
+        (
+            "hud-classic-atst",
+            0,
+            None,
+            None,
+            Some((&walker, 800, 120.0, [210, 6], None)),
+        ),
+    ];
+    let screens = [("", VIEWPORT), ("-wide", [1920.0, 1080.0])];
+    for ((name, weapon, ammo, style, ride), (suffix, viewport)) in states
+        .into_iter()
+        .flat_map(|state| screens.map(|screen| (state, screen)))
+    {
+        let name = format!("{name}{suffix}");
+        let mut hud = HudOverlay::new();
+        let values = sjk_client::HudDataSource {
+            health: 100,
+            armor: 100,
+            force: 92,
+            weapon,
+            ammo,
+            saber_style: style,
+        };
+        hud.preview_values(values, [1.0, 1.0, 0.92, 0.8]);
+        hud.preview_speedometer("149 ups", 352.0);
+        if let Some((profile, hull, speed, ammo, turbo_time)) = ride {
+            hud.vehicle.update(&Sample {
+                number: 7,
+                piloted: true,
+                profile: Some(profile),
+                alive: true,
+                hull,
+                shield: 0,
+                speed,
+                ammo,
+                linked: false,
+                turbo_time,
+                time: 10_000,
+                dynamic_crosshair: 1,
+            });
+        }
+        // A vehicle that hides its rider hides the player's own status.
+        let visibility = hud.vehicle.apply(visibility);
+        let _ = hud.layout(
+            &shots.font.font,
+            HudLook::Classic,
+            viewport,
+            1.0,
+            visibility,
+            0,
+        );
+        let mut vertices = Vec::new();
+        crate::ui_renderer::append_text_commands(
+            hud.draw_list(),
+            |id| hud.resolve_text(id),
+            &mut vertices,
+            &shots.font.font,
+            viewport,
+            crate::text::TextStyle::NEUTRAL,
+        );
+        shots.save_at(&name, hud.draw_list(), &vertices, true, viewport);
+    }
+}
+
 fn force_wheel(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
     use crate::hud::force_wheel::{ICONS, picture_names, snapshot};
     use sjk_client::force_wheel::{DASH, REPULSE, STASIS};
@@ -3060,6 +3200,8 @@ fn medals_snapshot() {
         mystery_boxes: None,
         mystery_boxes_revision: 0,
         mystery_box: None,
+        junk: None,
+        junk_sale: None,
         box_hunt: None,
         secrets: None,
         secrets_revision: 0,

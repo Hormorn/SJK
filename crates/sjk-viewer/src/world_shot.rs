@@ -365,6 +365,9 @@ mod create_game;
 #[path = "world_shot_graphics_reload.rs"]
 mod graphics_reload;
 
+#[path = "world_shot_saber_kill.rs"]
+mod saber_kill;
+
 #[path = "world_shot_fps_help.rs"]
 mod fps_help_shots;
 #[path = "world_shot_small_card.rs"]
@@ -444,6 +447,8 @@ mod portable_shield_shots;
 mod render_scale_shots;
 #[path = "world_shot_scene_views.rs"]
 mod scene_views_shots;
+#[path = "world_shot_sharpen.rs"]
+mod sharpen_shots;
 #[cfg(test)]
 #[path = "world_shot_tags.rs"]
 mod tags_shots;
@@ -1338,6 +1343,8 @@ Found the fog bug, ask me about it!"
             mystery_boxes: None,
             mystery_boxes_revision: 0,
             mystery_box: None,
+            junk: None,
+            junk_sale: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,

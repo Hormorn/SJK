@@ -410,7 +410,11 @@ impl GpuState {
         Some(Target::Standing {
             low: origin + Vec3::new(-15.0, -15.0, -24.0),
             high: origin + Vec3::new(15.0, 15.0, top),
-            points: crate::ragdoll::standing(origin, state.view_angles[1]),
+            points: crate::ragdoll::standing(
+                origin,
+                state.view_angles[1],
+                self.ragdoll_own_scale(),
+            ),
         })
     }
 

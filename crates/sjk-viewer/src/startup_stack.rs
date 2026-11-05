@@ -7,7 +7,7 @@
 //! clean one. An overflow aborts the whole test binary (`STATUS_STACK_OVERFLOW`).
 
 /// A quarter of the main thread's 64 MiB.
-const BUDGET_BYTES: usize = 16 << 20;
+const BUDGET_BYTES: usize = (crate::stack_size::MAIN_STACK_BYTES / 4) as usize;
 
 #[test]
 #[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]

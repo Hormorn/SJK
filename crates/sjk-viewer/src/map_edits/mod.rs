@@ -24,8 +24,13 @@
 pub(crate) mod document;
 pub(crate) mod editor;
 pub(crate) mod faces;
+pub(crate) mod fly;
+pub(crate) mod gizmo;
+pub(crate) mod linked;
+pub(crate) mod nearby;
 pub(crate) mod panel;
 mod panel_view;
+pub(crate) mod recent;
 pub(crate) mod web;
 
 use crate::{ActorInstance, GpuState};
@@ -78,10 +83,16 @@ pub(crate) struct State {
     pub(crate) editor: editor::Editor,
     /// The editor's panel ([`panel`]).
     pub(crate) panel: panel::Panel,
-    /// The strip over play while the editor is on and its panel hidden.
-    pub(crate) strip: panel_view::Strip,
+    /// The editor's camera: the free camera, flown with the right mouse button ([`fly`]).
+    pub(crate) fly: fly::Fly,
     /// The browser editor's server while it runs (`mapedit_web`, [`web`]).
     pub(crate) web: Option<web::http::Server>,
+    /// The shaders and models used lately, once read ([`recent`]).
+    pub(crate) recent: Option<recent::Recent>,
+    /// The browser editor's brush faces, linked caulk and nearby shaders, per map.
+    pub(crate) web_cache: web::Cache,
+    /// The in-game transform gizmo ([`gizmo`]).
+    pub(crate) gizmo: gizmo::Gizmo,
 }
 
 /// Finding the loaded map's document.

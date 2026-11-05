@@ -37,6 +37,18 @@ impl ViewerConsole {
         self.show_collection_panel(tab, owns_console, false, ReturnTarget::MainMenu);
     }
 
+    /// The Saber Lab started: show the Shaders tab on its own (the classic menus; the SJK
+    /// UI's Collection screen is opened by `GpuState`) unless `hub` says it opened that
+    /// screen, and choose the lab blade.
+    pub(crate) fn show_saber_lab(&mut self, hub: bool) {
+        let shown = self.open && self.collection_panel.is_open();
+        if !hub && !(shown && self.collection_panel.tab() == Tab::Shaders) {
+            let owns_console = !self.open;
+            self.show_collection_panel(Tab::Shaders, owns_console, false, ReturnTarget::MainMenu);
+        }
+        self.collection_panel.choose_saber_lab();
+    }
+
     /// Show the page on its own on the tab shown last (the classic menus).
     pub(crate) fn open_collection_panel(&mut self) {
         let tab = self.collection_panel.tab();
@@ -93,6 +105,9 @@ impl ViewerConsole {
             PanelAction::None => {}
             PanelAction::Close => self.close_collection_panel(),
             PanelAction::Wear(id) => crate::unlockables::wear(self, id),
+            PanelAction::WearFinisher(id) => {
+                let _ = self.set_cvar(crate::finishers::CVAR, id);
+            }
             PanelAction::WearSecond(id) => {
                 let _ = self.set_cvar(crate::looks::SECOND_CVAR, id);
             }
@@ -198,6 +213,7 @@ impl ViewerConsole {
                 self.pending_mining = Some(on);
                 self.mining_on = on;
             }
+            PanelAction::SellJunk => self.pending_fishing_sell = true,
             PanelAction::Monitor(on) => {
                 self.pending_monitor = Some(on);
                 self.monitor_on = on;
@@ -330,6 +346,24 @@ impl ViewerConsole {
         self.pending_mining.take()
     }
 
+    /// Whether the Fishing card is on show (the Collection open on Toys, Fishing chosen):
+    /// the viewer gives it its catches then ([`Self::set_fishing_card`]).
+    pub(crate) fn fishing_card_shown(&self) -> bool {
+        self.collection_panel.is_open()
+            && self.collection_panel.tab() == Tab::Toys
+            && self.collection_panel.fishing_chosen()
+    }
+
+    /// The viewer gives the Fishing card its catches and sale.
+    pub(crate) fn set_fishing_card(&mut self, card: crate::fishing_sell::Card) {
+        self.fishing_card = card;
+    }
+
+    /// The Fishing card's Sell junk button was pressed, once.
+    pub(crate) fn take_fishing_sell_request(&mut self) -> bool {
+        std::mem::take(&mut self.pending_fishing_sell)
+    }
+
     /// The viewer says whether the Monitor toy is on, once a frame.
     pub(crate) fn set_monitor_on(&mut self, on: bool) {
         self.monitor_on = on;
@@ -431,6 +465,11 @@ impl ViewerConsole {
         self.collection_panel.set_backstage(backstage);
     }
 
+    /// The style the stage's model holds its hilts in, for the Saber Lab tab.
+    pub(crate) fn set_collection_lab_held(&mut self, held: crate::player_menu::SaberStyle) {
+        self.collection_panel.set_lab_held(held);
+    }
+
     /// The stock blade's colour, from `color1`, for its swatch.
     fn stock_blade(&self) -> sjk_ui::Color {
         // The whole number, as the game reads it: a black blade's 11 read as 1 (orange).
@@ -469,6 +508,10 @@ impl ViewerConsole {
             .text_cvar(crate::tags::FINISH_CVAR)
             .unwrap_or_default()
             .to_owned();
+        let finisher = self
+            .text_cvar(crate::finishers::CVAR)
+            .unwrap_or_default()
+            .to_owned();
         let illuminate = self.illuminate_lit();
         let cardboard_box = self.cardboard_box_on;
         let order66 = self.order66_on;
@@ -481,6 +524,7 @@ impl ViewerConsole {
         let banana = self.banana_on;
         let fishing = self.fishing_on;
         let mining = self.mining_on;
+        let fishing_card = self.fishing_card.clone();
         let stock = self.stock_blade();
         // Tiles unless the list is chosen (`ui_shaderList 1`).
         let grid = self.integer_cvar(super::collection_panel::SHADER_VIEW_CVAR) != Some(1);
@@ -550,6 +594,7 @@ impl ViewerConsole {
                 banana,
                 fishing,
                 mining,
+                fishing_card: Some(&fishing_card),
                 name: &name,
                 stock,
                 grid,
@@ -563,6 +608,7 @@ impl ViewerConsole {
                 toy_options,
                 tag: &tag,
                 tag_finish: &tag_finish,
+                finisher: &finisher,
             };
             self.collection_panel.append_sjk(&inputs, target, viewport);
             self.collection_panel.preview = Some(unlocks);
@@ -587,6 +633,7 @@ impl ViewerConsole {
             banana,
             fishing,
             mining,
+            fishing_card: Some(&fishing_card),
             name: &name,
             stock,
             grid,
@@ -600,6 +647,7 @@ impl ViewerConsole {
             toy_options,
             tag: &tag,
             tag_finish: &tag_finish,
+            finisher: &finisher,
         };
         self.collection_panel.append_sjk(&inputs, target, viewport);
     }
@@ -761,6 +809,12 @@ impl ViewerConsole {
         self.collection_panel.open_loadouts_for_shot(store);
     }
 
+    /// Show the Shaders tab's Finishers page, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn preview_finishers(&mut self) {
+        self.collection_panel.show_finishers();
+    }
+
     /// Open the page on its own on `tab` with `unlocks` in place of the own profile's,
     /// its swatches drawn at `seconds`, for a world shot.
     #[cfg(test)]
@@ -851,6 +905,61 @@ impl ViewerConsole {
         turn: Option<super::collection_panel::SaberTurn>,
     ) {
         self.collection_panel.hold_saber_for_shot(turn);
+    }
+
+    /// Show the Saber Lab tab's model in `style` (0 fast to 2 strong), swinging or not, for
+    /// a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_for_shot(&mut self, style: usize, swinging: bool) {
+        self.collection_panel.lab_for_shot(style, swinging);
+    }
+
+    /// Look at the Saber Lab tab's model from `view`, its blade lit or not, for a world
+    /// shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_view_for_shot(
+        &mut self,
+        view: crate::console::collection_panel::LabView,
+        lit: bool,
+    ) {
+        self.collection_panel.lab_view_for_shot(view, lit);
+    }
+
+    /// Open the Saber Lab's editor on skin `id`, its sections open, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_edit_for_shot(&mut self, id: &'static str) {
+        self.collection_panel.lab_edit_for_shot(id);
+    }
+
+    /// Show the sections the Saber Lab's edited skin may add, adding `add` when given, for
+    /// a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_edit_adds_for_shot(&mut self, add: Option<&str>) {
+        self.collection_panel.lab_edit_adds_for_shot(add);
+    }
+
+    /// Set the number at `path` of the skin the Saber Lab edits, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_edit_set_for_shot(&mut self, path: &str, value: f64) {
+        self.collection_panel.lab_edit_set_for_shot(path, value);
+    }
+
+    /// Preview blade skin `id` on the Saber Lab tab, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_blade_for_shot(&mut self, id: &str) {
+        self.collection_panel.lab_blade_for_shot(id);
+    }
+
+    /// Show the Saber Lab's floating saber's still trail or not, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_trail_for_shot(&mut self, trail: bool) {
+        self.collection_panel.lab_trail_for_shot(trail);
+    }
+
+    /// Put the Saber Lab's camera behind the model or back on the shot, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_lab_chase_for_shot(&mut self, chase: bool) {
+        self.collection_panel.lab_chase_for_shot(chase);
     }
 
     /// Choose the Collection's shader row `row` (0 the stock blade), for a world shot.

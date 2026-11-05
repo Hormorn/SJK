@@ -1583,7 +1583,8 @@ the choice in view with its heading, a bar at its side; the credits cards a hub 
 follow the tags under "Credits cards"; a tile badges its Holo and Solar copies, and the card
 offers Normal, Holo and Solar chips, the finishes held, shown over the picture, Choose then
 setting `cg_tagFinish` too), and since 31/10/2026
-History last (what came, was opened, spent and traded, [cards.md](cards.md#history)). Sol picked the
+History last (what came, was opened, spent and traded, [cards.md](cards.md#history)); while
+the Saber Lab is on, a tab after History, Saber Lab ([client.md](client.md#saber-lab)). Sol picked the
 direction from a design canvas (`the vault`): every thing has its place from the
 start, the ones the player lacks dimmed; each tab shows its things on the left and
 the one chosen up close on the right.
@@ -1772,7 +1773,8 @@ for the run.
 - **Loadouts** (03/11/2026, Lex's idea,
   [collection_loadouts.rs](../crates/sjk-viewer/src/collection_loadouts.rs)): on Shaders,
   Tags and Nameplates an outlined "Loadouts (P)" button under the tally (x 1624 to 1824,
-  y 206) opens a pop-up card (`kit::card`, x 440 to 1480, y 170 to 910, over the scrim;
+  y 206; on Shaders it lies in the stage saber's drag room, `SABER_AREA`, which leaves
+  it out, hub report #245) opens a pop-up card (`kit::card`, x 440 to 1480, y 170 to 910, over the scrim;
   the page is left out under it): "Loadouts" in gold, "Kept on this PC", the headline
   "Save your look, wear it again in one click" and what a loadout keeps, then five slots,
   a row of 86 each: the number, the name in gold while chosen (or "Empty slot") and a line
@@ -2074,36 +2076,46 @@ panel was removed on 10/10/2026).
 ## Map editor
 
 [panel_view.rs](../crates/sjk-viewer/src/map_edits/panel_view.rs): the staff map editor's
-panel ([map-edits.md](map-edits.md#the-panel) has what it does), opened by the world-note
-key while `mapedit` is on, or the in-game menu's Map editor icon, in every menu style
-(19/10/2026, Sol's request; made easier 28/10/2026, Sol's request). It is Camera
+panel ([map-edits.md](map-edits.md#the-panel) has what it does), shown whenever `mapedit`
+is on (the in-game menu's Map editor icon turns it on too), in every menu style
+(19/10/2026, Sol's request; made easier 28/10/2026 and 04/11/2026, Sol's requests). It is Camera
 control's column: the 1080-line frame on the window's right edge, the column at x 1440,
 416 wide, over the same navy fade, the scene left of x 1400 undimmed, where a click
-selects (the selection's green outline is the screen's one memorable thing).
+selects and the right button held flies (the selection's green outline is the screen's
+one memorable thing; a multiple selection outlines every member). While the editor flies
+the column stays drawn, its keys lines turned to the flight's.
 
 - **Top:** "Map editor" (Rajdhani 42), the map and its state (no edits yet, N edits not
   published, or published with the hub's revision), then the pages as tabs: Selected,
   Place, Edits (Camera control's tabs).
-- **Selected:** what it is (Rajdhani 26), its model or shader and its detail (Exo 2 16,
-  muted, two lines), a row of two kit buttons, then Draw another shader: the kit's search
-  pill (with its count), a list of five rows as Place's (names without `textures/` or
-  `models/`, the selection's own shader in quiet print unless chosen), and Remap and
-  Remove remap. With nothing selected, how to select.
+- **Selected:** what it is (Rajdhani 26; "Hidden face and 11 more" for several), its model
+  or shader and its detail (Exo 2 16, muted, two lines; on faces the second is Fill's
+  shader and share in gold), a row of kit buttons (two; three on a hidden face or a sky:
+  Same plane, Connected, Fill), then Draw another shader: the kit's search pill (with its
+  count), a list of five rows as Place's (names without `textures/` or `models/`, the
+  selection's own shader in quiet print unless chosen, the Recent rows first with a quiet
+  "Recent" at their right and a line under the last), and Remap and Remove remap. With
+  nothing selected, how to select and to fly. On a sky (04/11/2026) the kind is "Sky", the
+  skies lead the list after the Recent rows, and its last row has three buttons: Swap sky
+  (Cover side when a texture is chosen), Swap all skies (only with a sky chosen) and Take
+  back.
 - **Place:** the kit's search pill, a list of six rows (34 each, the chosen one gold with
-  a gold tick at its left, paths without `models/`), Place where you aimed across the
-  column, then Placed model: its line and three rows of four buttons (turn and lift,
-  the nudges, scale with Grab and Remove).
-- **Edits:** a list of twelve rows, an edit for another server in quiet print; Delete,
-  Undo and Redo (each dimmed with nothing to do).
+  a gold tick at its left, paths without `models/`, the Recent rows first), Place where you
+  aimed across the column, then Placed model: its line and three rows of four buttons
+  (turn and lift, the nudges, scale with Grab, Put down while grabbing, and Remove).
+- **Edits:** a list of eleven rows, an edit for another server in quiet print; Delete,
+  Undo and Redo (each dimmed with nothing to do); then the Recent rows' switch ("Recent:
+  remembered" or "Recent: off") and Forget recent.
 - **Foot:** New edits for and the kit's segments (All servers, This server) at y 800, the
-  last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold),
-  Aim and Editor off at 898, and two lines of keys from 964 as Camera control's (Enter,
-  Ctrl+Z, Ctrl+Y; then Click, Esc, with Shift's fine steps on Place). A page's controls
-  end above it (a test checks every page at four window shapes).
-- **Strip:** while the editor is on and the panel hidden, a navy card 600 wide at the top
-  centre of the 16:9 frame: "Map editor" in gold, what to aim at (or that the grabbed model
-  follows the aim), and the world-note key's cap with "edit" (or "put it down", with the
-  Wheel's "turn" under it).
+  last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold) and
+  Editor off at 898, and three lines of keys from 954, 30 apart (RMB fly, Click select,
+  Shift+Click add; G R T gizmo, Esc back, with Shift's fine steps on Place; Ctrl+Z undo
+  and the cap of the key bound to `mapedit`, "leave"; while flying W A S D, Space C, Shift,
+  Wheel; while grabbing Click, Wheel, Esc; while transforming the gizmo's), then, when the
+  free camera was refused, why, in ember Exo 2 15 at 1044. A page's controls end above it
+  (a test checks every page at four window shapes, and that every key line fits the
+  column). The Aim button and the strip over play (while the panel was hidden to aim) went
+  on 04/11/2026: the panel no longer hides while the editor is on.
 
 It is a page of the in-game menu (`Page::MapEdit`), drawn by `InGameMenu::append_own_page`
 from the panel's state, which lives with the map's edits; its keys come before the game
@@ -2134,7 +2146,8 @@ screen's one memorable thing (holo blue, the new start a gold ring with its faci
   last answer (ember when refused) or "Not saved" at 840, Save (gold), Play, Look and Close
   at 898, two lines of keys from 964 (Left Right snap, Shift free, Page Up Page Down on a
   handle; Enter, Ctrl+S, Up Down elsewhere; Esc look).
-- **Strip:** while looking about, the map editor's strip: "Ghost editor" in gold, which
+- **Strip:** while looking about, a navy card at the top centre (the map editor had one
+  until 04/11/2026): "Ghost editor" in gold, which
   path is drawn, and Esc "back to the editor".
 
 It is a page of the in-game menu (`Page::GhostEdit`), drawn by

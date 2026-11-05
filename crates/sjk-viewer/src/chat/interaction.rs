@@ -14,6 +14,16 @@ pub(super) const ADMIN: u16 = 104;
 pub(super) const PM: u16 = 105;
 pub(super) const JOF: u16 = 106;
 pub(super) const SITH: u16 = 107;
+/// The whisper recipient's `<`: the previous player who whispered you (`view/recipient.rs`).
+pub(super) const PM_PREV: u16 = 108;
+/// The whisper recipient's `>`: the next player who whispered you.
+pub(super) const PM_NEXT: u16 = 109;
+/// The whisper recipient's name: opens the list of the players who whispered you.
+pub(super) const PM_NAME: u16 = 110;
+/// The list's first player; the others follow, up to `PM_LIST + LIST_MAX - 1` (118).
+pub(super) const PM_LIST: u16 = 111;
+/// The list's tokens, newest whisperer first.
+const PM_LIST_TOKENS: std::ops::Range<u16> = PM_LIST..PM_LIST + super::view::PM_LIST_MAX as u16;
 
 /// Keys the composer acts on itself rather than typing their text.
 fn handled_key(key: KeyCode) -> bool {
@@ -70,12 +80,29 @@ impl ChatOverlay {
         match key {
             // A pinned sender card goes first, the composer with the next Escape.
             KeyCode::Escape if self.unpin_card() => {}
+            // An open list of whisperers goes before the composer too.
+            KeyCode::Escape if self.input.as_ref().is_some_and(|input| input.pm_list) => {
+                if let Some(input) = self.input.as_mut() {
+                    input.pm_list = false;
+                }
+            }
             KeyCode::Escape => {
                 self.input = None;
                 self.scroll = 0;
                 self.unread = 0;
             }
             KeyCode::Enter | KeyCode::NumpadEnter => return self.submit(),
+            // Alt+Left and Alt+Right step between the players who whispered you, as the
+            // recipient's `<` and `>` do.
+            KeyCode::ArrowLeft | KeyCode::ArrowRight
+                if self.modifiers.alt_key()
+                    && self
+                        .input
+                        .as_ref()
+                        .is_some_and(|input| input.channel == Channel::Whisper) =>
+            {
+                self.step_pm(if key == KeyCode::ArrowLeft { -1 } else { 1 });
+            }
             KeyCode::PageUp | KeyCode::ArrowUp => self.scroll_by(3),
             KeyCode::PageDown | KeyCode::ArrowDown => self.scroll_by(-3),
             KeyCode::Tab => {
@@ -192,9 +219,20 @@ impl ChatOverlay {
             // Match the canvas's reverse paint order: the card covers the
             // composer, which covers the feed. Otherwise release activates a
             // different widget than the one recorded here and is discarded.
+            // The list of whisperers lies over the feed, under the card.
+            let list_open = self.input.as_ref().is_some_and(|input| input.pm_list);
+            let list = if list_open {
+                PM_LIST_TOKENS
+            } else {
+                PM_LIST..PM_LIST
+            };
             self.pressed_action = card::BUTTONS
                 .into_iter()
-                .chain([card::CARD, LATEST, PM, ADMIN, SITH, JOF, SJK, TEAM, GLOBAL])
+                .chain([card::CARD])
+                .chain(list)
+                .chain([
+                    LATEST, PM_PREV, PM_NEXT, PM_NAME, PM, ADMIN, SITH, JOF, SJK, TEAM, GLOBAL,
+                ])
                 .chain(0..MAX_VISIBLE as u16)
                 .find(|token| {
                     self.ui
@@ -206,6 +244,15 @@ impl ChatOverlay {
                 .pressed_action
                 .and_then(|token| self.visible_people.get(usize::from(token)).copied())
                 .flatten();
+            // A press off the open list and off the name that opened it closes it.
+            if list_open
+                && !self
+                    .pressed_action
+                    .is_some_and(|token| token == PM_NAME || PM_LIST_TOKENS.contains(&token))
+                && let Some(input) = self.input.as_mut()
+            {
+                input.pm_list = false;
+            }
             // A press off a pinned card and off every name lets the card go.
             if !self
                 .pressed_action
@@ -251,6 +298,7 @@ impl ChatOverlay {
         if let Some(input) = &mut self.input {
             input.channel = channel;
             input.recipient = None;
+            input.pm_list = false;
             self.notice = "";
         }
     }
@@ -264,6 +312,10 @@ impl ChatOverlay {
             JOF => self.choose(Channel::Jof),
             SITH => self.choose(Channel::Sith),
             PM => self.step_pm(1),
+            PM_PREV => self.step_pm(-1),
+            PM_NEXT => self.step_pm(1),
+            PM_NAME => self.toggle_pm_list(),
+            token if PM_LIST_TOKENS.contains(&token) => self.pick_pm(usize::from(token - PM_LIST)),
             LATEST => {
                 self.scroll = 0;
                 self.unread = 0;
@@ -321,7 +373,7 @@ impl crate::GpuState {
         let off = self
             .console
             .as_ref()
-            .is_some_and(|console| console.bool_cvar("cl_sjkChat") == Some(false));
+            .is_some_and(|console| !console.sjk_chat_on());
         let why = if off {
             Some("^3SJK chat is off (cl_sjkChat 1 turns it on)")
         } else if !if only {

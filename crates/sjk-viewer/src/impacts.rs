@@ -154,7 +154,14 @@ pub(crate) struct Pool {
     events: Vec<LegacyImpactEvent>,
     /// `cg_fleshSparks`, sampled as each snapshot is observed.
     flesh_sparks: u8,
+    /// Where blades clashed since the frame's sabers were last drawn: the snapshots'
+    /// saber blocks, and the walls' first touches ([`Self::clash_at`]), for the blade
+    /// skins that react (`saber_smoke::Sink::clashed`).
+    clashes: Vec<[f32; 3]>,
 }
+
+/// The most clashes kept between two frames.
+const MOST_CLASHES: usize = 32;
 
 impl Pool {
     pub(crate) fn new() -> Self {
@@ -162,6 +169,7 @@ impl Pool {
             tracker: LegacyImpactTracker::new(),
             events: Vec::with_capacity(MAX_SNAPSHOT_IMPACTS),
             flesh_sparks: FLESH_SPARKS_ALL,
+            clashes: Vec::with_capacity(MOST_CLASHES),
         }
     }
 
@@ -177,7 +185,30 @@ impl Pool {
 
     pub(crate) fn observe(&mut self, snapshot: &Snapshot) -> usize {
         self.tracker.observe(snapshot, &mut self.events);
+        for index in 0..self.events.len() {
+            let event = self.events[index];
+            if matches!(event.kind, LegacyImpactKind::SaberBlock) {
+                self.clash_at(event.origin);
+            }
+        }
         self.events.len()
+    }
+
+    /// Note a clash at `point` (a blade struck a wall).
+    pub(crate) fn clash_at(&mut self, point: [f32; 3]) {
+        if self.clashes.len() < MOST_CLASHES {
+            self.clashes.push(point);
+        }
+    }
+
+    /// Where blades clashed since the sabers were last drawn.
+    pub(crate) fn clashes(&self) -> &[[f32; 3]] {
+        &self.clashes
+    }
+
+    /// Forget the clashes: the frame's sabers took them.
+    pub(crate) fn clear_clashes(&mut self) {
+        self.clashes.clear();
     }
 
     pub(crate) fn event(&self, index: usize) -> Option<LegacyImpactEvent> {

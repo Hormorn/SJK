@@ -54,6 +54,10 @@ pub(super) fn run() -> Result<(), Box<dyn Error>> {
     crate::jof_content::follow(&console);
     // SJK's packs from the hub, cached beside identity.key, before any world mounts.
     crate::sjk_packs::mount_at_start(console.config_directory());
+    // The Saber Lab's folder over them, when SJK_SABER_LAB names one.
+    crate::saber_lab::start_from_environment();
+    // The SJK chat off for this run, when SJK_APPEAR_OFFLINE asks.
+    crate::sjk_chat_frame::appear_offline_from_environment();
     // The material maps sjk-materialgen wrote beside the settings, above all packs.
     assets::generated::locate_at_start(console.config_directory());
     // The menu goes up first so its master-server fetch runs while the map

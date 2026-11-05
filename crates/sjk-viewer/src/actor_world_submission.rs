@@ -40,6 +40,18 @@ mod player_spheres;
 const EF_DEAD_FLAG: u32 = 1 << 1;
 
 struct Sinks<'a> {
+    /// The effect atlas, for the blend a blade skin's smoke shader draws with, and the
+    /// smoke ribbons.
+    particle_atlas: &'a crate::ParticleAtlas,
+    smoke_ribbons: &'a mut crate::saber_ribbons::Ribbons,
+    saber_sparks: &'a mut crate::saber_sparks::Sparks,
+    /// Where blades clashed this frame (`impacts::Pool::clashes`).
+    saber_clashes: &'a [[f32; 3]],
+    /// What the blades of skins with a crackle are heard doing this frame.
+    saber_heard: &'a mut crate::saber_smoke::Heard,
+    /// TRACE-DISINTEGRATE (temporary): the forced disintegrations, to log a body of
+    /// theirs drawn whole.
+    forced: &'a crate::disintegration::Forced,
     grip_victim: bool,
     force_fx: force_powers::policy::Policy,
     flame: Option<&'static force_powers::flame::Contract>,
@@ -334,6 +346,12 @@ pub(crate) fn submit(
             gpu.muted_players.slots().muted,
         ),
         saber_core: crate::saber_core::read(gpu.console.as_ref()),
+        particle_atlas: &gpu.particle_atlas,
+        smoke_ribbons: &mut gpu.smoke_ribbons,
+        saber_sparks: &mut gpu.saber_sparks,
+        saber_clashes: gpu.impacts.clashes(),
+        saber_heard: &mut gpu.saber_heard,
+        forced: &gpu.forced_disintegrations,
         saber_states: &mut gpu.saber_states,
         saber_segments: &mut gpu.saber_trail_segments,
         trail_edges: trails.then(|| {
@@ -660,6 +678,25 @@ fn submit_actor(
                 .mark_drawn(entity.id, presentation_time);
             return 0;
         }
+    }
+    // TRACE-DISINTEGRATE (temporary): a body of a burning or burnt one drawn whole.
+    if crate::disintegration::tracing()
+        && let Ok(number) = u16::try_from(entity.id.get().saturating_sub(1))
+        && sinks.forced.watching(
+            number,
+            state
+                .filter(|_| entity.kind == EntityKind::Corpse)
+                .map(|state| state.client_num()),
+        )
+    {
+        crate::disintegration::trace(format_args!(
+            "{number} ({:?}, client {:?}, flags {:?}) drawn whole at {} with mesh {mesh:?}, at {:?}",
+            entity.kind,
+            state.map(|state| state.client_num()),
+            state.map(|state| state.e_flags()),
+            sinks.presentation_time,
+            transform.translation
+        ));
     }
     // A monster's victim is drawn in its hand or jaw (`cg_players.c:9220-9244`).
     let local = Some(entity.id.get()) == local_entity_id;
@@ -1457,6 +1494,16 @@ fn submit_equipment(
         sinks.lights,
         attacking,
         sinks.saber_core,
+        &mut crate::saber_smoke::Sink {
+            particles: sinks.particles,
+            effects: sinks.effects,
+            atlas: Some(sinks.particle_atlas),
+            ribbons: sinks.smoke_ribbons,
+            sparks: sinks.saber_sparks,
+            clashes: sinks.saber_clashes,
+            heard: Some(&mut *sinks.saber_heard),
+            now: visual_now,
+        },
     ) {
         return;
     }
@@ -1558,8 +1605,18 @@ fn submit_disintegration(
 ) {
     use crate::disintegration::{PLAYER_MILLIS, RF_DISINTEGRATE1, RF_DISINTEGRATE2, SMOKE_EFFECT};
     let now = sinks.presentation_time;
-    if entity.kind == EntityKind::Actor && now - state.started > PLAYER_MILLIS {
+    // A body this client burnt away itself goes too: the server keeps it.
+    if (entity.kind == EntityKind::Actor || state.forced) && now - state.started > PLAYER_MILLIS {
         return;
+    }
+    // TRACE-DISINTEGRATE (temporary): a forced one drawn in its burn.
+    if state.forced {
+        crate::disintegration::trace(format_args!(
+            "{} ({:?}) drawn burning at {now}, {} ms in",
+            entity.id.get().saturating_sub(1),
+            entity.kind,
+            now - state.started
+        ));
     }
     if !(draw_actor || sinks.portal_view) {
         return;

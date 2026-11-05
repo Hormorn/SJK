@@ -218,6 +218,11 @@ impl GameAudio {
         found
     }
 
+    /// Register one sound as [`Self::register_effect_paths`] does; whether it is there.
+    pub(crate) fn register_sound(&mut self, vfs: &VirtualFileSystem, path: &str) -> bool {
+        self.register_vfs_async(vfs, path).is_some()
+    }
+
     pub(crate) fn register_duel_music(&mut self, vfs: &VirtualFileSystem) {
         self.duel_music = self.register_vfs_async(vfs, DUEL_MUSIC);
     }

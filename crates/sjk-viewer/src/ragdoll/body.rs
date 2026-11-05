@@ -5,8 +5,10 @@
 //! Every SJK client that hears of a fall runs this same simulation from the same start
 //! ([`Start`]), in fixed steps of [`STEP_MS`] game server milliseconds counted from the
 //! fall's moment, so all of them show the body in the same place without any pose being
-//! sent: the start is one short relay event. The body's proportions are fixed, not the
-//! player model's (a client that lacks the model draws another). The world's brushes
+//! sent: the start is one short relay event. The body's proportions are the stock
+//! humanoid's, not the player model's (a client that lacks the model draws another),
+//! at the player's `modelScale` ([`Start::scale`], since 03/11/2026: a youngling or a
+//! jawa made small by the server fell full size, hub report #223). The world's brushes
 //! and its movers are in its way: a mover stands where its trajectory puts it at the
 //! step's own moment ([`World::at`]), which every client that sees the mover reads the
 //! same, so a lift carries the body and a closing door pushes it the same way everywhere.
@@ -171,13 +173,33 @@ const SCRAPE_SPEED: f32 = 80.0;
 
 /// How a fall starts: where the player stood (their origin, 24 units above their feet,
 /// as the game keeps it), how fast they went, which way they faced (degrees), and the
-/// moment (game server milliseconds), which also varies how the body crumples.
+/// moment (game server milliseconds), which also varies how the body crumples; and how
+/// big the player is drawn (`scale`, a percentage, [`STOCK_SCALE`] the stock size).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Start {
     pub(crate) moment: i32,
     pub(crate) origin: [i32; 3],
     pub(crate) velocity: [i32; 3],
     pub(crate) yaw: u16,
+    /// The player's `iModelScale` as [`scale_percent`] reads it: the body stands this
+    /// share of the stock humanoid's size, its feet where the scaled model's are
+    /// (`CG_Player` lowers a scaled model by `24 * (scale - 1)`, so they stay on the
+    /// floor), its boxes and sticks scaled alike so it lies on the floor, not in or over it.
+    pub(crate) scale: u16,
+}
+
+/// The stock size, as a percentage: what a fall with no `modelScale` takes.
+pub(crate) const STOCK_SCALE: u16 = 100;
+/// The largest scale a fall takes: `iModelScale` is sent in 10 bits.
+const MAX_SCALE: u16 = 1_023;
+
+/// A player's `iModelScale` (entity or player state) as a fall's [`Start::scale`]: zero,
+/// the network's "no custom scale", is the stock size, as `CG_Player` draws it.
+pub(crate) fn scale_percent(model_scale: i32) -> u16 {
+    match model_scale {
+        0 => STOCK_SCALE,
+        scale => scale.clamp(1, i32::from(MAX_SCALE)) as u16,
+    }
 }
 
 /// A blow to the body: at the start of step `step` since the fall's moment, the body
@@ -268,6 +290,9 @@ pub(crate) struct Body {
     /// How hard it falls, units a second squared: [`GRAVITY`], or none while it floats
     /// (the Toy Master's shows, `toy_master::float`).
     gravity: f32,
+    /// [`Start::scale`] as a factor: every length of the body (its points standing,
+    /// sticks, reaches, boxes) is the stock one times this.
+    scale: f32,
 }
 
 /// A number in 0..1 from `seed` and `salt`, the same on every client.
@@ -308,6 +333,7 @@ impl Body {
     /// buckling) that the moment varies.
     pub(crate) fn new(start: &Start) -> Self {
         let (cos, sin) = turn(start.yaw);
+        let scale = f32::from(start.scale) / f32::from(STOCK_SCALE);
         let feet = Vec3::new(
             start.origin[0] as f32,
             start.origin[1] as f32,
@@ -327,7 +353,7 @@ impl Body {
         let mut points = [Vec3::ZERO; JOINTS];
         let mut previous = [Vec3::ZERO; JOINTS];
         for (joint, standing) in STANDING.iter().enumerate() {
-            let [x, y, z] = *standing;
+            let [x, y, z] = standing.map(|c| c * scale);
             let at = feet + forward * x + left * y + Vec3::Z * z;
             let push = match joint {
                 CHEST | HEAD | L_SHOULDER | R_SHOULDER => back,
@@ -338,7 +364,7 @@ impl Body {
             points[joint] = at;
             previous[joint] = at - speed - push;
         }
-        let standing = |joint: usize| Vec3::from_array(STANDING[joint]);
+        let standing = |joint: usize| Vec3::from_array(STANDING[joint]) * scale;
         let lengths = STICKS.map(|(a, b)| standing(a).distance(standing(b)));
         let reach = REACH.map(|(a, b, share)| standing(a).distance(standing(b)) * share);
         Self {
@@ -358,6 +384,7 @@ impl Body {
             scrapes: Vec::with_capacity(JOINTS),
             lowest: feet.z - FLOOR_DEPTH,
             gravity: GRAVITY,
+            scale,
         }
     }
 
@@ -481,7 +508,7 @@ impl Body {
         let stirred = (0..JOINTS).any(|joint| {
             let at = self.points[joint];
             self.riding[joint].is_some_and(|mover| world.carry(mover, at) != at)
-                || world.pusher(at, half(joint)).is_some()
+                || world.pusher(at, self.half(joint)).is_some()
         });
         if stirred {
             self.still = 0;
@@ -526,7 +553,8 @@ impl Body {
             let centre = self.centre_of_mass();
             // The inertia about the centre, a ball's share added so that a body lying
             // straight still has some about its length.
-            let mut inertia = glam::Mat3::from_diagonal(Vec3::splat(total * 20.0));
+            let mut inertia =
+                glam::Mat3::from_diagonal(Vec3::splat(total * 20.0 * self.scale * self.scale));
             for (point, mass) in self.points.iter().zip(MASSES) {
                 let r = *point - centre;
                 let rr = r.length_squared();
@@ -566,7 +594,7 @@ impl Body {
         let mut carried = false;
         for joint in 0..JOINTS {
             let at = self.points[joint];
-            let mover = self.riding[joint].or_else(|| world.pusher(at, half(joint)));
+            let mover = self.riding[joint].or_else(|| world.pusher(at, self.half(joint)));
             let shift = mover.map_or(Vec3::ZERO, |mover| world.carry(mover, at) - at);
             self.points[joint] += shift;
             self.previous[joint] += shift;
@@ -594,13 +622,13 @@ impl Body {
         let mut moved = 0.0_f32;
         for (joint, &from) in moved_to.iter().enumerate() {
             let to = self.points[joint];
-            if let Some(hit) = world.trace(from, to, half(joint)) {
+            if let Some(hit) = world.trace(from, to, self.half(joint)) {
                 touched[joint] = touched[joint].or(Some(hit));
                 // What is left slides along the surface, as far as the world lets it.
                 let rest = to - hit.stop;
                 let slide = rest - hit.normal * rest.dot(hit.normal);
                 let base = hit.stop + hit.normal * 0.125;
-                self.points[joint] = match world.trace(base, base + slide, half(joint)) {
+                self.points[joint] = match world.trace(base, base + slide, self.half(joint)) {
                     None => base + slide,
                     Some(hit) => hit.stop + hit.normal * 0.125,
                 };
@@ -635,7 +663,7 @@ impl Body {
         to: Vec3,
         world: &mut impl World,
     ) -> (Vec3, Option<Hit>) {
-        let Some(hit) = world.trace(from, to, half(joint)) else {
+        let Some(hit) = world.trace(from, to, self.half(joint)) else {
             return (to, None);
         };
         let normal = hit.normal;
@@ -677,14 +705,14 @@ impl Body {
         }
         for (index, &(a, b, _)) in REACH.iter().enumerate() {
             let standing = Vec3::from_array(STANDING[a]).distance(Vec3::from_array(STANDING[b]));
-            self.keep(a, b, self.reach[index], standing);
+            self.keep(a, b, self.reach[index], standing * self.scale);
         }
         self.apart();
         let forward = self.facing();
         for &(upper, middle, lower, forth) in &HINGES {
             let line = (self.points[upper] + self.points[lower]) * 0.5;
             let out = (self.points[middle] - line).dot(forward);
-            let wrong = if forth { -out } else { out - 1.5 };
+            let wrong = if forth { -out } else { out - 1.5 * self.scale };
             if wrong > 0.0 {
                 let push = forward * if forth { wrong } else { -wrong };
                 self.points[middle] += push * 0.5;
@@ -699,7 +727,7 @@ impl Body {
     /// hip). A leg no longer passes through the other, nor a hand through the head.
     fn apart(&mut self) {
         for &(a, b, shortest) in APART.iter() {
-            self.keep(a, b, shortest, f32::MAX);
+            self.keep(a, b, shortest * self.scale, f32::MAX);
         }
     }
 
@@ -722,17 +750,17 @@ impl Body {
         self.points[b] -= shift * (1.0 - share);
     }
 
+    /// Half the size of `joint`'s box in the world's collision, at the body's scale.
+    fn half(&self, joint: usize) -> f32 {
+        HALVES[joint] * self.scale
+    }
+
     /// The way the trunk faces: its left (hips, right to left) crossed with its up.
     pub(crate) fn facing(&self) -> Vec3 {
         let left = self.points[L_HIP] - self.points[R_HIP];
         let up = self.points[CHEST] - self.points[PELVIS];
         left.cross(up).normalize_or_zero()
     }
-}
-
-/// Half the size of `joint`'s box in the world's collision.
-fn half(joint: usize) -> f32 {
-    HALVES[joint]
 }
 
 /// The bones: the sticks before the trunk's braces.
@@ -794,11 +822,17 @@ static APART: std::sync::LazyLock<Vec<(usize, usize, f32)>> = std::sync::LazyLoc
 });
 
 /// `Start` as one relay event's text after its prefix: the moment, the origin, the
-/// speed and the yaw, whole numbers parted by `_` (the relay takes 64 characters).
+/// speed and the yaw, whole numbers parted by `_` (the relay takes 64 characters), then
+/// the scale when it is not the stock size: a stock-sized fall reads as it did before
+/// the scale was sent, so clients from before then still show it.
 pub(crate) fn encode(start: &Start) -> String {
     let [x, y, z] = start.origin;
     let [vx, vy, vz] = start.velocity;
-    format!("{}_{x}_{y}_{z}_{vx}_{vy}_{vz}_{}", start.moment, start.yaw)
+    let mut text = format!("{}_{x}_{y}_{z}_{vx}_{vy}_{vz}_{}", start.moment, start.yaw);
+    if start.scale != STOCK_SCALE {
+        text.push_str(&format!("_{}", start.scale));
+    }
+    text
 }
 
 /// The start [`encode`] wrote; `None` for anything else or out of bounds.
@@ -809,6 +843,13 @@ pub(crate) fn decode(text: &str) -> Option<Start> {
     let origin = [number()?, number()?, number()?];
     let velocity = [number()?, number()?, number()?];
     let yaw = u16::try_from(number()?).ok().filter(|yaw| *yaw < 360)?;
+    let scale = match parts.next() {
+        None => STOCK_SCALE,
+        Some(scale) => scale
+            .parse::<u16>()
+            .ok()
+            .filter(|scale| (1..=MAX_SCALE).contains(scale))?,
+    };
     if parts.next().is_some()
         || origin.iter().any(|c| c.abs() > 65_536)
         || velocity.iter().any(|c| c.abs() > 4_000)
@@ -820,6 +861,7 @@ pub(crate) fn decode(text: &str) -> Option<Start> {
         origin,
         velocity,
         yaw,
+        scale,
     })
 }
 
@@ -867,6 +909,7 @@ mod tests {
             origin: [0, 0, 24],
             velocity: [0, 0, 0],
             yaw: 90,
+            scale: STOCK_SCALE,
         }
     }
 
@@ -877,13 +920,86 @@ mod tests {
             origin: [-65_000, 12_345, -4_000],
             velocity: [-3_999, 250, -1_200],
             yaw: 359,
+            scale: STOCK_SCALE,
         };
         let text = format!("fall_{}", encode(&start));
         assert!(text.len() <= 64, "{text}");
         assert_eq!(decode(text.strip_prefix("fall_").unwrap()), Some(start));
         assert_eq!(decode("1_2_3"), None);
         assert_eq!(decode("1_0_0_0_0_0_0_360"), None);
-        assert_eq!(decode("1_0_0_0_0_0_0_10_5"), None);
+        assert_eq!(decode("1_0_0_0_0_0_0_10_5_7"), None);
+    }
+
+    #[test]
+    fn a_scaled_start_sends_its_scale_and_a_stock_one_reads_as_before() {
+        // The stock size writes no scale: clients from before it was sent read it.
+        assert_eq!(encode(&start(5)), "5_0_0_24_0_0_0_90");
+        let worst = Start {
+            moment: i32::MIN,
+            origin: [-65_536; 3],
+            velocity: [-4_000; 3],
+            yaw: 359,
+            scale: MAX_SCALE,
+        };
+        let small = Start {
+            scale: 60,
+            ..start(5)
+        };
+        for start in [worst, small] {
+            let text = format!("fall_{}", encode(&start));
+            assert!(text.len() <= 64, "{text}");
+            assert_eq!(decode(text.strip_prefix("fall_").unwrap()), Some(start));
+        }
+        assert_eq!(encode(&small), "5_0_0_24_0_0_0_90_60");
+        assert_eq!(decode("1_0_0_0_0_0_0_10_0"), None, "no zero scale");
+        assert_eq!(decode("1_0_0_0_0_0_0_10_1024"), None, "past 10 bits");
+        // `iModelScale` 0 is the stock size; anything else is its percentage.
+        assert_eq!(scale_percent(0), STOCK_SCALE);
+        assert_eq!(scale_percent(60), 60);
+        assert_eq!(scale_percent(-5), 1);
+        assert_eq!(scale_percent(5_000), MAX_SCALE);
+    }
+
+    /// Hub report #223: a youngling or a jawa the server made small (`modelScale`)
+    /// fell as a full-sized body. A body at 60 % stands 60 % as tall on the same feet,
+    /// and lies on the floor as the stock one does, its boxes touching it: neither
+    /// floating over it nor sunk into it.
+    #[test]
+    fn a_small_player_falls_as_a_small_body_lying_on_the_floor() {
+        let stock = Body::new(&start(1_000));
+        let small = Body::new(&Start {
+            scale: 60,
+            ..start(1_000)
+        });
+        let feet = Vec3::new(0.0, 0.0, 0.0);
+        for (big, little) in stock.points().iter().zip(small.points()) {
+            let expected = feet + (*big - feet) * 0.6;
+            assert!(little.distance(expected) < 1e-3, "{little} {expected}");
+        }
+        let mut world = floor(false);
+        for (mut body, scale) in [(stock, 1.0), (small, 0.6)] {
+            body.run_to(MAX_STEPS, &mut world);
+            assert!(body.asleep());
+            let points = *body.points();
+            // Every box rests on or above the floor, and the lowest lies on it.
+            let gaps: Vec<f32> = (0..JOINTS)
+                .map(|joint| points[joint].z - body.half(joint))
+                .collect();
+            let lowest = gaps.iter().copied().fold(f32::MAX, f32::min);
+            assert!(gaps.iter().all(|gap| *gap > -0.5), "{gaps:?}");
+            assert!(lowest < 0.5, "floating {lowest}");
+            assert!(
+                points[PELVIS].z < 10.0 * scale,
+                "{scale}: pelvis {}",
+                points[PELVIS]
+            );
+            // The sticks held at the body's size.
+            let bone = points[L_HIP].distance(points[L_KNEE]);
+            let standing = Vec3::from_array(STANDING[L_HIP])
+                .distance(Vec3::from_array(STANDING[L_KNEE]))
+                * scale;
+            assert!((bone - standing).abs() < 1.0 * scale, "{bone} {standing}");
+        }
     }
 
     #[test]

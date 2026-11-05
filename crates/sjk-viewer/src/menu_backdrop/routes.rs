@@ -163,6 +163,23 @@ const YAVIN_TRAINING_SABER: Route = Route {
     focus: Some([-399.6, -417.3, 392.0]),
 };
 
+/// mp/duel6 Saber Lab: the player stage seen from further off, where the saber shot's
+/// camera stands, turned so the model is left of the middle and the right of the picture
+/// is clear for the floating saber; the room around the model leaves its swings in view.
+/// A toured map cuts to it, so the one waypoint is the shot itself.
+const YAVIN_TRAINING_SABER_LAB: Route = Route {
+    map_message: "Yavin Training Grounds",
+    shot: Shot::SaberLab,
+    from: Shot::Main,
+    millis: 1_000,
+    points: &[point([-428.0, -456.0, 398.0], 20.0, -4.0)],
+    stage: Some(Stage {
+        origin: [-360.0, -360.0, 376.0],
+        yaw: 225.0,
+    }),
+    focus: None,
+};
+
 /// mp/duel6 holocrons: the tower and the quarter garden from the south-west path,
 /// high enough over it that the garden's greens, not a wall, fill the clear left of the
 /// screen; the Holocrons tab floats its holocron before this camera, which the page's
@@ -292,6 +309,7 @@ const ROUTES: &[Route] = &[
     YAVIN_TRAINING_PLAYER,
     YAVIN_TRAINING_SABER,
     YAVIN_TRAINING_HOLOCRONS,
+    YAVIN_TRAINING_SABER_LAB,
 ];
 
 /// Route authored for `shot` on the map whose worldspawn message is
