@@ -51,7 +51,9 @@ impl ViewerConsole {
         {
             // The test list has the SJK UI's look in every menu style and draws
             // over the browser when both are open.
-            return self.debug_panel.is_open() || (self.browser.is_open() && self.browser.is_sjk());
+            return self.debug_panel.is_open()
+                || self.spawn_panel.is_open()
+                || (self.browser.is_open() && self.browser.is_sjk());
         }
         if self.changelog.is_open() {
             return self.changelog.is_sjk();
@@ -116,6 +118,8 @@ impl ViewerConsole {
             self.identity_panel.append_sjk(&inputs, target, viewport);
         } else if self.debug_panel.is_open() {
             self.append_debug_panel(target, viewport);
+        } else if self.spawn_panel.is_open() {
+            self.append_spawn_panel(target, viewport);
         } else if self.browser.is_open() {
             self.browser.append_sjk(target, viewport);
         }

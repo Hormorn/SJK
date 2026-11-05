@@ -26,6 +26,7 @@ impl ViewerConsole {
             || self.holocrons_panel_pointer(event)
             || self.sjk_chat_panel_pointer(event)
             || self.debug_panel_pointer(event)
+            || self.spawn_panel_pointer(event)
         {
             return;
         }

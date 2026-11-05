@@ -24,6 +24,17 @@
 
 # ---- Console & chat ----
 
+[spawn-panel]
+area: Console & chat
+title: Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
+change: spawn_panel lists every NPC and vehicle of the game data and a few cheats.
+change: Enter or a click runs npc spawn <name> as if typed; the list stays open.
+test: devmap mp/ffa3, then spawn_panel: NPCs under Jedi Academy, then Community.
+test: Type troop: the list filters; Enter spawns the chosen one in front of you.
+test: Tab to Vehicles, click Swoop: a swoop appears. Cheats: Noclip, God mode work.
+test: Esc clears the filter, Esc again closes. bind F6 spawn_panel: F6 opens and closes.
+test: On a server without cheats a spawn is refused in the console, nothing else.
+
 [holocron-catchup-signals]
 area: Gameplay
 title: Holocron catch-up x2 and play signals (needs the hub's economy-ideas branch)

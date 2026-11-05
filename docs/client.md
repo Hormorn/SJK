@@ -2695,6 +2695,34 @@ still require their own cheat permission. A command the server does not know
 answers `Unknown command`; mod commands such as JoF EJK's or JA+'s `amtele` are
 not there, as the local server runs no mod.
 
+### Spawn list
+
+`spawn_panel` (bind it to a key: `bind F6 spawn_panel`) opens the spawn list in place
+of the console, so NPCs, vehicles and cheats are picked instead of typed. Its tabs:
+
+- **NPCs**: every NPC block of the mounted `ext_data/npcs/*.npc` files, named as
+  `npc spawn <name>` takes them;
+- **Vehicles**: every vehicle of `ext_data/vehicles/*.veh`, run as
+  `npc spawn vehicle <name>`; a name that is both an NPC's and a vehicle's is listed
+  here only;
+- **Cheats**: `noclip`, `god`, `notarget`, `give all`, `npc kill all`,
+  `npc showbounds` and `kill`.
+
+The retail game's names come first under "Jedi Academy", the community's under
+"Community", each in name order. Typing filters the tab (any part of the name, any
+case; Ctrl+A, Ctrl+C and Ctrl+V work), Escape clears the filter and then closes the
+list, Tab and Shift+Tab switch tabs, Up, Down, Page Up, Page Down, Home and End
+choose. Enter, the Spawn button or a click on a row runs the line as if typed in the
+console, and the list stays open for the next one; the last line run shows at the
+bottom left. The server decides as for a typed line: without cheats it refuses and
+says so in the console. A name with a space, a quote or `;` is left out, so a row
+never runs more than its one command. The files are read each time the list opens.
+Like the `debug_panel` list it is drawn in the SJK UI's look in every menu style
+([spawn_panel.rs](../crates/sjk-viewer/src/spawn_panel.rs),
+[spawn_panel_catalogue.rs](../crates/sjk-viewer/src/spawn_panel_catalogue.rs),
+[spawn_panel_view.rs](../crates/sjk-viewer/src/spawn_panel_view.rs)). World shot:
+`duel6_spawn_panel`.
+
 ## Invisible brushes
 
 `r_showBrushes` draws the brushes a map is built with but never shows (clip,

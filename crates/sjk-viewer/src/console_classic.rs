@@ -628,6 +628,7 @@ impl ViewerConsole {
         self.presentation.clear(viewport);
         if self.server_dialogue_active()
             || self.debug_panel.is_open()
+            || self.spawn_panel.is_open()
             || self.model_viewer.is_open()
             || self.changelog.is_open()
             || self.credits.is_open()

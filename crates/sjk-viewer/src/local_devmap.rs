@@ -45,5 +45,11 @@ impl crate::GpuState {
             return;
         }
         self.start_local_game(settings(map));
+        if let Some(console) = &mut self.console {
+            console.push_log(format!(
+                "^3Tip: ^7{} lists NPCs, vehicles and cheats to run with a click",
+                crate::console::spawn_panel::COMMAND
+            ));
+        }
     }
 }

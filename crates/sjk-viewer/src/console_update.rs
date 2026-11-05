@@ -26,6 +26,7 @@ impl ViewerConsole {
         }
         self.browser.close();
         self.debug_panel.close();
+        self.spawn_panel.close();
         self.changelog.close();
         self.identity_panel.close();
         self.config_import.close();

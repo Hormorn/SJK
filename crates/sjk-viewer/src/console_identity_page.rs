@@ -30,6 +30,7 @@ impl ViewerConsole {
         }
         self.browser.close();
         self.debug_panel.close();
+        self.spawn_panel.close();
         self.changelog.close();
         self.update_panel.close();
         self.profile_panel.close();

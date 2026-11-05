@@ -634,6 +634,7 @@ impl ViewerConsole {
             #[cfg(feature = "mod-jof")]
             sith_cloud: crate::jof_content::card::Card::new(&crate::sith_cloud::WORDS),
             debug_panel: super::debug_panel::Panel::new(&config_directory),
+            spawn_panel: super::spawn_panel::Panel::new(),
             model_viewer: Default::default(),
             changelog: super::changelog::Panel::new(),
             credits: super::credits::Panel::new(),
