@@ -2313,6 +2313,16 @@ impl Worker {
         };
         let reread =
             matches!(&outcome, Err(HubError::Rejected { code, .. }) if code == "not_on_offer");
+        // A shatter the hub refused because what is held changed meanwhile (05/11/2026):
+        // the own profile is read again at once, so the Forge shows the true counts.
+        if matches!(
+            trade,
+            Trade::Shatter | Trade::ShatterLast | Trade::ShatterAll | Trade::ShatterMany
+        ) && matches!(&outcome, Err(HubError::Rejected { code, .. })
+                if matches!(code.as_str(), "not_held" | "not_a_duplicate" | "comes_with_card" | "no_duplicates"))
+        {
+            self.due_profile = self.due_profile.min(Instant::now());
+        }
         self.update(|snapshot| {
             let serial = snapshot.trade.as_ref().map_or(1, |last| last.serial + 1);
             snapshot.trade = Some(match outcome {
@@ -6802,6 +6812,22 @@ mod tests {
         assert_eq!(
             (refused.trade, refused.id.as_str()),
             (Trade::ShatterMany, "saber_last")
+        );
+        // ... and the own profile is read again at the next tick, for the true counts.
+        let looked = fake
+            .log()
+            .iter()
+            .filter(|line| line.starts_with("lookup"))
+            .count();
+        // The read is due at once (the clock, not the test's t0).
+        worker.tick(Instant::now());
+        assert_eq!(
+            fake.log()
+                .iter()
+                .filter(|line| line.starts_with("lookup"))
+                .count(),
+            looked + 1,
+            "the profile read again"
         );
         worker.handle(Command::Craft("saber_circuit".to_owned()), t0);
         let craft = lock(&snapshot).trade.clone().unwrap();
