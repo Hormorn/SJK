@@ -1,3 +1,48 @@
+## Clan chats: each clan its own
+
+05/11/2026, `personal/clan-chat-own` from `main` `fcf82fc9`, with hub branch
+`clan-chat-own` (Sol's report: a JoF player could join S and an S player JoF). The hub
+now lets a verified JoF player read and write JoF only and an S player S only; staff
+and Sol keep both, gold and other ticks have neither
+([hub-chat.md](hub-chat.md#clan-chats)). The client already showed only what the hub
+lists, so only its Settings help and the composer's note change. Verified: the hub's
+unit and API tests (writing, the feed, reactions across clans refused). Not verified:
+in a game or against the live hub (not deployed).
+
+## The model picker loads models off the render thread
+
+05/11/2026, `personal/picker-worker` from `main` `7c84f0ab`, Sol's choice after the
+Heimdall leads (below): the menu stage built each model it shows inside one frame,
+100 to 485 ms a model in Turin's log while he scrolled the picker in a match, frames in
+which no command leaves. [menu_stage/load.rs](../crates/sjk-viewer/src/menu_stage/load.rs)
+reads it on a worker as players' models are read in a match, uploads a texture a
+frame and compiles its pipelines on a second worker
+([rendering.md](rendering.md)); the model shown stays until the new one is ready, and
+one worker reads at a time. Verified on Windows 11: unit tests of the worker policy
+(one at a time, another model's result dropped, failures only the wanted model's),
+fmt, build, clippy, workspace tests, the startup stack check. Not verified: in a game,
+the frame times while scrolling the picker, or that kicks drop.
+
+## The server's view of our commands in the log (Heimdall kicks)
+
+05/11/2026, `personal/heimdall-trace` from `main` `55c07d82`. Players keep being
+kicked by Heimdall ("Set /cl_timeNudge 0") on 2026.1103.2 and 1105.1 (Turin, Senek),
+after all three guesses (23/10, 02/11, 04/11 below), and no log so far held the kick.
+Turin's log (04/11) shows what is left: 20 frames over 33 ms in a minute, the worst
+462 and 485 ms, while he browsed the model picker in game (`view+menu+audio`, player
+previews loading on the main thread), plus 45 to 150 ms when players joined or changed
+model. Commands are only made at the start of a frame, so each of those is a gap the
+server sees; JoF EJK has the same gaps on its own freezes, so this is a lead, not a
+finding. Also found: stock stamps commands with the previous frame's clock and puts
+`cl_timeNudge` in the stamps ([networking.md](networking.md) said otherwise). Changed:
+[server_view.rs](../crates/sjk-viewer/src/server_view.rs) logs how old our newest
+command was at the server per snapshot (`serverTime - ps.commandTime`), its round
+trip, and frame and packet gaps over 40 ms: a line a minute while playing and the last
+10 seconds when a server drops the player. Verified on Windows 11: unit tests (a 125
+FPS client on a 30 snapshots a second server, smooth and with a 480 ms freeze; the
+minute line; other time lines left out). Not verified: in a game, or how close the
+age comes to what Heimdall measures.
+
 ## Shared remap blocks (`cg_remapsShared`)
 
 05/11/2026, `personal/remap-sync` from `main` `28ac9379`. Sol asked for a list of

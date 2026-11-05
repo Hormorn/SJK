@@ -58,6 +58,8 @@ struct Weather {
     wet_sky: vec4<f32>,
     // xyz the direction the rain falls (unit), w unused.
     rain: vec4<f32>,
+    // xyz towards the sun (unit), w how much the fog and the rain glow towards it (0 none).
+    sun: vec4<f32>,
     clouds: array<Cloud, 5>,
 };
 
@@ -70,6 +72,11 @@ struct Weather {
 @group(1) @binding(5) var noise_sampler: sampler;
 @group(1) @binding(6) var far_cover: texture_2d<f32>;
 @group(2) @binding(0) var scene_depth: texture_depth_2d;
+// A pass's own image (group 3): for the puddles' mirror (`weather_mirror.rs`, ultra) the
+// scene in its copy pass and that copy at half size in the wet pass (one black texel
+// while there is none); for the fog's blend its half-size march (`fragment_volume_half`).
+@group(3) @binding(0) var pass_image: texture_2d<f32>;
+@group(3) @binding(1) var pass_sampler: sampler;
 
 // Additive (GL_ONE GL_ONE) or alpha-blended sprites.
 override additive: bool = true;
@@ -218,7 +225,10 @@ struct StreakOutput {
     // Drops vary: some catch more light than others. x is the streak's opacity, so a
     // thinner or farther streak is fainter rather than whiter; yzw the cloud's colour.
     let catch_light = 0.55 + 0.45 * fract(p.seed.x * 7.31 + p.seed.y * 3.17);
-    output.opacity = catch_light * cloud.color.a * p.fade * (cloud.shape.x / half_width);
+    // Drops between the eye and the sun light up: it shines through them.
+    let towards = max(dot(normalize(centre - camera.position), weather.sun.xyz), 0.0);
+    let backlit = 1.0 + 1.6 * weather.sun.w * pow(towards, 8.0);
+    output.opacity = catch_light * cloud.color.a * p.fade * (cloud.shape.x / half_width) * backlit;
     output.color = cloud.color.rgb;
     return output;
 }
@@ -508,16 +518,30 @@ fn fog_span(p: vec2<f32>) -> vec2<f32> {
     return far_span(p);
 }
 
-@fragment fn fragment_volume(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4<f32> {
-    let depth = textureLoad(scene_depth, vec2<i32>(pixel.xy), 0);
-    let ndc = vec2(pixel.x / weather.view.x * 2.0 - 1.0, 1.0 - pixel.y / weather.view.y * 2.0);
+// The fog's ray from the eye through texel `xy` of the depth, at that depth: xyz its
+// direction, w its length.
+fn view_ray(xy: vec2<f32>, depth: f32) -> vec4<f32> {
+    let size = vec2<f32>(textureDimensions(scene_depth));
+    let ndc = vec2(xy.x / size.x * 2.0 - 1.0, 1.0 - xy.y / size.y * 2.0);
     let far = weather.inverse_view_projection * vec4(ndc, min(depth, 0.999999), 1.0);
     let ray = far.xyz / far.w - camera.position;
-    let reach = min(length(ray), weather.fog_flow.w);
-    let direction = ray / max(length(ray), 0.001);
-    let steps = u32(weather.haze.w);
-    let step = reach / f32(max(steps, 1u));
-    let jitter = fract(52.9829189 * fract(dot(pixel.xy, vec2(0.06711056, 0.00583715))));
+    let length_ = length(ray);
+    return vec4(ray / max(length_, 0.001), length_);
+}
+
+// Rays shorter than this many units a step take fewer steps: a wall near the eye needs
+// few, the horizon all of them.
+const FOG_STEP_MIN: f32 = 110.0;
+// The ground fog is skipped where it has thinned below this share of its floor's.
+const FOG_THIN: f32 = 0.01;
+
+// How much of the light along `direction`, out to `reach`, the fog and haze take (alpha):
+// the march counts only open-sky air; ground fog is densest at each column's floor and
+// thins upwards, billowing through the noise volume where it is thick enough to show.
+fn fog_along(direction: vec3<f32>, reach: f32, jitter: f32) -> f32 {
+    let most = max(u32(weather.haze.w), 1u);
+    let steps = clamp(u32(ceil(reach / FOG_STEP_MIN)), min(4u, most), most);
+    let step = reach / f32(steps);
     var optical = 0.0;
     for (var i = 0u; i < steps; i++) {
         let p = camera.position + direction * ((f32(i) + jitter) * step);
@@ -525,19 +549,91 @@ fn fog_span(p: vec2<f32>) -> vec2<f32> {
         if p.z < span.x - 16.0 || p.z > span.y { continue; }
         var density = weather.haze.x;
         if weather.haze.y > 0.0 {
-            let above = max(p.z - span.x, 0.0);
-            var billow = 1.0;
-            if weather.fog_color.w != 0.0 {
-                let q = p + weather.fog_flow.xyz;
-                let n = textureSampleLevel(noise, noise_sampler, q * vec3(1.0 / 1400.0, 1.0 / 1400.0, 1.0 / 500.0), 0.0);
-                billow = smoothstep(0.3, 0.9, n.r) * 1.4 + 0.25 * n.g;
+            let ground = exp(-max(p.z - span.x, 0.0) / weather.haze.z);
+            if ground > FOG_THIN {
+                var billow = 1.0;
+                if weather.fog_color.w != 0.0 {
+                    let q = p + weather.fog_flow.xyz;
+                    let n = textureSampleLevel(noise, noise_sampler, q * vec3(1.0 / 1400.0, 1.0 / 1400.0, 1.0 / 500.0), 0.0);
+                    billow = smoothstep(0.3, 0.9, n.r) * 1.4 + 0.25 * n.g;
+                }
+                density += weather.haze.y * ground * billow;
             }
-            density += weather.haze.y * exp(-above / weather.haze.z) * billow;
         }
         optical += density;
+        // Past 99.7 % of the light lost the rest cannot show.
+        if optical * step > 6.0 { break; }
     }
-    let alpha = 1.0 - exp(-optical * step);
-    return vec4(weather.fog_color.rgb, alpha);
+    return 1.0 - exp(-optical * step);
+}
+
+// The fog's march at half size, one texel for each 2x2 block of the depth: it marches to
+// the block's nearest point or its farthest, in a checkerboard, so the full-size blend
+// finds a texel of the right side at every edge. r the fog's alpha, g how far the ray
+// went (the blend's guide).
+@fragment fn fragment_volume_half(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4<f32> {
+    let last = vec2<i32>(textureDimensions(scene_depth)) - 1;
+    let half = vec2<i32>(pixel.xy);
+    let block = half * 2;
+    let farthest = ((half.x + half.y) & 1) == 1;
+    var chosen = min(block, last);
+    var depth = textureLoad(scene_depth, chosen, 0);
+    for (var k = 1; k < 4; k++) {
+        let texel = min(block + vec2(k & 1, k >> 1), last);
+        let d = textureLoad(scene_depth, texel, 0);
+        if (farthest && d > depth) || (!farthest && d < depth) {
+            depth = d;
+            chosen = texel;
+        }
+    }
+    let ray = view_ray(vec2<f32>(chosen) + 0.5, depth);
+    let jitter = fract(52.9829189 * fract(dot(pixel.xy, vec2(0.06711056, 0.00583715))));
+    let alpha = fog_along(ray.xyz, min(ray.w, weather.fog_flow.w), jitter);
+    return vec4(alpha, min(ray.w, 60000.0), 0.0, 0.0);
+}
+
+// How the fog's light changes towards the sun: forward scattering (Henyey-Greenstein,
+// g 0.35, 1 on average over the sky), brighter towards it, dimmer away, by `weather.sun.w`.
+fn sun_glow(direction: vec3<f32>) -> f32 {
+    if weather.sun.w <= 0.0 { return 1.0; }
+    let g = 0.35;
+    let phase = (1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * dot(direction, weather.sun.xyz), 1.5);
+    return 1.0 + (phase - 1.0) * weather.sun.w;
+}
+
+// The volumetric fog: rain haze and ground fog over the scene, drawn before the particles.
+// Each pixel takes its half-size march's texels round it, by nearness and by how close
+// their ray's length is to its own (a joint bilateral blend), so the fog keeps to the
+// edges of what stands in it; where none is close, the closest.
+@fragment fn fragment_volume(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4<f32> {
+    let depth = textureLoad(scene_depth, vec2<i32>(pixel.xy), 0);
+    let ray = view_ray(pixel.xy, depth);
+    let reach = min(ray.w, 60000.0);
+    let last = vec2<i32>(textureDimensions(pass_image)) - 1;
+    let h = pixel.xy * 0.5 - 0.5;
+    let base = vec2<i32>(floor(h));
+    let f = h - floor(h);
+    let tolerance = 0.05 * reach + 16.0;
+    var sum = 0.0;
+    var total = 0.0;
+    var best = 3.0e38;
+    var nearest = 0.0;
+    for (var k = 0; k < 4; k++) {
+        let o = vec2(k & 1, k >> 1);
+        let s = textureLoad(pass_image, clamp(base + o, vec2(0), last), 0).xy;
+        let near = select(1.0 - f, f, o == vec2(1));
+        let delta = abs(s.y - reach) / tolerance;
+        let w = near.x * near.y / (1.0 + delta * delta);
+        sum += w * s.x;
+        total += w;
+        if delta < best {
+            best = delta;
+            nearest = s.x;
+        }
+    }
+    let alpha = select(nearest, sum / max(total, 1e-6), total > 0.05);
+    if alpha <= 0.001 { discard; }
+    return vec4(weather.fog_color.rgb * sun_glow(ray.xyz), alpha);
 }
 
 // Rain-wet surfaces: one full-screen pass over the opaque world before the players are
@@ -614,6 +710,105 @@ fn ripples(xy: vec2<f32>, time: f32) -> f32 {
     return min(ring, 1.0);
 }
 
+// The scene at half size: one bilinear tap between each four of its texels.
+@fragment fn fragment_mirror_copy(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4<f32> {
+    let half = ceil(vec2<f32>(textureDimensions(pass_image)) * 0.5);
+    return vec4(textureSampleLevel(pass_image, pass_sampler, pixel.xy / half, 0.0).rgb, 1.0);
+}
+
+// The mirror's march (VisionJK's `Mirror()` in `wet.frag`, by Blackwolf): steps from
+// 2 units growing by 1.18, about 2000 units in all, then halvings round the hit.
+const MIRROR_STEPS: u32 = 32u;
+const MIRROR_REFINE: u32 = 5u;
+const MIRROR_FIRST: f32 = 2.0;
+const MIRROR_GROWTH: f32 = 1.18;
+// Puddles mirror the world out to here, fading from 1500 units.
+const MIRROR_REACH: f32 = 2500.0;
+
+// `q` on the screen: xy its uv, z its depth, w 1 when it is on the screen (else -1).
+fn screen_of(q: vec3<f32>) -> vec4<f32> {
+    let clip = camera.view_projection * vec4(q, 1.0);
+    if clip.w <= 1e-4 { return vec4(0.0, 0.0, 0.0, -1.0); }
+    let ndc = clip.xyz / clip.w;
+    let uv = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    let inside = all(uv > vec2(0.0)) && all(uv < vec2(1.0)) && ndc.z < 1.0;
+    return vec4(uv, ndc.z, select(-1.0, 1.0, inside));
+}
+
+// How far `q` lies behind the world drawn at its spot `s` on the screen, along the view
+// (negative: in front of it; very negative where the sky is drawn).
+fn behind(q: vec3<f32>, s: vec4<f32>, size: vec2<f32>) -> f32 {
+    let xy = clamp(vec2<i32>(s.xy * size), vec2(0), vec2<i32>(size) - 1);
+    let surface = wet_point(xy, size);
+    if surface.w >= 1.0 { return -1.0e9; }
+    return distance(q, camera.position) - distance(surface.xyz, camera.position);
+}
+
+// What a puddle at `p` mirrors along `dir`: the world's colour where the march meets it
+// in the depth, or the sky drawn where the ray leaves for it, and how sure that is (a,
+// 0 when neither: the overcast sky the wet pass knows stands in).
+fn mirrored(p: vec3<f32>, dir: vec3<f32>, size: vec2<f32>) -> vec4<f32> {
+    var stride = MIRROR_FIRST;
+    var near = 0.0;
+    var far = 0.0;
+    var hit = false;
+    for (var i = 0u; i < MIRROR_STEPS; i++) {
+        near = far;
+        far += stride;
+        let q = p + dir * far;
+        let s = screen_of(q);
+        if s.w < 0.0 { break; }
+        let gap = behind(q, s, size);
+        // Just behind a surface: the ray went through it. Far behind: it passes behind
+        // something nearer the eye, and goes on.
+        if gap > 0.0 && gap < stride * 2.0 + 16.0 {
+            hit = true;
+            break;
+        }
+        stride *= MIRROR_GROWTH;
+    }
+    var s: vec4<f32>;
+    // How far the light came along the mirrored ray, for the haze it went through.
+    var travel = far;
+    var sure = 1.0;
+    if hit {
+        for (var i = 0u; i < MIRROR_REFINE; i++) {
+            let middle = 0.5 * (near + far);
+            let q = p + dir * middle;
+            if behind(q, screen_of(q), size) > 0.0 { far = middle; } else { near = middle; }
+        }
+        s = screen_of(p + dir * far);
+        travel = far;
+        sure = 1.0 - smoothstep(1400.0, 2000.0, far);
+    } else {
+        // Nothing met within the march: what lies that way far off, the sky or a distant
+        // building. Seen from the eye, its direction alone places it closely enough (the
+        // spot on the screen of the eye plus that direction), where the screen shows
+        // something farther than the march went; a nearer surface there is in front of
+        // the ray, not on it.
+        s = screen_of(camera.position + dir * 64.0);
+        if s.w < 0.0 { return vec4(0.0); }
+        let xy = clamp(vec2<i32>(s.xy * size), vec2(0), vec2<i32>(size) - 1);
+        let surface = wet_point(xy, size);
+        if surface.w < 1.0 {
+            let away = distance(surface.xyz, camera.position);
+            if away < distance(p, camera.position) + far { return vec4(0.0); }
+            travel = away;
+            sure = 0.85;
+        } else {
+            travel = 1.0e6;
+        }
+    }
+    if s.w < 0.0 { return vec4(0.0); }
+    let edge = min(min(s.x, 1.0 - s.x), min(s.y, 1.0 - s.y));
+    sure *= smoothstep(0.0, 0.08, edge);
+    // The copy is the world before the fog: the rain's haze along the mirrored ray greys
+    // it towards the overcast sky, as the fog greys what is seen straight.
+    let hazed = 1.0 - exp(-weather.haze.x * travel);
+    let colour = mix(textureSampleLevel(pass_image, pass_sampler, s.xy, 0.0).rgb, weather.wet_sky.rgb, hazed);
+    return vec4(colour, sure);
+}
+
 @fragment fn fragment_wet(@builtin(position) pixel: vec4<f32>) -> @location(0) vec4<f32> {
     let size = vec2<f32>(textureDimensions(scene_depth));
     let last = vec2<i32>(size) - 1;
@@ -665,6 +860,7 @@ fn ripples(xy: vec2<f32>, time: f32) -> f32 {
     var film = wet * mix(0.1, 0.22, ground);
     var glint = 0.0;
     var rings = 0.0;
+    var puddle = 0.0;
     let steep = length(n.xy);
     if level >= 2u && n.z > -0.2 {
         // Running water on walls and steep slopes; fine detail, so it fades out with
@@ -681,7 +877,7 @@ fn ripples(xy: vec2<f32>, time: f32) -> f32 {
     if level >= 3u {
         // Standing water on flat ground: darker still, and smooth enough to mirror the sky.
         let patches = textureSampleLevel(noise, noise_sampler, vec3(p.xy / 1100.0, 0.37), 0.0);
-        let puddle = smoothstep(0.785, 0.815, patches.r) * smoothstep(0.96, 0.995, n.z) * open
+        puddle = smoothstep(0.77, 0.83, patches.r) * smoothstep(0.96, 0.995, n.z) * open
             * weather.wet.x;
         darken = mix(darken, 0.55, puddle);
         film = mix(film, 1.0, puddle);
@@ -693,7 +889,32 @@ fn ripples(xy: vec2<f32>, time: f32) -> f32 {
     // The mirrored ray sees the sky only above the horizon.
     let sky = smoothstep(-0.05, 0.35, reflect(-to_eye, n).z);
     let mirror = clamp(fresnel * film * sky, 0.0, 1.0);
+    var mirror_colour = weather.wet_sky.rgb * mirror;
+    var mirror_share = mirror;
+    // Ultra with the copy: puddles mirror the world and the sky drawn round them, rippled
+    // by the rain rings, as standing water does (a fifth even seen from above, VisionJK's
+    // pond blend), fading out with distance.
+    let reach = puddle * (1.0 - smoothstep(1500.0, MIRROR_REACH, distance));
+    if weather.wet_sky.w > 0.5 && reach > 0.002 {
+        var bumped = n;
+        if distance < 700.0 {
+            let e = 0.6;
+            let slope = vec2(
+                ripples(p.xy + vec2(e, 0.0), weather.cover.w) - ripples(p.xy - vec2(e, 0.0), weather.cover.w),
+                ripples(p.xy + vec2(0.0, e), weather.cover.w) - ripples(p.xy - vec2(0.0, e), weather.cover.w));
+            bumped = normalize(n - vec3(slope * 0.3 * (1.0 - smoothstep(300.0, 700.0, distance)), 0.0));
+        }
+        let dir = reflect(-to_eye, bumped);
+        let seen = mirrored(p + n * 1.5, dir, size);
+        let facing = 0.02 + 0.98 * pow(1.0 - clamp(dot(bumped, to_eye), 0.0, 1.0), 5.0);
+        let reflectance = clamp(2.0 * facing + 0.2, 0.0, 0.92);
+        // Where the march found what the puddle mirrors, it shows; elsewhere the puddle
+        // keeps its sky alone, as without the mirror.
+        let found = reach * seen.a;
+        mirror_colour = mix(mirror_colour, reflectance * seen.rgb, found);
+        mirror_share = mix(mirror_share, reflectance, found);
+    }
     // Running water and rain rings catch the light even seen from above.
-    let added = weather.wet_sky.rgb * (mirror + 0.2 * glint + 0.2 * rings);
-    return vec4(added, (1.0 - clamp(darken, 0.0, 0.6)) * (1.0 - mirror));
+    let added = mirror_colour + weather.wet_sky.rgb * (0.2 * glint + 0.2 * rings);
+    return vec4(added, (1.0 - clamp(darken, 0.0, 0.6)) * (1.0 - clamp(mirror_share, 0.0, 1.0)));
 }

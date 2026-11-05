@@ -87,7 +87,7 @@ pub(super) const NO_PM: &str =
 pub(super) const NO_ADMIN: &str = "This server has no admin chat (amsay is JA+ and jaPRO's).";
 /// What the composer says when a clan chat's key is used without that chat joined.
 pub(super) const NO_CLAN: &str =
-    "You have not joined that clan chat: Settings > Chat, for verified JoF and S players.";
+    "You have not joined that clan chat: Settings > Chat, for that clan's verified players.";
 
 /// How a switchable channel's button is kept: its cvar's 0, 1 or 2.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

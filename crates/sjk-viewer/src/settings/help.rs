@@ -527,6 +527,10 @@ const HELP: &[(&str, &str)] = &[
         "Sounds heard from your head, quieter and duller behind walls and shut doors, and rooms ring, a hall longer than a corridor.",
     ),
     (
+        crate::weather::sound::CVAR,
+        "Hear the rain and the wind with the weather, as loud as they fall and blow, quieter under a roof. The game's own outdoor sounds.",
+    ),
+    (
         crate::footprints::PRINTS_CVAR,
         "Steps on sand, snow, mud and dirt kick up dust and leave footprints for ten seconds, as in the original game.",
     ),
@@ -858,11 +862,11 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::chat::tabs::JOF_JOIN_CVAR,
-        "JoF's clan chat, for verified JoF and S players and staff. Auto joins it if it is yours; Joined or Left choose.",
+        "JoF's clan chat, for verified JoF players and staff only. Auto joins it if it is yours; Joined or Left choose.",
     ),
     (
         crate::chat::tabs::SITH_JOIN_CVAR,
-        "The Sith clan's chat (S), for verified S and JoF players and staff. Auto joins it if it is yours.",
+        "The Sith clan's chat (S), for verified S players and staff only. Auto joins it if it is yours.",
     ),
     (
         crate::chat::tabs::PM_CVAR,

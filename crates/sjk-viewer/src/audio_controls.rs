@@ -220,6 +220,9 @@ impl GameAudio {
         self.output.spatial.enabled = console
             .and_then(|console| console.bool_cvar(spatial::CVAR))
             .unwrap_or(false);
+        self.weather_sounds = console
+            .and_then(|console| console.bool_cvar(crate::weather::sound::CVAR))
+            .unwrap_or(false);
         let mode = console
             .and_then(|console| console.integer_cvar(SKIN_SOUNDS_CVAR))
             .unwrap_or(1);

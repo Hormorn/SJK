@@ -60,6 +60,8 @@ pub(crate) mod spatial;
 mod transitions;
 #[path = "audio_voice_throttle.rs"]
 mod voice_throttle;
+#[path = "audio_weather.rs"]
+mod weather;
 pub(crate) use assets::SoundPrefetch;
 #[path = "flame_audio.rs"]
 mod flame;
@@ -162,6 +164,11 @@ pub(crate) struct GameAudio {
     /// frame's set, and the dice for which snap sounds.
     crackle_buzzes: Vec<crate::saber_smoke::Sound>,
     crackle_roll: u32,
+    /// The rain and wind heard this frame (`s_weatherSounds`, `audio_weather.rs`): their
+    /// levels, the setting, and the generation their loops were registered in.
+    weather_levels: crate::weather::sound::Levels,
+    weather_sounds: bool,
+    weather_registered: Option<u64>,
 }
 
 /// The source the blade skins' snaps play from: no entity's, so they stay where they
@@ -298,6 +305,9 @@ impl GameAudio {
             menu_loops: [None; MENU_LOOPS],
             crackle_buzzes: Vec::with_capacity(16),
             crackle_roll: 0,
+            weather_levels: Default::default(),
+            weather_sounds: false,
+            weather_registered: None,
             map_music: None,
             music_tracks: Vec::with_capacity(8),
             duel_music: None,
@@ -630,6 +640,7 @@ impl GameAudio {
         self.output.send(AudioCommand::ClearLoops);
         self.send_frame_loops(snapshot, presented_time, listener_origin, world, bsp);
         self.send_box_music();
+        self.send_weather_loops();
         self.send_crackle_buzzes();
         self.update_flame(snapshot, presented_time, world, predicted);
         self.output.send(AudioCommand::CommitLoops);

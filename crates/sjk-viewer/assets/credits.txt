@@ -204,6 +204,10 @@ did: Collection marks: worn, favourite, locked and New saber shaders, the lock h
 did: Toon models: cartoon-style banded shading with a bright rim, an option off by default
 did: 3D sound: sounds muffled behind walls and doors, rooms that ring (after VisionJK)
 did: White edge on dark text: black names and chat in a white outline, an option
+did: Weather in map edits: rain, storms, snow, fog and wind kept for a map, synced to every player
+did: Rain and wind sounds: the game's own loops, as strong as the weather, quieter under a roof
+did: Puddles that mirror the world at ultra weather quality (after VisionJK)
+did: Lighter rain and fog: the fog at half size, about three times cheaper, glowing towards the sun
 link: https://github.com/Sol-Vulpes/SJK
 link: https://sol-vulpes.github.io/SJK/
 
@@ -504,6 +508,7 @@ role: Contributor: 1 merged pull request
 did: #333 JA+ dual jump attack: feet lift only over a player ahead, as the server does
 did: Inspiration: VisionJK's boombox, standing on the floor, gave SJK's boombox its place on the floor (boombox_place)
 did: VisionJK's 3D sound (v_spatial), the idea behind SJK's 3D sound (s_spatial)
+did: VisionJK's puddle mirror (wet.frag), the march SJK's puddles mirror the world with
 did: VisionJK's web admin page (GPL-2.0, with his approval) draws the map in SJK's browser map editor (mapedit_web)
 link: Blackwolf1337's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ABlackwolf1337
 

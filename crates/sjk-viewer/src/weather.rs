@@ -5,8 +5,9 @@
 //! server register effect names that start with `*` (`*heavyrain`, `*constantwind ( x y
 //! z )`, ...). As cgame does (`CG_ParseWeatherEffect`), the client runs them as world
 //! effect commands, in slot order ([`effects`]); `r_we` runs one more from the console,
-//! and `r_weatherForce` replaces them with weather of the player's choosing. A world
-//! without a server takes the names from its own entities.
+//! a map edit's weather (`map_edits`, synced through the hub) replaces them, and
+//! `r_weatherForce` replaces both with weather of the player's choosing. A world without
+//! a server takes the names from its own entities.
 //!
 //! What SJK adds to the reference's particle clouds:
 //!
@@ -22,14 +23,16 @@
 //!   the wind and darkening in a storm (`r_clouds`).
 //! - **Wet surfaces**: what the rain falls on darkens and mirrors the sky, water runs
 //!   down slopes and walls, and flat ground gathers puddles, by quality level, in a
-//!   pass over the world before the players are drawn (`fragment_wet`).
+//!   pass over the world before the players are drawn (`fragment_wet`); at ultra the
+//!   puddles mirror the world round them ([`mirror`]).
 //! - Particles are generated on the GPU from their index and the wind the CPU
 //!   integrates (`weather.wgsl`) and drawn into the display-space effect layer after the
 //!   effects; rain is blended as a faint tinted streak rather than added.
 //!
 //! `r_weather 0` turns weather off; `r_weatherDensity` scales the particle counts (1 is
 //! the reference's, SJK's default 2); `r_weatherQuality` (0 low to 3 ultra) chooses what
-//! is drawn ([`settings::Quality`]).
+//! is drawn ([`settings::Quality`]). Rain and wind can be heard too ([`sound`],
+//! `s_weatherSounds`).
 
 #[path = "weather_clouds.rs"]
 pub(crate) mod clouds;
@@ -43,10 +46,14 @@ pub(crate) mod cover_map;
 pub(crate) mod effects;
 #[path = "weather_gpu.rs"]
 pub(crate) mod gpu;
+#[path = "weather_mirror.rs"]
+pub(crate) mod mirror;
 #[path = "weather_noise.rs"]
 pub(crate) mod noise;
 #[path = "weather_settings.rs"]
 pub(crate) mod settings;
+#[path = "weather_sound.rs"]
+pub(crate) mod sound;
 #[path = "weather_wind.rs"]
 pub(crate) mod wind;
 
@@ -61,6 +68,12 @@ use std::sync::Arc;
 /// The console command running one world effect command (rd-vanilla's `r_we`).
 pub(crate) const COMMAND: &str = "r_we";
 pub(crate) const HELP: &str = "Run a weather command: rain, heavyrain, snow, fog, clear, ...";
+
+/// Whether `command` is a world effect command [`COMMAND`] runs, with the reference's
+/// help when it is not.
+pub(crate) fn check_command(command: &str) -> Result<(), &'static str> {
+    Effects::default().apply(command)
+}
 
 /// `CS_EFFECTS` and `MAX_FX`.
 const CS_EFFECTS: usize = 1355;
@@ -92,6 +105,9 @@ const STREAK_LENGTH: f64 = 520.0;
 const STREAK_CHANGE: f64 = 0.04;
 /// Rain haze and ground fog colour before light (display values): a cool grey.
 const FOG_GREY: [f32; 3] = [0.64, 0.68, 0.74];
+/// How much the fog and the rain glow towards the sun at its full strength (forward
+/// scattering, `sun_glow` in weather.wgsl); a storm hides most of it.
+const SUN_SCATTER: f32 = 0.5;
 /// The rain haze of a downpour: what wets surfaces fully. Drizzle wets them about half.
 const SOAKING_HAZE: f32 = 2.8e-4;
 
@@ -101,6 +117,8 @@ pub(crate) struct Runtime {
     server: Vec<String>,
     /// `r_we` commands typed since the map loaded, run after the server's.
     local: Vec<String>,
+    /// A map edit's weather, run in place of the server's when there is one.
+    edit: Vec<String>,
     /// The `r_weatherForce` the effects were built with.
     force: u32,
     effects: Effects,
@@ -131,6 +149,13 @@ pub(crate) struct Runtime {
     clouds_visible: bool,
     /// Rain wets the world this frame.
     wet: bool,
+    /// The puddles mirror the scene this frame ([`mirror`]).
+    mirrored: bool,
+    /// World shots compare the puddles with their mirror and without.
+    #[cfg(test)]
+    mirror_allowed: bool,
+    /// How loud the rain and wind are heard, eased ([`sound`]).
+    heard: sound::Levels,
     uniform: GpuWeather,
     batches: Vec<Batch>,
 }
@@ -154,6 +179,8 @@ pub(crate) struct FrameInput<'a> {
     pub(crate) sky: clouds::SkyLight,
     /// The global fog's `1 / depthForOpaque`, 0 without one.
     pub(crate) fog: f32,
+    /// The scene target the puddles' mirror copies (ultra), when it can be sampled.
+    pub(crate) mirror: Option<wgpu::TextureView>,
     pub(crate) viewport: [u32; 2],
     pub(crate) settings: &'a Settings,
 }
@@ -190,6 +217,7 @@ impl Runtime {
         let mut runtime = Self {
             server,
             local: Vec::new(),
+            edit: Vec::new(),
             force: 0,
             effects: Effects::default(),
             space: false,
@@ -210,6 +238,10 @@ impl Runtime {
             clouds: None,
             clouds_visible: false,
             wet: false,
+            mirrored: false,
+            #[cfg(test)]
+            mirror_allowed: true,
+            heard: sound::Levels::default(),
             uniform: GpuWeather::zeroed(),
             batches: Vec::with_capacity(2 * MAX_CLOUDS + 2),
         };
@@ -235,25 +267,108 @@ impl Runtime {
         Ok(())
     }
 
-    /// Run the commands again: the forced weather's or the server's, then the console's.
-    fn rebuild(&mut self) {
+    /// The map's own weather commands: the server's effect names (or the map's).
+    pub(crate) fn map_commands(&self) -> &[String] {
+        &self.server
+    }
+
+    /// A map edit's weather commands (none: the map's own weather).
+    pub(crate) fn set_edit(&mut self, commands: &[String]) {
+        if self.edit != commands {
+            self.edit = commands.to_vec();
+            self.rebuild();
+        }
+    }
+
+    /// The commands the weather is built from: the forced weather's, else the map edit's,
+    /// else the server's (or the map's); the console's follow.
+    fn commands(&self) -> impl Iterator<Item = &str> {
         let forced = settings::forced_commands(self.force);
-        let commands: Vec<&str> = if forced.is_empty() {
-            self.server.iter().map(String::as_str).collect()
-        } else {
+        let base: Vec<&str> = if !forced.is_empty() {
             forced.to_vec()
+        } else if !self.edit.is_empty() {
+            self.edit.iter().map(String::as_str).collect()
+        } else {
+            self.server.iter().map(String::as_str).collect()
         };
-        self.effects = Effects::from_commands(
-            commands
-                .into_iter()
-                .chain(self.local.iter().map(String::as_str)),
-        );
+        base.into_iter()
+            .chain(self.local.iter().map(String::as_str))
+    }
+
+    /// Run the commands again ([`Self::commands`]).
+    fn rebuild(&mut self) {
+        self.effects = Effects::from_commands(self.commands());
         self.space = self
             .effects
             .clouds
             .iter()
             .any(|cloud| cloud.look == Look::Sprite(Image::SnowPuff));
         self.flows = [[0.0; 3]; MAX_CLOUDS];
+    }
+
+    /// The world effect commands that make the weather drawn now with ground fog setting
+    /// `fog` (`r_weatherFog`), for a map edit to keep it (`mapedit_weather`): the forced,
+    /// edit's or map's, the console's, and `mist` for the fog `r_weatherFog 2` lays on a
+    /// map without its own. `None` when nothing falls, blows or lies there.
+    pub(crate) fn seen_commands(&mut self, settings: &settings::Settings) -> Option<Vec<String>> {
+        if settings.force() != self.force {
+            self.force = settings.force();
+            self.rebuild();
+        }
+        let mut commands: Vec<String> = self.commands().map(str::to_owned).collect();
+        if settings.fog() == 2 && self.effects.clouds.iter().all(|cloud| cloud.mist.is_none()) {
+            commands.push(effects::MIST.to_owned());
+        }
+        let mut probe = Effects::default();
+        for command in &commands {
+            let _ = probe.apply(command);
+        }
+        (!probe.is_empty()).then_some(commands)
+    }
+
+    /// Whether the weather was chosen for the map (forced, or a map edit's) rather than
+    /// its own: chosen weather stays off a map without sky, which would otherwise rain
+    /// indoors as the reference does there.
+    fn chosen(&self) -> bool {
+        self.force != 0 || !self.edit.is_empty()
+    }
+
+    /// Whether the puddles may mirror the scene (always, outside the world shots).
+    fn mirror_allowed(&self) -> bool {
+        #[cfg(test)]
+        return self.mirror_allowed;
+        #[cfg(not(test))]
+        true
+    }
+
+    /// Let the puddles mirror the scene, or keep them to the sky (world shots).
+    #[cfg(test)]
+    pub(crate) fn set_mirror_allowed(&mut self, allowed: bool) {
+        self.mirror_allowed = allowed;
+    }
+
+    /// How loud the rain and wind are heard now ([`sound`]).
+    pub(crate) fn heard(&self) -> sound::Levels {
+        self.heard
+    }
+
+    /// The rain and wind to hear this frame: none with weather off, frozen, or chosen
+    /// for a map without sky (where it is not drawn); else as strong as they are and as
+    /// open the sky is round `camera`.
+    fn sound_target(&self, enabled: bool, wind: [f32; 3], camera: [f32; 3]) -> sound::Levels {
+        if !enabled || self.effects.frozen {
+            return sound::Levels::default();
+        }
+        let exposure = match &self.cover {
+            Some(cover) if cover.window().enabled => {
+                sound::exposure(camera, |x, y| cover.column_at(x, y))
+            }
+            // A map without sky: chosen weather is not drawn there, the map's own falls
+            // everywhere as in the reference.
+            Some(_) if self.chosen() => return sound::Levels::default(),
+            _ => None,
+        };
+        sound::target(&self.effects.clouds, wind, exposure)
     }
 
     /// Rain to wet the world with this frame ([`Runtime::draw_wet`]).
@@ -307,6 +422,7 @@ impl Runtime {
     pub(crate) fn prepare(&mut self, input: FrameInput<'_>) {
         self.batches.clear();
         self.wet = false;
+        self.mirrored = false;
         let now = std::time::Instant::now();
         let seconds = self
             .last_frame
@@ -327,6 +443,8 @@ impl Runtime {
             *light += (target - *light) * if seconds == 0.0 { 1.0 } else { ease };
         }
         let weather = settings.enabled();
+        let heard = self.sound_target(weather, wind, input.camera);
+        self.heard.ease(heard, seconds);
         let storm = if weather { self.storm() } else { 0.0 };
         self.prepare_clouds(&input, quality.cloud_steps, wind, storm, seconds);
         if !weather {
@@ -371,14 +489,14 @@ impl Runtime {
             .noise
             .as_mut()
             .is_some_and(|noise| noise.update(input.queue));
-        let (Some(cover), Some(gpu)) = (self.cover.as_mut(), self.gpu.as_ref()) else {
+        let (Some(cover), Some(_)) = (self.cover.as_mut(), self.gpu.as_ref()) else {
             return;
         };
         cover.update(input.queue, input.camera);
         let window = cover.window();
-        // Weather the player forced stays off a map without sky, which would otherwise
+        // Weather chosen for the map stays off a map without sky, which would otherwise
         // rain indoors as the reference does there.
-        if self.force != 0 && !window.enabled {
+        if self.chosen() && !window.enabled {
             return;
         }
 
@@ -414,6 +532,14 @@ impl Runtime {
                 kind: Kind::Volume,
                 instances: 0..1,
             });
+        }
+        // The fog marches at half size into an image of its own, kept while it is drawn.
+        if let Some(gpu) = self.gpu.as_mut() {
+            if volume {
+                gpu.fit_fog(input.device, input.viewport);
+            } else {
+                gpu.release_fog();
+            }
         }
         // The fog's sprites are drawn only where no volumetric fog replaces them, and not
         // at all with the fog turned off.
@@ -496,6 +622,9 @@ impl Runtime {
         let sky = wet_sky(input.sky, storm);
         self.uniform.wet_sky = [sky[0], sky[1], sky[2], 0.0];
         self.uniform.rain = [rain[0], rain[1], rain[2], 0.0];
+        let scatter = SUN_SCATTER * input.sky.strength.clamp(0.0, 1.0) * (1.0 - 0.7 * storm);
+        let sun = input.sky.direction;
+        self.uniform.sun = [sun[0], sun[1], sun[2], scatter];
         let color = fog_color(tint, self.light, storm);
         self.uniform.fog_color = [
             color[0],
@@ -509,7 +638,21 @@ impl Runtime {
             self.fog_flow[2] as f32,
             FOG_REACH,
         ];
-        gpu.write(input.queue, &self.uniform);
+        // Puddles (ultra) mirror the scene when it can be copied; else their copy goes.
+        let mirrored = self.wet && quality.wet >= 3 && self.mirror_allowed();
+        if let Some(gpu) = self.gpu.as_mut() {
+            match input.mirror.as_ref().filter(|_| mirrored) {
+                Some(scene) => {
+                    gpu.mirror.prepare(input.device, scene);
+                    self.mirrored = true;
+                }
+                None => gpu.mirror.release(),
+            }
+        }
+        self.uniform.wet_sky[3] = f32::from(u8::from(self.mirrored));
+        if let Some(gpu) = &self.gpu {
+            gpu.write(input.queue, &self.uniform);
+        }
     }
 
     /// Advance the clouds and write their uniform; they are drawn unless turned off or
@@ -553,7 +696,22 @@ impl Runtime {
         depth: &wgpu::BindGroup,
     ) {
         if let Some(gpu) = self.gpu.as_ref().filter(|_| self.wet) {
-            gpu.draw_wet(encoder, target, camera, depth);
+            gpu.draw_wet(encoder, target, camera, depth, self.mirrored);
+        }
+    }
+
+    /// March this frame's fog at half size, before the effect layer's pass (which blends it
+    /// in with [`Runtime::draw`]).
+    pub(crate) fn encode_fog(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        camera: &wgpu::BindGroup,
+        depth: &wgpu::BindGroup,
+    ) {
+        if let Some(gpu) = &self.gpu
+            && self.batches.iter().any(|batch| batch.kind == Kind::Volume)
+        {
+            gpu.encode_fog(encoder, camera, depth);
         }
     }
 
@@ -735,6 +893,7 @@ impl crate::GpuState {
             light,
             sky,
             fog,
+            mirror: self.offscreen_scene_target().cloned(),
             viewport,
             settings: &self.context.weather,
         });
@@ -829,6 +988,69 @@ mod tests {
         assert_eq!(weather.effects.clouds[0].look, Look::Streak);
         weather.command("spacedust 100").unwrap();
         assert!(weather.space, "space maps get no clouds");
+    }
+
+    /// A map edit's weather replaces the map's; the player's forced weather replaces it
+    /// in turn, and the console's commands follow either.
+    #[test]
+    fn a_map_edits_weather_replaces_the_maps_under_the_players_own() {
+        let mut weather = empty_world();
+        weather.server = vec!["snow".into()];
+        weather.rebuild();
+        assert!(!weather.chosen(), "the map's own weather");
+        weather.set_edit(&["heavyrain".into(), "mist".into()]);
+        assert!(weather.chosen());
+        let looks = |weather: &Runtime| -> Vec<_> {
+            weather
+                .effects
+                .clouds
+                .iter()
+                .map(|cloud| (cloud.look, cloud.mist.is_some()))
+                .collect()
+        };
+        assert_eq!(
+            looks(&weather),
+            [(Look::Streak, false), (Look::Sprite(Image::Smoke), true)]
+        );
+        assert_eq!(
+            weather.effects.clouds[1].mist.unwrap().density,
+            Mist::DEFAULT.density,
+            "mist is r_weatherFog 2's fog"
+        );
+        weather.force = 4;
+        weather.rebuild();
+        assert_eq!(looks(&weather), [(Look::Sprite(Image::Snowflake), false)]);
+        weather.force = 0;
+        weather.set_edit(&[]);
+        assert_eq!(looks(&weather), [(Look::Sprite(Image::Snowflake), false)]);
+        assert_eq!(weather.map_commands(), ["snow".to_owned()]);
+    }
+
+    /// `mapedit_weather` keeps what is seen: the forced weather, the console's commands
+    /// and `r_weatherFog 2`'s fog as `mist`; nothing when nothing falls or blows.
+    #[test]
+    fn the_weather_seen_is_what_a_map_edit_keeps() {
+        let mut cvars = sjk_shell::CvarRegistry::default();
+        let settings = Settings::bind(&mut cvars).unwrap();
+        let mut weather = empty_world();
+        assert_eq!(weather.seen_commands(&settings), None);
+        cvars
+            .set_value(FORCE_CVAR, sjk_shell::CvarValue::Integer(3))
+            .unwrap();
+        cvars
+            .set_value(FOG_CVAR, sjk_shell::CvarValue::Integer(2))
+            .unwrap();
+        assert_eq!(
+            weather.seen_commands(&settings).unwrap(),
+            ["heavyrain", "gustingwind", "mist"]
+        );
+        weather.command("fog").unwrap();
+        assert_eq!(
+            weather.seen_commands(&settings).unwrap(),
+            ["heavyrain", "gustingwind", "fog"],
+            "a fog of the weather's own needs no mist"
+        );
+        assert!(check_command("mist").is_ok() && check_command("drizzle").is_err());
     }
 
     #[test]

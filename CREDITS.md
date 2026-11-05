@@ -432,6 +432,18 @@ includes:
 - white edge on dark text (03/11/2026): `cg_darkTextOutline` rings black and other dark
   letters of nameplates and chat in a crisp white outline instead of the soft halo,
   off by default;
+- weather in map edits (05/11/2026, Sol's request): staff keep rain, storms, snow, fog
+  and wind for a map (`mapedit_weather`, the map editor's Weather page), synced through
+  the hub to every SJK player in place of the map's own weather;
+- rain and wind sounds (05/11/2026): `s_weatherSounds` plays the game's own outdoor
+  loops with the weather, as loud as it falls and blows, a fifth of it under a roof,
+  off by default;
+- puddles that mirror the world (05/11/2026, after VisionJK's `wet.frag`, Blackwolf's
+  work): at ultra weather quality the puddles reflect the streets, walls and drawn sky
+  round them, rippled by the rain rings;
+- lighter rain and fog (05/11/2026): the fog worked out at half size and blended back by
+  depth, about three times cheaper at the default quality, glowing towards the sun with the
+  rain;
 - SJK Alpha (19/10/2026), the first collection of cards: the Mythical rarity, the
   Credits and Meme kinds, and card 1, "Bishop", honouring the author of JKR (art by
   Sol, AI-assisted: a rusted helmet portrait).
@@ -982,6 +994,10 @@ as VisionJK's does; SJK's code is its own.
 
 Blackwolf's VisionJK client and its 3D sound (`v_spatial`, Steam Audio) gave SJK the
 idea of its own 3D sound (`s_spatial`), built in SJK's mixer with his agreement.
+
+VisionJK's wet ground (`wet.frag`, GPL-2.0, with his approval) gave SJK's puddles their
+mirror (05/11/2026): the same screen-space march (32 steps from 2 units growing by 1.18,
+then five halvings) and pond blend, rewritten in SJK's weather shader.
 
 Blackwolf's VisionJK web admin page (GPL-2.0, used with his approval, 03/11/2026) draws
 the map in SJK's browser map editor (`mapedit_web`): its WebGL drawing of a map with its

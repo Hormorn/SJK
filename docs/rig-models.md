@@ -359,7 +359,15 @@ What went wrong or nearly did, so the next change does not repeat it:
   3 units until the feet were planted on the driver's every frame (measure with the
   ignored test `feet_against_the_driver`, JKA_GAME_DATA and SJK_TEST_RIG).
 - **Scale.** `scale auto` divides the driver's pelvis height by the rig's; a rig whose
-  pelvis joint sits at the origin needs `scale <n>`.
+  pelvis joint sits at the origin needs `scale <n>`. Match a hand-set scale on the
+  shoulders and neck against a stock model in the lineup (below), not on leg joints: a
+  digitigrade leg's `foot` joint is a raised heel, not an ankle, and matching the
+  pelvis-to-ankle length made a fox 10 units too tall (05/11/2026).
+- **AI-made tails.** A generated mesh can weight its tail to one thigh, and a tail
+  picked by "far enough behind the body" misses the strip on its front, which keeps
+  those thigh weights: in crouches and runs it stretches a fan from the thigh to the
+  tail. Pick the whole tube below the root (slice the mesh to see where it leaves the
+  body) and fade the body round the root onto the pelvis.
 - **Emotes cleared outside a server.** The per-frame emote hook used to empty the
   active emotes whenever no live server was joined, so nothing played in a demo or a
   world shot; demos now keep theirs.
@@ -386,6 +394,12 @@ JKA_GAME_DATA=<GameData> SJK_TEST_DEMO=<demo.dm_26> SJK_TEST_RIG=<model folder n
 # The same with an emote of the installed catalogue playing (a rig clip); 12 shots
 # about a third of a second apart in target/world-shots/rig_model_emote.png:
 #   add SJK_TEST_EMOTE=<emote id>
+# A rig model beside a stock one in the same _humanoid frames (base, stands, walk,
+# run, crouch, jump, a saber stance) as the game poses them: OBJ pairs in
+# SJK_TEST_OUT (default target/rig-lineup), extents and joint-vs-bone places printed,
+# to compare size and proportions or find stretched faces:
+JKA_GAME_DATA=<GameData> SJK_TEST_RIG=<model folder name> SJK_TEST_STOCK=<stock folder> \
+  cargo test -p sjk-viewer --bins lineup_beside_a_stock_model -- --ignored --nocapture
 # Host cost of animating a demo's players (release build for real numbers):
 JKA_GAME_DATA=<GameData> SJK_TEST_DEMO=<demo.dm_26> \
   cargo test --release -p sjk-viewer --bins animation_cost_on_a_demo -- --ignored --nocapture

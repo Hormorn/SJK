@@ -668,7 +668,13 @@ The server time commands are stamped with comes from
 realtime plus a delta that resets past a 500 ms error, halves past 100 ms and otherwise
 drifts 1 or 2 ms a snapshot. `cl_timeNudge` moves only what is drawn
 ([presentation_clock.rs](../crates/sjk-viewer/src/presentation_clock.rs)), never the
-stamps, as stock subtracts it from `cl.serverTime` only for the cgame's view. The delta
+stamps, so SJK stamps as a stock client with a nudge of 0. Stock subtracts the nudge
+from `cl.serverTime`, which the cgame draws at and `CL_CreateCmd` stamps commands with
+(`cmd->serverTime = cl.serverTime`), so a stock player's nudge reaches the server in
+every command. Stock also stamps a frame's commands with the previous frame's
+`cl.serverTime` (`CL_Frame` runs `CL_SendCmd` before `CL_SetCGameTime`, JoF EJK
+`cl_main.cpp`), where SJK reads its clock in the frame that makes the command: SJK's
+stamps are a frame fresher than JoF EJK's (8 ms at 125 FPS, 33 ms at 30). The delta
 is adjusted once a frame, on the newest snapshot, and only once the frame has read
 every queued snapshot (a frame reads at most 8, `SNAPSHOTS_PER_FRAME` in
 [live_session.rs](../crates/sjk-viewer/src/live_session.rs)): stock reads the whole
@@ -689,6 +695,24 @@ past whenever the frame rate fell below 125, made SJK's commands trail the serve
 40 ms more than JoF EJK's, and Heimdall kicked for a time nudge again (02/11/2026).
 The userinfo's `cg_displayNetSettings` (JA+ and jaPRO read the time nudge from it)
 always says `125 0 125` ([compat_profile.rs](../crates/sjk-client/src/compat_profile.rs)).
+
+What the server measures is written to the log
+([server_view.rs](../crates/sjk-viewer/src/server_view.rs)), as Heimdall is closed
+source and none of the guesses above is known to have stopped its kicks. Every
+snapshot carries the server's time and the stamp of the last command it ran
+(`ps.commandTime`): their difference is how old our newest command was at the server
+when it built the snapshot, which is what a server-side time-nudge check can see. A
+frozen frame or a stalled packet shows as an age that grows until the next command
+lands. Minus that command's round trip (from the packet that carried it to the
+snapshot that ran it) it leaves about how far the stamps trail the server, which a
+stock client's `cl_timeNudge` moves. The client keeps the last 10 seconds of these,
+in storage allocated once, with every frame and packet gap over 40 ms, and writes a
+`server view, last 10 s before the drop:` line when a server drops the player (before
+`Disconnected:`), ending with the worst age of each second, and a `server view, last 60
+s:` line a minute while playing a remote server. Followed players' states, the
+intermission and the map load before the clock is anchored are left out. JoF's
+servers run `sv_fps 30` (Turin's log, 04/11/2026): a snapshot every 33 ms, so a
+normal age is the clock's lag, the way up and up to 33 ms of waiting for a frame.
 
 `rate` defaults to 90000 bytes a second (11/10/2026, Sol's choice): stock's 25000
 leaves about 600 bytes a snapshot at a server's 40 a second, less than a busy

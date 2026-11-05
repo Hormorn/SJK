@@ -985,3 +985,188 @@ fn the_pelvis_vertices_make_a_capsule_for_the_dynamic_chains() {
     .unwrap();
     assert!(still.chains.capsules.is_empty());
 }
+
+/// A rig model beside a stock GLM model in the same `_humanoid` frames, as the game
+/// poses them: each pose written as Wavefront OBJ files (`<pose>_stock.obj`,
+/// `<pose>_rig.obj`, model space in game units, one object per surface named after
+/// its shader) into `SJK_TEST_OUT` (default `target/rig-lineup`), with both models'
+/// extents and the joints' bind places against the JKA bones they follow printed, to
+/// compare proportions. `SJK_TEST_STOCK` names the stock folder (default `kyle`);
+/// `GameData/SJK/assets` packs are mounted too (hub models).
+#[test]
+#[ignore = "reads the installed game data (JKA_GAME_DATA, SJK_TEST_RIG, SJK_TEST_STOCK)"]
+fn lineup_beside_a_stock_model() {
+    let (Some(data), Ok(name)) = (
+        std::env::var_os("JKA_GAME_DATA").map(std::path::PathBuf::from),
+        std::env::var("SJK_TEST_RIG"),
+    ) else {
+        println!("JKA_GAME_DATA or SJK_TEST_RIG is not set: skipped");
+        return;
+    };
+    let stock = std::env::var("SJK_TEST_STOCK").unwrap_or_else(|_| "kyle".to_owned());
+    let out = std::env::var_os("SJK_TEST_OUT")
+        .map_or_else(|| std::path::PathBuf::from("target/rig-lineup"), Into::into);
+    std::fs::create_dir_all(&out).unwrap();
+    let mut vfs = VirtualFileSystem::new();
+    let base = data.join("base");
+    let mut packs: Vec<std::path::PathBuf> = std::fs::read_dir(&base)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            let file = path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_ascii_lowercase();
+            file.starts_with("assets") && file.ends_with(".pk3")
+                || file == format!("rig_{name}.pk3")
+        })
+        .collect();
+    if let Ok(entries) = std::fs::read_dir(data.join("SJK").join("assets")) {
+        packs.extend(entries.flatten().map(|entry| entry.path()).filter(|path| {
+            path.extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("pk3"))
+        }));
+    }
+    packs.sort();
+    for pack in &packs {
+        vfs.mount_pk3(pack).unwrap();
+    }
+    vfs.mount_directory(&base).unwrap();
+    let read = |path: &str| vfs.read(path).unwrap().unwrap().bytes;
+    let gla = Gla::parse(&read("models/players/_humanoid/_humanoid.gla")).unwrap();
+    let kyle = sjk_model::Glm::parse(&read("models/players/kyle/model.glm")).unwrap();
+    let stock_glm =
+        sjk_model::Glm::parse(&read(&format!("models/players/{stock}/model.glm"))).unwrap();
+    let stock_skin =
+        sjk_model::Skin::parse(&read(&format!("models/players/{stock}/model_default.skin")));
+    let config =
+        sjk_model::AnimationConfig::parse(&read("models/players/_humanoid/animation.cfg")).unwrap();
+    let directory = format!("models/players/{name}");
+    let manifest = super::manifest(&vfs, &directory)
+        .unwrap()
+        .expect("a rig model");
+    let rig = RigModel::load(&vfs, &directory, &manifest, &gla, &kyle).unwrap();
+
+    // Proportions: each mapped joint's bind place against its JKA bone's base place.
+    let bone_at = |bone: usize| affine(&gla.bones[bone].base_pose).translation;
+    println!("joint -> bone: rig bind place | JKA base place (game units)");
+    for (index, driven) in rig.driven.iter().enumerate() {
+        let Some(driven) = driven else { continue };
+        let joint = &rig.joints[index];
+        let rig_at = joint.bind.translation;
+        let jka_at = bone_at(driven.bone);
+        println!(
+            "{:>22} -> {:<14} {:>7.2} {:>7.2} {:>7.2} | {:>7.2} {:>7.2} {:>7.2}",
+            joint.name,
+            gla.bones[driven.bone].name,
+            rig_at.x,
+            rig_at.y,
+            rig_at.z,
+            jka_at.x,
+            jka_at.y,
+            jka_at.z
+        );
+    }
+
+    type Mesh = Vec<(String, Vec<[f32; 3]>, Vec<[f32; 2]>, Vec<[u32; 3]>)>;
+    let write = |file: &str, mesh: &Mesh| {
+        let mut text = String::new();
+        let mut first = 1;
+        for (shader, positions, uvs, triangles) in mesh {
+            text += &format!("o {}\nusemtl {shader}\n", shader.replace(['/', ' '], "_"));
+            for p in positions {
+                text += &format!("v {} {} {}\n", p[0], p[1], p[2]);
+            }
+            for uv in uvs {
+                text += &format!("vt {} {}\n", uv[0], 1.0 - uv[1]);
+            }
+            // Game fronts wind clockwise, OBJ's counter-clockwise.
+            for t in triangles {
+                let [a, b, c] = t.map(|i| i + first);
+                text += &format!("f {a}/{a} {c}/{c} {b}/{b}\n");
+            }
+            first += u32::try_from(positions.len()).unwrap();
+        }
+        std::fs::write(out.join(file), text).unwrap();
+    };
+    let extent = |mesh: &Mesh| {
+        let mut low = [f32::MAX; 3];
+        let mut high = [f32::MIN; 3];
+        for p in mesh.iter().flat_map(|(_, positions, _, _)| positions) {
+            for axis in 0..3 {
+                low[axis] = low[axis].min(p[axis]);
+                high[axis] = high[axis].max(p[axis]);
+            }
+        }
+        format!(
+            "x {:.1}..{:.1} y {:.1}..{:.1} z {:.1}..{:.1} (height {:.1})",
+            low[0],
+            high[0],
+            low[1],
+            high[1],
+            low[2],
+            high[2],
+            high[2] - low[2]
+        )
+    };
+    let identity = vec![identity_rows(); gla.bones.len()];
+    let mut poses = vec![("base".to_owned(), identity)];
+    for (animation, frame) in [
+        ("BOTH_STAND1", 0),
+        ("BOTH_STAND2", 0),
+        ("BOTH_WALK1", 3),
+        ("BOTH_RUN1", 4),
+        ("BOTH_CROUCH1IDLE", 0),
+        ("BOTH_JUMP1", 6),
+        ("BOTH_A2_T__B_", 0),
+    ] {
+        let sequence = config.get(animation).unwrap();
+        poses.push((
+            animation.to_ascii_lowercase(),
+            gla.frame_matrices(sequence.first_frame + frame).unwrap(),
+        ));
+    }
+    let mut scratch = Scratch::default();
+    for (pose, matrices) in &poses {
+        let stock_mesh: Mesh = stock_glm
+            .skin_pose_matrices(&stock_skin, 0, matrices)
+            .unwrap()
+            .into_iter()
+            .filter(|s| s.shader.is_some() && !s.name.contains("_cap_") && !s.name.starts_with('*'))
+            .map(|s| {
+                (
+                    s.shader.unwrap_or_default(),
+                    s.vertices.iter().map(|v| v.position).collect(),
+                    s.vertices.iter().map(|v| v.texture_coordinates).collect(),
+                    s.triangles,
+                )
+            })
+            .collect();
+        rig.pose_after(matrices, None, &mut scratch, None);
+        let rig_mesh: Mesh = rig
+            .surfaces
+            .iter()
+            .map(|s| {
+                (
+                    s.shader.clone(),
+                    s.vertices
+                        .iter()
+                        .map(|v| skin(v, &scratch.palette).0)
+                        .collect(),
+                    s.vertices.iter().map(|v| v.texture_coordinates).collect(),
+                    s.indices
+                        .chunks_exact(3)
+                        .map(|t| [t[0], t[1], t[2]])
+                        .collect(),
+                )
+            })
+            .collect();
+        println!("{pose}: {stock} {}", extent(&stock_mesh));
+        println!("{pose}: {name} {}", extent(&rig_mesh));
+        write(&format!("{pose}_stock.obj"), &stock_mesh);
+        write(&format!("{pose}_rig.obj"), &rig_mesh);
+    }
+    println!("written to {}", out.display());
+}
