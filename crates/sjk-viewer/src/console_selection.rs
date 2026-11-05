@@ -236,6 +236,7 @@ impl Selection {
 /// oldest displayed line is number `first`. Lines are joined with newlines, Quake
 /// colour codes are retained only when `colours` is true, and trimmed lines or
 /// out-of-range offsets are skipped rather than trusted.
+#[cfg(test)]
 pub(super) fn copy_range<'a>(
     lines: impl Iterator<Item = &'a str>,
     first: u64,
