@@ -92,12 +92,21 @@ pub(crate) fn update(gpu: &mut GpuState, time: i64, audio: &mut Option<GameAudio
         });
         let frames = mesh.animator.event_frames(&mesh.preview.animation, time);
         let matrices = mesh.animator.matrices();
+        // A miner's swing is a saber move's animation (`mining`): its saber swooshes are
+        // not the pickaxe's, which plays its own.
+        let mining = usize::try_from(id)
+            .ok()
+            .and_then(|id| id.checked_sub(1))
+            .is_some_and(crate::mining::holding_pick);
         let play = |cue: &Cue, variant: usize| match cue {
             Cue::Sound { paths, channel } => {
                 let Some(audio) = audio.as_mut() else {
                     return;
                 };
                 let standard = &paths[variant % paths.len()];
+                if mining && is_saber_sound(standard) {
+                    return;
+                }
                 let path = gpu
                     .saber_hilts
                     .as_ref()
@@ -224,6 +233,11 @@ pub(crate) fn update(gpu: &mut GpuState, time: i64, audio: &mut Option<GameAudio
     }
 }
 
+/// Whether an animation cue's sound is a saber's (its swings, `sound/weapons/saber/`).
+fn is_saber_sound(path: &str) -> bool {
+    path.to_ascii_lowercase().contains("weapons/saber/")
+}
+
 /// The swing the loaded skin numbered `skin` (the sound set a player is heard with)
 /// plays for a stock `saberhup` animation cue.
 fn skin_swing<'a>(
@@ -241,6 +255,14 @@ fn skin_swing<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_miners_swing_drops_only_the_saber_cues() {
+        assert!(is_saber_sound("sound/weapons/saber/saberhup3.wav"));
+        assert!(is_saber_sound("Sound/Weapons/Saber/saberhum1.wav"));
+        assert!(!is_saber_sound("sound/weapons/melee/swing1.mp3"));
+        assert!(!is_saber_sound("sound/player/footsteps/boot1.wav"));
+    }
 
     #[test]
     fn a_skin_adds_to_only_the_stock_swing_cues() {

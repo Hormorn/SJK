@@ -6054,7 +6054,9 @@ on top of fishing); that needs the hub.
   blow from overhead down (`BOTH_A3_T__B_`, both hands on the handle; the legs too while
   they stand, blended in over 100 ms), the pickaxe following the hands down to the ground
   before the feet, its blow landing 0.42 seconds in (presses during a swing are not kept,
-  so spamming swings no faster; held, the attack swings again and again). The blow strikes the nearest boulder
+  so spamming swings no faster; held, the attack swings again and again). The saber
+  swooshes the animation's cues play (`sound/weapons/saber/`) are left out while a player
+  holds the pickaxe (`actor_sounds.rs`): the pickaxe's own swing plays. The blow strikes the nearest boulder
   within 64 units before the player (about 57 degrees either side of the way they face),
   or says to walk up to one. Others see the pickaxe held, not the swing: swings are not
   sent.
