@@ -31,6 +31,7 @@ system. Hats and capes stay free for everyone and are never sold or dropped
 | Duplicates | Cards keep a count ("x3"). A droppable shader held twice or more can be shattered into kyber shards, one copy at a time, never the last (Sol, 17/10/2026; it replaced selling duplicates for credits). |
 | Kyber shards | A second currency (Sol, 17/10/2026): from shattering duplicates, a holocron's pile of shards and a card's pack; spent to craft the droppable shader the player chooses and in the shop's four daily offers ([Shards and the shop](#shards-and-the-shop)). |
 | Drop rates | Start stingy; buffing later is easy on the hub and nerfing is not. |
+| Seasons | A holocron keeps the season it dropped in, and opens with its tables and edition; Beta starts with a release, per player (Sol, 05/11/2026, [Seasons](#seasons)). |
 | Money, trading | No money: free and non-commercial. Cards never trade; duplicate shaders, and later unopened holocrons, trade between players for each other only ([Trading](sjk-ui.md#trading)). |
 
 ## Opening
@@ -158,6 +159,90 @@ The hub sends the range as the loot tables' `card_shards`; the opening answer's 
 then rides with the `card` (a pile has no card). Provisional, the hub's `src/loot.rs`. The client shows the ranges
 ([cards.rs](../crates/sjk-viewer/src/cards.rs) `CREDITS`, the hub's copy, tested);
 the hub decides. Rolls use the operating system's entropy, as drops do.
+
+## Seasons
+
+Designed 05/11/2026 (Sol's request), not built. A **season** is a holocron's loot
+tables. **Alpha** is every table above; **Beta** is the next one, made so that opening a
+Rare, Legendary and above all a Mythical holocron always feels worth it.
+
+### Rules
+
+- **A holocron keeps the season it dropped in.** The hub stamps it when it drops;
+  opening it later always uses that season's tables and stamps its prizes with that
+  season's edition ([Editions](unlockables.md#editions)). An Alpha holocron opened in
+  Beta is still Alpha: holding on to holocrons gains nothing and loses nothing (Sol: "no
+  rewarding hoarding").
+- **Beta starts with a release, per player.** The hub stamps Beta on a drop when the
+  claim comes from the Beta release or newer (the client version the hub already keeps per
+  key, [identity.md](identity.md)); an older client keeps finding Alpha holocrons. There is
+  no switch date.
+- **Opening a Beta holocron needs the Beta release** (the existing `min_client` gate,
+  per season): an older client lists it but cannot open it, and says to update.
+- Bought holocrons (credits) and staff gifts take the season of the client that asked,
+  as drops do. Trades keep the holocron's season.
+- The loot table shows the tables of the season the player's next drop will have, with
+  a switch to see the other season's.
+
+### Beta tables
+
+Every holocron gives **guaranteed prizes**; what were alternatives to the card (tag,
+pile of kyber shards, banner) become **bonus rolls** on top.
+
+| Holocron | Guaranteed | Bonus rolls |
+| --- | --- | --- |
+| Uncommon | As in Alpha: one prize (a shader, or a card and credits) | As in Alpha |
+| Rare | A card, **Uncommon or better**, and credits | One: shader 35 %, tag 15 %, shard pile 10 %, nothing 40 % |
+| Legendary | A card, **Rare or better**, and credits; a shader, **Rare or better** | One: tag, shard pile or banner |
+| Mythical | A card, **Holo or better**, and credits; a shader, **Legendary or better** | Two: tag, shard pile, banner or a second card |
+
+Card rarity and finish (Beta; Uncommon as Alpha):
+
+| Holocron | Common | Uncommon | Rare | Legendary | Mythical | Normal | Holo | Solar |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Rare | 0 % | 70 % | 25 % | 4 % | 1 % | 88 % | 12 % | 0 % |
+| Legendary | 0 % | 0 % | 70 % | 25 % | 5 % | 65 % | 33 % | 2 % |
+| Mythical | 0 % | 0 % | 50 % | 38 % | 12 % | 0 % | 85 % | 15 % |
+
+Credits and the card pack's shards stay as in Alpha. The shader's tier, inside its floor,
+keeps the Alpha crystal odds of the holocron's tier, renormalised. Provisional: tuned
+after a week of real Beta openings.
+
+### Pity
+
+Per person, across seasons, shown on the Holocrons tab as the kyber crystals' is
+("Legendary or better within N holocrons"):
+
+- a prize of **Legendary or better** (shader or card) at the latest every **15**
+  holocrons opened (about two days at the daily cap);
+- a **Mythical** prize (shader or card) at the latest every **80** (about ten days).
+
+A natural one resets its counter. The last opening of a run rolls its prize's tier from
+the floor up.
+
+### No duplicate faces
+
+Legendary and Mythical holocrons pick a card face the player does not hold yet; a
+duplicate only once they hold every face of that rarity. Shaders already prefer the ones
+not held; one held in every tier of the floor gives the next tier up, or a pile of shards
+as large as a Mythical shader's shattering when none is left.
+
+### What it costs the economy
+
+A Mythical holocron drops about once in 67 (1.5 %), so at the daily cap one every eight
+days or so, each with a Legendary or better shader: a Legendary shader in the shop costs
+about 29 days of capped play. Accepted (my recommendation, 05/11/2026): Mythical drops
+are capped at one a day, and shaders avoid duplicates, so it fills a collection rather than
+the shard bank. Watch the shop's Legendary sales after a week.
+
+### Order of work
+
+1. Hub: `season` on holocrons (existing ones Alpha), the version gate at drop, tables per
+   season, guaranteed prizes and bonus rolls in one opening, pity counters, the face pick.
+2. Client: the opening answer with several prizes (the ceremony shows them one by one,
+   the best last), the season on a holocron (a small stamp), the loot table per season,
+   the pity line, the Beta edition in `editions.rs`.
+3. Release, then the hub's Beta gate set to that version.
 
 ## Credits
 
@@ -886,6 +971,7 @@ opened, not each frame. World shot: `world_shot::collection::duel6_sjk_collectio
    tab's Shatter and Craft. The Staff page's credits and shards control is built
    (18/10/2026); shards wait for the hub's `/v1/staff/shards`.
 3. Set completion feeding achievements the hub counts.
+4. The Beta season: holocrons stamped with their season, guaranteed prizes and bonus rolls, pity, no duplicate faces ([Seasons](#seasons)).
 
 Suggested first sets, about 20 to 30 cards: Places (planets, the Jedi Academy, the
 game's maps), Personalities (figures of the lore), Jedi Academy (Force powers,
