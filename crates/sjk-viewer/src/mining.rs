@@ -1,6 +1,7 @@
-//! Mining, SJK's own toy (`toy_mining`; Slash's design, 04/11/2026, phase 1): the player
-//! takes a pickaxe in hand, and boulders come up out of the ground round them, a few at a
-//! time ([`ROCKS`]). The player walks up to one and strikes it with `+use`, the whole body
+//! Mining, SJK's own toy (`toy_mining`; vinry's idea, built by Slash, 04/11/2026, phase
+//! 1): the player takes a pickaxe in hand, and boulders come up out of the ground round
+//! them, a few at a time ([`ROCKS`]). The player walks up to one and strikes it with the
+//! attack button (or `+use`), the whole body
 //! in the swing (`BOTH_A3_T__B_`, the strong saber style's blow from overhead, the
 //! pickaxe held as a hilt is); ten to fourteen blows
 //! break it, and it gives rubble or ore, counted in the player's mining log

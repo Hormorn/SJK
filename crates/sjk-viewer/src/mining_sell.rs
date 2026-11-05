@@ -1,4 +1,5 @@
-//! Selling the Mining toy's rubble to the SJK hub for credits (Slash, 05/11/2026; phase 2
+//! Selling the Mining toy's rubble to the SJK hub for credits (vinry's toy, Slash,
+//! 05/11/2026; phase 2
 //! of [`crate::mining`]): the hub buys it by the Fishing junk's routes and under its cap
 //! (`PROTOCOL.md` there, "Fishing junk": one daily sum for fished junk and dug rubble
 //! together, so mining earns nothing on top of fishing). The Mining card in Collection >

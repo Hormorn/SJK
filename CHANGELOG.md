@@ -32,8 +32,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- Mining toy: `toy_mining` (the quick wheel's Toys catalogue, Collection > Toys) puts a pickaxe in your hand, and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and a blow as it glints is a clean strike that counts twice and digs out rarer ore. Nine ores to find for your mining log, and five achievements on the board's new Hobbies page, beside Fishing's _(Slash)_
-- Mining: sell your dug rubble to the SJK hub for a few credits, from the Mining card in Collection > Toys or with `mining_sell`; it shares the fishing junk's small sum a day, and `mining_log` prints your whole mining log _(Slash)_
+- Mining toy: `toy_mining` (the quick wheel's Toys catalogue, Collection > Toys) puts a pickaxe in your hand, and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and a blow as it glints is a clean strike that counts twice and digs out rarer ore. Nine ores to find for your mining log, and five achievements on the board's new Hobbies page, beside Fishing's _(Slash, PR #363, after vinry's idea)_
+- Mining: sell your dug rubble to the SJK hub for a few credits, from the Mining card in Collection > Toys or with `mining_sell`; it shares the fishing junk's small sum a day, and `mining_log` prints your whole mining log _(Slash, PR #364, after vinry's idea)_
 
 ## 2026.1105.1 (Alpha) | 05/11/2026
 
