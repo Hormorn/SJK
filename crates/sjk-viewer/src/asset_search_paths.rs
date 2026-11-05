@@ -532,6 +532,7 @@ impl Options {
         crate::boombox::mount(&mut vfs)?;
         crate::monitor::mount(&mut vfs)?;
         crate::box_hunt::mount(&mut vfs)?;
+        crate::quests::mount(&mut vfs)?;
         crate::banana::mount(&mut vfs)?;
         crate::tags::mount(&mut vfs)?;
         crate::mystery_box::mount(&mut vfs)?;

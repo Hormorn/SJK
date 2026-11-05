@@ -246,6 +246,7 @@ mod tests {
             junk: None,
             junk_sale: None,
             box_hunt: None,
+            quests: None,
             secrets: None,
             secrets_revision: 0,
             secret_shows: None,

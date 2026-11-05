@@ -3,13 +3,13 @@
 //! Cardboard box), Order 66 (`docs/client.md`, Order 66), the Hax (`docs/client.md`,
 //! Hax), the Ragdoll (`docs/client.md`, Ragdoll), the Drone (`docs/client.md`, Drone),
 //! the Boombox (`docs/client.md`, Boombox), the Monitor (`docs/client.md`, Monitor), Box
-//! hunt (`docs/client.md`, Box hunt) the Banana peel (`docs/client.md`, Banana peel) and
-//! Fishing (`docs/client.md`, Fishing),
+//! hunt (`docs/client.md`, Box hunt) the Banana peel (`docs/client.md`, Banana peel),
+//! Fishing (`docs/client.md`, Fishing) and Quests (`docs/quests.md`),
 //! a row to each on the left (Sol's pick of 25/10/2026, the Collection revamp's canvas):
 //! its picture, its name and a line of what it does, the key bound to it and its own
 //! switch, which runs it in place (`toy_illuminate`, `toy_box`, `toy_order66`, `toy_hax`,
 //! `toy_ragdoll`, `toy_drone`, `toy_boombox`, `toy_monitor`, `toy_boxhunt`,
-//! `toy_banana`, `toy_fishing`). The chosen one is described on a dark card beside the
+//! `toy_banana`, `toy_fishing`, `toy_quests`). The chosen one is described on a dark card beside the
 //! model, where its key is bound without the console (a click or K, then the key). The
 //! holocron floats lit by the model while it is chosen.
 
@@ -20,15 +20,15 @@ use crate::menu_widgets::TextFamily;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign, TextureId};
 
 /// The rows: their left edge and width, where the column heads and the first row stand,
-/// a row's height and the room between rows, and its picture's side. Eleven fit over the
-/// keys.
+/// a row's height and the room between rows, and its picture's side. Twelve fit over the
+/// keys (53 high since Quests, 05/11/2026; 58 for eleven).
 const ROWS_X: f32 = LEFT_X - 12.0;
 const ROWS_WIDTH: f32 = 860.0;
 const HEADS_Y: f32 = 300.0;
 const ROWS_Y: f32 = 336.0;
-const ROW_HEIGHT: f32 = 58.0;
+const ROW_HEIGHT: f32 = 53.0;
 const ROW_GAP: f32 = 3.0;
-const ROW_ART: f32 = 50.0;
+const ROW_ART: f32 = 46.0;
 /// A row's key column: its width, and the room the switch keeps at the row's right.
 const KEY_WIDTH: f32 = 150.0;
 const SWITCH_ROOM: f32 = 130.0;
@@ -55,7 +55,7 @@ const SELL_ROW: f32 = 42.0;
 /// ([`Inputs::toy_keys`]): each toy's switch, Order 66's order after its own, the
 /// Monitor's throw (held, it charges) after its own, and the Banana peel's drop after its
 /// own.
-pub(crate) const COMMANDS: [&str; 14] = [
+pub(crate) const COMMANDS: [&str; 15] = [
     "toy_illuminate",
     "toy_box",
     "toy_order66",
@@ -70,6 +70,7 @@ pub(crate) const COMMANDS: [&str; 14] = [
     "toy_banana",
     "banana_drop",
     crate::fishing::COMMAND,
+    crate::quests::COMMAND,
 ];
 
 /// One toy as the tab shows it.
@@ -262,6 +263,21 @@ const TOYS: [Toy; TOY_COUNT] = [
         options: &[],
         token: FISHING_TOKEN,
     },
+    Toy {
+        icon: "quests",
+        name: "Quests",
+        tag: "Take quests from the hub for Echoes.",
+        title: "Quests",
+        what: "Now and then one player with Quests on is given a quest with a minute to finish it, such as hugging two other players who have it on (/amhug). The players it names see it; a finished quest wins an Echo, a few times a day.",
+        more: Some(
+            "Its switch is all there is: on, you may be given a quest or named in one. A quest's Echo is one of the Echoes you find a day by playing, and you finish one quest a day with the same player. Quests run on JA+ servers.",
+        ),
+        commands: &[(crate::quests::COMMAND, "Your key")],
+        switch: "Take quests",
+        sight: None,
+        options: &[],
+        token: QUESTS_TOKEN,
+    },
 ];
 
 /// The Toy Master's achievements the player holds: the toys they found.
@@ -375,6 +391,7 @@ fn states(inputs: &Inputs<'_>) -> [bool; TOY_COUNT] {
         inputs.box_hunt,
         inputs.banana,
         inputs.fishing,
+        inputs.quests,
     ]
 }
 
@@ -387,7 +404,7 @@ impl Panel {
             0 => "Switch them here or in a match; other SJK players on your server see what you turn on.".to_owned(),
             lit => format!("{lit} on now. Switch them here or in a match; other SJK players on your server see what you turn on."),
         };
-        self.lead(frame, "10 toys", &line);
+        self.lead(frame, &format!("{TOY_COUNT} toys"), &line);
         self.toy_heads(frame);
         let chosen = self.toy.min(TOY_COUNT - 1);
         for (index, toy) in TOYS.iter().enumerate() {
@@ -527,7 +544,7 @@ impl Panel {
             &mut self.ui,
             TextFamily::Display,
             format_args!("{}", toy.name),
-            frame.rect(words_x, y + 6.0, words_width, 30.0 * k),
+            frame.rect(words_x, y + 3.0, words_width, 28.0 * k),
             23.0 * s,
             if chosen {
                 color::GOLD_BRIGHT
@@ -541,7 +558,7 @@ impl Panel {
             &mut self.ui,
             TextFamily::Body,
             format_args!("{}", toy.tag),
-            frame.rect(words_x, y + 8.0 + 30.0 * k, words_width, 22.0 * k),
+            frame.rect(words_x, y + 3.0 + 27.0 * k, words_width, 22.0 * k),
             15.0 * s,
             color::MUTED,
             FontWeight::Regular,

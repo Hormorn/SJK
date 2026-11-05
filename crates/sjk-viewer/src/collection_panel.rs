@@ -135,11 +135,15 @@ const BOX_HUNT_TOKEN: u16 = 1_304;
 const BANANA_TOKEN: u16 = 1_375;
 /// Fishing's niche on Toys.
 const FISHING_TOKEN: u16 = 1_378;
+/// Quests' niche on Toys.
+const QUESTS_TOKEN: u16 = 1_396;
 /// The Fishing card's Sell junk button: past the nameplate styles' and the toy
 /// options' tokens, which a click reads by range.
 const SELL_JUNK_TOKEN: u16 = 1_395;
 /// Fishing's place among the toys (`collection_toys::TOYS`).
 const FISHING_TOY: usize = 10;
+/// Quests' place among the toys.
+const QUESTS_TOY: usize = 11;
 /// The Toys tab's "?", the Toy Master's (`collection_toys::Panel::toy_master_badge`): its
 /// hover card tells of the toys hidden on maps and names those the player found.
 const TOY_MASTER_TOKEN: u16 = 1_376;
@@ -161,9 +165,9 @@ const BOTH_TOKEN: u16 = 1_306;
 /// How far (frame pixels) a press on the lone saber may move and still be a click.
 const CLICK_SLOP: f32 = 6.0;
 /// The toys the Toys tab shows: Illuminate, the cardboard box, Order 66, the Hax, the
-/// Ragdoll, the Drone, the Boombox, the Monitor, Box hunt, the Banana peel, then
-/// Fishing.
-const TOY_COUNT: usize = 11;
+/// Ragdoll, the Drone, the Boombox, the Monitor, Box hunt, the Banana peel, Fishing,
+/// then Quests.
+const TOY_COUNT: usize = 12;
 /// Each toy's row, in the order of [`Panel::toy`].
 const TOY_TOKENS: [u16; TOY_COUNT] = [
     TOY_TOKEN,
@@ -177,6 +181,7 @@ const TOY_TOKENS: [u16; TOY_COUNT] = [
     BOX_HUNT_TOKEN,
     BANANA_TOKEN,
     FISHING_TOKEN,
+    QUESTS_TOKEN,
 ];
 /// Each toy row's own switch (25/10/2026): it turns that toy on or off in place, a token
 /// a toy from here on, below [`FAVOURITE_TOKEN`].
@@ -430,6 +435,8 @@ pub(crate) enum PanelAction {
     /// Turn Box hunt on (`true`) or off: the same as `toy_boxhunt`, set rather than
     /// toggled.
     BoxHunt(bool),
+    /// Turn Quests on (`true`) or off: the same as `toy_quests`, set rather than toggled.
+    Quests(bool),
     /// Turn the Banana peel on (`true`) or off: the same as `toy_banana`, set rather than
     /// toggled.
     Banana(bool),
@@ -617,6 +624,8 @@ pub(crate) struct Inputs<'a> {
     pub(crate) monitor: bool,
     /// Box hunt is on now (kept as [`Self::illuminate`] is).
     pub(crate) box_hunt: bool,
+    /// Quests are on now (kept as [`Self::illuminate`] is).
+    pub(crate) quests: bool,
     /// The Banana peel toy is on now (kept as [`Self::illuminate`] is).
     pub(crate) banana: bool,
     /// The fishing rod is out now (kept as [`Self::illuminate`] is).
@@ -739,6 +748,8 @@ pub(crate) struct Panel {
     monitor_on: bool,
     /// Box hunt was on, as the last frame's inputs said.
     box_hunt_on: bool,
+    /// Quests were on, as the last frame's inputs said.
+    quests_on: bool,
     /// The Banana peel was on, as the last frame's inputs said.
     banana_on: bool,
     /// The fishing rod was out, as the last frame's inputs said.
@@ -961,6 +972,7 @@ impl Panel {
             boombox_on: false,
             monitor_on: false,
             box_hunt_on: false,
+            quests_on: false,
             banana_on: false,
             fishing_on: false,
             share_on: false,
@@ -1283,6 +1295,7 @@ impl Panel {
             Tab::Toys if self.toy == 8 => PanelAction::BoxHunt(!self.box_hunt_on),
             Tab::Toys if self.toy == 9 => PanelAction::Banana(!self.banana_on),
             Tab::Toys if self.toy == FISHING_TOY => PanelAction::Fishing(!self.fishing_on),
+            Tab::Toys if self.toy == QUESTS_TOY => PanelAction::Quests(!self.quests_on),
             Tab::Toys => PanelAction::Illuminate(!illuminate),
             Tab::Nameplates => PanelAction::SeeAndShare(!self.share_on),
             Tab::Tags => self.choose_tag(),
@@ -2419,7 +2432,8 @@ impl Panel {
             SEEN_ALL_TOKEN => self.see_all(),
             // A toy's row chooses it; its own switch runs it.
             TOY_TOKEN | BOX_TOKEN | ORDER_TOKEN | HAX_TOKEN | RAGDOLL_TOKEN | DRONE_TOKEN
-            | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN => {
+            | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN
+            | QUESTS_TOKEN => {
                 self.toy = TOY_TOKENS.iter().position(|&row| row == token).unwrap_or(0);
                 PanelAction::None
             }
@@ -2655,6 +2669,7 @@ mod tests {
             box_hunt: false,
             banana: false,
             fishing: false,
+            quests: false,
             fishing_card: None,
             name: "^1Sol^7Vulpes",
             stock: sjk_ui::Color::new(0.16, 0.48, 1.0, 1.0),

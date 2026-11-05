@@ -1,3 +1,23 @@
+## Quests: the social quest
+
+04/11/2026, `feat/quests` from `main` `9301862c`, with hub branch `feat/quests`
+(wonner67's idea in #ideas; no hub report). A new toy, `toy_quests` (look toy `quests`,
+`cl_toyQuests`), and the hub's `POST /v1/quests` and `/v1/quests/done`
+([quests.md](quests.md)): the hub gives a player taking part a social quest (hug or
+kiss two others in 60 seconds), each target's client reports the hug or kiss it
+received from the quest's player (its own server-set `BOTH_HUGGEE1`/`BOTH_KISSEE` with
+that player within 160 units), and the hub drops an Echo as one earned by playing (within
+the day's caps, so no Echo is added to the day; 3 quests a day; a player-target pair once a
+day, against farming among friends; 05/11/2026, 150 credits before, never released). The
+hub's `--quests off|staff|everyone` switch is off by default. Collection > Toys has a
+twelfth row, Quests (rows 53 high to fit), and the quick wheel's Toys group the toy.
+Verified on Windows 11: unit tests of the hub's store (the switch, the Echo within the
+caps, the pairs) and an API test of a whole quest; the client's `sjk-identity` and
+`sjk-viewer` tests (the Toys tab's layout test with twelve rows among them). Not yet tried
+on a live server: that JA+ puts the target in `BOTH_HUGGEE1` for `amhug` is read from the
+animation table, not seen; the Toys tab's new row is not seen on screen. Not done: a
+quest card on screen, other kinds.
+
 ## Finishers (Disintegrate first)
 
 04/11/2026, `personal/finishers` from `main` `e7cfcc07`, Sol's decision: the Saber Lab's

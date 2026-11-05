@@ -125,6 +125,8 @@ pub(crate) enum InputAction {
     ChargeMonitor(bool),
     /// `toy_boxhunt`: take part in the box hunt, or not ([`crate::box_hunt`]).
     BoxHunt,
+    /// `toy_quests`: take part in quests, or not ([`crate::quests`]).
+    Quests,
     /// `toy_banana`: drop banana peels and slip on them, or not ([`crate::banana`]).
     Banana,
     /// `banana_drop`: drop a banana peel ([`crate::banana`]).
@@ -373,6 +375,7 @@ impl GameplayInput {
                     | crate::monitor::CHARGE_COMMAND
                     | crate::monitor::CHARGE_RELEASE
                     | crate::box_hunt::COMMAND
+                    | crate::quests::COMMAND
                     | crate::banana::COMMAND
                     | crate::banana::DROP_COMMAND
                     | crate::propgun::COMMAND
@@ -558,6 +561,7 @@ impl GameplayInput {
             crate::monitor::CHARGE_COMMAND => Some(InputAction::ChargeMonitor(true)),
             crate::monitor::CHARGE_RELEASE => Some(InputAction::ChargeMonitor(false)),
             crate::box_hunt::COMMAND => Some(InputAction::BoxHunt),
+            crate::quests::COMMAND => Some(InputAction::Quests),
             crate::banana::COMMAND => Some(InputAction::Banana),
             crate::banana::DROP_COMMAND => Some(InputAction::DropBanana),
             crate::propgun::COMMAND => Some(InputAction::PropGun),
@@ -757,6 +761,7 @@ impl super::GpuState {
             Some(InputAction::ThrowMonitor) => self.throw_monitor(),
             Some(InputAction::ChargeMonitor(pressed)) => self.charge_monitor(pressed),
             Some(InputAction::BoxHunt) => self.toggle_box_hunt(),
+            Some(InputAction::Quests) => self.toggle_quests(),
             Some(InputAction::Banana) => self.toggle_banana(),
             Some(InputAction::DropBanana) => self.drop_banana(),
             Some(InputAction::PropGun) => self.toggle_propgun(),

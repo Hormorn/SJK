@@ -277,6 +277,10 @@ pub(crate) struct ViewerConsole {
     boombox_on: bool,
     /// The Toys tab asked to carry the Boombox (`true`) or put it away, not yet taken.
     pending_boombox: Option<bool>,
+    /// Quests are on, mirrored as [`Self::order66_on`] is.
+    quests_on: bool,
+    /// The Toys tab asked to turn Quests on (`true`) or off, not yet taken.
+    pending_quests: Option<bool>,
     /// The fishing rod is out, mirrored as [`Self::order66_on`] is.
     fishing_on: bool,
     /// The Toys tab asked to get the rod out (`true`) or put it away, not yet taken.

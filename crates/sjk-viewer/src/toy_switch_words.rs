@@ -24,7 +24,7 @@ pub(crate) fn switched(name: &str, on: bool) -> String {
 }
 
 /// Every toy: its name, its switch and what it does and how, in `toy_help`'s order.
-pub(crate) const TOYS: [(&str, &str, &str); 12] = [
+pub(crate) const TOYS: [(&str, &str, &str); 13] = [
     (
         "Illuminate",
         "toy_illuminate",
@@ -74,6 +74,11 @@ pub(crate) const TOYS: [(&str, &str, &str); 12] = [
         "Box hunt",
         "toy_boxhunt",
         "you may become the mark; kill the mark to win a free mystery box roll",
+    ),
+    (
+        "Quests",
+        "toy_quests",
+        "you may be given a quest, such as hugging two players within a minute, for an Echo",
     ),
     (
         "Banana peel",
@@ -132,6 +137,7 @@ mod tests {
             crate::monitor::COMMAND,
             crate::tags::COMMAND,
             crate::box_hunt::COMMAND,
+            crate::quests::COMMAND,
             crate::banana::COMMAND,
             crate::propgun::COMMAND,
         ] {

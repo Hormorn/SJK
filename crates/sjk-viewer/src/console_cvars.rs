@@ -1006,6 +1006,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Box hunt is on: you may become the mark (one every 10 minutes), and killing the mark wins you a free mystery box roll (toy_boxhunt switches it)",
         ),
         CvarDefinition::new(
+            crate::toy_saved::QUESTS_CVAR,
+            false,
+            archive,
+            "Quests are on: you may be given a quest, such as hugging or kissing two other players within a minute, for an Echo, or be named in one (toy_quests switches it)",
+        ),
+        CvarDefinition::new(
             crate::toy_saved::BANANA_CVAR,
             false,
             archive,

@@ -1707,13 +1707,15 @@ for the run.
   model's blade following at once and, worn, every SJK player's view of it
   ([unlockables.md](unlockables.md#options)).
 - **Toys** (rows since 25/10/2026,
-  [collection_toys.rs](../crates/sjk-viewer/src/collection_toys.rs)): "10 toys", things
+  [collection_toys.rs](../crates/sjk-viewer/src/collection_toys.rs)): "12 toys" (the count of
+  rows, since 05/11/2026; it said "10 toys" with eleven), things
   to use in a match, and how many are on now. Illuminate's holocron, the cardboard box
   (since 16/10/2026), Order 66 (since 17/10/2026), the Hax (since 21/10/2026), the
   Ragdoll (since 23/10/2026), the Drone (since 24/10/2026), the Boombox (since
   25/10/2026, verified players), the Monitor (since 26/10/2026), Box hunt (since
-  27/10/2026) and the Banana peel (since 29/10/2026), a row of 64 to each under column
-  heads (Toy, Your key, On; ten rows fit over the keys, 3 apart): its icon, its
+  27/10/2026), the Banana peel (since 29/10/2026), Fishing and Quests (since 05/11/2026,
+  [quests.md](quests.md)), a row of 53 to each under column heads (Toy, Your key, On;
+  twelve rows fit over the keys, 3 apart; 58 for eleven before Quests): its icon, its
   name and a line of what it does, the key bound to its command ("Not bound" when none)
   and its own switch, which runs that toy in place and chooses it; the chosen row framed
   gold on a soft gold ground. The arrows and Tab choose; a click on a row chooses it.
@@ -1732,10 +1734,10 @@ for the run.
   "Quick wheel: On its Toys page", a line more for some (the Hax: hold Use on a player
   who has it on; the Ragdoll: its key again gets up), then its switch, "Holocron lit",
   "In the box", "In the order", "Hacker", "Limp", "Peek me", "Play", "Hit me", "Hunt" or
-  "Slip on peels": on while
+  "Slip on peels", "Rod out" or "Take quests": on while
   the toy is on, Enter or a click runs it (the `toy_illuminate`, `toy_box`,
   `toy_order66`, `toy_hax`, `toy_ragdoll`, `toy_drone`, `toy_boombox`, `toy_monitor`,
-  `toy_boxhunt` or `toy_banana` toggle, set to the state wanted;
+  `toy_boxhunt`, `toy_banana`, `toy_fishing` or `toy_quests` toggle, set to the state wanted;
   the viewer owns the state, the console mirrors it each frame). Under it, for a toy other
   players are seen with, a second, smaller switch, "See others' holocrons", "See others'
   boxes", "See others fall limp", "See others' drones", "See and hear others' boomboxes",

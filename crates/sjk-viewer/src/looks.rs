@@ -62,7 +62,7 @@ fn blade_skin(id: &str) -> Option<&'static str> {
 /// The toys a look can have out that this client draws, by id (`PROTOCOL.md`, "Looks"):
 /// a toy's bit in [`Worn::toys`] is its place here. A look naming another id (a newer
 /// client's toy) draws nothing more.
-pub(crate) const TOYS: [&str; 10] = [
+pub(crate) const TOYS: [&str; 11] = [
     crate::cardboard_box::TOY,
     crate::order66::TOY,
     crate::hax::TOY,
@@ -77,6 +77,8 @@ pub(crate) const TOYS: [&str; 10] = [
     crate::banana::TOY,
     // The fishing rod out: others draw the rod, the bucket and the float.
     crate::fishing::TOY,
+    // Quests' switch: the hub gives quests among the players whose look has it.
+    crate::quests::TOY,
 ];
 // A bit each in a `u32`: as many as a hub look holds (32 toy ids since 30/10/2026).
 const _: () = assert!(TOYS.len() <= u32::BITS as usize);

@@ -214,6 +214,10 @@ impl ViewerConsole {
                 self.pending_monitor = Some(on);
                 self.monitor_on = on;
             }
+            PanelAction::Quests(on) => {
+                self.pending_quests = Some(on);
+                self.quests_on = on;
+            }
             PanelAction::BoxHunt(on) => {
                 self.pending_box_hunt = Some(on);
                 self.box_hunt_on = on;
@@ -320,6 +324,16 @@ impl ViewerConsole {
     /// The Toys tab asked to carry the Boombox (`true`) or put it away, once.
     pub(crate) fn take_boombox_request(&mut self) -> Option<bool> {
         self.pending_boombox.take()
+    }
+
+    /// The viewer says whether Quests are on, once a frame.
+    pub(crate) fn set_quests_on(&mut self, on: bool) {
+        self.quests_on = on;
+    }
+
+    /// The Toys tab asked to turn Quests on (`true`) or off, once.
+    pub(crate) fn take_quests_request(&mut self) -> Option<bool> {
+        self.pending_quests.take()
     }
 
     /// The viewer says whether the fishing rod is out, once a frame.
@@ -509,6 +523,7 @@ impl ViewerConsole {
         let box_hunt = self.box_hunt_on;
         let banana = self.banana_on;
         let fishing = self.fishing_on;
+        let quests = self.quests_on;
         let fishing_card = self.fishing_card.clone();
         let stock = self.stock_blade();
         // Tiles unless the list is chosen (`ui_shaderList 1`).
@@ -578,6 +593,7 @@ impl ViewerConsole {
                 box_hunt,
                 banana,
                 fishing,
+                quests,
                 fishing_card: Some(&fishing_card),
                 name: &name,
                 stock,
@@ -616,6 +632,7 @@ impl ViewerConsole {
             box_hunt,
             banana,
             fishing,
+            quests,
             fishing_card: Some(&fishing_card),
             name: &name,
             stock,

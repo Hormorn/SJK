@@ -176,6 +176,7 @@ pub(crate) fn row_labels(
         box_hunt: false,
         banana: false,
         fishing: false,
+        quests: false,
         fishing_card: None,
         name: "",
         stock: color::HOLO,
@@ -310,6 +311,7 @@ impl Panel {
         self.box_hunt_on = inputs.box_hunt;
         self.banana_on = inputs.banana;
         self.fishing_on = inputs.fishing;
+        self.quests_on = inputs.quests;
         self.share_on = inputs.share;
         self.toys_unseen = inputs.toys_unseen;
         self.toy_options = inputs.toy_options;
@@ -648,6 +650,8 @@ impl Panel {
                     (8, _, _) => "turn on",
                     (9, _, _) if inputs.banana => "turn off",
                     (9, _, _) => "turn on",
+                    (11, _, _) if inputs.quests => "turn off",
+                    (11, _, _) => "turn on",
                     (_, true, _) => "put out",
                     _ => "light",
                 },
