@@ -613,9 +613,14 @@ impl Forge {
     }
 
     /// The hub's answer to the last trade sent from the Forge, once it came: the trade
-    /// and what was asked.
+    /// and what was asked. A banner broken down on the Banners tab (05/11/2026) is never
+    /// the Forge's.
     pub(super) fn answer(&self) -> Option<(&sjk_identity::TradeOutcome, Option<Press>)> {
-        let outcome = self.data.trade.as_ref()?;
+        let outcome = self
+            .data
+            .trade
+            .as_ref()
+            .filter(|outcome| crate::profile_card::banner::get(&outcome.id).is_none())?;
         if let Some((asked, press)) = self.sent
             && outcome.serial > asked
             && outcome.trade != sjk_identity::Trade::ShatterAll
@@ -1621,6 +1626,27 @@ mod tests {
     /// The last copy and every duplicate ask with a card: the quieter choice has the focus
     /// for the last copy, Escape keeps it, the stronger choice sends it; a hub without the
     /// abilities lists no last copy and offers no Break down all.
+    /// A banner broken down on the Banners tab (05/11/2026) is never shown as the answer
+    /// to the Forge's last trade.
+    #[test]
+    fn a_banners_outcome_is_not_the_forges() {
+        let held = [copy("saber_tidal", 3)];
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, true));
+        panel.forge.sent = Some((0, Press::Break("saber_tidal")));
+        let outcome = |id: &str| sjk_identity::TradeOutcome {
+            serial: 1,
+            trade: sjk_identity::Trade::Shatter,
+            id: id.to_owned(),
+            amount: 5,
+            copies: 1,
+            message: String::new(),
+        };
+        panel.forge.data.trade = Some(outcome("banner_jedi_archives"));
+        assert!(panel.forge.answer().is_none());
+        panel.forge.data.trade = Some(outcome("saber_tidal"));
+        assert!(panel.forge.answer().is_some());
+    }
+
     #[test]
     fn the_last_copy_and_all_duplicates_ask_with_a_card() {
         let held = [copy("saber_tidal", 3), copy("saber_aurora", 1)];

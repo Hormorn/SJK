@@ -228,6 +228,8 @@ const _: () = assert!(CARD_BASE as usize + CARD_TILES_MAX <= CARD_SHOW_BASE as u
 /// Choose button.
 const BANNER_BASE: u16 = 8_200;
 const BANNER_WEAR: u16 = 8_299;
+/// The Banners tab's Break down button (05/11/2026).
+const BANNER_BREAK: u16 = 8_298;
 const TAG_BASE: u16 = 8_100;
 const TAG_CHOOSE_TOKEN: u16 = 8_099;
 /// The Tags tab's finish chips, Normal, Holo and Solar (31/10/2026).
@@ -703,6 +705,10 @@ pub(crate) struct Panel {
     banner: usize,
     banner_owned: [bool; crate::profile_card::banner::ALL.len()],
     banner_current: &'static str,
+    /// The copies of each banner the profile holds (the neutral cover none), online.
+    banner_counts: [u32; crate::profile_card::banner::ALL.len()],
+    /// Breaking the chosen banner down (05/11/2026): what the hub takes and the press.
+    banner_break: banners::Break,
     /// The tag chosen on Tags, in the wall's order (the catalogue's tags, then the
     /// cards), the things the last frame listed and what the player held of each (Enter
     /// picks only one held).
@@ -942,6 +948,8 @@ impl Panel {
             banner: 0,
             banner_owned: [false; crate::profile_card::banner::ALL.len()],
             banner_current: "",
+            banner_counts: [0; crate::profile_card::banner::ALL.len()],
+            banner_break: banners::Break::default(),
             tag: 0,
             tag_entries: Vec::new(),
             tag_held: Vec::new(),
@@ -2261,6 +2269,9 @@ impl Panel {
             if self.tab == Tab::Banners {
                 if token == BANNER_WEAR {
                     return self.wear_banner();
+                }
+                if token == BANNER_BREAK {
+                    return self.break_banner(now);
                 }
                 if let Some(index) = token
                     .checked_sub(BANNER_BASE)

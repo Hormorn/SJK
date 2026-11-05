@@ -444,6 +444,12 @@ pub(super) fn unlock_name(id: &str) -> String {
                 .find(|tag| tag.id.eq_ignore_ascii_case(id.trim()))
                 .map(|tag| tag.name)
         })
+        // A banner broken down (05/11/2026); the neutral cover has no id.
+        .or_else(|| {
+            crate::profile_card::banner::get(id.trim())
+                .filter(|banner| !banner.id.is_empty())
+                .map(|banner| banner.name)
+        })
         .map_or_else(|| id.trim().to_owned(), str::to_owned)
 }
 

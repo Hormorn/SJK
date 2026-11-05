@@ -351,6 +351,17 @@ test: Player card and SJK chat sender cards show the worn cover; unknown ids fal
 test: Holocron odds: Banner bonus row only on a hub with banners on, 0 otherwise.
 note: Hub banner drops stay off until SJK_HUB_BANNER_MIN_CLIENT is set (hub shared #6).
 
+[banner-breakdown]
+area: Menus & settings
+title: Banner break down (Slash, after headshotsmcgee117's idea): banners into kyber shards
+change: Collection > Banners: Break down a copy (press twice) turns a held banner into shards.
+change: Last copy too on a shatter_last hub, with a warning; it comes off the profile if worn.
+test: Hub with --banner-shatter staff and you staff: hold 2+ Jedi Archives, Break down a copy.
+test: First press arms (Confirm...), second within 5 s sends; "+5 kyber shards" line, count -1.
+test: Last copy: warning line, then it leaves Collection and the profile; History "Shattered".
+test: Switch off (or not staff): no Break down button; the Forge shows no banner answer.
+note: Needs the hub's feat/banner-breakdown deployed; --banner-shatter is off by default.
+
 [fishing-278]
 area: Gameplay
 title: Slash #278: Fishing toy (rod, bucket, 12 fish, Echoes on the line)

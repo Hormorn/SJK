@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Banners break down for kyber shards: choose one you hold in Collection > Banners and press Break down a copy twice (your last copy too, after a warning; it comes off your profile when worn); Uncommon 5, Rare 12, Legendary 30, Mythical 75 shards; once the hub turns it on _(Slash, after headshotsmcgee117's idea)_
+
 ## 2026.1105.2 (Alpha) | 05/11/2026
 
 A sculpted Sith pyramid, normal-mapped models, shared remap blocks and longer logs for staff.
