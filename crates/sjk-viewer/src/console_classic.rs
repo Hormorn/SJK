@@ -24,6 +24,9 @@
 //! the same grid, rows, keys, selection and notify lines, drawn in the SJK UI's
 //! colours with its own background, header, input row and rail.
 
+/// What the console says while `con_chatOnly` shows chat alone.
+pub(super) const CHAT_ONLY: &str = "Chat only";
+
 #[path = "console_sjk.rs"]
 pub(crate) mod sjk;
 
@@ -685,7 +688,7 @@ impl ViewerConsole {
 
         // Scrollback rows at this width, new rows keeping a scrolled-back view.
         let text_columns = grid.text_columns(stamps);
-        let added = self.classic_rows(text_columns);
+        let added = self.classic_rows(text_columns, options.chat_only);
         let total = self.classic.rows.len();
         if self.scroll_offset > 0 {
             self.scroll_offset = self.scroll_offset.saturating_add(added);
@@ -787,6 +790,16 @@ impl ViewerConsole {
         let corner_y = lines - (grid.height * 1.5).floor() + padding;
         let length = version.chars().count() as f32 + 1.0;
         painter.right(frame, version, viewport[0] - length * grid.width, version_y);
+        // `con_chatOnly`: say so, left of the version.
+        if options.chat_only {
+            let shown = length + CHAT_ONLY.len() as f32 + 2.0;
+            painter.right(
+                frame,
+                CHAT_ONLY,
+                viewport[0] - shown * grid.width,
+                version_y,
+            );
+        }
         let corner = std::mem::take(&mut self.classic.corner);
         let length = corner.chars().count() as f32;
         painter.right(frame, &corner, viewport[0] - length * grid.width, corner_y);
@@ -802,15 +815,19 @@ impl ViewerConsole {
         }
     }
 
-    /// Recompute every scrollback row at `width` columns; returns how many rows
-    /// belong to lines written since the last frame.
-    fn classic_rows(&mut self, width: usize) -> usize {
+    /// Recompute every scrollback row at `width` columns, of the chat lines alone when
+    /// `chat_only` (`con_chatOnly`); returns how many rows belong to lines written since
+    /// the last frame.
+    fn classic_rows(&mut self, width: usize, chat_only: bool) -> usize {
         let mut rows = std::mem::take(&mut self.classic.rows);
         rows.clear();
         let end = self.shell.lines_written();
         let first = end - self.shell.lines().count() as u64;
         let mut added = 0;
         for (line, entry) in (first..).zip(self.shell.lines()) {
+            if chat_only && !self.is_chat_line(line) {
+                continue;
+            }
             let before = rows.len();
             wrap(&entry.text, width, |span| rows.push(Row { line, span }));
             if line >= self.classic.lines_end {
@@ -1232,6 +1249,30 @@ fn console_key(character: char) -> GlyphKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `con_chatOnly` (05/11/2026): the rows hold the chat lines alone, and all of them
+    /// come back with it off.
+    #[test]
+    fn chat_only_rows_hold_the_chat_lines_alone() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        console.push_log("map loaded");
+        let chat = console.shell.lines_written();
+        console.push_chat_line("Sol^7: hi".into(), "Sol^7\u{19}: hi", None);
+        console.push_log("^3cvar changed");
+        console.push_chat_line("Fox^7: hey".into(), "Fox^7\u{19}: hey", None);
+        let end = console.shell.lines_written();
+        console.classic_rows(80, true);
+        let lines: Vec<u64> = console.classic.rows.iter().map(|row| row.line).collect();
+        assert_eq!(lines, [chat, end - 1]);
+        console.classic_rows(80, false);
+        let every = console.classic.rows.len();
+        assert!(every >= 4, "{every}");
+        assert_eq!(
+            console.classic.rows.last().map(|row| row.line),
+            Some(end - 1)
+        );
+    }
 
     #[test]
     fn the_input_obeys_its_colour_codes_and_shows_them() {

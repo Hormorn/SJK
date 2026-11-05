@@ -244,6 +244,20 @@ pub(super) fn copy_range<'a>(
     colours: bool,
     out: &mut String,
 ) {
+    copy_lines_where(lines, first, start, end, colours, |_| true, out);
+}
+
+/// [`copy_range`] of the lines `keep` takes alone (by number): the chat lines while
+/// `con_chatOnly` shows them alone.
+pub(super) fn copy_lines_where<'a>(
+    lines: impl Iterator<Item = &'a str>,
+    first: u64,
+    start: Mark,
+    end: Mark,
+    colours: bool,
+    keep: impl Fn(u64) -> bool,
+    out: &mut String,
+) {
     out.clear();
     let mut wrote_line = false;
     for (number, text) in (first..).zip(lines) {
@@ -252,6 +266,9 @@ pub(super) fn copy_range<'a>(
         }
         if number > end.line {
             break;
+        }
+        if !keep(number) {
+            continue;
         }
         let from = if number == start.line {
             floor_boundary(text, start.byte)

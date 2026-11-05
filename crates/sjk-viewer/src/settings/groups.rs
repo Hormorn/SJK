@@ -497,6 +497,7 @@ impl Group {
                 crate::text::system_font::CONSOLE_CVAR,
                 "con_scale",
                 crate::console::console_options::DRAW_NOTIFY_CVAR,
+                crate::console::console_options::CHAT_ONLY_CVAR,
                 crate::console::console_options::COPY_COLORS_CVAR,
                 crate::console::console_options::SHIFT_HEIGHT_CVAR,
                 crate::console::console_options::OVER_CHAT_CVAR,

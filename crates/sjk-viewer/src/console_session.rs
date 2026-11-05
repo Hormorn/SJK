@@ -725,6 +725,7 @@ impl ViewerConsole {
             pending_input: Vec::with_capacity(64),
             pending_chat: std::collections::VecDeque::with_capacity(16),
             whisper_hover: Default::default(),
+            chat_lines: std::collections::VecDeque::new(),
 
             client_commands,
             mods,

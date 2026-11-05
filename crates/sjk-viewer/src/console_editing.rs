@@ -8,7 +8,7 @@
 //! history, and Enter still submits the whole line wherever the caret is.
 
 use super::line_edit::{Motion, token_at};
-use super::selection::{PromptPointer, copy_range};
+use super::selection::{PromptPointer, copy_lines_where};
 use super::*;
 use winit::keyboard::Key;
 
@@ -143,7 +143,19 @@ impl ViewerConsole {
         let lines = self.shell.lines().map(|line| line.text.as_str());
         let first = self.shell.lines_written() - self.shell.lines().count() as u64;
         let mut text = String::new();
-        copy_range(lines, first, start, end, colours, &mut text);
+        // While `con_chatOnly` shows chat alone, a selection copies only what it shows.
+        let chat_only = self
+            .bool_cvar(super::console_options::CHAT_ONLY_CVAR)
+            .unwrap_or(false);
+        copy_lines_where(
+            lines,
+            first,
+            start,
+            end,
+            colours,
+            |number| !chat_only || self.is_chat_line(number),
+            &mut text,
+        );
         let characters = text.chars().count();
         Some((characters, super::clipboard::copy(&text)))
     }

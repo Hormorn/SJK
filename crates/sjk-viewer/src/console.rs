@@ -10,6 +10,8 @@ pub(crate) mod browser;
 pub(crate) mod changelog;
 #[path = "console_chat_log.rs"]
 pub(crate) mod chat_log;
+#[path = "console_chat_only.rs"]
+mod chat_only;
 #[path = "console_client_options.rs"]
 mod client_options;
 #[path = "clipboard.rs"]
@@ -389,6 +391,9 @@ pub(crate) struct ViewerConsole {
     pending_chat: std::collections::VecDeque<(String, u16, u32)>,
     /// Sent whisper recipients paired with their eventual console echo.
     whisper_hover: console_whisper_hover::State,
+    /// The numbers of the scrollback lines that are chat, oldest first
+    /// (`con_chatOnly` shows these alone; [`Self::push_chat_line`]).
+    chat_lines: std::collections::VecDeque<u64>,
 
     client_commands: console_client::Commands,
     /// The client mods and their switches (`docs/mods.md`).

@@ -7188,6 +7188,15 @@ it can be pasted back into the game with the same colours. A selection whose
 first text uses the console's implicit white starts with `^7`, rather than
 inheriting a chat channel's green or another colour when pasted.
 
+`con_chatOnly 1` (archived, off by default; Settings > Interface > Console: chat only),
+after Hormorn's idea (#ideas, 05/11/2026), makes the open console list only chat lines
+(chat, team chat, whispers and SJK chat, the lines `push_chat_line` writes), so a
+conversation is easy to follow. Every line is still kept: switching it off shows them
+all again, and a selection copies only the chat lines it spans. The header (SJK UI
+console) or the version line (classic) says "Chat only" while it is on. The feed over
+the game, the console socket and `cl_logChat` are unchanged
+([console_chat_only.rs](../crates/sjk-viewer/src/console_chat_only.rs)).
+
 ### SJK UI console
 
 `sjk`, the deck, is the classic console with another skin

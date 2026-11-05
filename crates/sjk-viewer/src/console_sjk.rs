@@ -396,6 +396,7 @@ impl ViewerConsole {
                 .copied
                 .filter(|(at, _)| at.elapsed() < COPIED_FOR)
                 .map(|(_, characters)| characters),
+            chat_only: options.chat_only,
         };
         let layout = deck::draw(&mut chalk, &mut chrome, painter, lines, opacity, &facts);
         self.classic.sjk = chrome;
@@ -541,6 +542,8 @@ struct Facts<'a> {
     corner: &'a str,
     /// Characters Ctrl+C copied, while "Copied" shows.
     copied: Option<usize>,
+    /// `con_chatOnly`: the scrollback shows chat alone, and the header says so.
+    chat_only: bool,
 }
 
 impl Facts<'_> {
@@ -653,13 +656,20 @@ mod deck {
             false,
             f32::MAX,
         );
-        copied(
-            chalk,
-            chrome,
-            facts,
-            margin + name + version + 40.0 * s,
-            middle,
-        );
+        let mut after = margin + name + version + 40.0 * s;
+        if facts.chat_only {
+            after += chalk.label(
+                Family::Body,
+                crate::console::classic::CHAT_ONLY,
+                after,
+                middle,
+                15.0 * s,
+                rgba(color::GOLD_BRIGHT, 1.0),
+                false,
+                f32::MAX,
+            ) + 24.0 * s;
+        }
+        copied(chalk, chrome, facts, after, middle);
         let right = width - margin;
         let time = chalk.label(
             Family::Display,
