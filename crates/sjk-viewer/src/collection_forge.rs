@@ -33,9 +33,10 @@
 //!
 //! Since 05/11/2026 (Atrosex's idea, hubs whose economy says `shatter_many`) Break down
 //! has a Select chip (S): while it is on, a click on a shader (or Space on the chosen one)
-//! picks a copy of it, and the button breaks every picked copy down at once after a card
-//! asks; Escape stops picking. A locked shader is never picked, a last copy only on a hub
-//! that breaks last copies down.
+//! picks a copy of it, + and - (or the stepper) pick more or fewer of the chosen one's
+//! copies, and the button breaks every picked copy down at once after a card asks;
+//! Escape stops picking. A locked shader is never picked, a last copy only on a hub that
+//! breaks last copies down.
 
 use super::*;
 use crate::audio::ui_cues::{self, Cue};
@@ -64,8 +65,10 @@ pub(super) const ASK_NO_TOKEN: u16 = 9_053;
 pub(super) const STAR_TOKEN: u16 = 9_054;
 pub(super) const PADLOCK_TOKEN: u16 = 9_055;
 pub(super) const FAVOURITES_TOKEN: u16 = 9_056;
-/// Break down's Select chip (05/11/2026).
+/// Break down's Select chip and the picked copies' stepper (05/11/2026).
 pub(super) const SELECT_TOKEN: u16 = 9_057;
+pub(super) const PICK_LESS_TOKEN: u16 = 9_058;
+pub(super) const PICK_MORE_TOKEN: u16 = 9_059;
 pub(super) const TILE_BASE: u16 = 9_100;
 /// The most things a section lists (every blade skin fits).
 pub(super) const TILES_MAX: usize = 400;
@@ -523,8 +526,9 @@ pub(super) struct Forge {
     pub(super) break_all: Vec<Owned>,
     /// Break down's Select is on (05/11/2026): a click picks instead of only choosing.
     pub(super) selecting: bool,
-    /// The shaders picked on Break down, a copy of each, in the order picked.
-    pub(super) picked: Vec<&'static str>,
+    /// The shaders picked on Break down, in the order picked, with the copies picked of
+    /// each.
+    pub(super) picked: Vec<(&'static str, u32)>,
     /// Every duplicate the player holds, past the filter: copies, shaders, shards.
     pub(super) spare: (u32, usize, u64),
     pub(super) craft_filter: ForgeFilter,
@@ -774,34 +778,60 @@ impl Forge {
         PanelAction::None
     }
 
-    /// The picked shaders, as Break down lists them past the filter, in the order picked.
-    pub(super) fn picked_items(&self) -> Vec<Owned> {
+    /// The picked shaders, as Break down lists them past the filter, in the order picked,
+    /// each with the copies picked.
+    pub(super) fn picked_items(&self) -> Vec<(Owned, u32)> {
         self.picked
             .iter()
-            .filter_map(|id| self.break_all.iter().find(|item| item.skin.id == *id))
-            .copied()
+            .filter_map(|(id, copies)| {
+                self.break_all
+                    .iter()
+                    .find(|item| item.skin.id == *id)
+                    .map(|item| (*item, *copies))
+            })
             .collect()
     }
 
-    /// What the picks give: shaders (a copy of each), kyber shards, and how many of them
-    /// are last copies.
-    pub(super) fn picked_sum(&self) -> (usize, u64, usize) {
+    /// The copies picked of shader `id`, 0 when it is not picked.
+    pub(super) fn picked_copies(&self, id: &str) -> u32 {
+        self.picked
+            .iter()
+            .find(|(picked, _)| *picked == id)
+            .map_or(0, |(_, copies)| *copies)
+    }
+
+    /// What the picks give: shaders, copies, kyber shards, and how many shaders lose
+    /// their last copy.
+    pub(super) fn picked_sum(&self) -> (usize, u32, u64, usize) {
         let items = self.picked_items();
         (
             items.len(),
-            items.iter().map(|item| item.gives).sum(),
-            items.iter().filter(|item| item.last()).count(),
+            items.iter().map(|(_, copies)| copies).sum(),
+            items
+                .iter()
+                .map(|(item, copies)| u64::from(*copies) * item.gives)
+                .sum(),
+            items
+                .iter()
+                .filter(|(item, copies)| *copies >= item.count)
+                .count(),
         )
     }
 
-    /// Whether `item` may be picked: never a locked one, a last copy only on a hub that
-    /// breaks last copies down.
-    fn pickable(&self, item: Owned) -> bool {
-        !item.locked && (!item.last() || self.data.last)
+    /// The most copies of `item` that may be picked: every one on a hub that breaks last
+    /// copies down, else all but one; none of a locked shader.
+    pub(super) fn pick_max(&self, item: Owned) -> u32 {
+        if item.locked {
+            0
+        } else if self.data.last {
+            item.count
+        } else {
+            item.count.saturating_sub(1)
+        }
     }
 
-    /// Keep the picks to what may still go: a shader no longer held, now locked or a last
-    /// copy the hub keeps is dropped; nothing is picked while Select is off.
+    /// Keep the picks to what may still go: a shader no longer held or now locked is
+    /// dropped, its copies kept within what is held; nothing is picked while Select is off.
     pub(super) fn prune_picks(&mut self) {
         if !self.data.many {
             self.selecting = false;
@@ -810,11 +840,13 @@ impl Forge {
             self.picked.clear();
             return;
         }
-        let keep: Vec<&'static str> = self
+        let keep: Vec<(&'static str, u32)> = self
             .picked_items()
             .into_iter()
-            .filter(|item| self.pickable(*item))
-            .map(|item| item.skin.id)
+            .filter_map(|(item, copies)| {
+                let most = self.pick_max(item);
+                (most > 0).then_some((item.skin.id, copies.min(most)))
+            })
             .collect();
         self.picked = keep;
     }
@@ -833,18 +865,50 @@ impl Forge {
         PanelAction::None
     }
 
-    /// Pick the Break down shader at `index` (or let it go when picked).
+    /// Pick a copy of the Break down shader at `index` (or let it go when picked).
     fn toggle_pick(&mut self, index: usize) {
         let Some(item) = self.break_list.get(index).copied() else {
             return;
         };
-        if let Some(at) = self.picked.iter().position(|id| *id == item.skin.id) {
+        if let Some(at) = self.picked.iter().position(|(id, _)| *id == item.skin.id) {
             self.picked.remove(at);
             ui_cues::post(Cue::Back);
-        } else if self.pickable(item) && self.picked.len() < PICKS_MAX {
-            self.picked.push(item.skin.id);
+        } else if self.pick_max(item) > 0 && self.picked.len() < PICKS_MAX {
+            self.picked.push((item.skin.id, 1));
             ui_cues::post(Cue::Click);
         }
+    }
+
+    /// One copy more (`more`) or less of the chosen Break down shader, picking it first
+    /// when it is not; within 1 and [`Forge::pick_max`] (+ and -, or the stepper).
+    pub(super) fn step_pick(&mut self, more: bool) -> PanelAction {
+        if !self.selecting || self.section != Section::Break {
+            return PanelAction::None;
+        }
+        let Some(item) = self.break_list.get(self.breaks).copied() else {
+            return PanelAction::None;
+        };
+        let most = self.pick_max(item);
+        let room = self.picked.len() < PICKS_MAX;
+        match self.picked.iter_mut().find(|(id, _)| *id == item.skin.id) {
+            Some((_, copies)) => {
+                let next = if more {
+                    (*copies + 1).min(most)
+                } else {
+                    copies.saturating_sub(1).max(1)
+                };
+                if next != *copies {
+                    *copies = next;
+                    ui_cues::post(Cue::Click);
+                }
+            }
+            None if more && most > 0 && room => {
+                self.picked.push((item.skin.id, 1));
+                ui_cues::post(Cue::Click);
+            }
+            None => {}
+        }
+        PanelAction::None
     }
 
     /// Break down what is picked: asks with the card first.
@@ -879,13 +943,19 @@ impl Forge {
                 let items = self.picked_items();
                 let lasts: Vec<&'static str> = items
                     .iter()
-                    .filter(|item| item.last())
-                    .map(|item| item.skin.id)
+                    .filter(|(item, copies)| *copies >= item.count)
+                    .map(|(item, _)| item.skin.id)
                     .collect();
                 // `last` only when a last copy is among them, as the one-shader button.
                 let last = !lasts.is_empty();
                 self.sent_many = Some((self.serial(), lasts));
-                PanelAction::ShatterMany(items.iter().map(|item| (item.skin.id, 1)).collect(), last)
+                PanelAction::ShatterMany(
+                    items
+                        .iter()
+                        .map(|(item, copies)| (item.skin.id, *copies))
+                        .collect(),
+                    last,
+                )
             }
         }
     }
@@ -1145,6 +1215,8 @@ impl Forge {
             KeyCode::KeyD if self.section == Section::Break => self.toggle_only(),
             KeyCode::KeyB if self.section == Section::Break => self.ask_all(),
             KeyCode::KeyS if self.section == Section::Break && !control => self.toggle_select(),
+            KeyCode::Equal | KeyCode::NumpadAdd if picking => self.step_pick(true),
+            KeyCode::Minus | KeyCode::NumpadSubtract if picking => self.step_pick(false),
             _ => PanelAction::None,
         }
     }
@@ -1232,6 +1304,8 @@ impl Forge {
             ACTION_TOKEN => self.activate(now),
             ALL_TOKEN => self.ask_all(),
             SELECT_TOKEN => self.toggle_select(),
+            PICK_MORE_TOKEN => self.step_pick(true),
+            PICK_LESS_TOKEN => self.step_pick(false),
             SHARDS_TOKEN | CREDITS_TOKEN => PanelAction::None,
             _ => return None,
         })
@@ -1870,20 +1944,33 @@ mod tests {
             .token(TILE_BASE + tidal as u16, true, Instant::now());
         panel.forge.breaks = aurora;
         let _ = key(&mut panel, KeyCode::Space);
-        assert_eq!(panel.forge.picked, ["saber_tidal", "saber_aurora"]);
+        assert_eq!(
+            panel.forge.picked,
+            [("saber_tidal", 1), ("saber_aurora", 1)]
+        );
         // A second click lets one go; a third picks it again.
         let _ = panel
             .forge
             .token(TILE_BASE + tidal as u16, true, Instant::now());
-        assert_eq!(panel.forge.picked, ["saber_aurora"]);
+        assert_eq!(panel.forge.picked, [("saber_aurora", 1)]);
         let _ = panel
             .forge
             .token(TILE_BASE + tidal as u16, true, Instant::now());
-        let (picked, gives, lasts) = panel.forge.picked_sum();
-        assert_eq!((picked, lasts), (2, 1));
+        // + takes more of the chosen one's copies, up to all three; - gives one back.
+        for _ in 0..5 {
+            let _ = key(&mut panel, KeyCode::Equal);
+        }
+        assert_eq!(panel.forge.picked_copies("saber_tidal"), 3);
+        let _ = key(&mut panel, KeyCode::Minus);
+        let (picked, copies, gives, lasts) = panel.forge.picked_sum();
+        assert_eq!((picked, copies, lasts), (2, 3, 1));
         assert!(gives > 0);
         build(&mut panel, &held, [1920.0, 1080.0]);
-        assert_eq!(panel.forge.picked, ["saber_aurora", "saber_tidal"], "kept");
+        assert_eq!(
+            panel.forge.picked,
+            [("saber_aurora", 1), ("saber_tidal", 2)],
+            "kept"
+        );
         assert_eq!(key(&mut panel, KeyCode::Enter), PanelAction::None);
         assert_eq!(panel.forge.ask, Some(Ask::Picked { yes: true }));
         assert_eq!(
@@ -1895,7 +1982,7 @@ mod tests {
         let _ = key(&mut panel, KeyCode::Enter);
         assert_eq!(
             key(&mut panel, KeyCode::Enter),
-            PanelAction::ShatterMany(vec![("saber_aurora", 1), ("saber_tidal", 1)], true)
+            PanelAction::ShatterMany(vec![("saber_aurora", 1), ("saber_tidal", 2)], true)
         );
         let mut done = sample_data(5, 0, 3_600, true);
         done.trade = Some(sjk_identity::TradeOutcome {
@@ -1928,6 +2015,24 @@ mod tests {
             .forge
             .token(TILE_BASE + tidal as u16, true, Instant::now());
         assert!(panel.forge.picked.is_empty());
+        // A hub that keeps last copies: all but one at most.
+        let keeps = ForgeData {
+            last: false,
+            ..sample_data(0, 0, 3_600, true)
+        };
+        let mut panel = forge(Section::Break, &held, keeps);
+        let _ = key(&mut panel, KeyCode::KeyS);
+        let tidal = panel
+            .forge
+            .break_list
+            .iter()
+            .position(|item| item.skin.id == "saber_tidal")
+            .unwrap();
+        panel.forge.breaks = tidal;
+        for _ in 0..5 {
+            let _ = key(&mut panel, KeyCode::Equal);
+        }
+        assert_eq!(panel.forge.picked_copies("saber_tidal"), 2);
         // An older hub: no Select.
         let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, false));
         let _ = key(&mut panel, KeyCode::KeyS);

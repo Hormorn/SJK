@@ -558,7 +558,8 @@ pub struct TradeOutcome {
     pub serial: u64,
     /// What was asked.
     pub trade: Trade,
-    /// The shader's id.
+    /// The shader's id ([`Trade::ShatterMany`]: empty, or the shader the hub's refusal
+    /// stopped at).
     pub id: String,
     /// The shards a shatter gave or a craft cost, what an offer cost (in the shop's
     /// currency) or the credits a holocron cost; 0 when it failed.
@@ -2254,6 +2255,8 @@ impl Worker {
     /// copies too when `last`).
     fn shop_trade(&mut self, trade: Trade, id: &str, many: &[(String, u32)], last: bool) {
         type Done = (u64, u32, Option<u64>, Option<u64>, Profile);
+        // The shader a refused ShatterMany stopped at, when the hub named it.
+        let mut stopped_at = None;
         let outcome: Result<Done, HubError> = match (self.hub.as_mut(), self.registered) {
             (Some(hub), true) => match trade {
                 Trade::Shatter | Trade::ShatterLast => hub
@@ -2277,15 +2280,21 @@ impl Worker {
                         answer.profile,
                     )
                 }),
-                Trade::ShatterMany => hub.shatter_many(&self.identity, many, last).map(|answer| {
-                    (
-                        answer.shards,
-                        answer.copies,
-                        None,
-                        Some(answer.balance),
-                        answer.profile,
-                    )
-                }),
+                Trade::ShatterMany => hub
+                    .shatter_many(&self.identity, many, last)
+                    .map(|answer| {
+                        (
+                            answer.shards,
+                            answer.copies,
+                            None,
+                            Some(answer.balance),
+                            answer.profile,
+                        )
+                    })
+                    .map_err(|(error, id)| {
+                        stopped_at = id;
+                        error
+                    }),
                 Trade::Craft => hub.craft_unlock(&self.identity, id).map(|answer| {
                     let shards = answer.crafted.balance;
                     (answer.crafted.cost, 0, None, Some(shards), answer.profile)
@@ -2341,7 +2350,7 @@ impl Worker {
                 Err(error) => TradeOutcome {
                     serial,
                     trade,
-                    id: id.to_owned(),
+                    id: stopped_at.unwrap_or_else(|| id.to_owned()),
                     amount: 0,
                     copies: 0,
                     message: trade_refusal(&error),
@@ -5225,12 +5234,24 @@ mod tests {
             _: &Identity,
             items: &[(String, u32)],
             last: bool,
-        ) -> Result<crate::wire::ShatterAllAnswer, HubError> {
+        ) -> Result<crate::wire::ShatterAllAnswer, (HubError, Option<String>)> {
             let named: Vec<String> = items
                 .iter()
                 .map(|(id, copies)| format!("{id}x{copies}"))
                 .collect();
-            self.record(format!("shatter many {} last={last}", named.join(",")))?;
+            self.record(format!("shatter many {} last={last}", named.join(",")))
+                .map_err(|error| (error, None))?;
+            // A last copy asked for without `last` stops there, as the hub says.
+            if !last && let Some((id, _)) = items.iter().find(|(id, _)| id == "saber_last") {
+                return Err((
+                    HubError::Rejected {
+                        status: 409,
+                        code: "not_a_duplicate".to_owned(),
+                        message: "only duplicates can be shattered".to_owned(),
+                    },
+                    Some(id.clone()),
+                ));
+            }
             let mut profile = profile("Sol");
             profile.shards = 180;
             let copies = items.iter().map(|(_, copies)| copies).sum();
@@ -6768,6 +6789,20 @@ mod tests {
                 .any(|line| line == "shatter many saber_tidalx2,saber_lastx1 last=true")
         );
         assert_eq!(lock(&snapshot).me.as_ref().map(|me| me.shards), Some(180));
+        // A refusal says the shader it stopped at.
+        worker.handle(
+            Command::ShatterMany(
+                vec![("saber_tidal".to_owned(), 1), ("saber_last".to_owned(), 1)],
+                false,
+            ),
+            t0,
+        );
+        let refused = lock(&snapshot).trade.clone().unwrap();
+        assert!(!refused.done());
+        assert_eq!(
+            (refused.trade, refused.id.as_str()),
+            (Trade::ShatterMany, "saber_last")
+        );
         worker.handle(Command::Craft("saber_circuit".to_owned()), t0);
         let craft = lock(&snapshot).trade.clone().unwrap();
         assert_eq!(
@@ -6816,7 +6851,7 @@ mod tests {
                     || line.starts_with("buy")
                     || *line == "shop")
                 .count(),
-            12
+            13
         );
         assert!(
             fake.log()

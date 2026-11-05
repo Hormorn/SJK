@@ -71,8 +71,8 @@ struct Item<'a> {
     locked: bool,
     new: bool,
     worn: bool,
-    /// Picked on Break down while Select is on (05/11/2026).
-    picked: bool,
+    /// The copies picked on Break down while Select is on (05/11/2026), 0 for none.
+    picked: u32,
 }
 
 impl Panel {
@@ -914,7 +914,7 @@ impl Panel {
                 locked: false,
                 new: false,
                 worn: false,
-                picked: false,
+                picked: 0,
             };
             self.forge_item(frame, &shown, first, self.forge.craft, inputs, seconds);
         }
@@ -929,8 +929,8 @@ impl Panel {
     fn forge_break(&mut self, frame: &Frame, inputs: &Inputs<'_>, seconds: f32) {
         let (copies, shaders, gives) = self.forge.spare;
         let line = if self.forge.selecting {
-            "Picking: click the shaders to break down (a copy of each), then Break down \
-             selected. S or Escape stops."
+            "Picking: click the shaders to break down, + and - for more or fewer copies of \
+             the chosen one, then Break down selected. S or Escape stops."
                 .to_owned()
         } else if self.forge.data.last {
             "Turn saber shaders you hold into kyber shards: duplicates first.".to_owned()
@@ -982,7 +982,7 @@ impl Panel {
                 locked: item.locked,
                 new: item.new,
                 worn: item.worn,
-                picked: self.forge.picked.contains(&item.skin.id),
+                picked: self.forge.picked_copies(item.skin.id),
             };
             self.forge_item(frame, &shown, first, self.forge.breaks, inputs, seconds);
         }
@@ -1155,11 +1155,11 @@ impl Panel {
                 TILE[1],
             ];
             self.forge_tile(frame, item, rect, item.index == chosen, inputs, seconds);
-            if item.picked {
+            if item.picked > 0 {
                 // Over the card, as the chosen one stands raised.
                 let [x, y, width, height] = rect;
                 let y = if item.index == chosen { y - 5.0 } else { y };
-                self.forge_pick_mark(frame, [x, y, width, height]);
+                self.forge_pick_mark(frame, [x, y, width, height], item.picked);
             }
         } else {
             if item.index < first || item.index >= first + ROWS {
@@ -1167,15 +1167,19 @@ impl Panel {
             }
             let y = LIST_TOP + (item.index - first) as f32 * ROW_STEP;
             self.forge_row(frame, item, y, item.index == chosen, inputs, seconds);
-            if item.picked {
-                self.forge_pick_mark(frame, [LIST_LEFT, y, LIST_RIGHT - LIST_LEFT, ROW_HEIGHT]);
+            if item.picked > 0 {
+                self.forge_pick_mark(
+                    frame,
+                    [LIST_LEFT, y, LIST_RIGHT - LIST_LEFT, ROW_HEIGHT],
+                    item.picked,
+                );
             }
         }
     }
 
     /// A picked shader's mark over its card or row in `rect` (05/11/2026): a gold frame and
-    /// a gold tick at its top left.
-    fn forge_pick_mark(&mut self, frame: &Frame, [x, y, width, height]: [f32; 4]) {
+    /// a gold tick at its top left, the copies picked in its place when more than one.
+    fn forge_pick_mark(&mut self, frame: &Frame, [x, y, width, height]: [f32; 4], copies: u32) {
         let s = frame.s;
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
             rect: frame.rect(x, y, width, height),
@@ -1188,17 +1192,22 @@ impl Panel {
             width: 2.4 * s,
             color: color::GOLD,
         });
-        let side = 26.0;
+        let mark = if copies > 1 {
+            format!("-{copies}")
+        } else {
+            symbols::TICK.to_string()
+        };
+        let side = (crate::text::display_width(&mark, 16.0) * self.widen + 12.0).max(26.0);
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
-            rect: frame.rect(x + 6.0, y + 6.0, side, side),
-            radius: side * 0.5 * s,
+            rect: frame.rect(x + 6.0, y + 6.0, side, 26.0),
+            radius: 13.0 * s,
             color: color::GOLD,
         });
         text(
             &mut self.ui,
             TextFamily::Display,
-            format_args!("{}", symbols::TICK),
-            frame.rect(x + 6.0, y + 9.0, side, side - 6.0),
+            format_args!("{mark}"),
+            frame.rect(x + 6.0, y + 9.0, side, 20.0),
             16.0 * s,
             Color::new(0.078, 0.063, 0.02, 1.0),
             FontWeight::Semibold,
@@ -2025,14 +2034,14 @@ impl Panel {
         let button_y = bottom - PAD - 56.0;
         if self.forge.selecting {
             // Picking: the button breaks every pick down (after the card asks).
-            let (picked, gives, _) = self.forge.picked_sum();
+            let (picked, copies, gives, _) = self.forge.picked_sum();
             let label = if waiting && self.forge.sent_many.is_some() {
                 "Breaking down...".to_owned()
             } else if picked == 0 {
                 "Pick shaders to break down".to_owned()
             } else {
                 format!(
-                    "Break down selected ({picked})  +{}",
+                    "Break down selected ({copies})  +{}",
                     crate::economy::shards_text(gives)
                 )
             };
@@ -2058,8 +2067,59 @@ impl Panel {
                 ACTION_TOKEN,
             );
         }
-        // Every duplicate at once, beside it, on a hub that takes it.
-        if self.forge.data.all && self.forge.spare.0 > 0 {
+        // Picking: the chosen shader's picked copies, fewer and more, beside the button.
+        if self.forge.selecting {
+            let picked = self.forge.picked_copies(skin.id);
+            let most = self.forge.pick_max(item);
+            let left = x0 + PAD + 346.0;
+            kit::button(
+                &mut self.ui,
+                frame,
+                [left, button_y, 56.0, 56.0],
+                "-",
+                false,
+                open && !waiting && picked > 1,
+                false,
+                PICK_LESS_TOKEN,
+            );
+            let words = if most == 0 {
+                "Cannot be picked".to_owned()
+            } else if picked == 0 {
+                "Not picked".to_owned()
+            } else {
+                format!("{picked} of {most} picked")
+            };
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{words}"),
+                frame.rect(left + 64.0, button_y + 17.0, 150.0, 24.0),
+                17.0 * frame.s,
+                if picked > 0 {
+                    color::GOLD_BRIGHT
+                } else {
+                    color::MUTED
+                },
+                FontWeight::Semibold,
+                TextAlign::Center,
+            );
+            kit::button(
+                &mut self.ui,
+                frame,
+                [left + 222.0, button_y, 56.0, 56.0],
+                "+",
+                false,
+                open && !waiting && picked < most,
+                false,
+                PICK_MORE_TOKEN,
+            );
+            self.forge_answer_line(
+                frame,
+                press,
+                [x0 + PAD, button_y - 30.0, width0 - PAD * 2.0],
+            );
+        } else if self.forge.data.all && self.forge.spare.0 > 0 {
+            // Every duplicate at once, beside it, on a hub that takes it.
             let (copies, _, gives) = self.forge.spare;
             let label = format!(
                 "Break down all duplicates ({copies})  +{}",
@@ -2235,9 +2295,12 @@ impl Panel {
             }
             Ask::Picked { yes } => {
                 let items = self.forge.picked_items();
-                let (picked, gives, lasts) = self.forge.picked_sum();
+                let (picked, copies, gives, lasts) = self.forge.picked_sum();
                 let mut lines = Vec::with_capacity(3);
-                if items.iter().any(|item| item.last() && item.worn) {
+                if items
+                    .iter()
+                    .any(|(item, copies)| *copies >= item.count && item.worn)
+                {
                     lines.push(
                         "You wear one of them now: breaking it down puts your saber back to \
                          the stock blade."
@@ -2245,14 +2308,13 @@ impl Panel {
                     );
                 }
                 lines.push(format!(
-                    "A copy of each of the {picked} saber {} you picked becomes kyber shards.",
+                    "{copies} {} of the {picked} saber {} you picked become kyber shards.",
+                    if copies == 1 { "copy" } else { "copies" },
                     if picked == 1 { "shader" } else { "shaders" }
                 ));
                 if lasts > 0 {
                     lines.push(format!(
-                        "{lasts} of them {} your only {}: {} your collection.",
-                        if lasts == 1 { "is" } else { "are" },
-                        if lasts == 1 { "copy" } else { "copies" },
+                        "You give up every copy of {lasts} of them: {} your collection.",
                         if lasts == 1 {
                             "it leaves"
                         } else {
@@ -2260,7 +2322,10 @@ impl Panel {
                         }
                     ));
                 }
-                let shown: Vec<_> = items.iter().map(|item| (item.skin, 1)).collect();
+                let shown: Vec<_> = items
+                    .iter()
+                    .map(|(item, copies)| (item.skin, *copies))
+                    .collect();
                 (
                     if lasts > 0 {
                         "Break down the picked shaders?"
@@ -2284,7 +2349,7 @@ impl Panel {
                 .forge
                 .picked_items()
                 .iter()
-                .any(|item| item.last() && item.worn),
+                .any(|(item, copies)| *copies >= item.count && item.worn),
             Ask::All { .. } => false,
         };
         // A last copy among the picks reddens the title and the button, as for one.

@@ -32,7 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), and Break down selected turns a copy of each into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, after Atrosex's idea)_
+- The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), choose how many copies of each with + and - (or the buttons beside Break down selected), and Break down selected turns them all into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; if one cannot go, the line under the button names it and nothing is broken down. Locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, after Atrosex's idea)_
 
 ## 2026.1105.1 (Alpha) | 05/11/2026
 
