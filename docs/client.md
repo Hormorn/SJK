@@ -8000,6 +8000,13 @@ Settings > GAME > "Remaps on this map" (`cg_serverRemapsMap`, not saved) shows
 and sets the loaded map's choice: `default` (as `cg_serverRemaps`), `on` (in the
 allowed list) or `off` (in the blocked list). It is rewritten from the lists on each
 map, and setting it moves the map between the lists, so each map keeps its choice.
+Settings > GAME > "SJK remap blocks" (`cg_remapsShared`, on by default) follows a
+list of maps the SJK team keeps on the hub (since 05/11/2026), where server remaps are
+ignored as with `cg_remaps 0`. The game keeps the list it last received in
+`cg_remapsSharedMaps`, so it applies from the start. A map you set `on` or `off` in
+"Remaps on this map" keeps your choice; only `default` follows the shared list, and
+`listRemaps` says when the shared list blocks the loaded map. SJK's creator changes the
+list with `syncBlockRemaps [map]` and `syncUnblockRemaps [map]`.
 A map's own worldspawn remaps always apply. `listRemaps` lists the map's, the
 enabled server and the temporary local remaps in the order they were applied, each
 labelled `map:`, `server:` or `local:`, and marks those a later remap overrides.

@@ -1512,6 +1512,8 @@ fn identity_page(shots: &Snapshot, art: ArtSet) {
         }),
         server: None,
         map_blocks: Vec::new(),
+        remap_blocks: None,
+        remap_blocks_revision: 0,
         players: vec![
             Presence {
                 slot: 3,
@@ -3181,6 +3183,8 @@ fn medals_snapshot() {
         }),
         server: None,
         map_blocks: Vec::new(),
+        remap_blocks: None,
+        remap_blocks_revision: 0,
         players: Vec::new(),
         profiles: HashMap::new(),
         model_checks: HashMap::new(),

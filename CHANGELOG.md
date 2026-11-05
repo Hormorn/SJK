@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 - The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), choose how many copies of each with + and - (or the buttons beside Break down selected), and Break down selected turns them all into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; if one cannot go, the line under the button names it and nothing is broken down. Locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, after Atrosex's idea)_
+- Shared remap blocks: the SJK team keeps a list of maps whose server texture swaps look broken, and SJK ignores those swaps there for everyone (Settings > GAME > "SJK remap blocks", `cg_remapsShared`, on by default); your own "Remaps on this map" choice comes first _(Sol)_
 
 ## 2026.1105.1 (Alpha) | 05/11/2026
 

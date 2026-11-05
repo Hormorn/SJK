@@ -314,6 +314,7 @@ mod rarity_fx;
 mod remap_blocked_maps;
 mod render_helpers;
 mod rig_model;
+mod rig_reload;
 mod runtime_settings;
 mod saber;
 mod saber_clash_flare;

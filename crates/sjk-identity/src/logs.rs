@@ -9,9 +9,9 @@
 use serde::Deserialize;
 
 /// Longest log text the hub takes, in characters.
-pub const LOGS_MAX: usize = 400_000;
+pub const LOGS_MAX: usize = 2_000_000;
 /// Largest `POST /v1/logs` body the hub takes, in bytes.
-pub const BODY_MAX: usize = 524_288;
+pub const BODY_MAX: usize = 4 * 1024 * 1024;
 /// What [`LogUpload::fitted`] keeps the body under, leaving room for the other fields.
 const BODY_BUDGET: usize = BODY_MAX - 8_192;
 /// Longest `build`, `os` and `gpu`, as for crash reports.
@@ -370,7 +370,8 @@ mod tests {
     #[test]
     fn a_fitted_upload_keeps_the_newest_lines_under_the_limits() {
         let line = "x".repeat(99);
-        let logs: String = (0..6_000).map(|n| format!("{n:05} {line}\n")).collect();
+        let count = LOGS_MAX / 105 + 2_000;
+        let logs: String = (0..count).map(|n| format!("{n:05} {line}\n")).collect();
         let fitted = LogUpload {
             logs: logs.clone(),
             ..LogUpload::default()
@@ -378,7 +379,7 @@ mod tests {
         .fitted();
         assert!(fitted.logs.chars().count() <= LOGS_MAX + 30);
         assert!(fitted.logs.starts_with("[earlier lines left out]\n"));
-        assert!(fitted.logs.ends_with(&format!("05999 {line}\n")));
+        assert!(fitted.logs.ends_with(&format!("{:05} {line}\n", count - 1)));
         // Cut at a line: what follows the marker is a whole line.
         let first = fitted.logs.lines().nth(1).unwrap();
         assert_eq!(first.len(), 105, "{first}");
@@ -393,8 +394,9 @@ mod tests {
 
     #[test]
     fn a_body_full_of_escapes_still_fits() {
-        // Each tab and each quote takes two bytes in JSON.
-        let logs = "\t\"".repeat(200_000);
+        // Each quote takes two bytes in JSON and each euro sign three in UTF-8: the
+        // characters fit, the body does not.
+        let logs = "\u{20ac}\"".repeat(LOGS_MAX / 2);
         let fitted = LogUpload {
             logs,
             ..LogUpload::default()

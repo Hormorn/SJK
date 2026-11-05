@@ -24,11 +24,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const TIMEOUT: Duration = Duration::from_secs(10);
 /// Largest answer read, in bytes.
 const ANSWER_MAX: u64 = 256 * 1024;
-/// Largest answer to a staff query: one request's logs, up to 400 000 characters of
+/// Largest answer to a staff query: one request's logs, up to 2 000 000 characters of
 /// any script, escaped in JSON.
-const STAFF_ANSWER_MAX: u64 = 4 * 1024 * 1024;
-/// Longest a log upload may take (up to half a megabyte on a slow line).
-const LOGS_TIMEOUT: Duration = Duration::from_secs(60);
+const STAFF_ANSWER_MAX: u64 = 16 * 1024 * 1024;
+/// Longest a log upload may take (up to 4 MiB on a slow line).
+const LOGS_TIMEOUT: Duration = Duration::from_secs(120);
 /// Longest a pack's download may take (up to [`PACK_MAX`] bytes).
 const ASSET_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -75,6 +75,9 @@ pub struct PresenceRead {
     pub blocks: Vec<crate::MapBlock>,
     /// The hub's map edits stamp, which grows with every change to any map's edits.
     pub map_edits: Option<i64>,
+    /// The maps on which SJK's creator blocked server remaps for every SJK client
+    /// (`PROTOCOL.md`, "Remap blocks"); `None` from a hub before them.
+    pub remap_blocks: Option<Vec<String>>,
     /// The hub's Toy Master stamp for this server (since 03/11/2026): when it changes,
     /// the toys listed for it changed (one placed or removed, SJK's creator came or went).
     pub secrets: Option<i64>,
@@ -1512,6 +1515,10 @@ fn staff_call(request: &StaffRequest) -> (&'static str, Value) {
                 "slot": slot, "name": name, "blocked": blocked
             }),
         ),
+        StaffRequest::RemapBlock { map, blocked } => (
+            "/v1/staff/remap-block",
+            json!({ "map": map, "blocked": blocked }),
+        ),
         StaffRequest::AvatarRemove { key_id } => {
             ("/v1/staff/avatar-remove", json!({ "key_id": key_id }))
         }
@@ -1719,7 +1726,8 @@ impl Hub for HttpHub {
             StaffRequest::ChatDelete { .. }
             | StaffRequest::ChatMute { .. }
             | StaffRequest::ChatUnban { .. }
-            | StaffRequest::MapBlock { .. } => Ok(Vec::new()),
+            | StaffRequest::MapBlock { .. }
+            | StaffRequest::RemapBlock { .. } => Ok(Vec::new()),
             _ => Ok(vec![parse(answer)?]),
         }
     }
@@ -2342,6 +2350,9 @@ impl Hub for HttpHub {
             players,
             blocks,
             map_edits: answer["map_edits"].as_i64(),
+            // A hub from before remap blocks leaves them out, and a malformed list is
+            // none: the client keeps the list it last saw.
+            remap_blocks: serde_json::from_value(answer["remap_blocks"].clone()).ok(),
             secrets: answer["secrets"].as_i64(),
             shows,
         })

@@ -26,6 +26,14 @@ impl Task {
     /// Mount the files under `root` on a worker, so a large install does not stall
     /// the frame.
     fn start(&mut self, root: PathBuf) -> Result<(), String> {
+        self.start_mount(move || crate::assets::mount_game_data(&root))
+    }
+
+    /// Run `mount` on a worker (`rig_reload` mounts the map's own selection this way).
+    pub(crate) fn start_mount(
+        &mut self,
+        mount: impl FnOnce() -> Result<VirtualFileSystem, Box<dyn std::error::Error>> + Send + 'static,
+    ) -> Result<(), String> {
         if self.0.is_some() {
             return Err("The game files are already being mounted again".into());
         }
@@ -33,9 +41,7 @@ impl Task {
         std::thread::Builder::new()
             .name("sjk-fs-restart".into())
             .spawn(move || {
-                let mounted = crate::assets::mount_game_data(&root)
-                    .map(Arc::new)
-                    .map_err(|error| error.to_string());
+                let mounted = mount().map(Arc::new).map_err(|error| error.to_string());
                 let _ = sender.send(mounted);
             })
             .map_err(|error| format!("Could not start mounting the game files: {error}"))?;
@@ -44,7 +50,7 @@ impl Task {
     }
 
     /// The mount, once the worker has it.
-    fn poll(&mut self) -> Option<Mounted> {
+    pub(crate) fn poll(&mut self) -> Option<Mounted> {
         let result = match self.0.as_ref()?.try_recv() {
             Ok(mounted) => mounted,
             Err(TryRecvError::Empty) => return None,

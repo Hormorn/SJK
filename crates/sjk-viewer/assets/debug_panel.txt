@@ -3935,6 +3935,16 @@ test: Walk, run, jump, land: the tail lags and bounces, then settles behind her.
 test: sjkemote comrade: the tail follows the dance's hips, stays attached.
 note: Needs test_content.pk3 from add-on 1.7 (the tail's 10 bones, 322 joints).
 
+[rig-reload]
+area: Rendering & effects
+title: Rig models: edit in Blender while the game runs (rig_reload)
+change: Blender add-on 1.11 replaces rig_<name>.pk3 even while the game holds it open.
+change: rig_reload reads the rig models again: players wearing one reload it, no map load.
+test: /model solfox5, then export again from Blender: no "in use" error.
+test: Change something visible (scale in sjk_rig.cfg, texture), export, type rig_reload.
+test: Within a second or two the model shows the change; the map and others stay as they were.
+note: A changed shader script still needs the next map.
+
 [rig-cloth]
 area: Rendering & effects
 title: Rig models: capes and tails swing, kept out of the legs (SolFox2)
@@ -4410,6 +4420,17 @@ change: It kept its static bake before: brighter than its neighbours and blind t
 test: JA+ server on mp/ffa4, real-time lighting: the remapped trim, flag and rock door match.
 test: The purple lamp near them lights them as it lights the unremapped walls.
 note: Checked offline on mp/ffa4 with the five remaps as local ones (Linux), not on a server.
+
+[remap-shared-blocks]
+area: Rendering & effects
+title: Shared remap blocks: the creator's list of maps without server remaps
+change: Settings > GAME > SJK remap blocks (cg_remapsShared, on) follows a hub list of maps
+change: whose server remaps are ignored; syncBlockRemaps / syncUnblockRemaps [map] (creator).
+test: Hub deployed, Server remaps on, on a map the server remaps: syncBlockRemaps; remaps go.
+test: listRemaps names the shared list; cg_remapsSharedMaps holds the map.
+test: Set Remaps on this map to on: the server's remaps come back for you alone.
+test: cg_remapsShared 0 brings them back; syncUnblockRemaps takes the map off for everyone.
+note: Not run in game. Needs the hub branch remap-blocks deployed.
 
 [remap-per-map-choice]
 area: Rendering & effects

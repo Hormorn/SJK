@@ -210,6 +210,8 @@ mod tests {
             }),
             server: None,
             map_blocks: Vec::new(),
+            remap_blocks: None,
+            remap_blocks_revision: 0,
             players: vec![Presence {
                 slot: 3,
                 claimed_name: "^1Fox".to_owned(),

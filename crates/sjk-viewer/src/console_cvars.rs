@@ -142,6 +142,18 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Maps whose server shader remaps apply even with cg_serverRemaps 0: mp/ffa4 mp/duel6",
         ),
         CvarDefinition::new(
+            crate::remap_blocked_maps::SHARED_CVAR,
+            true,
+            archive,
+            "Follow SJK's shared list of maps whose server shader remaps are ignored (on by default); your own choice for a map comes first",
+        ),
+        CvarDefinition::new(
+            crate::remap_blocked_maps::SHARED_LIST_CVAR,
+            "",
+            archive,
+            "SJK's shared list of maps whose server shader remaps are ignored, as the SJK hub last gave it (written by the game)",
+        ),
+        CvarDefinition::new(
             crate::remap_blocked_maps::MAP_CVAR,
             crate::remap_blocked_maps::Choice::NAMES[0],
             CvarFlags::NONE,

@@ -206,6 +206,14 @@ impl ViewerConsole {
         )?;
         let remap_map_choice =
             console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::MAP_CVAR)?;
+        let remap_shared_maps = console_cvars::RevisionSetting::bind(
+            &mut cvars,
+            crate::remap_blocked_maps::SHARED_LIST_CVAR,
+        )?;
+        let remap_shared = console_cvars::RevisionSetting::bind(
+            &mut cvars,
+            crate::remap_blocked_maps::SHARED_CVAR,
+        )?;
         let draw_fog = console_cvars::IntegerSetting::bind(&mut cvars, "r_drawfog", 2)?;
         let packet_dup = console_cvars::IntegerSetting::bind(&mut cvars, "cl_packetdup", 1)?;
         let packet_dup_lifted = console_cvars::IntegerSetting::bind(
@@ -682,6 +690,8 @@ impl ViewerConsole {
             remap_blocked_maps,
             remap_allowed_maps,
             remap_map_choice,
+            remap_shared_maps,
+            remap_shared,
             packet_dup,
             packet_dup_lifted,
             max_packets,
