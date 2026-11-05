@@ -32,7 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- Spawn list (`spawn_panel`): every NPC and vehicle of your game data and a few cheats (noclip, god, give all, remove all NPCs) in a list to filter by typing, spawned or run with Enter or a click instead of typed in the console; it needs a game with cheats on, such as `devmap mp/ffa3` _(Slash)_
+- Spawn list (`spawn_panel`): every NPC and vehicle of your game data and a few cheats (noclip, god, give all, remove all NPCs) in a list to filter by typing, spawned or run with Enter or a click instead of typed in the console; it needs a game with cheats on, such as `devmap mp/ffa3` _(Slash, PR #368)_
 
 ## 2026.1105.2 (Alpha) | 05/11/2026
 
