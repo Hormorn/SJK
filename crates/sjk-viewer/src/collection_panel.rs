@@ -1847,7 +1847,7 @@ impl Panel {
         match key {
             KeyCode::Escape => return PanelAction::Close,
             KeyCode::KeyV if self.tab == Tab::Shaders => return self.set_grid(!self.grid),
-            // F turns the achievements board's page: General, Fun, Pastimes.
+            // F turns the achievements board's page: General, Fun, Hobbies.
             KeyCode::KeyF if self.tab == Tab::Achievements => {
                 self.set_achievement_page(self.achievement_page.next());
             }

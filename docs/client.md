@@ -6021,7 +6021,7 @@ Mining (Slash's design, 04/11/2026; phase 1) is a toy for every SJK player, and 
 ground round the player, and each broken a blow at a time at the player's own pace. Phase 1
 gives nothing the economy counts: finds go to the player's own mining log, and five
 achievements count them on servers as the rest do (in a Mining category on the board's
-Pastimes page, beside Fishing's; [identity.md](identity.md)): First Strike (a boulder
+Hobbies page, beside Fishing's; [identity.md](identity.md)): First Strike (a boulder
 broken), Stonebreaker (500), Steady Hand (250 clean strikes), Prospector (every kind of
 ore, the Heart among them) and the hidden Heart of the Mountain. Selling them
 (phase 2) is to share Fishing junk's daily cap (one cap for both, so mining earns nothing
@@ -6035,7 +6035,9 @@ on top of fishing); that needs the hub.
   replaces whatever that hand holds. It is held as a hilt is: on the right hand's bolt,
   turned with it (its handle along the bolt's +Z out of the top of the fist, its spike
   forward along -Y, fitted in game against a hilt), so it stays in the grip in every pose,
-  first person included, where the own hands hold it. The upper body takes the strong
+  first person included, where the own hands hold it; laid straight in the upright plane
+  the body faces (the handle and spike kept in it), so the hands' roll in the saber move
+  does not tip it to a side and its head stays level through the swing. The upper body takes the strong
   saber stance (`BOTH_SABERSLOW_STANCE`), both hands on the handle, while it stands.
   Taking it puts the fishing rod away and getting the rod out puts it away: `+use` is both
   toys'.

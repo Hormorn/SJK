@@ -24,7 +24,7 @@ it lacked), Settings > Sound > Toys `s_toyMiningSound`. The look has the toy `mi
 (after `fishing`). Assets from `scripts/mining_assets.py` (it reuses `fishing_assets.py`'s
 MD3 and PNG writers). Five achievements (`mine_first`, `mine_500`, `mine_clean_250`,
 `mine_kinds`, `heart_of_the_mountain` hidden; 05/11/2026) in a Mining category, Fishing and
-Mining on a third board page, Pastimes (the Fun page's bands were full); the hub needs the
+Mining on a third board page, Hobbies (the Fun page's bands were full); the hub needs the
 five ids in its catalogue before they unlock online. No credits: phase 2 (selling finds
 under the Fishing junk's daily cap, shared) needs the hub. A first take struck veins on
 walls; Slash asked for boulders on the ground and the whole body in the swing (04/11/2026).

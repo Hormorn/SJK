@@ -32,7 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- Mining toy: `toy_mining` (the quick wheel's Toys catalogue, Collection > Toys) puts a pickaxe in your hand, and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and a blow as it glints is a clean strike that counts twice and digs out rarer ore. Nine ores to find for your mining log, and five achievements on the board's new Pastimes page, beside Fishing's _(Slash)_
+- Mining toy: `toy_mining` (the quick wheel's Toys catalogue, Collection > Toys) puts a pickaxe in your hand, and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and a blow as it glints is a clean strike that counts twice and digs out rarer ore. Nine ores to find for your mining log, and five achievements on the board's new Hobbies page, beside Fishing's _(Slash)_
 
 ## 2026.1103.2 (Alpha) | 03/11/2026
 

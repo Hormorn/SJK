@@ -700,7 +700,7 @@ mod tests {
     /// General's five categories fit four bands of twelve: Combat alone, Duels and flags
     /// alone (with the five style masters), Journeys beside Community, Collection alone;
     /// a retired achievement not held is left out and one held takes its place. Fun's
-    /// seven toys fit four too, two to a band but the last; Pastimes' two share one. Every listed achievement is on one page.
+    /// seven toys fit four too, two to a band but the last; Hobbies' two share one. Every listed achievement is on one page.
     #[test]
     fn the_wall_packs_the_categories_into_bands() {
         let standings = standings_holding(&[]);
@@ -733,7 +733,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            layout(Page::Pastimes),
+            layout(Page::Hobbies),
             [("Fishing", 0, 0, 5), ("Mining", 0, 6, 5)]
         );
         let all = |standings: &[Standing]| -> Vec<Slot> {

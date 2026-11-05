@@ -1069,7 +1069,7 @@ duels only at Slash's call); the toys' own from Sneaking Mission on, on 30/10/20
 player's ideas, reworked with Sol), when Toys became a category for each toy on the
 board's Fun page; the five Fishing ones on 29/10/2026 (Slash), in a Fishing category of
 their own on the Fun page, after Box hunt; the five Mining ones on 05/11/2026 (Slash), in
-a Mining category, when Fishing and Mining moved to a third page, Pastimes (the Fun
+a Mining category, when Fishing and Mining moved to a third page, Hobbies (the Fun
 page's four bands were full; F turns the board through the three). Each needs the same
 id in the hub's catalogue, and the hub bounds how fast a fishing count may rise as it
 does the others (a bite at most every 20 seconds); a mining count should be bounded the

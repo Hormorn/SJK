@@ -1026,7 +1026,8 @@ pub(crate) fn pick_in_hand(
         rotation,
         hand.scaled(transform.scale),
     );
-    let held = (hand * turn).normalize();
+    let forward = Quat::from_array(transform.rotation) * Vec3::X;
+    let held = straightened((hand * turn).normalize(), forward);
     let scale = Vec3::from_array(transform.scale);
     let butt = grip - held * (Vec3::X * GRIP * scale.x);
     Some(ActorInstance::new(
@@ -1034,6 +1035,35 @@ pub(crate) fn pick_in_hand(
         held.to_array(),
         scale.to_array(),
     ))
+}
+
+/// The pickaxe turned `held` (its handle the model's +X, its spike -Z) laid straight in
+/// the upright plane the body faces along `forward`: the handle and the spike kept in it,
+/// so the hands' roll in a saber move's swing does not tip the pickaxe to a side, and the
+/// head stays level across the swing (Slash, 05/11/2026: "rovno"). Unchanged when the
+/// handle points along the body's side.
+fn straightened(held: Quat, forward: Vec3) -> Quat {
+    let side = forward
+        .truncate()
+        .extend(0.0)
+        .normalize_or_zero()
+        .cross(Vec3::Z);
+    if side == Vec3::ZERO {
+        return held;
+    }
+    let side = side.normalize();
+    let handle = held * Vec3::X;
+    let Some(handle) = (handle - side * side.dot(handle)).try_normalize() else {
+        return held;
+    };
+    // The spike, square to the handle in the plane, on the side it pointed.
+    let spike = held * Vec3::NEG_Z;
+    let mut straight = side.cross(handle);
+    if straight.dot(spike) < 0.0 {
+        straight = -straight;
+    }
+    let z = -straight;
+    Quat::from_mat3(&glam::Mat3::from_cols(handle, z.cross(handle), z)).normalize()
 }
 
 /// The boulder `rock` at `now`: rising out of the ground, then shrinking as it is broken,
@@ -1659,6 +1689,28 @@ mod tests {
             ..open
         };
         assert_eq!(ground_at(eye, spot, walled), None);
+    }
+
+    #[test]
+    fn the_pickaxe_is_laid_straight_in_the_plane_the_body_faces() {
+        let forward = Vec3::X;
+        // Rolled and tipped to the side: the handle and spike come back into the x-z
+        // plane, square to each other, the spike on the side it was.
+        let tipped =
+            Quat::from_rotation_x(0.6) * Quat::from_rotation_z(0.4) * Quat::from_rotation_y(-0.9);
+        let straight = straightened(tipped, forward);
+        let handle = straight * Vec3::X;
+        let spike = straight * Vec3::NEG_Z;
+        assert!(handle.y.abs() < 1e-4 && spike.y.abs() < 1e-4);
+        assert!(handle.dot(spike).abs() < 1e-4);
+        assert!(spike.dot(tipped * Vec3::NEG_Z) > 0.0);
+        // The handle's pitch in the plane is kept.
+        let before = tipped * Vec3::X;
+        let pitch = |v: Vec3| v.z.atan2(v.x);
+        assert!((pitch(handle) - pitch(Vec3::new(before.x, 0.0, before.z))).abs() < 1e-4);
+        // Already straight: unchanged.
+        let level = Quat::from_rotation_y(0.7);
+        assert!(straightened(level, forward).dot(level).abs() > 0.9999);
     }
 
     #[test]

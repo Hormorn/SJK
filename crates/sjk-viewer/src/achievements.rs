@@ -317,20 +317,20 @@ pub(crate) enum Page {
     General,
     /// The toys, one category each.
     Fun,
-    /// The pastimes, toys played for finds (Fishing, Mining): the Fun page's four bands
+    /// The hobbies, toys played for finds (Fishing, Mining): the Fun page's four bands
     /// were full (05/11/2026).
-    Pastimes,
+    Hobbies,
 }
 
 impl Page {
-    pub(crate) const ALL: [Self; 3] = [Self::General, Self::Fun, Self::Pastimes];
+    pub(crate) const ALL: [Self; 3] = [Self::General, Self::Fun, Self::Hobbies];
 
     /// The name its switch reads.
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::General => "General",
             Self::Fun => "Fun",
-            Self::Pastimes => "Pastimes",
+            Self::Hobbies => "Hobbies",
         }
     }
 
@@ -388,7 +388,7 @@ impl Category {
             Self::Combat | Self::Duels | Self::Journeys | Self::Community | Self::Collection => {
                 Page::General
             }
-            Self::Fishing | Self::Mining => Page::Pastimes,
+            Self::Fishing | Self::Mining => Page::Hobbies,
             _ => Page::Fun,
         }
     }
@@ -2012,7 +2012,7 @@ mod tests {
         assert_eq!(record.count(Counter::EchoesLanded), 1);
         assert_eq!(crate::fishing::FISH_KINDS, 12);
         assert_eq!(find("fish_kinds").unwrap().goal, 12);
-        assert_eq!(find("fish_first").unwrap().category.page(), Page::Pastimes);
+        assert_eq!(find("fish_first").unwrap().category.page(), Page::Hobbies);
         assert_eq!(Record::from_json(&record.to_json()), record);
     }
 
@@ -2041,7 +2041,7 @@ mod tests {
         assert_eq!(super::find("mine_kinds").unwrap().goal, 9);
         assert_eq!(
             super::find("mine_first").unwrap().category.page(),
-            Page::Pastimes
+            Page::Hobbies
         );
         assert_eq!(Record::from_json(&record.to_json()), record);
     }
