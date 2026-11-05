@@ -270,6 +270,11 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         return;
     };
     let many = panel.facts.count > 1;
+    let models = panel.facts.models;
+    if many && models == panel.facts.count {
+        placed_set(ui, frame, panel, y, models);
+        return;
+    }
     let kind = match selection.picked {
         Picked::Prop => "Map prop",
         Picked::Placed => "Placed model",
@@ -311,7 +316,19 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             .unwrap_or(shader);
         format!("Fill: {shown} ({:.0} % nearby)", share * 100.0)
     });
-    let detail_lines = if fill.is_some() { 1 } else { 2 };
+    // A set mixing placed models with surfaces or faces: the gizmo moves the models.
+    let set = (many && models > 0).then(|| match models {
+        1 => "1 placed model among them: G R T move it".to_owned(),
+        n => format!("{n} placed models among them: G R T move them"),
+    });
+    let extras: Vec<(&str, Color)> = [
+        set.as_deref().map(|set| (set, color::TEXT)),
+        fill.as_deref().map(|fill| (fill, color::GOLD_BRIGHT)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let detail_lines = 2 - extras.len();
     for (index, part) in wrap(&selection.detail, LINE_CHARS)
         .take(detail_lines)
         .enumerate()
@@ -324,8 +341,9 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             color::MUTED,
         );
     }
-    if let Some(fill) = &fill {
-        line(ui, frame, y + 88.0, fill, color::GOLD_BRIGHT);
+    for (index, (extra, colour)) in extras.iter().enumerate() {
+        let slot = detail_lines + index;
+        line(ui, frame, y + 64.0 + slot as f32 * 24.0, extra, *colour);
     }
     y += 124.0;
     match selection.picked {
@@ -342,7 +360,10 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 frame,
                 panel,
                 y,
-                &[(HIDE, "Remove", true), (COPY, "Place a copy", true)],
+                &[
+                    (HIDE, if many { "Hide all" } else { "Remove" }, true),
+                    (COPY, "Place a copy", !many),
+                ],
             );
         }
         Picked::Surface { soup } => buttons(
@@ -465,6 +486,86 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 (UNREMAP, "Remove remap", true),
             ]
         },
+    );
+}
+
+/// The Selected page on a multiple selection of placed models only: their count, Remove
+/// all, and the Place page's turns, lifts, nudges and growths acting on all of them about
+/// their middle (the editor's `mapedit_turn`, `_move` and `_scale` on a set). Grab takes
+/// one model at a time.
+fn placed_set(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel, mut y: f32, models: usize) {
+    let s = frame.s;
+    text(
+        ui,
+        TextFamily::Display,
+        format_args!("{models} models selected"),
+        frame.rect(COLUMN_X, y, COLUMN_WIDTH, 34.0),
+        26.0 * s,
+        color::TEXT,
+        FontWeight::Regular,
+        TextAlign::Start,
+    );
+    let newest = panel
+        .facts
+        .selection
+        .as_ref()
+        .map_or("", |selection| selection.name.as_str());
+    line(ui, frame, y + 40.0, newest, color::TEXT);
+    line(
+        ui,
+        frame,
+        y + 64.0,
+        "G R T or these move them all together;",
+        color::MUTED,
+    );
+    line(
+        ui,
+        frame,
+        y + 88.0,
+        "Grab takes one model at a time.",
+        color::MUTED,
+    );
+    y += 124.0;
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[(HIDE, "Remove all", true), (GRAB, "Grab", false)],
+    );
+    y += BUTTON + GAP;
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (TURN_LEFT, "Turn left", true),
+            (TURN_RIGHT, "Turn right", true),
+            (UP, "Up", true),
+            (DOWN, "Down", true),
+        ],
+    );
+    y += BUTTON + GAP;
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (MOVE_LEFT, "Left", true),
+            (MOVE_RIGHT, "Right", true),
+            (FARTHER, "Away", true),
+            (NEARER, "Closer", true),
+        ],
+    );
+    y += BUTTON + GAP;
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[(SMALLER, "Smaller", true), (BIGGER, "Bigger", true)],
     );
 }
 
@@ -660,10 +761,29 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         );
     }
     y += BUTTON + 30.0;
-    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Placed model");
+    let set = panel.facts.models > 1;
+    kit::heading(
+        ui,
+        frame,
+        COLUMN_X,
+        y,
+        COLUMN_WIDTH,
+        if set { "Placed models" } else { "Placed model" },
+    );
     y += 14.0;
-    let placed = panel.facts.placed.is_some();
+    let placed = panel.facts.placed.is_some() || set;
+    let whole_set = set && panel.facts.models == panel.facts.count;
     match &panel.facts.placed {
+        _ if set => line(
+            ui,
+            frame,
+            y,
+            &format!(
+                "{} selected: these move them all; Grab one",
+                panel.facts.models
+            ),
+            color::MUTED,
+        ),
         Some(description) => line(
             ui,
             frame,
@@ -721,9 +841,13 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 } else {
                     "Grab"
                 },
-                placed,
+                placed && !set,
             ),
-            (REMOVE, "Remove", placed),
+            (
+                REMOVE,
+                if set { "Remove all" } else { "Remove" },
+                placed && (!set || whole_set),
+            ),
         ],
     );
 }
@@ -1075,7 +1199,60 @@ mod tests {
             ("edits", panel(Tab::Edits, None)),
             ("face", panel(Tab::Selected, Some(Picked::Face))),
             ("sky", panel(Tab::Selected, Some(Picked::Sky))),
+            ("models", models_panel(Tab::Selected, 3, 3)),
+            ("mixed", models_panel(Tab::Selected, 2, 5)),
+            ("place set", models_panel(Tab::Place, 3, 3)),
         ]
+    }
+
+    /// `models` placed models selected out of `count`, the newest a placed one.
+    fn models_panel(tab: Tab, models: usize, count: usize) -> Panel {
+        let mut panel = panel(tab, Some(Picked::Placed));
+        panel.facts.models = models;
+        panel.facts.count = count;
+        panel
+    }
+
+    #[test]
+    fn a_set_of_placed_models_says_its_count_and_moves_them_all() {
+        let build_state = |state: &str| {
+            let (_, mut panel) = states()
+                .into_iter()
+                .find(|(name, _)| *name == state)
+                .unwrap();
+            let mut canvas = MenuCanvas::new();
+            build(&mut panel, &mut canvas, [1_920.0, 1_080.0]);
+            canvas
+        };
+        let canvas = build_state("models");
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(runs.contains(&"3 models selected"), "{runs:?}");
+        assert!(runs.contains(&"Remove all"), "{runs:?}");
+        let tokens = canvas.widget_tokens().to_vec();
+        for token in [
+            HIDE, TURN_LEFT, TURN_RIGHT, UP, DOWN, MOVE_LEFT, NEARER, SMALLER, BIGGER,
+        ] {
+            assert!(tokens.contains(&token), "{token}");
+        }
+        assert!(!tokens.contains(&REMAP), "a set of models takes no remap");
+        // Mixed with surfaces or faces: the newest's page, the models counted.
+        let canvas = build_state("mixed");
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(runs.contains(&"Placed model and 4 more"), "{runs:?}");
+        assert!(
+            runs.contains(&"2 placed models among them: G R T move them"),
+            "{runs:?}"
+        );
+        assert!(runs.contains(&"Hide all"), "{runs:?}");
+        // Place: the buttons move the set; Grab one at a time.
+        let canvas = build_state("place set");
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(runs.contains(&"Placed models"), "{runs:?}");
+        assert!(
+            runs.contains(&"3 selected: these move them all; Grab one"),
+            "{runs:?}"
+        );
+        assert!(runs.contains(&"Remove all"), "{runs:?}");
     }
 
     #[test]

@@ -13,9 +13,13 @@
 //! and one write of the document. Ctrl snaps (8 units, 15 degrees, 0.1 of scale), Shift
 //! makes it fine (a tenth).
 //!
-//! In game the gizmo shows while the panel frees the pointer, on the selected placed model
-//! or else the current one, drawn over the scene in screen space (on top, the same size
-//! whatever the distance); the panel's keys stay the panel's while a search field types.
+//! In game the gizmo shows while the panel frees the pointer, on the placed models of a
+//! multiple selection (Shift+click adds them, as the page's Shift+click does), else the
+//! selected placed model, else the current one, drawn over the scene in screen space (on
+//! top, the same size whatever the distance); the panel's keys stay the panel's while a
+//! search field types. A set's handles stand at the middle of its origins, which it turns
+//! and scales about; its local axes are the newest's (the one clicked last, Blender's
+//! active object). The whole set is one [`COMMAND`], so one step to undo.
 
 use super::document::{Document, Kind};
 use crate::GpuState;
@@ -973,6 +977,19 @@ pub(crate) fn set_placed(document: &mut Document, sets: &[Set]) -> Result<String
     })
 }
 
+/// [`COMMAND`]'s sets for `placements`, with their scale.
+pub(crate) fn sets_of(placements: &[Placement]) -> Vec<Set> {
+    placements
+        .iter()
+        .map(|p| Set {
+            id: p.id,
+            origin: p.origin.to_array(),
+            angles: p.angles,
+            scale: Some(p.scale),
+        })
+        .collect()
+}
+
 /// The arguments of [`COMMAND`] for `placements`, with their scale.
 pub(crate) fn set_args(placements: &[Placement]) -> Vec<String> {
     placements
@@ -1031,6 +1048,19 @@ impl Gizmo {
 }
 
 impl super::State {
+    /// Placed edits `ids` as drawn, in that order (those gone left out).
+    pub(crate) fn placements(&self, ids: &[u32]) -> Vec<Placement> {
+        ids.iter()
+            .filter_map(|id| self.placed.iter().find(|placed| placed.id == *id))
+            .map(|placed| Placement {
+                id: placed.id,
+                origin: Vec3::from_array(placed.origin),
+                angles: placed.angles,
+                scale: placed.scale,
+            })
+            .collect()
+    }
+
     /// Draw placed edit `id` as `placement`, without saving (a gizmo's preview).
     fn preview(&mut self, placement: &Placement) {
         if let Some(placed) = self.placed.iter_mut().find(|p| p.id == placement.id) {
@@ -1068,8 +1098,13 @@ impl GpuState {
         })
     }
 
-    /// The placed model the gizmo is on: the selected one, else the current one, as drawn.
+    /// The placed models the gizmo is on, as drawn: a multiple selection's (the newest
+    /// first: its axes are the local ones), else the selected one, else the current one.
     fn map_edit_gizmo_targets(&mut self) -> Vec<Placement> {
+        let set = self.map_edit_set_ids();
+        if !set.is_empty() {
+            return self.map_edits.placements(&set);
+        }
         let entities = self.bsp.entities();
         let key = (entities.as_ptr() as usize, entities.len());
         let lump = match self.map_edits.gizmo.lump {
@@ -1089,17 +1124,7 @@ impl GpuState {
             }
         });
         let id = selected.or(self.map_edits.editor.current());
-        self.map_edits
-            .placed
-            .iter()
-            .filter(|placed| Some(placed.id) == id)
-            .map(|placed| Placement {
-                id: placed.id,
-                origin: Vec3::from_array(placed.origin),
-                angles: placed.angles,
-                scale: placed.scale,
-            })
-            .collect()
+        self.map_edits.placements(id.as_slice())
     }
 
     fn map_edit_gizmo_modifiers(&self) -> (bool, bool) {
@@ -1131,8 +1156,9 @@ impl GpuState {
         }
     }
 
-    /// Begin a transform: the selection gives way to the current placed model, which the
-    /// gizmo then follows.
+    /// Begin a transform on the gizmo's models; the first (the newest of a set) becomes
+    /// the current one. The selection stays, its outline following the models
+    /// (`world_notes::Notes::follow_placed`).
     fn map_edit_gizmo_begin(&mut self, how: How, at: Vec2) -> bool {
         let (Some(view), targets) = (self.map_edit_gizmo_view(), self.map_edit_gizmo_targets())
         else {
@@ -1145,7 +1171,6 @@ impl GpuState {
         if let Some(first) = targets.first() {
             self.map_edits.editor.set_current(first.id);
         }
-        self.world_notes.cancel_selection();
         self.map_edits.gizmo.active = Some(Active::new(how, targets, &frame, &view, at));
         self.map_edits.gizmo.change = None;
         self.map_edits.panel.transforming = true;
@@ -1410,6 +1435,62 @@ impl GpuState {
         let on = frame.pivot + Vec3::X * frame.arm * 0.6;
         let [a, b] = [view.project(on)?, view.project(on + Vec3::X * units)?];
         Some([sjk_ui::Vec2::new(a.x, a.y), sjk_ui::Vec2::new(b.x, b.y)])
+    }
+
+    /// For the world shots: the selection's outlines on its placed models as drawn (the
+    /// editor's frame does it in game).
+    pub(crate) fn shot_follow_placed(&mut self) {
+        let placed = &self.map_edits;
+        self.world_notes.follow_placed(|id| {
+            placed
+                .placements(&[id])
+                .first()
+                .map(|p| (p.origin.to_array(), p.angles, p.scale))
+        });
+    }
+
+    /// For the world shots: where `point` shows on the screen (physical pixels).
+    pub(crate) fn shot_project(&self, point: Vec3) -> Option<[f32; 2]> {
+        Some(self.map_edit_gizmo_view()?.project(point)?.to_array())
+    }
+
+    /// For the world shots: the gizmo's models and where its handles stand.
+    pub(crate) fn shot_gizmo_targets(&mut self) -> (Vec<Placement>, Vec3) {
+        let targets = self.map_edit_gizmo_targets();
+        let pivot = pivot_of(&targets);
+        (targets, pivot)
+    }
+
+    /// For the world shots: G, R or T pressed with the pointer `offset` pixels from the
+    /// pivot, then `keys` (an axis, a number), the preview drawn.
+    pub(crate) fn shot_gizmo_keys(&mut self, mode: Mode, offset: Vec2, keys: &[ModalKey]) {
+        let view = self.map_edit_gizmo_view().expect("a view");
+        let targets = self.map_edit_gizmo_targets();
+        let centre = view
+            .project(pivot_of(&targets))
+            .expect("the pivot on screen");
+        let at = centre + offset;
+        self.cursor_position = at.to_array();
+        assert!(self.map_edit_gizmo_begin(How::Keys(mode, Constraint::None), at));
+        for key in keys {
+            if let Some(active) = self.map_edits.gizmo.active.as_mut() {
+                active.key(*key);
+            }
+        }
+        self.map_edit_gizmo_follow(at);
+    }
+
+    /// For the world shots: put the transform under way down as the game would (one
+    /// [`COMMAND`]), without the staff check.
+    pub(crate) fn shot_gizmo_commit(&mut self) -> Result<Vec<String>, String> {
+        let gizmo = &mut self.map_edits.gizmo;
+        let (Some(active), Some(change)) = (gizmo.active.take(), gizmo.change.take()) else {
+            return Err("no transform under way".into());
+        };
+        self.map_edits.panel.transforming = false;
+        let args = set_args(&active.placements(change));
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.shot_map_edit_run(COMMAND, &args)
     }
 
     /// For the world shot: where placed edit `id` is drawn now.
@@ -1919,6 +2000,111 @@ mod tests {
             },
         );
         assert_eq!(huge[0].scale, [64.0; 3]);
+    }
+
+    #[test]
+    fn a_set_moves_turns_and_scales_about_its_pivot_on_the_newests_local_axes() {
+        // Three models, the newest (yaw 90) first, as the in-game set and the page give them.
+        let start = vec![
+            placed(7, Vec3::new(0.0, 60.0, 0.0), 90.0),
+            placed(3, Vec3::new(-60.0, 0.0, 0.0), 0.0),
+            placed(5, Vec3::new(60.0, 0.0, 30.0), 45.0),
+        ];
+        let pivot = pivot_of(&start);
+        assert!(close(pivot, Vec3::new(0.0, 20.0, 10.0)));
+        let view = view(Vec3::new(0.0, -500.0, 200.0), pivot);
+        // The handles stand at the pivot; world axes, or the newest's own with L.
+        let world = Frame::new(&view, &start, false).unwrap();
+        assert!(close(world.pivot, pivot));
+        assert!(close(world.basis[0], Vec3::X));
+        let local = Frame::new(&view, &start, true).unwrap();
+        assert!(close(local.basis[0], Vec3::Y), "yaw 90: forward is +Y");
+        assert!(close(local.basis[1], -Vec3::X));
+        assert!(close(local.pivot, pivot));
+        // G X X 16: along the newest's own X (world +Y), every model by the same.
+        let at = world.centre + Vec2::new(30.0, 0.0);
+        let mut grab = Active::new(
+            How::Keys(Mode::Move, Constraint::None),
+            start.clone(),
+            &world,
+            &view,
+            at,
+        );
+        grab.key(ModalKey::Axis(0, false));
+        grab.key(ModalKey::Axis(0, false));
+        for c in ['1', '6'] {
+            grab.key(ModalKey::Typed(c));
+        }
+        let change = grab.change(&view, at, None, false);
+        let Change::Move(by) = change else {
+            panic!("not a move")
+        };
+        assert!(close(by, Vec3::Y * 16.0), "{by}");
+        let moved = grab.placements(change);
+        for (after, before) in moved.iter().zip(&start) {
+            assert!(close(after.origin, before.origin + Vec3::Y * 16.0));
+            assert_eq!((after.angles, after.scale), (before.angles, before.scale));
+        }
+        // Once: the world's X instead.
+        let mut world_x = Active::new(
+            How::Keys(Mode::Move, Constraint::None),
+            start.clone(),
+            &world,
+            &view,
+            at,
+        );
+        world_x.key(ModalKey::Axis(0, false));
+        for c in ['1', '6'] {
+            world_x.key(ModalKey::Typed(c));
+        }
+        assert_eq!(
+            world_x.change(&view, at, None, false),
+            Change::Move(Vec3::X * 16.0)
+        );
+        // R Z 90: each origin orbits the pivot, each model turns by as much.
+        let mut turn = Active::new(
+            How::Keys(Mode::Rotate, Constraint::None),
+            start.clone(),
+            &world,
+            &view,
+            at,
+        );
+        turn.key(ModalKey::Axis(2, false));
+        for c in ['9', '0'] {
+            turn.key(ModalKey::Typed(c));
+        }
+        let change = turn.change(&view, at, None, false);
+        let turned = turn.placements(change);
+        for (after, before) in turned.iter().zip(&start) {
+            let offset = before.origin - pivot;
+            let expected = pivot + Vec3::new(-offset.y, offset.x, offset.z);
+            assert!(close(after.origin, expected), "{:?}", after.origin);
+            let yaw = (before.angles[1] + 90.0).rem_euclid(360.0);
+            assert!((after.angles[1] - yaw).abs() < 1e-3, "{:?}", after.angles);
+        }
+        // T 2: the origins spread from the pivot, each model twice its size.
+        let mut grow = Active::new(
+            How::Keys(Mode::Scale, Constraint::None),
+            start.clone(),
+            &world,
+            &view,
+            at,
+        );
+        grow.key(ModalKey::Typed('2'));
+        let change = grow.change(&view, at, None, false);
+        let grown = grow.placements(change);
+        for (after, before) in grown.iter().zip(&start) {
+            assert!(close(after.origin, pivot + (before.origin - pivot) * 2.0));
+            assert_eq!(after.scale, [2.0; 3]);
+        }
+        // Esc takes it all back: the transform ends unkept, the start untouched.
+        assert_eq!(grow.key(ModalKey::Cancel), Some(false));
+        assert_eq!(grow.start, start);
+        // One mapedit_set for the set: ten numbers a model, read back the same.
+        let args = set_args(&turned);
+        assert_eq!(args.len(), 30);
+        let sets = parse_set(&args).unwrap();
+        assert_eq!(sets, sets_of(&turned));
     }
 
     #[test]

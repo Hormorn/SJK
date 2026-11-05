@@ -126,7 +126,9 @@ fn remap_of(remaps: &[Remap], name: &str) -> Option<String> {
 struct Model {
     /// The entity, its `model` key the model's path.
     entity: Entity,
-    /// Pitch, yaw and roll, and the scale on each axis.
+    /// Where it stands, pitch, yaw and roll, and the scale on each axis: as its outline,
+    /// hit and normal were made ([`Model::move_to`] moves them along).
+    origin: Vec3,
     angles: [f32; 3],
     scale: [f32; 3],
     /// The entity's skin key, or empty.
@@ -137,6 +139,36 @@ struct Model {
     distance: f32,
     edges: Vec<[Vec3; 2]>,
     triangles: Vec<[Vec3; 3]>,
+}
+
+impl Model {
+    /// Its outline, shade and hit carried to `origin`, `angles` and `scale` (a placed
+    /// model the map editor moved, turned or scaled while selected).
+    fn move_to(&mut self, origin: Vec3, angles: [f32; 3], scale: [f32; 3]) {
+        if self.origin == origin && self.angles == angles && self.scale == scale {
+            return;
+        }
+        let rotation = |angles: [f32; 3]| {
+            glam::Quat::from_array(sjk_client::legacy_angles_to_quaternion(angles))
+        };
+        let back = rotation(self.angles).inverse();
+        let turn = rotation(angles);
+        let (from, to) = (self.origin, origin);
+        let from_scale = Vec3::from_array(self.scale).max(Vec3::splat(1e-6));
+        let to_scale = Vec3::from_array(scale);
+        let place = |point: Vec3| to + turn * (to_scale * (back * (point - from) / from_scale));
+        for edge in &mut self.edges {
+            *edge = edge.map(place);
+        }
+        for triangle in &mut self.triangles {
+            *triangle = triangle.map(place);
+        }
+        self.hit = place(self.hit);
+        self.normal = (turn * (back * self.normal)).normalize_or_zero();
+        self.origin = origin;
+        self.angles = angles;
+        self.scale = scale;
+    }
 }
 
 /// One surface of a selected model and the shader it draws.
@@ -244,6 +276,25 @@ impl Selection {
             (None, None) => "nothing".to_owned(),
         };
         format!("{what}, {:.0} units", self.distance)
+    }
+
+    /// The placed edit's id when this is a model a map edit placed (the pick's entity
+    /// for it is named `edit <id>`, `crate::map_edits::State::pick_entities`).
+    pub(crate) fn placed_id(&self) -> Option<u32> {
+        let model = self.model.as_ref()?;
+        if model.entity.classname != crate::map_edits::PLACED_CLASS {
+            return None;
+        }
+        model.entity.targetname.strip_prefix("edit ")?.parse().ok()
+    }
+
+    /// What it is in the map editor's multiple selection, when it may be in one: a
+    /// placed model, a surface or a hidden face.
+    pub(crate) fn member(&self) -> Option<Member> {
+        if self.model.is_some() {
+            return self.placed_id().map(Member::Placed);
+        }
+        self.edit_target().member()
     }
 
     /// What a map edit would act on.
@@ -1032,17 +1083,22 @@ pub(crate) type Subject = (String, Option<String>);
 /// Most selections the map editor's multiple selection holds: the browser editor's batch
 /// limit (`apply_many`, `hide_many`).
 pub(crate) const SET_LIMIT: usize = 1024;
+/// Most placed models it holds: what one `mapedit_set` (one step to undo) sets.
+pub(crate) const PLACED_LIMIT: usize = crate::map_edits::gizmo::MAX_SET;
 
-/// What the map editor's multiple selection holds: a world surface or a hidden face.
-/// Models are selected one at a time.
+/// What the map editor's multiple selection holds: a world surface, a hidden face or a
+/// model a map edit placed (by its edit's id). Map props and game entities are selected
+/// one at a time.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Member {
     Surface(usize),
     Face { brush: u32, side: u32 },
+    Placed(u32),
 }
 
 impl EditTarget {
-    /// What it is in a multiple selection, when it may be in one.
+    /// What it is in a multiple selection, when it may be in one: a surface or a face
+    /// (a placed model's member comes from its selection, [`Selection::member`]).
     pub(crate) fn member(&self) -> Option<Member> {
         match self {
             Self::Surface { index, .. } => Some(Member::Surface(*index)),
@@ -1062,16 +1118,18 @@ pub(crate) enum Toggled {
     Added(usize),
     /// Taken out: this many are left.
     Removed(usize),
-    /// A model or something edits do not change: not added.
+    /// A map prop, a game entity or something edits do not change: not added.
     NotAMember,
-    /// [`SET_LIMIT`] reached.
-    Full,
+    /// A limit reached: [`SET_LIMIT`] in all, or [`PLACED_LIMIT`] placed models.
+    Full(usize),
     /// Nothing there.
     Nothing,
 }
 
 /// Add `candidate` to the multiple selection `primary` (the newest) and `more`, or take
-/// it out when it is there already (by `key`). A model selected alone gives way to it.
+/// it out when it is there already (by `key`). A map prop or another thing selected alone
+/// gives way to it. Placed models mix with surfaces and faces, as the browser editor's
+/// set does: the gizmo moves the placed ones, Hide takes them all, a remap the others.
 fn toggle_in<T>(
     primary: &mut Option<T>,
     more: &mut Vec<T>,
@@ -1099,7 +1157,17 @@ fn toggle_in<T>(
         return Toggled::Removed(count(primary, more));
     }
     if count(primary, more) >= SET_LIMIT {
-        return Toggled::Full;
+        return Toggled::Full(SET_LIMIT);
+    }
+    if matches!(wanted, Member::Placed(_)) {
+        let placed = primary
+            .iter()
+            .chain(more.iter())
+            .filter(|kept| matches!(key(kept), Some(Member::Placed(_))))
+            .count();
+        if placed >= PLACED_LIMIT {
+            return Toggled::Full(PLACED_LIMIT);
+        }
     }
     if let Some(previous) = primary.replace(candidate) {
         more.push(previous);
@@ -1327,8 +1395,26 @@ impl Notes {
             &mut self.selection,
             &mut self.more,
             candidate,
-            |selection| selection.edit_target().member(),
+            Selection::member,
         )
+    }
+
+    /// The map editor's placed models drawn elsewhere than their selection's outline (a
+    /// gizmo's preview, a commit, an undo, a grab): the outline follows. `at` gives a
+    /// placed edit's origin, angles and scale as drawn. Once a frame while the editor is
+    /// on; nothing is allocated.
+    pub(crate) fn follow_placed(
+        &mut self,
+        at: impl Fn(u32) -> Option<([f32; 3], [f32; 3], [f32; 3])>,
+    ) {
+        for selection in self.selection.iter_mut().chain(self.more.iter_mut()) {
+            let Some((origin, angles, scale)) = selection.placed_id().and_then(&at) else {
+                continue;
+            };
+            if let Some(model) = &mut selection.model {
+                model.move_to(Vec3::from_array(origin), angles, scale);
+            }
+        }
     }
 
     /// The map editor's selection as edits act on it: the newest first, then the others
@@ -1945,7 +2031,54 @@ mod tests {
         let (mut primary, mut more) = (Some(Some(Member::Surface(0))), Vec::new());
         more.extend((1..SET_LIMIT).map(|i| Some(Member::Surface(i))));
         let next = Some(Member::Surface(SET_LIMIT));
-        assert_eq!(toggle_in(&mut primary, &mut more, next, key), Toggled::Full);
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, next, key),
+            Toggled::Full(SET_LIMIT)
+        );
+    }
+
+    #[test]
+    fn placed_models_join_the_set_mixed_with_faces_up_to_one_set_command() {
+        let key = |member: &Option<Member>| *member;
+        let (mut primary, mut more) = (None, Vec::new());
+        let a = Some(Member::Placed(3));
+        let b = Some(Member::Placed(9));
+        let face = Some(Member::Face { brush: 2, side: 9 });
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, a, key),
+            Toggled::Added(1)
+        );
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, b, key),
+            Toggled::Added(2)
+        );
+        // The browser editor's rule: placed models and faces may share a set.
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, face, key),
+            Toggled::Added(3)
+        );
+        // The newest is the active one (its axes are the gizmo's local ones).
+        assert_eq!((primary, more.as_slice()), (Some(face), &[a, b][..]));
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, a, key),
+            Toggled::Removed(2)
+        );
+        // A map prop (no member) is still selected alone.
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, None, key),
+            Toggled::NotAMember
+        );
+        // No more placed models than one mapedit_set sets; faces may still join.
+        let (mut primary, mut more) = (Some(Some(Member::Placed(0))), Vec::new());
+        more.extend((1..PLACED_LIMIT as u32).map(|i| Some(Member::Placed(i))));
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, Some(Member::Placed(9999)), key),
+            Toggled::Full(PLACED_LIMIT)
+        );
+        assert_eq!(
+            toggle_in(&mut primary, &mut more, face, key),
+            Toggled::Added(PLACED_LIMIT + 1)
+        );
     }
 
     #[test]
@@ -2132,6 +2265,88 @@ mod tests {
 
     /// A note about a model names it, its shaders with their remaps, and leaves the
     /// surface behind it out; Clear model notes that surface again.
+    #[test]
+    fn a_placed_models_outline_follows_it_and_others_stay() {
+        // The crate at 100 0 0 (yaw 45, scale 2) as a placed edit's pick entity.
+        let lump = concat!(
+            "{
+\"classname\" \"worldspawn\"
+}
+",
+            "{
+\"classname\" \"sjk_map_edit\"
+\"model\" \"models/test/crate.md3\"
+",
+            "\"origin\" \"100 0 0\"
+\"angles\" \"0 45 0\"
+",
+            "\"modelscale_vec\" \"2 2 2\"
+\"targetname\" \"edit 5\"
+}
+",
+        );
+        let entities = sjk_entity::parse_entity_lump(lump.as_bytes()).expect("parses");
+        let (_, mut cache) = models::tests::cube_map();
+        let vfs = VirtualFileSystem::new();
+        let model = pick_model(
+            &entities,
+            &mut cache,
+            &vfs,
+            "maps/test.bsp",
+            Vec3::ZERO,
+            Vec3::X,
+        )
+        .expect("the crate");
+        let selection = |model: Option<Model>| Selection {
+            map: "maps/test.bsp".into(),
+            pose: String::new(),
+            eye: Vec3::ZERO,
+            forward: Vec3::X,
+            hit: Vec3::X,
+            normal: -Vec3::X,
+            distance: 1.0,
+            surface: None,
+            entity: None,
+            collision: None,
+            face: None,
+            edges: vec![[Vec3::ZERO, Vec3::X]],
+            triangles: Vec::new(),
+            selected: Instant::now(),
+            model,
+            remaps: Vec::new(),
+        };
+        let placed = selection(Some(model.clone()));
+        assert_eq!(placed.placed_id(), Some(5));
+        assert_eq!(placed.member(), Some(Member::Placed(5)));
+        let mut prop = model;
+        prop.entity.classname = "misc_model_static".into();
+        assert_eq!(selection(Some(prop)).member(), None, "a map prop: alone");
+        let corners = |selection: &Selection| selection.outline().1.to_vec();
+        let before = corners(&placed);
+        let mut notes = Notes {
+            selection: Some(placed),
+            more: vec![selection(None)],
+            held: true,
+            ..Notes::default()
+        };
+        // Moved 50 along Y, turned to yaw 135 and halved: every corner goes with it.
+        notes.follow_placed(|id| {
+            (id == 5).then_some(([100.0, 50.0, 0.0], [0.0, 135.0, 0.0], [1.0; 3]))
+        });
+        let after = corners(notes.selection.as_ref().expect("kept"));
+        let back = glam::Quat::from_rotation_z(-45f32.to_radians());
+        let turn = glam::Quat::from_rotation_z(135f32.to_radians());
+        for (from, to) in before.iter().flatten().zip(after.iter().flatten()) {
+            let local = back * (*from - Vec3::new(100.0, 0.0, 0.0)) / 2.0;
+            let expected = Vec3::new(100.0, 50.0, 0.0) + turn * local;
+            assert!(to.distance(expected) < 1e-3, "{to} != {expected}");
+        }
+        // The surface beside it stays, and a second call with the same place changes nothing.
+        assert_eq!(notes.more[0].edges, vec![[Vec3::ZERO, Vec3::X]]);
+        notes.follow_placed(|_| Some(([100.0, 50.0, 0.0], [0.0, 135.0, 0.0], [1.0; 3])));
+        assert_eq!(corners(notes.selection.as_ref().expect("kept")), after);
+    }
+
     #[test]
     fn a_note_about_a_model_names_it_and_clear_model_drops_it() {
         let (entities, mut cache) = models::tests::cube_map();

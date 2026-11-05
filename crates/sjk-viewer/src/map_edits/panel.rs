@@ -212,6 +212,9 @@ pub(crate) struct Facts {
     pub(crate) selection: Option<Selected>,
     /// How many the selection holds (a multiple selection's count).
     pub(crate) count: usize,
+    /// How many placed models a multiple selection holds: the gizmo and the placed
+    /// model's buttons move them all.
+    pub(crate) models: usize,
     /// What Fill would draw on the selected faces: the nearby vote's first shader and its
     /// share.
     pub(crate) fill: Option<(String, f32)>,
@@ -1275,6 +1278,8 @@ impl GpuState {
             }
             Action::Scale(factor) => ("mapedit_scale", vec![factor.to_string()]),
             Action::Grab => ("mapedit_grab", vec![]),
+            // A set of placed models only: all of them, one step.
+            Action::Remove if self.map_edits.panel.facts.models > 1 => ("mapedit_hide", vec![]),
             Action::Remove => match self.map_edits.editor.current() {
                 Some(id) => ("mapedit_delete", vec![id.to_string()]),
                 None => {
@@ -1342,13 +1347,14 @@ impl GpuState {
             Toggled::Added(count) => Ok(vec![format!("Added: {count} selected")]),
             Toggled::Removed(0) => Ok(vec!["Taken out: nothing selected".to_owned()]),
             Toggled::Removed(count) => Ok(vec![format!("Taken out: {count} selected")]),
-            Toggled::NotAMember => {
-                Err("Shift adds surfaces and faces; a model is selected alone".to_owned())
-            }
-            Toggled::Full => Err(format!(
-                "The selection holds {} at most",
-                crate::world_notes::SET_LIMIT
+            Toggled::NotAMember => Err(
+                "Shift adds surfaces, faces and placed models; a map prop is selected alone"
+                    .to_owned(),
+            ),
+            Toggled::Full(limit) if limit == crate::world_notes::PLACED_LIMIT => Err(format!(
+                "The selection holds {limit} placed models at most (one step to undo)"
             )),
+            Toggled::Full(limit) => Err(format!("The selection holds {limit} at most")),
             Toggled::Nothing => Err("Nothing there to edit".to_owned()),
         });
         if matches!(toggled, Toggled::Added(_) | Toggled::Removed(_)) && panel.tab != Tab::Place {
@@ -1467,6 +1473,7 @@ impl GpuState {
         }
         let fill = self.map_edits.panel.facts.fill.clone();
         let count = self.world_notes.edit_selection_len();
+        let models = self.map_edit_set_ids().len();
         let camera = if self.live_session.is_some() && !self.free_camera_active() {
             Some(self.map_edits.fly.refused.clone().unwrap_or_else(|| {
                 "Own view: the free camera is off (alive, on foot, no duel)".to_owned()
@@ -1514,6 +1521,7 @@ impl GpuState {
             revision: document.map_or(0, |document| document.revision),
             selection,
             count,
+            models,
             fill,
             camera,
             flying,

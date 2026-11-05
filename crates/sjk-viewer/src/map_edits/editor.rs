@@ -10,9 +10,12 @@
 //!
 //! While it is on, the world-note key only selects (its outline shows what an edit will
 //! touch), Shift with it adding to the multiple selection; it opens no note. A multiple
-//! selection (surfaces and hidden faces) is hidden, remapped and filled at once, one step
-//! to undo, as the browser editor's is. Every command that changes the map's edits is one
-//! step of [`History`], which `mapedit_undo` and `mapedit_redo` walk.
+//! selection (surfaces, hidden faces and placed models, mixed as the browser editor's) is
+//! hidden, remapped and filled at once, one step to undo; Hide removes its placed models
+//! too, and the panel's buttons and the gizmo ([`super::gizmo`]) turn, move and scale them
+//! together about their middle, one `mapedit_set` each time. Every command that changes
+//! the map's edits is one step of [`History`], which `mapedit_undo` and `mapedit_redo`
+//! walk.
 
 use super::document::{Edit, Kind, Scope};
 use super::linked::{Grow, LINK_LIMIT};
@@ -78,18 +81,41 @@ pub(crate) fn toggled(active: bool, args: &[String]) -> Result<bool, String> {
     }
 }
 
-/// A multiple selection's members as the batch takes them: faces (brush, side) and
-/// surfaces.
-pub(crate) fn split_members(members: &[Member]) -> (Vec<[u32; 2]>, Vec<u32>) {
-    let mut faces = Vec::new();
-    let mut surfaces = Vec::new();
+/// A multiple selection's members as the batch takes them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Members {
+    /// Caulk, nodraw and sky faces (brush, side).
+    pub(crate) faces: Vec<[u32; 2]>,
+    pub(crate) surfaces: Vec<u32>,
+    /// Placed models, by their edit's id.
+    pub(crate) placed: Vec<u32>,
+}
+
+/// A multiple selection's members, split by kind in their order.
+pub(crate) fn split_members(members: &[Member]) -> Members {
+    let mut split = Members::default();
     for member in members {
         match *member {
-            Member::Face { brush, side } => faces.push([brush, side]),
-            Member::Surface(index) => surfaces.push(index as u32),
+            Member::Face { brush, side } => split.faces.push([brush, side]),
+            Member::Surface(index) => split.surfaces.push(index as u32),
+            Member::Placed(id) => split.placed.push(id),
         }
     }
-    (faces, surfaces)
+    split
+}
+
+/// What a multiple selection's placed models were turned, moved or scaled by, said.
+fn set_line(count: usize, change: super::gizmo::Change) -> String {
+    use super::gizmo::Change;
+    match change {
+        Change::Turn { degrees, .. } => {
+            format!("{count} placed models turned {degrees} degrees about their middle")
+        }
+        Change::Move(by) => format!("{count} placed models moved {} {} {}", by.x, by.y, by.z),
+        Change::Scale { factor, .. } => {
+            format!("{count} placed models scaled by {factor} about their middle")
+        }
+    }
 }
 
 /// The editor's steps on one map: the edits as they were before each change, to undo,
@@ -342,6 +368,13 @@ impl GpuState {
                     [degrees] => number(degrees)?,
                     _ => return Err("usage: mapedit_turn [degrees]".into()),
                 };
+                let turn = super::gizmo::Change::Turn {
+                    axis: Vec3::Z,
+                    degrees,
+                };
+                if let Some(result) = self.map_edit_change_set(turn) {
+                    return result;
+                }
                 self.map_edit_transform(|_, angles, _| angles[1] = (angles[1] + degrees) % 360.0)
             }
             "mapedit_move" => {
@@ -350,6 +383,10 @@ impl GpuState {
                     [x, y, z] => [number(x)?, number(y)?, number(z)?],
                     _ => return Err("usage: mapedit_move <up> | <x> <y> <z>".into()),
                 };
+                let by = super::gizmo::Change::Move(Vec3::from_array(offset));
+                if let Some(result) = self.map_edit_change_set(by) {
+                    return result;
+                }
                 self.map_edit_transform(|origin, _, _| {
                     for axis in 0..3 {
                         origin[axis] += offset[axis];
@@ -363,6 +400,13 @@ impl GpuState {
                 let factor = number(factor)?;
                 if factor <= 0.0 {
                     return Err("the factor must be above 0".into());
+                }
+                let grow = super::gizmo::Change::Scale {
+                    along: None,
+                    factor,
+                };
+                if let Some(result) = self.map_edit_change_set(grow) {
+                    return result;
                 }
                 self.map_edit_transform(|_, _, scale| {
                     for axis in scale.iter_mut() {
@@ -578,15 +622,52 @@ impl GpuState {
     }
 
     /// The selection's members when it holds more than one: what the batch acts on.
-    fn map_edit_many_members(&self) -> Option<(Vec<[u32; 2]>, Vec<u32>)> {
+    fn map_edit_many_members(&self) -> Option<Members> {
         (self.world_notes.edit_selection_len() > 1).then(|| {
             let members: Vec<Member> = self
                 .world_notes
                 .edit_selection()
-                .filter_map(|selection| selection.edit_target().member())
+                .filter_map(crate::world_notes::Selection::member)
                 .collect();
             split_members(&members)
         })
+    }
+
+    /// The placed models of a multiple selection still drawn, the newest (the active
+    /// one) first: what the panel's buttons and the gizmo move together. Empty unless the
+    /// selection holds more than one thing.
+    pub(crate) fn map_edit_set_ids(&self) -> Vec<u32> {
+        if self.world_notes.edit_selection_len() < 2 {
+            return Vec::new();
+        }
+        self.world_notes
+            .edit_selection()
+            .filter_map(crate::world_notes::Selection::placed_id)
+            .filter(|id| self.map_edits.placed.iter().any(|placed| placed.id == *id))
+            .collect()
+    }
+
+    /// `mapedit_turn`, `_move` and `_scale` on a multiple selection's placed models: all
+    /// of them about their middle, as the gizmo does, in one `mapedit_set` (one step to
+    /// undo). `None` when the selection holds none.
+    fn map_edit_change_set(
+        &mut self,
+        change: super::gizmo::Change,
+    ) -> Option<Result<Vec<String>, String>> {
+        let ids = self.map_edit_set_ids();
+        if ids.is_empty() {
+            return None;
+        }
+        let start = self.map_edits.placements(&ids);
+        let moved = super::gizmo::apply(&start, super::gizmo::pivot_of(&start), change);
+        let sets = super::gizmo::sets_of(&moved);
+        let result = self
+            .map_edit_document()
+            .and_then(|document| super::gizmo::set_placed(document, &sets));
+        Some(result.and_then(|_| {
+            self.map_edits.editor.current = ids.first().copied();
+            self.map_edit_saved(set_line(sets.len(), change))
+        }))
     }
 
     /// The selected caulk, nodraw and sky faces (brush, side), newest first: what Fill
@@ -664,11 +745,11 @@ impl GpuState {
             [word] if word == "group" => true,
             _ => return Err("usage: mapedit_hide [group]".into()),
         };
-        if let Some((faces, surfaces)) = self.map_edit_many_members() {
+        if let Some(many) = self.map_edit_many_members() {
             if group {
                 return Err("Hide whole model takes one surface: select one alone".into());
             }
-            return self.map_edit_many_change(&faces, &surfaces, None);
+            return self.map_edit_many_change(&many, None);
         }
         let aim = self.map_edit_aim()?;
         let server = self.map_edit_server()?;
@@ -867,6 +948,12 @@ impl GpuState {
     }
 
     fn map_edit_grab(&mut self) -> Result<Vec<String>, String> {
+        let set = self.map_edit_set_ids().len();
+        if set > 1 && !self.map_edits.editor.grabbing {
+            return Err(format!(
+                "Grab takes one model at a time: G moves the {set} selected together"
+            ));
+        }
         let id = self.map_edit_current()?;
         let editor = &mut self.map_edits.editor;
         editor.grabbing = !editor.grabbing;
@@ -905,6 +992,14 @@ impl GpuState {
         {
             self.open_map_edit_panel();
         }
+        // Selected placed models keep their outline on them as they move.
+        let placed = &self.map_edits.placed;
+        self.world_notes.follow_placed(|id| {
+            placed
+                .iter()
+                .find(|placed| placed.id == id)
+                .map(|placed| (placed.origin, placed.angles, placed.scale))
+        });
         let editor = &self.map_edits.editor;
         if !editor.grabbing {
             return;
@@ -935,9 +1030,9 @@ impl GpuState {
         let [target] = args else {
             return Err("usage: mapedit_remap <shader> | - (removes the remap)".into());
         };
-        if let Some((faces, surfaces)) = self.map_edit_many_members() {
+        if let Some(many) = self.map_edit_many_members() {
             // Every one at once, the selection kept to try another.
-            return self.map_edit_many_change(&faces, &surfaces, Some(target));
+            return self.map_edit_many_change(&many, Some(target));
         }
         let aim = self.map_edit_aim()?;
         let server = self.map_edit_server()?;
@@ -1143,14 +1238,13 @@ impl GpuState {
         self.map_edit_saved(line)
     }
 
-    /// The browser editor's multiple selection: draw caulk or nodraw faces `faces`
-    /// (brush, side) with `shader` and remap the shaders of surfaces `surfaces` to it
-    /// (`-` takes those edits away), or, with no `shader`, hide the surfaces and draw
-    /// the faces as nothing again. One step to undo, whatever the count.
+    /// The browser editor's multiple selection: draw caulk or nodraw faces (brush, side)
+    /// with `shader` and remap the surfaces' shaders to it (`-` takes those edits away),
+    /// or, with no `shader`, hide the surfaces, draw the faces as nothing again and
+    /// remove the placed models. One step to undo, whatever the count.
     pub(crate) fn map_edit_many(
         &mut self,
-        faces: &[[u32; 2]],
-        surfaces: &[u32],
+        many: &Members,
         shader: Option<&str>,
     ) -> Result<Vec<String>, String> {
         if !crate::player_identity::is_staff() {
@@ -1159,11 +1253,11 @@ impl GpuState {
         if !self.map_edits.editor.active {
             return Err("Turn the map editor on first: mapedit".into());
         }
-        if faces.is_empty() && surfaces.is_empty() {
+        if many.faces.is_empty() && many.surfaces.is_empty() && many.placed.is_empty() {
             return Err("Nothing selected".into());
         }
         let before = self.map_edit_edits();
-        let result = self.map_edit_many_change(faces, surfaces, shader);
+        let result = self.map_edit_many_change(many, shader);
         if result.is_ok() && before != self.map_edit_edits() {
             self.map_edits.history.changed(before);
         }
@@ -1177,10 +1271,15 @@ impl GpuState {
 
     fn map_edit_many_change(
         &mut self,
-        faces: &[[u32; 2]],
-        surfaces: &[u32],
+        many: &Members,
         shader: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        let (faces, surfaces) = (&many.faces, &many.surfaces);
+        if shader.is_some() && faces.is_empty() && surfaces.is_empty() {
+            return Err(
+                "A remap takes surfaces and faces: placed models keep their shaders".into(),
+            );
+        }
         let server = self.map_edit_server()?;
         let faces: Vec<(u32, u32, String)> = faces
             .iter()
@@ -1195,7 +1294,7 @@ impl GpuState {
             })
             .collect::<Result<_, _>>()?;
         let mut surface_shaders: Vec<(u32, String)> = Vec::with_capacity(surfaces.len());
-        for &surface in surfaces {
+        for &surface in surfaces.iter() {
             let shader = self
                 .bsp
                 .render()
@@ -1242,6 +1341,7 @@ impl GpuState {
                 Many::Hide {
                     faces: &faces,
                     surfaces: &surface_shaders,
+                    placed: &many.placed,
                 }
             }
         };
@@ -1365,9 +1465,13 @@ impl GpuState {
             }
             _ => return Err("usage: mapedit_fill [shader]".into()),
         };
-        self.map_edit_many_change(&faces, &[], Some(&shader))?;
-        self.map_edit_remember_shader(&shader);
         let count = faces.len();
+        let many = Members {
+            faces,
+            ..Members::default()
+        };
+        self.map_edit_many_change(&many, Some(&shader))?;
+        self.map_edit_remember_shader(&shader);
         Ok(vec![match share {
             Some(share) => format!(
                 "Filled {count} face{} with {shader} ({:.0} % of the nearby vote)",
@@ -1602,10 +1706,12 @@ enum Many<'a> {
         faces: &'a [(u32, u32, String)],
         shaders: &'a [(u32, String)],
     },
-    /// Hide the surfaces and draw the faces as nothing again.
+    /// Hide the surfaces, draw the faces as nothing again and remove the placed models
+    /// (by their edit's id).
     Hide {
         faces: &'a [(u32, u32, String)],
         surfaces: &'a [(u32, String)],
+        placed: &'a [u32],
     },
 }
 
@@ -1741,17 +1847,32 @@ fn apply_many(
             remove(document, &ids);
             Ok(format!("{} edits taken away", ids.len()))
         }
-        Many::Hide { faces, surfaces } => {
+        Many::Hide {
+            faces,
+            surfaces,
+            placed,
+        } => {
             let shown: Vec<u32> = document
                 .edits
                 .iter()
                 .filter(|edit| shows(edit, faces))
                 .map(|edit| edit.id)
                 .collect();
-            if shown.is_empty() && surfaces.is_empty() {
-                return Err("These faces are drawn as nothing already".into());
+            let gone: Vec<u32> = document
+                .edits
+                .iter()
+                .filter(|edit| placed.contains(&edit.id) && matches!(edit.kind, Kind::Place { .. }))
+                .map(|edit| edit.id)
+                .collect();
+            if shown.is_empty() && surfaces.is_empty() && gone.is_empty() {
+                return Err(if placed.is_empty() {
+                    "These faces are drawn as nothing already".into()
+                } else {
+                    "These placed models are gone already".into()
+                });
             }
             remove(document, &shown);
+            remove(document, &gone);
             for (surface, shader) in surfaces {
                 document.add(
                     Kind::HideSurface {
@@ -1761,11 +1882,17 @@ fn apply_many(
                     server.clone(),
                 );
             }
-            Ok(match (surfaces.len(), shown.len()) {
-                (s, 0) => format!("{s} surfaces hidden"),
-                (0, f) => format!("{f} faces drawn as nothing again"),
-                (s, f) => format!("{s} surfaces hidden, {f} faces drawn as nothing again"),
-            })
+            let mut parts = Vec::new();
+            if !gone.is_empty() {
+                parts.push(format!("{} placed models removed", gone.len()));
+            }
+            if !surfaces.is_empty() {
+                parts.push(format!("{} surfaces hidden", surfaces.len()));
+            }
+            if !shown.is_empty() {
+                parts.push(format!("{} faces drawn as nothing again", shown.len()));
+            }
+            Ok(parts.join(", "))
         }
     }
 }
@@ -1796,12 +1923,19 @@ mod tests {
         let members = [
             Member::Face { brush: 3, side: 7 },
             Member::Surface(12),
+            Member::Placed(9),
             Member::Face { brush: 4, side: 1 },
             Member::Surface(40),
+            Member::Placed(2),
         ];
-        let (faces, surfaces) = split_members(&members);
+        let Members {
+            faces,
+            surfaces,
+            placed,
+        } = split_members(&members);
         assert_eq!(faces, [[3, 7], [4, 1]]);
         assert_eq!(surfaces, [12, 40]);
+        assert_eq!(placed, [9, 2]);
         // The batch of a hide over them is one step to undo.
         let mut document = super::super::Document::new("mp/test", 7);
         let mut history = History::default();
@@ -1831,6 +1965,7 @@ mod tests {
             Many::Hide {
                 faces: &named_faces,
                 surfaces: &named_surfaces,
+                placed: &[],
             },
         )
         .unwrap();
@@ -2055,6 +2190,7 @@ mod tests {
                     (7, "textures/a/x".to_owned()),
                     (8, "textures/a/y".to_owned()),
                 ],
+                placed: &[],
             },
         )
         .unwrap();
@@ -2067,6 +2203,125 @@ mod tests {
                 Many::Hide {
                     faces: &faces,
                     surfaces: &[],
+                    placed: &[],
+                },
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_set_of_placed_models_is_removed_or_turned_in_one_step() {
+        use super::super::gizmo::{Change, apply, pivot_of, set_placed, sets_of};
+        let mut document = super::super::Document::new("mp/test", 7);
+        let place = |x: f32| Kind::Place {
+            model: "models/map_objects/a.md3".into(),
+            origin: [x, 0.0, 0.0],
+            angles: [0.0; 3],
+            scale: [1.0; 3],
+        };
+        let ids: Vec<u32> = [0.0, 64.0, 128.0]
+            .into_iter()
+            .map(|x| document.add(place(x), None))
+            .collect();
+        let face = (10, 60, "textures/system/caulk".to_owned());
+        document.add(
+            Kind::ShowFace {
+                brush: face.0,
+                side: face.1,
+                shader: face.2.clone(),
+                to: "textures/a/stone".into(),
+            },
+            None,
+        );
+        let mut history = History::default();
+        // The panel's Turn left on the set: about the middle (64 0 0), one mapedit_set.
+        let before = document.edits.clone();
+        let start: Vec<_> = ids
+            .iter()
+            .map(|&id| {
+                let Some(Kind::Place {
+                    origin,
+                    angles,
+                    scale,
+                    ..
+                }) = document.get_mut(id).map(|e| e.kind.clone())
+                else {
+                    panic!("placed")
+                };
+                super::super::gizmo::Placement {
+                    id,
+                    origin: Vec3::from_array(origin),
+                    angles,
+                    scale,
+                }
+            })
+            .collect();
+        let turn = Change::Turn {
+            axis: Vec3::Z,
+            degrees: 90.0,
+        };
+        let moved = apply(&start, pivot_of(&start), turn);
+        set_placed(&mut document, &sets_of(&moved)).unwrap();
+        history.changed(before.clone());
+        assert_eq!(history.undo.len(), 1, "three models turned: one step");
+        assert_eq!(
+            set_line(3, turn),
+            "3 placed models turned 90 degrees about their middle"
+        );
+        let Some(Kind::Place { origin, angles, .. }) =
+            document.get_mut(ids[0]).map(|e| e.kind.clone())
+        else {
+            panic!("placed")
+        };
+        assert!((origin[0] - 64.0).abs() < 1e-3 && (origin[1] + 64.0).abs() < 1e-3);
+        assert!((angles[1] - 90.0).abs() < 1e-3);
+        // Hide on a set of models and a shown face: all gone, one step.
+        let before = document.edits.clone();
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Hide {
+                faces: &[face],
+                surfaces: &[],
+                placed: &ids,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            line,
+            "3 placed models removed, 1 faces drawn as nothing again"
+        );
+        assert!(document.edits.is_empty());
+        history.changed(before.clone());
+        assert_eq!(
+            history.undo.pop().unwrap(),
+            before,
+            "the undo brings all back"
+        );
+        // Placed models alone, and once they are gone.
+        let mut alone = before.clone();
+        let mut document = super::super::Document::new("mp/test", 7);
+        document.edits.append(&mut alone);
+        let line = apply_many(
+            &mut document,
+            None,
+            Many::Hide {
+                faces: &[],
+                surfaces: &[],
+                placed: &ids[..2],
+            },
+        )
+        .unwrap();
+        assert_eq!(line, "2 placed models removed");
+        assert!(
+            apply_many(
+                &mut document,
+                None,
+                Many::Hide {
+                    faces: &[],
+                    surfaces: &[],
+                    placed: &ids[..2],
                 },
             )
             .is_err()

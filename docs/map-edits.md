@@ -113,7 +113,7 @@ a command without a selection acts on what is under the crosshair.
 | The key bound to `mapedit` | Leave the editor (or enter it) |
 | Right mouse button, held on the scene | Fly: the mouse looks, the movement keys fly ([below](#flying-in-the-editor)) |
 | Click on the scene | Select what is under the pointer (a grabbed model: put it down) |
-| Shift+click | Add the surface or hidden face under the pointer to the selection, or take it out |
+| Shift+click | Add the surface, hidden face or placed model under the pointer to the selection, or take it out |
 | World-note key (Shift: add) | Select (add) what is under the crosshair, flying or not |
 | Escape | Take back a gizmo's drag or transform; else put a grabbed model back; else drop the selection; else leave the editor |
 | G, R, T; X, Y, Z; 1, 2, 3; L | The [gizmo](#gizmos)'s, only while the right button is not held |
@@ -149,10 +149,10 @@ map without a server walks with its own movement.
 | `mapedit_panel` | Open [the panel](#the-panel) (turning the editor on) |
 | `mapedit_hide [group]` | Hide the selected prop or surface (`group`: the whole merged model); on a placed model, remove it |
 | `mapedit_place [model]` | Place an MD3 where you aim, facing you: the path given, or a copy of the selected model |
-| `mapedit_turn [degrees]` | Turn the current placed model (15 by default) |
-| `mapedit_move <up> \| <x y z>` | Move it |
-| `mapedit_scale <factor>` | Scale it (0.01 to 64 times) |
-| `mapedit_grab` | It follows your aim until `mapedit_grab` again; meanwhile the mouse wheel turns it (15 degrees a notch, 1 with Shift) instead of changing weapon |
+| `mapedit_turn [degrees]` | Turn the current placed model (15 by default); a multiple selection's placed models all turn about Z through their middle |
+| `mapedit_move <up> \| <x y z>` | Move it (a multiple selection's placed models: all of them) |
+| `mapedit_scale <factor>` | Scale it (0.01 to 64 times); a multiple selection's placed models grow about their middle, their origins spreading |
+| `mapedit_grab` | It follows your aim until `mapedit_grab` again; meanwhile the mouse wheel turns it (15 degrees a notch, 1 with Shift) instead of changing weapon. One model at a time: refused on a multiple selection of placed models (G moves them) |
 | `mapedit_set <id> <x y z> <pitch yaw roll> [<sx sy sz>]` | Set a placed model exactly (the [gizmos](#gizmos)' command); repeated in groups of ten (with the scale) it sets several at once, all or none, one step to undo |
 | `mapedit_remap <shader> \| -` | Draw `shader` instead of the selected one; `-` removes that remap edit. On a caulk or nodraw face: draw that face with `shader`, `-` draws it as nothing again (as does `mapedit_hide`). On a sky: a texture covers that side, a sky shader swaps the sky |
 | `mapedit_sky <sky> \| - [all]` | Swap the selected sky for sky shader `sky` (`all`: every sky of the map, without a selection); `-` puts the map's back |
@@ -163,10 +163,12 @@ map without a server walks with its own movement.
 | `mapedit_undo`, `mapedit_redo` | Undo the last change to the map's edits (a hide, a placing, a turn, a move, a remap, a delete), or redo it |
 | `mapedit_publish` | Send the map's document to the hub for every SJK player |
 
-With a multiple selection (more than one surface or face), `mapedit_hide` hides its
-surfaces and draws its faces as nothing again, and `mapedit_remap` draws its faces with the
-shader and remaps its surfaces' shaders (`-` takes those edits away), each in one step to
-undo, as the page's batch (`map_edit_many`); Hide whole model takes one surface alone.
+With a multiple selection (more than one surface, face or placed model), `mapedit_hide`
+hides its surfaces, draws its faces as nothing again and removes its placed models, and
+`mapedit_remap` draws its faces with the shader and remaps its surfaces' shaders (`-` takes
+those edits away; placed models keep theirs), each in one step to undo, as the page's batch
+(`map_edit_many`); Hide whole model takes one surface alone. `mapedit_turn`, `_move` and
+`_scale` act on its placed models together as one `mapedit_set`, one step to undo.
 
 Every change is saved to the map's document at once and drawn at once; it reaches other
 players only with `mapedit_publish`, whose answer (published with the hub's revision, or
@@ -189,13 +191,25 @@ While the editor is on a selection never goes stale (a world note's waits 20 sec
 until the map changes.
 
 **Multiple selection** (04/11/2026, the page's in game): Shift+click (or Shift and the
-world-note key) adds the surface or hidden face (caulk, nodraw or sky side) under the
-pointer, or takes it out; a model is selected alone (a Shift+click on one says so), up to
-1024 in all (`world_notes` `toggle_in`). Each one is outlined and shaded as the selection
-is; the panel names the newest ("Hidden face and 11 more"). Hide, Remap (Draw, Cover side),
-Remove remap (Draw nothing) and Fill act on all of them as one step to undo; Same plane and
-Connected replace them with the faces joined to the newest. A gizmo moves one placed model
-at a time in game (the page moves several).
+world-note key) adds the surface, hidden face (caulk, nodraw or sky side) or placed model
+under the pointer, or takes it out; a map prop or a game entity is selected alone (a
+Shift+click on one says so), up to 1024 in all and 256 placed models (what one `mapedit_set`
+sets, so a gizmo's drag stays one step to undo; `world_notes` `toggle_in`). Placed models
+mix with surfaces and faces, as in the page. Each one is outlined and shaded as the
+selection is, a placed model's outline following it as it moves; the panel names the
+newest ("Hidden face and 11 more"). Hide, Remap (Draw, Cover side), Remove remap (Draw
+nothing) and Fill act on all of them as one step to undo (Hide removes the placed models
+too; a remap and Fill leave them); Same plane and Connected replace them with the faces
+joined to the newest.
+
+**Several placed models** (04/11/2026): with only placed models selected, Selected says
+"3 models selected" and offers Remove all, Turn left and right, Up and Down, Left, Right,
+Away and Closer, Smaller and Bigger, each acting on all of them about their middle in one
+step to undo; Grab takes one model at a time (its button is off, `mapedit_grab` says to
+use G). Place's placed-model buttons do the same on the set ("3 selected: these move them
+all"). A set mixing placed models with surfaces or faces keeps the newest's page, says how
+many placed models it holds ("2 placed models among them: G R T move them"), and its Hide
+all takes everything. The [gizmo](#gizmos) stands at the set's middle.
 
 | Page | Offers |
 | --- | --- |
@@ -250,10 +264,14 @@ or a factor (with no axis: along X, about the view's axis, on all three); Enter 
 or a click) puts it down, Esc or a right click takes it back. 1, 2 and 3 choose the
 gizmo's mode, L the axes.
 
-Several placed models move, turn and scale together about the middle of their origins:
-in the page, Shift+click adds placed models to the multiple selection (each outlined), and
-one `mapedit_set` sets them all. Along an axis, each model scales along its own axis
-nearest it.
+Several placed models move, turn and scale together about the middle of their origins (the
+pivot, where the handles stand): each origin orbits the pivot as each model turns by as
+much, and grows away from it as each model grows; one `mapedit_set` sets them all, one step
+to undo (256 models at most, which the selection keeps to). Along an axis, each model
+scales along its own axis nearest it. Local axes (L, or an axis key twice) are the newest
+model's, the one clicked last (Blender's active object), in game and in the page alike.
+Shift+click adds placed models to the multiple selection in both (each outlined); Esc
+takes the whole transform back.
 
 In game the gizmo shows with the panel (flying too), on the selected placed model, else
 the current one (Place's), and a press on a handle in the scene drags it; G, R and T, 1, 2,
@@ -262,9 +280,10 @@ movement keys fly then; S is one of them, which is why scale is T), and while a 
 runs every key is its own and the right button takes it back instead of flying. The keys
 lines at the panel's foot say `G R T gizmo`, and X Y Z, Enter and Esc while it transforms;
 the answer line names the change as it goes (`Move 16.0 0.0 0.0 (typed 16)`). A transform
-makes the model the current one and drops the selection's outline (it would stay where the
-model was). In game the multiple selection holds surfaces and faces only, so the gizmo
-moves one model at a time.
+makes the model (a set's newest) the current one and keeps the selection, whose outline
+follows the models (`world_notes` `follow_placed`, also after an undo). In game the gizmo
+is on the multiple selection's placed models when it holds any, so a set mixing models and
+faces moves its models.
 
 In the page, the bar at the view's top left has Move, Rotate, Scale, Local and the three
 snapping steps, and the change under way; the controls card lists the keys. Your own
@@ -377,8 +396,10 @@ to the selection, or takes it out; the panel counts them and every one is drawn 
 selection is. A shader then applies to all of them at once, from the list, Remap, a Recent
 tile, a paste or Fill: each face is drawn with it and each surface's shader is remapped
 (the panel says so: a remap affects every surface with that shader, anywhere on the map).
-Hide hides the surfaces and draws the faces as nothing again. Either is one step to undo,
-whatever the count (`apply_many`, `hide_many`: `map_edit_many` in
+Hide hides the surfaces, draws the faces as nothing again and removes the set's placed
+models (`hide_many`'s `placed`, 04/11/2026; before, a set of placed models only could not
+be hidden). Either is one step to undo, whatever the count (`apply_many`, `hide_many`:
+`map_edit_many` in
 [editor.rs](../crates/sjk-viewer/src/map_edits/editor.rs)). Esc stops placing, else drops
 the selection.
 
@@ -558,6 +579,18 @@ draws one sky, the map's first (a map with several shows the first one's swap on
   under Limits). Not tried in a running client: the flight with the real mouse and keys,
   the free camera's start and end with the editor, the bind leaving from the panel, and
   Shift+click with a real Shift.
+- Several placed models in game (04/11/2026): unit tests of the set's maths (a pivot, G X X
+  along the newest's own axis against G X along the world's, R Z 90 orbiting the origins
+  and turning each model, T 2 spreading them, Esc keeping the start, one `mapedit_set` of
+  ten numbers a model), the selection rules (placed models join and leave, mix with faces,
+  a map prop still alone, 256 placed at most), a placed model's outline following it (moved,
+  turned and halved), Remove all and Turn left on a set as one step to undo each, `hide_many`
+  with `placed`, and the panel's pages ("3 models selected", the mixed line, Place on a
+  set). The world shot `ingame_gizmo_on_a_set_of_placed_models` on retail ffa3: three
+  crates Shift+clicked into the set, the rotate gizmo at their middle, R Z 90 previewed and
+  put down as one step (each origin within 0.05 units of its turn about the pivot), the
+  outlines following, an undo bringing all three back. Not tried in a running client: the
+  keys and drags with the real pointer, and the page's `hide_many` with placed models.
 - The sky (04/11/2026): unit tests (a sky side picked, checked and met on a synthetic map
   while a sky-flagged liquid is refused; the brush view's `sky` kind and a link that takes
   sky only; sky links never reach caulk; the sky list and its pictures; a sky swap as

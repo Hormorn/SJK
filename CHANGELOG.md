@@ -32,6 +32,19 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Quests, a new toy (`toy_quests`: Collection > Toys, the quick wheel's Toys group, Key bindings > Interaction): with it on, now and then you may be given a quest, such as hugging or kissing two other players within a minute, and find an Echo for it (one of the day's Echoes, sooner), or be one of the players named; only players with it on take part _(Slash, after wonner67's idea)_
+
+## 2026.1105.1 (Alpha) | 05/11/2026
+
+The Saber Lab, finishers, new vehicle HUDs, sharpening, aliases, whisper picking and a JoF anti-cheat fix.
+
+> Saber Lab: Build and tune a blade skin with `saberlab` and watch your model swing it as you save.
+> Finishers: A new collectible for what your saber kills do, starting with Disintegrate.
+> HUD: Vehicles show their speed, ammo and turbo, and a new SJK classic HUD runs along the bottom.
+> Graphics: A sharpening slider (`r_sharpen`) and a nameplate opacity setting.
+> Chat and console: Pick whom you whisper, copy links with Ctrl+C, and make your own commands with `alias`.
+> JoF: No more Heimdall kicks for repeated moves in your packets.
+
 = s_muteEmotesInDuel: Mute emotes in duels: emote sounds are silent while you are in a duel, and come back once it ends.
 
 - The Saber Lab (`saberlab <folder>`): make and tune a blade skin from a folder of files, its saber redrawn each time you save, with a file's mistake named on the Shaders tab, and a Saber Lab tab where your model swings it on your own hilts: turn and tilt the camera round it or watch from behind as in a match, set the swing speed, light and put out the blade with or without the flourish, hear or mute its sounds (its hum and crackle too), clash it, see its trail, preview any blade, owned or not, and build the blade: every effect a card you drag into its groups, the Parts its wearer switches on and off, each opened to tune its settings as you watch, with undo and a Revert to the files as they were before your first change; blade skins can now smoke from the emitter, in puffs or wispy ribbons, crackle with sparks, flash light onto the room, surge as they light, sputter out, ripple the air as they ignite, throw their arcs up the blade on a clash, and crackle aloud in a match _(Milamber)_
@@ -40,7 +53,6 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Ragdoll: a small or big player (a youngling or a jawa the server shrank) stays their size when they go limp, and their body lies on the floor at that size, instead of growing to full size (hub report #223) _(Slash, after Rollembones' report)_
 - Copy a link from the chat: with the chat open, rest the pointer on a link in a message (it lights up) and press Ctrl+C to copy it; "Link copied" shows under the field _(Slash, after AngeloPapaya's idea)_
 - `vid_restart force` reloads the graphics even when no graphics setting changed, as the original game's `vid_restart` always restarted the renderer; plain `vid_restart` still reloads them only after a change _(Slash, after Blep's idea)_
-- Quests, a new toy (`toy_quests`: Collection > Toys, the quick wheel's Toys group, Key bindings > Interaction): with it on, now and then you may be given a quest, such as hugging or kissing two other players within a minute, and find an Echo for it (one of the day's Echoes, sooner), or be one of the players named; only players with it on take part _(Slash, after wonner67's idea)_
 - Linux starts after an update again: the client requests the same main-thread stack allowance as Windows and macOS, within the system hard limit _(Bishop-R)_
 - Fishing: sell your fished junk to the SJK hub for a few credits (at most 15 a day), from the Fishing card in Collection > Toys, or with `fishing_sell`; `fishing_log` prints your whole fish log; once the hub turns it on _(Slash, PR #349, after Sanji's idea)_
 - Fishing: a bite shows on screen when you can't hear it, a "!" over the float (gold for an Echo) and "Bite! Press Use!"; Settings > Sound > Toys "Fishing bite cue" (`cg_fishingBiteCue`: off, when the sound is off, always) _(Slash, PR #350)_
@@ -54,6 +66,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Whispers show whom you write to: the recipient has a line of its own under the chat buttons, the whole name in its colours; with several players who whispered you, `<` and `>` (or Alt+Left and Alt+Right) step between them, and a click on the name lists them all to pick one _(Slash, after Creo's idea)_
 - Vehicle HUD: the speed, ammo and turbo of the vehicle you pilot show beside its health: Text only as numbers around it, SJK radial as cyan, orange and turbo arcs under the crosshair with their numbers; the turbo is red while it recharges, green when ready and bright while it boosts _(Slash, after Kushina's report)_
 - New SJK classic HUD with no background behind it: health and armour bottom left, Force bottom right, and bottom centre your weapon and its ammo on foot, or the vehicle's HP, speed, turbo and each gun's ammo while you pilot one _(Slash)_
+- JoF: your packets no longer repeat the moves of the packet before (`cl_packetdup` counts as 0 there), which Heimdall, JoF's anti-cheat, kicked SJK players for; `cl_packetdup_nocap 1` keeps your `cl_packetdup` _(Sol, after Milamber; Turin's report)_
 
 ## 2026.1103.2 (Alpha) | 03/11/2026
 

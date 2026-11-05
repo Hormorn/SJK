@@ -208,6 +208,11 @@ impl ViewerConsole {
             console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::MAP_CVAR)?;
         let draw_fog = console_cvars::IntegerSetting::bind(&mut cvars, "r_drawfog", 2)?;
         let packet_dup = console_cvars::IntegerSetting::bind(&mut cvars, "cl_packetdup", 1)?;
+        let packet_dup_lifted = console_cvars::IntegerSetting::bind(
+            &mut cvars,
+            crate::server_caps::PACKET_DUP_OVERRIDE_CVAR,
+            0,
+        )?;
         let max_packets = console_cvars::IntegerSetting::bind(
             &mut cvars,
             "cl_maxpackets",
@@ -680,6 +685,7 @@ impl ViewerConsole {
             remap_allowed_maps,
             remap_map_choice,
             packet_dup,
+            packet_dup_lifted,
             max_packets,
             gameplay_fps,
             frame_cap: crate::runtime_settings::STOCK_FPS_CAP,
@@ -1034,6 +1040,17 @@ impl ViewerConsole {
                     " (gameplay_fps_nocap 1 lifts it)"
                 }
             ));
+            if let Some(most) = cap.max_packet_dup {
+                self.shell.push_log(format!(
+                    "cl_packetdup: {} servers take {most} repeated packets at most{}",
+                    cap.name,
+                    if self.server_packet_dup_cap().is_none() {
+                        ", but cl_packetdup_nocap 1 lifts the cap"
+                    } else {
+                        " (cl_packetdup_nocap 1 lifts it)"
+                    }
+                ));
+            }
         }
         self.input_health.reset();
         // The same server's free-saber word survives its map changes.

@@ -18,6 +18,23 @@ on a live server: that JA+ puts the target in `BOTH_HUGGEE1` for `amhug` is read
 animation table, not seen; the Toys tab's new row is not seen on screen. Not done: a
 quest card on screen, other kinds.
 
+## No repeated commands on JoF (Heimdall kicks)
+
+04/11/2026, `personal/jof-packetdup` from `main` `ba165c38`: Turin was kicked by
+Heimdall, JoF's anti-cheat, a few times on 2026.1103.2, and Milamber, who maintains
+Heimdall (closed source), told Sol that `cl_packetdup` is the reason. JoF's entry in
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs) now caps it at 0
+(`max_packet_dup`): each packet carries only its new commands there, whatever the
+player's `cl_packetdup` (default 1), and `cl_packetdup_nocap 1` lifts the cap
+(`gameplay_fps_nocap` does not). JoF EJK repeats one packet whatever its
+`cl_packetdup`, so SJK now differs from it there; why Heimdall judges SJK's repeats
+and not JoF EJK's is not known. Turin's logs showed no kick: the request's 200 KB of
+the session began at the reconnect after one. He also had `gameplay_fps_nocap 1`,
+which brings the grid's past-stamped catch-up commands back on JoF (above); that stays
+as it was. Verified on Windows 11: unit tests (JoF's cap, lifted only by its own cvar,
+other servers unchanged). Not verified: in a game, on JoF, or that Heimdall stops
+kicking.
+
 ## Finishers (Disintegrate first)
 
 04/11/2026, `personal/finishers` from `main` `e7cfcc07`, Sol's decision: the Saber Lab's

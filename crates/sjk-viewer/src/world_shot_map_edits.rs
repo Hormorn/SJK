@@ -302,6 +302,183 @@ fn duel6_map_editor_gizmo() {
     });
 }
 
+/// The in-game gizmo on a set of placed models (ffa3, `SJK_GIZMO_MAP`): three retail
+/// crates placed in a row before the first spawn, each Shift+clicked into the
+/// selection, the rotate gizmo drawn at their middle, then R Z 90 previewed and put down
+/// as one `mapedit_set` (one step to undo): every origin orbits the pivot, every model
+/// turns by 90 degrees, and the selection's outline follows them.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn ingame_gizmo_on_a_set_of_placed_models() {
+    use crate::map_edits::gizmo::{ModalKey, Mode};
+    on_big_stack(|| {
+        let map = std::env::var("SJK_GIZMO_MAP").unwrap_or_else(|_| "ffa3".to_owned());
+        let Some((mut gpu, _profile)) =
+            open(&format!("maps/mp/{map}.bsp"), [1920, 1080], None, &[])
+        else {
+            return;
+        };
+        if let Some(console) = gpu.console.as_mut() {
+            console.close_for_connection();
+        }
+        let (spawn, facing) = assets::initial_camera(&gpu.bsp).expect("a spawn point");
+        let spawn = Vec3::from_array(spawn);
+        let ahead = Vec3::new(facing.cos(), facing.sin(), 0.0);
+        let side = Vec3::new(-ahead.y, ahead.x, 0.0);
+        // A retail crate (ffa3 places no MD3 props of its own).
+        let model = "models/map_objects/factory/s_crate_01.md3";
+        // Three in a row on the floor ahead of the spawn, turned 0, 30 and 60 degrees.
+        let floor = |at: Vec3| {
+            gpu.decal_surfaces
+                .ray_hit(at + Vec3::Z * 16.0, -Vec3::Z, 512.0)
+                .map_or(at, |hit| at + Vec3::Z * 16.0 - Vec3::Z * hit.distance)
+        };
+        let spots: Vec<Vec3> = (0..3)
+            .map(|i| floor(spawn + ahead * 170.0 + side * ((i as f32 - 1.0) * 72.0)))
+            .collect();
+        let mut document = Document::new(&format!("mp/{map}"), 1);
+        let ids: Vec<u32> = spots
+            .iter()
+            .enumerate()
+            .map(|(i, spot)| {
+                document.add(
+                    Kind::Place {
+                        model: model.to_owned(),
+                        origin: spot.to_array(),
+                        angles: [0.0, i as f32 * 30.0, 0.0],
+                        scale: [1.0; 3],
+                    },
+                    None,
+                )
+            })
+            .collect();
+        gpu.shot_map_edits(Some(document));
+        // The client's frame work the shots skip (`refresh_map_edits` waits for a map
+        // name): the crate's mesh loaded on demand, the edits applied again after a
+        // change, the selection's outline following its models.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !gpu
+            .object_meshes
+            .iter()
+            .any(|mesh| mesh.appearance.model.eq_ignore_ascii_case(model))
+        {
+            assert!(std::time::Instant::now() < deadline, "the crate's mesh");
+            gpu.refresh_demand_models();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let document = gpu.map_edits.document.clone();
+        gpu.shot_map_edits(document);
+        assert!(
+            gpu.map_edits.wanted_models().next().is_none(),
+            "crates drawn"
+        );
+        let settle = |gpu: &mut GpuState| gpu.shot_follow_placed();
+        let middle = spots.iter().copied().sum::<Vec3>() / 3.0;
+        let camera = spawn - ahead * 40.0 + side * 40.0 + Vec3::Z * 90.0;
+        let (yaw, pitch) = look(camera.to_array(), (middle + Vec3::Z * 16.0).to_array());
+        aim(&mut gpu, camera.to_array(), yaw, pitch);
+        println!(
+            "spawn {spawn}, spots {spots:?}, {}",
+            shoot(&mut gpu, 30, "mapedit-multi-gizmo-scene").display()
+        );
+        gpu.map_edits.editor.active = true;
+        gpu.world_notes.hold_selection(true);
+        gpu.open_map_edit_panel();
+        // Shift+click each model: up its middle until the click lands on it.
+        for &id in &ids {
+            let origin = gpu.shot_placed_origin(id).expect("placed");
+            let mut added = false;
+            for lift in [8.0, 16.0, 24.0, 4.0, 32.0, 40.0, 2.0] {
+                let Some(point) = gpu.shot_project(origin + Vec3::Z * lift) else {
+                    continue;
+                };
+                let toggled = gpu.shot_map_edit_toggle(point);
+                let newest = gpu
+                    .world_notes
+                    .waiting_selection()
+                    .and_then(|s| s.placed_id());
+                println!(
+                    "{id} lift {lift} at {point:?}: {toggled:?}, newest {newest:?} {:?}",
+                    gpu.world_notes.waiting_selection().map(|s| s.summary())
+                );
+                if matches!(toggled, crate::world_notes::Toggled::Added(_)) {
+                    if newest == Some(id) {
+                        added = true;
+                        break;
+                    }
+                    // Something else (the floor) was under the pointer: out again.
+                    gpu.shot_map_edit_toggle(point);
+                }
+            }
+            assert!(added, "placed model {id} Shift+clicked into the set");
+        }
+        assert_eq!(
+            gpu.map_edit_set_ids(),
+            [ids[2], ids[1], ids[0]],
+            "newest first"
+        );
+        gpu.map_edits.panel.stale();
+        gpu.map_edits.gizmo.mode = Mode::Rotate;
+        let (targets, pivot) = gpu.shot_gizmo_targets();
+        assert_eq!(targets.len(), 3);
+        assert!(
+            pivot.distance(middle) < 0.5,
+            "the handles at the set's middle"
+        );
+        settle(&mut gpu);
+        let before = shoot(&mut gpu, 8, "mapedit-multi-gizmo-before");
+        assert!(gpu.map_edits.gizmo.list().is_some(), "the gizmo is drawn");
+        assert_eq!(gpu.map_edits.panel.facts.models, 3);
+        // R Z 9 0: the preview, then put down.
+        gpu.shot_gizmo_keys(
+            Mode::Rotate,
+            glam::Vec2::new(120.0, -40.0),
+            &[
+                ModalKey::Axis(2, false),
+                ModalKey::Typed('9'),
+                ModalKey::Typed('0'),
+            ],
+        );
+        println!("previewed: {}", gpu.map_edits.panel.status);
+        settle(&mut gpu);
+        let during = shoot(&mut gpu, 4, "mapedit-multi-gizmo-turning");
+        let committed = gpu.shot_gizmo_commit();
+        println!("put down: {committed:?}");
+        assert!(committed.is_ok(), "{committed:?}");
+        assert_eq!(
+            gpu.map_edits.history.can(),
+            (true, false),
+            "one step to undo"
+        );
+        for (id, spot) in ids.iter().zip(&spots) {
+            let now = gpu.shot_placed_origin(*id).expect("placed");
+            let offset = *spot - pivot;
+            let expected = pivot + Vec3::new(-offset.y, offset.x, offset.z);
+            assert!(now.distance(expected) < 0.05, "{id}: {now} != {expected}");
+        }
+        gpu.map_edits.panel.answer(committed);
+        gpu.map_edits.panel.stale();
+        settle(&mut gpu);
+        let after = shoot(&mut gpu, 8, "mapedit-multi-gizmo-after");
+        assert_eq!(gpu.world_notes.edit_selection_len(), 3, "the set stays");
+        // Undo: all three back where they were.
+        let undone = gpu.shot_map_edit_run("mapedit_undo", &[]);
+        println!("undo: {undone:?}");
+        // Drawn again from the document, the outline back with them.
+        let document = gpu.map_edits.document.clone();
+        gpu.shot_map_edits(document);
+        settle(&mut gpu);
+        let undone = shoot(&mut gpu, 8, "mapedit-multi-gizmo-undone");
+        for (id, spot) in ids.iter().zip(&spots) {
+            let now = gpu.shot_placed_origin(*id).expect("placed");
+            assert!(now.distance(*spot) < 0.05, "{id} back: {now} != {spot}");
+        }
+        for shot in [&before, &during, &after, &undone] {
+            println!("{}", shot.display());
+        }
+    });
+}
+
 /// A caulk face drawn by an edit (`Kind::ShowFace`): the first caulk side of `SJK_FACE_MAP`
 /// (default duel6) with open space in front and no drawn surface over it, seen from 96
 /// units out without edits, selected (the panel's Hidden face page), drawn with a wall

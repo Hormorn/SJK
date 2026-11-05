@@ -8674,6 +8674,15 @@ test: on JoF with gameplay_fps 0, play 30 min with com_maxfps 60: no Heimdall ki
 test: movement and jumps feel as before at 125+ FPS; at 60 FPS like JoF EJK.
 test: on a non-JoF server at 60 FPS, gameplay_fps 333 still moves like 333.
 
+[jof-packetdup]
+area: Gameplay
+title: JoF: no repeated commands in packets (Heimdall kicks)
+change: On JoF, cl_packetdup counts as 0: a packet carries only its new commands.
+change: cl_packetdup_nocap 1 keeps the cvar; gameplay_fps_nocap does not lift it.
+test: join JoF: the console says JoF servers take 0 repeated packets at most.
+test: play 30 min on JoF with cl_packetdup 1 (default): no Heimdall kick.
+test: on a non-JoF server the console names no cl_packetdup cap; movement as before.
+
 [white-text-outline]
 area: HUD
 title: White edge on dark text: dark letters of names and chat in a white outline
@@ -8733,6 +8742,25 @@ test: Page (mapedit_web): the same on a placed model; the bar sets snap steps an
 test: Page: Shift+click two placed models, R Z 90 Enter: both turn about their middle.
 test: Page: World, your boombox: the gizmo moves it along the floor and turns it.
 note: Mystery boxes and toys have no gizmo (the hub cannot move them). Not tried in game yet.
+
+[mapedit-multi-gizmo]
+area: Rendering & effects
+title: Map editor in game: the gizmo and the buttons move several placed models at once
+change: Shift+click adds placed models to the selection (mixed with faces too, as in the page).
+change: The gizmo stands at their middle; G R T turn and scale them about it, one undo step.
+change: Selected says "3 models selected": Remove all, Turn, Up/Down, nudges, Smaller/Bigger.
+test: Place 3 crates, Shift+click each: "3 models selected", each outlined, gizmo in the middle.
+test: R, Z, 90, Enter: they turn round their middle, each faces 90 more; Ctrl+Z: all back.
+test: G, X, X, 32, Enter: all move 32 along the last clicked crate's own forward axis.
+test: G, move, Esc: all three back where they were, nothing saved.
+test: Drag the blue ring with Ctrl: all turn in 15 degree steps; the outlines follow them.
+test: T, 2, Enter: they spread from the middle and double; Smaller: all shrink back a step.
+test: Turn left, Up, Away on Selected: all move together, one Ctrl+Z each.
+test: Remove all: the three go in one step; Ctrl+Z brings all three back.
+test: Grab with 3 selected: off, mapedit_grab says one model at a time.
+test: Shift+click a crate and a caulk face: Hide all removes the crate and hides the face.
+test: Page: Shift+click two placed models, Hide 2: both removed (it did nothing before).
+note: Not tried in a running game yet: world shot on ffa3 and unit tests only.
 
 [mapedit-ingame]
 area: Rendering & effects

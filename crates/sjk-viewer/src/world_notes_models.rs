@@ -236,6 +236,7 @@ pub(super) fn pick_model(
             origin: text("origin"),
             shaders: Vec::new(),
         },
+        origin: Vec3::from_array(spawn.origin),
         angles: spawn.angles,
         scale: spawn.scale,
         skin: entity

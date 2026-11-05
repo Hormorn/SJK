@@ -145,8 +145,26 @@ impl GpuState {
                 faces,
                 surfaces,
                 shader,
-            } => self.map_edit_many(faces, surfaces, Some(shader)),
-            EditRequest::HideMany { faces, surfaces } => self.map_edit_many(faces, surfaces, None),
+            } => {
+                let many = crate::map_edits::editor::Members {
+                    faces: faces.clone(),
+                    surfaces: surfaces.clone(),
+                    placed: Vec::new(),
+                };
+                self.map_edit_many(&many, Some(shader))
+            }
+            EditRequest::HideMany {
+                faces,
+                surfaces,
+                placed,
+            } => {
+                let many = crate::map_edits::editor::Members {
+                    faces: faces.clone(),
+                    surfaces: surfaces.clone(),
+                    placed: placed.clone(),
+                };
+                self.map_edit_many(&many, None)
+            }
             EditRequest::Current { id } => {
                 let placed = self.map_edits.document.as_ref().is_some_and(|document| {
                     document

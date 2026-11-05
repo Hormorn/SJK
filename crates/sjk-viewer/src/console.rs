@@ -333,6 +333,8 @@ pub(crate) struct ViewerConsole {
     /// Changes of `cg_serverRemapsMap`, the loaded map's choice.
     remap_map_choice: console_cvars::RevisionSetting,
     packet_dup: console_cvars::IntegerSetting,
+    /// `cl_packetdup_nocap`: 1 lifts the known servers' `cl_packetdup` caps.
+    packet_dup_lifted: console_cvars::IntegerSetting,
     max_packets: console_cvars::IntegerSetting,
     /// `gameplay_fps`, and the server's `pmove_fixed`/`pmove_msec` that override it.
     gameplay_fps: console_cvars::IntegerSetting,
@@ -462,11 +464,24 @@ impl ViewerConsole {
         self.time_nudge.millis()
     }
 
-    /// Cached `cl_packetdup`, clamped like the stock client (0 to 5).
+    /// Cached `cl_packetdup`, clamped like the stock client (0 to 5), and to the
+    /// server's known [`crate::server_caps::ServerCap::max_packet_dup`] (JoF's 0)
+    /// unless the player lifted that.
     pub(crate) fn packet_dup(&self) -> usize {
-        self.packet_dup
-            .value()
-            .clamp(0, sjk_client::command_history::MAX_PACKET_DUP as i64) as usize
+        let wanted =
+            self.packet_dup
+                .value()
+                .clamp(0, sjk_client::command_history::MAX_PACKET_DUP as i64) as usize;
+        self.server_packet_dup_cap()
+            .map_or(wanted, |cap| wanted.min(cap))
+    }
+
+    /// The most packets a packet repeats on this server, when it is known to take
+    /// fewer than `cl_packetdup` allows and the player has not lifted that.
+    pub(crate) fn server_packet_dup_cap(&self) -> Option<usize> {
+        self.server_cap
+            .and_then(|cap| cap.max_packet_dup)
+            .filter(|_| !self.packet_dup_lifted.enabled())
     }
 
     /// Cached `cl_maxpackets`; [`sjk_client::command_rate::PacketPacer`] clamps it.
