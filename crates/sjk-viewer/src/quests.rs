@@ -84,8 +84,10 @@ pub(crate) struct Quests {
     stale: bool,
     /// Whether the last read said the player was away; a change is read at once.
     away: Option<bool>,
-    /// The quest last told, by its player's slot and end, so each is told once.
+    /// The quest last told, by its player's slot and end, so each is told once, and when
+    /// (its card pulses as it arrives).
     told: Option<(u8, i64)>,
+    told_at: Option<Instant>,
     /// When the quest last read ends, by this client's clock ([`END_EARLY`] before the
     /// hub's).
     ends: Option<Instant>,
@@ -230,6 +232,122 @@ fn failed_words(own: u8, slot: u8, name: &str) -> (bool, String) {
     }
 }
 
+/// A player of the quest this client's player should find, marked over their head with an
+/// arrow pointing their way (`mystery_box::label`): the quest's targets still to do for
+/// its player, the quest's player for a target.
+pub(crate) struct Marked {
+    pub(crate) slot: u8,
+    pub(crate) headline: String,
+    pub(crate) line: String,
+}
+
+/// The quest's card at the top of the screen (`mystery_box::label`, under the box hunt's):
+/// a caption with the seconds left, and what the player is to do or wait for.
+pub(crate) struct QuestCard {
+    pub(crate) caption: String,
+    pub(crate) line: String,
+    /// The player is the quest's own (a brighter plate).
+    pub(crate) own: bool,
+    /// When it was told: it pulses as it arrives.
+    pub(crate) since: Instant,
+}
+
+/// Who `own` marks in `quest` asking for `emote`: its targets still to do for its player,
+/// its player for a target still to do.
+fn marked(own: u8, quest: &Quest, emote: Emote) -> Vec<Marked> {
+    if quest.slot == own {
+        return quest
+            .targets
+            .iter()
+            .filter(|target| !target.done)
+            .map(|target| Marked {
+                slot: target.slot,
+                headline: emote.verb().to_uppercase(),
+                line: format!("Quest: /{}", emote.command()),
+            })
+            .collect();
+    }
+    if quest.awaits(own) {
+        return vec![Marked {
+            slot: quest.slot,
+            headline: "QUEST".to_owned(),
+            line: format!("They must {} you", emote.verb()),
+        }];
+    }
+    Vec::new()
+}
+
+/// What the quest's card says to `own`, `left` seconds before the quest ends: None for a
+/// player it does not name.
+fn card_words(own: u8, quest: &Quest, emote: Emote, left: u64) -> Option<(String, String)> {
+    let caption = format!("QUEST \u{b7} {left}s LEFT");
+    if quest.slot == own {
+        let names: Vec<String> = quest
+            .targets
+            .iter()
+            .map(|target| {
+                if target.done {
+                    format!("{}^7 (done)", target.name)
+                } else {
+                    target.name.clone()
+                }
+            })
+            .collect();
+        let verb = emote.verb();
+        let line = format!(
+            "{}{} {}^7",
+            verb[..1].to_uppercase(),
+            &verb[1..],
+            listed(&names)
+        );
+        return Some((caption, line));
+    }
+    let target = quest.targets.iter().find(|target| target.slot == own)?;
+    let line = if target.done {
+        format!("{}^7 {} you", quest.name, emote.done())
+    } else {
+        format!("{}^7 must {} you", quest.name, emote.verb())
+    };
+    Some((caption, line))
+}
+
+impl GpuState {
+    /// The quest's players this client's player should find, while it takes part and the
+    /// quest lasts.
+    pub(crate) fn quest_marked(&self) -> Vec<Marked> {
+        let Some((own, quest, emote)) = self.quest_in_play(Instant::now()) else {
+            return Vec::new();
+        };
+        marked(own, quest, emote)
+    }
+
+    /// The quest's card at `now`, while the player takes part and the quest names them.
+    pub(crate) fn quest_card(&self, now: Instant) -> Option<QuestCard> {
+        let (own, quest, emote) = self.quest_in_play(now)?;
+        let ends = self.quests.ends?;
+        let left = ends.saturating_duration_since(now).as_secs_f32().ceil() as u64;
+        let (caption, line) = card_words(own, quest, emote, left)?;
+        Some(QuestCard {
+            caption,
+            line,
+            own: quest.slot == own,
+            since: self.quests.told_at.unwrap_or(now),
+        })
+    }
+
+    /// The player's slot, the quest under way and its emote, while the player takes part,
+    /// the quest is a social one and its end has not come by this client's clock.
+    fn quest_in_play(&self, now: Instant) -> Option<(u8, &Quest, Emote)> {
+        if !self.quests.on() || self.quests.ends.is_none_or(|ends| now >= ends) {
+            return None;
+        }
+        let session = self.live_session.as_ref()?;
+        let own = u8::try_from(session.game_state().client_num).ok()?;
+        let quest = self.quests.quest()?;
+        Some((own, quest, quest.social()?))
+    }
+}
+
 impl GpuState {
     /// `toy_quests`: on or off, said on the centre of the screen.
     pub(crate) fn toggle_quests(&mut self) {
@@ -316,6 +434,7 @@ impl GpuState {
                 .collect();
             let words = given_words(own, quest.slot, &quest.name, emote, &targets);
             quests.told = Some((quest.slot, quest.until));
+            quests.told_at = Some(now);
             lines.push(words);
         }
         for event in events.iter().filter(|event| event.toy == wire::TOY) {
@@ -419,6 +538,64 @@ impl GpuState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn quest(done: bool) -> Quest {
+        Quest {
+            kind: "social".to_owned(),
+            slot: 4,
+            name: "Al".to_owned(),
+            emote: "hug".to_owned(),
+            targets: vec![
+                wire::QuestTarget {
+                    slot: 2,
+                    name: "Bo".to_owned(),
+                    done,
+                },
+                wire::QuestTarget {
+                    slot: 7,
+                    name: "Cy".to_owned(),
+                    done: false,
+                },
+            ],
+            until: 100,
+            left: 42,
+            reward: "echo".to_owned(),
+        }
+    }
+
+    /// The quest's player marks its targets still to do; a target marks the quest's player
+    /// until done; anyone else marks nobody.
+    #[test]
+    fn each_player_marks_whom_they_should_find() {
+        let slots = |own, quest: &Quest| -> Vec<u8> {
+            marked(own, quest, Emote::Hug)
+                .iter()
+                .map(|m| m.slot)
+                .collect()
+        };
+        assert_eq!(slots(4, &quest(false)), vec![2, 7]);
+        assert_eq!(slots(4, &quest(true)), vec![7]);
+        assert_eq!(slots(2, &quest(false)), vec![4]);
+        assert!(slots(2, &quest(true)).is_empty());
+        assert!(slots(9, &quest(false)).is_empty());
+        let over = &marked(4, &quest(false), Emote::Kiss)[0];
+        assert_eq!(
+            (over.headline.as_str(), over.line.as_str()),
+            ("KISS", "Quest: /amkiss")
+        );
+    }
+
+    #[test]
+    fn the_card_counts_down_and_says_what_is_left() {
+        let (caption, line) = card_words(4, &quest(true), Emote::Hug, 42).unwrap();
+        assert_eq!(caption, "QUEST \u{b7} 42s LEFT");
+        assert_eq!(line, "Hug Bo^7 (done)^7 and Cy^7");
+        let (_, line) = card_words(7, &quest(true), Emote::Kiss, 5).unwrap();
+        assert_eq!(line, "Al^7 must kiss you");
+        let (_, line) = card_words(2, &quest(true), Emote::Hug, 5).unwrap();
+        assert_eq!(line, "Al^7 hugged you");
+        assert!(card_words(9, &quest(true), Emote::Hug, 5).is_none());
+    }
 
     /// The emotes' animations are the game's paired halves, the kissed one the number
     /// anti-kiss answers.

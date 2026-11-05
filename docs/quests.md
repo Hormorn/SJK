@@ -31,6 +31,19 @@ finished one with that day, so a few friends cannot farm each other (Slash,
 - The player given it sees it in the centre of the screen ("Quest! hug A and B within a
   minute, face them and use /amhug"); each target is told to stay close; everyone else
   taking part reads it in the chat.
+- **Finding each other** (05/11/2026): a minute is short on a big map, so the quest's
+  player sees, over each target still to do, the emote's name in gold ("HUG", "Quest:
+  /amhug") and a gold arrow pointing at them through walls, and each target sees the same
+  over the quest's player ("QUEST", "They must hug you") until they are done. These are
+  the box hunt's label and arrow (`mystery_box/label.rs`): the label hidden behind walls
+  and far away, the arrow over the player when in view, else on a ring round the
+  crosshair pointing their way, while the game server sends that player.
+- **The card** (05/11/2026): while the quest lasts, the player given it and its targets
+  see a card at the top centre (under the box hunt's when both show), gold edged, its edge
+  pulsing as it arrives: "QUEST · 42s LEFT" counting down by this client's clock, over
+  what is left ("Hug Nib (done) and Sanji"; for a target "Al must hug you", then "Al
+  hugged you"). The card hides with the world's words (menus, console, scoreboard,
+  intermission).
 - **Proof.** The hub never sees an emote. A target's client watches its own player
   state from the game server (never the prediction): the frame its player goes into the
   received half of the quest's emote (`BOTH_HUGGEE1` for a hug, `BOTH_KISSEE` for a
@@ -52,6 +65,7 @@ already started and counts.
 
 ## Not yet
 
-A quest's own card on the screen (the box hunt's style), more kinds (an emote before a
-player, a duel against one), and quests for weekend events. A hunt is not a kind of its
+A sound as a quest is given (each toy's sounds have a switch of their own in Settings >
+Sound > Toys, which Quests does not have yet), more kinds (an emote before a player, a duel
+against one), and quests for weekend events. A hunt is not a kind of its
 own: the [box hunt](mystery-boxes.md#box-hunt) is one.

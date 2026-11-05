@@ -32,7 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- Quests, a new toy (`toy_quests`: Collection > Toys, the quick wheel's Toys group, Key bindings > Interaction): with it on, now and then you may be given a quest, such as hugging or kissing two other players within a minute, and find an Echo for it (one of the day's Echoes, sooner), or be one of the players named; only players with it on take part _(Slash, after wonner67's idea)_
+- Quests, a new toy (`toy_quests`: Collection > Toys, the quick wheel's Toys group, Key bindings > Interaction): with it on, now and then you may be given a quest, such as hugging or kissing two other players within a minute, and find an Echo for it (one of the day's Echoes, sooner), or be one of the players named; a card at the top counts the seconds down, and gold arrows point you and the players named at each other; only players with it on take part _(Slash, after wonner67's idea)_
 
 ## 2026.1105.1 (Alpha) | 05/11/2026
 

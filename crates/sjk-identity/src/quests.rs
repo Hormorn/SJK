@@ -45,6 +45,14 @@ impl Emote {
             Self::Kiss => "kiss",
         }
     }
+
+    /// The verb once done, for the player's eyes.
+    pub fn done(self) -> &'static str {
+        match self {
+            Self::Hug => "hugged",
+            Self::Kiss => "kissed",
+        }
+    }
 }
 
 /// One player a quest names.
