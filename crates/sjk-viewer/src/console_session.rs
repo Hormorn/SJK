@@ -659,6 +659,8 @@ impl ViewerConsole {
             pending_mining: None,
             fishing_card: Default::default(),
             pending_fishing_sell: false,
+            mining_card: Default::default(),
+            pending_mining_sell: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,

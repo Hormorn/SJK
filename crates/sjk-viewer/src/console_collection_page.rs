@@ -214,6 +214,7 @@ impl ViewerConsole {
                 self.mining_on = on;
             }
             PanelAction::SellJunk => self.pending_fishing_sell = true,
+            PanelAction::SellRubble => self.pending_mining_sell = true,
             PanelAction::Monitor(on) => {
                 self.pending_monitor = Some(on);
                 self.monitor_on = on;
@@ -357,6 +358,23 @@ impl ViewerConsole {
     /// The viewer gives the Fishing card its catches and sale.
     pub(crate) fn set_fishing_card(&mut self, card: crate::fishing_sell::Card) {
         self.fishing_card = card;
+    }
+
+    /// Whether the Mining card is on show (the Collection open on Toys, Mining chosen).
+    pub(crate) fn mining_card_shown(&self) -> bool {
+        self.collection_panel.is_open()
+            && self.collection_panel.tab() == Tab::Toys
+            && self.collection_panel.mining_chosen()
+    }
+
+    /// The viewer gives the Mining card its finds and sale.
+    pub(crate) fn set_mining_card(&mut self, card: crate::fishing_sell::Card) {
+        self.mining_card = card;
+    }
+
+    /// The Mining card's Sell rubble button was pressed, once.
+    pub(crate) fn take_mining_sell_request(&mut self) -> bool {
+        std::mem::take(&mut self.pending_mining_sell)
     }
 
     /// The Fishing card's Sell junk button was pressed, once.
@@ -525,6 +543,7 @@ impl ViewerConsole {
         let fishing = self.fishing_on;
         let mining = self.mining_on;
         let fishing_card = self.fishing_card.clone();
+        let mining_card = self.mining_card.clone();
         let stock = self.stock_blade();
         // Tiles unless the list is chosen (`ui_shaderList 1`).
         let grid = self.integer_cvar(super::collection_panel::SHADER_VIEW_CVAR) != Some(1);
@@ -595,6 +614,7 @@ impl ViewerConsole {
                 fishing,
                 mining,
                 fishing_card: Some(&fishing_card),
+                mining_card: Some(&mining_card),
                 name: &name,
                 stock,
                 grid,
@@ -634,6 +654,7 @@ impl ViewerConsole {
             fishing,
             mining,
             fishing_card: Some(&fishing_card),
+            mining_card: Some(&mining_card),
             name: &name,
             stock,
             grid,

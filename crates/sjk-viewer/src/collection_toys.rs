@@ -268,9 +268,9 @@ const TOYS: [Toy; TOY_COUNT] = [
         name: "Mining",
         tag: "Break the boulders that come up round you for ore.",
         title: "Mining",
-        what: "Take a pickaxe and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and another comes up elsewhere. When it glints, strike: a clean strike counts twice and digs out rarer ore. Other SJK players see your pickaxe; the boulders are yours alone.",
+        what: "Take a pickaxe and boulders come up round you. Strike one with Attack (hold it to keep swinging) to break it for ore or rubble. When it glints, strike: a clean strike counts twice and digs out rarer ore. Other SJK players see your pickaxe.",
         more: Some(
-            "Three boulders wait at a time. Attacking or getting hurt puts the pickaxe away. Your finds are in mining_log.txt.",
+            "A weapon key or getting hurt puts it away. Rubble sells to the hub for a few credits, a small sum a day shared with junk.",
         ),
         commands: &[(crate::mining::COMMAND, "Your key")],
         switch: "Pickaxe out",
@@ -630,7 +630,7 @@ impl Panel {
             + 48.0
             + if toy.sight.is_some() { SIGHT_ROW } else { 0.0 }
             + toy.options.len() as f32 * SIGHT_ROW
-            + if toy.token == FISHING_TOKEN {
+            + if toy.token == FISHING_TOKEN || toy.token == MINING_TOKEN {
                 fish_log_height()
             } else {
                 0.0
@@ -896,17 +896,21 @@ impl Panel {
                 frame.rect(left - 4.0, middle - 19.0, right - left + 8.0, 38.0),
             );
         }
-        if toy.token == FISHING_TOKEN
-            && let Some(card) = inputs.fishing_card
-        {
+        let log = match toy.token {
+            FISHING_TOKEN => inputs.fishing_card,
+            MINING_TOKEN => inputs.mining_card,
+            _ => None,
+        };
+        if let Some(card) = log {
             let below = row + SIGHT_ROW * toy.options.len() as f32 + 30.0;
             self.fish_log(frame, card, [x, below, width]);
         }
     }
 
-    /// The Fishing card's fish log from (`x`, `y`): what was caught, the junk held, and
-    /// the Sell junk button with what it pays now (when the hub buys junk from the
-    /// player) and the last sale's result.
+    /// A toy's log from (`x`, `y`), the Fishing card's fish log or the Mining card's
+    /// mining log: what was caught or dug, what sells held (junk, rubble), and the Sell
+    /// button with what it pays now (when the hub buys it from the player) and the last
+    /// sale's result.
     fn fish_log(
         &mut self,
         frame: &Frame,
@@ -923,7 +927,7 @@ impl Panel {
         text(
             &mut self.ui,
             TextFamily::Display,
-            format_args!("Fish log"),
+            format_args!("{}", card.title),
             frame.rect(x, y, 110.0, 22.0),
             15.0 * s,
             color::HOLO,
@@ -956,12 +960,13 @@ impl Panel {
             return;
         };
         let has_junk = card.pieces > 0;
+        let goods = card.goods;
         let shown = if card.selling {
             "Selling...".to_owned()
         } else if pays > 0 && has_junk {
-            format!("Sell junk (+{pays} credits)")
+            format!("Sell {goods} (+{pays} credits)")
         } else {
-            "Sell junk".to_owned()
+            format!("Sell {goods}")
         };
         let live = !card.selling && pays > 0 && has_junk;
         let button_width =
@@ -1008,9 +1013,10 @@ impl Panel {
             self.ui.hit_region(SELL_JUNK_TOKEN, rect);
         }
         // Beside it, the last sale's result, else why it does nothing.
+        let nothing = format!("No {goods} to sell");
         let note = match &card.line {
             Some(line) => line.as_str(),
-            None if !has_junk => "No junk to sell",
+            None if !has_junk => nothing.as_str(),
             None if pays == 0 => "The hub buys no more today",
             None => "A small sum a day",
         };
@@ -1028,7 +1034,8 @@ impl Panel {
     }
 }
 
-/// How tall the Fishing card's fish log stands below its switch.
+/// How tall the Fishing card's fish log (and the Mining card's log) stands below its
+/// switch.
 fn fish_log_height() -> f32 {
     30.0 + LOG_HEAD + LOG_LINE + 4.0 + SELL_ROW
 }

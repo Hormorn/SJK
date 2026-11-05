@@ -251,7 +251,6 @@ pub(crate) const ORE_KINDS: usize = {
 };
 
 /// The rarest ore's id: bad luck protection raises its weight ([`HEART_PITY`]).
-
 pub(crate) const HEART: &str = "heart_of_the_mountain";
 
 /// Everything a boulder can give: SJK's own names.
@@ -440,30 +439,88 @@ pub(crate) enum Say {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Log {
     counts: Vec<(String, u32)>,
+    /// The rubble sold to the hub ([`crate::mining_sell`]): the counts stay what was dug.
+    sold: Vec<(String, u32)>,
 }
 
+/// The mining log's lines of what was sold: `sold <id> <count>`, as the fish log's.
+const SOLD: &str = "sold";
+
 impl Log {
-    /// Read `text` (`<id> <count>` a line; anything else is skipped).
+    /// Read `text` (`<id> <count>` a line, `sold <id> <count>`; anything else is
+    /// skipped).
     pub(crate) fn parse(text: &str) -> Self {
         let mut log = Self::default();
         for line in text.lines() {
-            let mut words = line.split_whitespace();
-            let (Some(id), Some(value), None) = (words.next(), words.next(), words.next()) else {
-                continue;
+            let words: Vec<&str> = line.split_whitespace().collect();
+            let (list, id, value) = match words.as_slice() {
+                [SOLD, id, value] => (&mut log.sold, *id, *value),
+                [id, value] => (&mut log.counts, *id, *value),
+                _ => continue,
             };
             if let Ok(count) = value.parse::<u32>() {
-                log.counts.retain(|(known, _)| known != id);
-                log.counts.push((id.to_owned(), count));
+                list.retain(|(known, _)| known != id);
+                list.push((id.to_owned(), count));
             }
         }
         log
     }
 
     pub(crate) fn text(&self) -> String {
-        self.counts
+        let mut text: String = self
+            .counts
             .iter()
             .map(|(id, count)| format!("{id} {count}\n"))
+            .collect();
+        for (id, count) in &self.sold {
+            text.push_str(&format!("{SOLD} {id} {count}\n"));
+        }
+        text
+    }
+
+    /// How many of `id` were sold.
+    pub(crate) fn sold_count(&self, id: &str) -> u32 {
+        self.sold
+            .iter()
+            .find(|(known, _)| known == id)
+            .map_or(0, |(_, count)| *count)
+    }
+
+    /// How many of `id` the player still holds: dug, less sold.
+    pub(crate) fn held(&self, id: &str) -> u32 {
+        self.count(id).saturating_sub(self.sold_count(id))
+    }
+
+    /// The rubble the player holds, by id (only kinds with pieces).
+    pub(crate) fn rubble_held(&self) -> std::collections::BTreeMap<String, u32> {
+        FINDS
+            .iter()
+            .filter(|f| f.kind == Kind::Rubble)
+            .map(|f| (f.id.to_owned(), self.held(f.id)))
+            .filter(|(_, held)| *held > 0)
             .collect()
+    }
+
+    /// Count `sold` (pieces by id, as the hub took them) as sold, rubble only and never
+    /// more than was dug; returns how many pieces that was.
+    pub(crate) fn sell(&mut self, sold: &std::collections::BTreeMap<String, u32>) -> u32 {
+        let mut pieces = 0;
+        for (id, count) in sold {
+            if !FINDS.iter().any(|f| f.kind == Kind::Rubble && f.id == id) {
+                continue;
+            }
+            let taken = (*count).min(self.held(id));
+            if taken == 0 {
+                continue;
+            }
+            pieces += taken;
+            if let Some((_, known)) = self.sold.iter_mut().find(|(known, _)| known == id) {
+                *known += taken;
+            } else {
+                self.sold.push((id.clone(), taken));
+            }
+        }
+        pieces
     }
 
     pub(crate) fn count(&self, id: &str) -> u32 {
@@ -560,6 +617,8 @@ pub(crate) struct Mining {
     said: Vec<Say>,
     /// The boulders broken, each find with its clean strikes, for the achievements.
     broken: Vec<(&'static Find, u32)>,
+    /// Selling the rubble to the hub ([`crate::mining_sell`]).
+    pub(crate) sale: crate::fishing_sell::Sale,
     /// Each holder's pickaxe, for the actors to draw ([`pick_in_hand`]).
     pub(crate) picks: Picks,
     sounds_registered: Option<u64>,
@@ -591,6 +650,7 @@ impl Default for Mining {
             dice: Dice::seeded(),
             said: Vec::with_capacity(4),
             broken: Vec::new(),
+            sale: crate::fishing_sell::Sale::default(),
             picks: Picks::default(),
             sounds_registered: None,
             empty_hands_until: None,
@@ -911,7 +971,13 @@ impl Mining {
     }
 
     /// Read the mining log from `directory` once, counting in what was dug before.
-    fn read_log(&mut self, directory: &Path) {
+    /// The mining log, read from `directory` once.
+    pub(crate) fn log_in(&mut self, directory: &Path) -> &mut Log {
+        self.read_log(directory);
+        self.log.get_or_insert_with(Log::default)
+    }
+
+    pub(crate) fn read_log(&mut self, directory: &Path) {
         if std::mem::replace(&mut self.log_read, true) {
             return;
         }
@@ -927,7 +993,7 @@ impl Mining {
         self.log = Some(log);
     }
 
-    fn save_log(&self, directory: &Path) {
+    pub(crate) fn save_log(&self, directory: &Path) {
         if let Some(log) = &self.log
             && let Err(error) = std::fs::write(directory.join(LOG_FILE), log.text())
         {
@@ -1177,6 +1243,7 @@ impl GpuState {
     }
 
     fn mining_frame(&mut self, now: Instant) {
+        self.mining_sale_frame(now);
         self.mining.picks = Picks::default();
         let Some(session) = self.live_session.as_ref() else {
             self.mining.update(Frame::default(), now, |_| None);
@@ -1802,6 +1869,28 @@ mod tests {
         // Rubble does not count towards it.
         log.found(&FINDS[0]);
         assert_eq!(log.heart_wait(), 0);
+    }
+
+    /// What was sold is kept apart from what was dug: the counts stay, held is the
+    /// difference, only rubble sells, and the lines read back.
+    #[test]
+    fn sold_rubble_is_kept_apart_from_what_was_dug() {
+        let mut log = Log::parse("rubble 4\nfossil 1\niron_ore 2\nsold rubble 1\n");
+        assert_eq!(log.held("rubble"), 3);
+        let held = log.rubble_held();
+        assert_eq!(held.get("rubble"), Some(&3));
+        assert_eq!(held.get("fossil"), Some(&1));
+        assert!(!held.contains_key("iron_ore"));
+        let mut sold = std::collections::BTreeMap::new();
+        sold.insert("rubble".to_owned(), 5);
+        sold.insert("iron_ore".to_owned(), 1);
+        sold.insert("boot".to_owned(), 1);
+        assert_eq!(log.sell(&sold), 3);
+        assert_eq!((log.count("rubble"), log.held("rubble")), (4, 0));
+        assert_eq!(log.held("iron_ore"), 2);
+        let text = log.text();
+        assert!(text.contains("sold rubble 4\n"));
+        assert_eq!(Log::parse(&text), log);
     }
 
     #[test]
