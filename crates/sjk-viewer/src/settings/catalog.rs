@@ -529,7 +529,7 @@ pub(super) const HUD_OPTIONS: &[Setting] = &[
     Setting {
         label: "Local time",
         cvar: crate::hud::clock::CVAR,
-        kind: ValueKind::Choice(&["0", "1", "2"]),
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
     },
     Setting {
         label: "Local time: 12-hour",

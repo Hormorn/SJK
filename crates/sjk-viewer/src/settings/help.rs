@@ -103,6 +103,7 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     (crate::hud::clock::CVAR, "0", "Off"),
     (crate::hud::clock::CVAR, "1", "Time"),
     (crate::hud::clock::CVAR, "2", "Time and date"),
+    (crate::hud::clock::CVAR, "3", "Date"),
     (
         crate::chat::incoming_color::CVAR,
         "0",
@@ -1439,7 +1440,7 @@ const HELP: &[(&str, &str)] = &[
     ("cg_speedometer", "Shows how fast you move."),
     (
         crate::hud::clock::CVAR,
-        "Shows your PC's local time on the HUD, or the time and the date. Move it in the HUD editor, or with cg_clockX, Y and Size.",
+        "Shows your PC's local time, the time and date, or the date on the HUD. Move it in the HUD editor or with cg_clockX, Y and Size.",
     ),
     (
         crate::hud::clock::HOURS_CVAR,

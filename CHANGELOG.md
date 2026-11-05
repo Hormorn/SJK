@@ -32,7 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- A clock on the HUD with your PC's local time, and the date if you like, in 24 or 12 hours: Settings > HUD "Local time" (`cg_drawClock`, off by default) and "Local time: 12-hour" (`cg_clock12h`); drag it anywhere in the HUD editor (`hud_edit`) _(Slash, after Nib's idea)_
+- A clock on the HUD with your PC's local time, the time and date, or the date, in 24 or 12 hours: Settings > HUD "Local time" (`cg_drawClock`, off by default) and "Local time: 12-hour" (`cg_clock12h`); drag it anywhere in the HUD editor (`hud_edit`) _(Slash, after Nib's idea)_
 
 ## 2026.1105.2 (Alpha) | 05/11/2026
 

@@ -1,8 +1,8 @@
 //! The local time on the HUD (Nib's idea, #ideas 05/11/2026: "local time like drawn in
 //! the console, but place-able in the ingame hud", with time, date and 24/12 h).
 //!
-//! [`CVAR`] (`cg_drawClock`, off by default) shows the PC's local time, and with 2 the
-//! date after it (`dd/mm/yyyy`, as SJK writes dates); [`HOURS_CVAR`] (`cg_clock12h`)
+//! [`CVAR`] (`cg_drawClock`, off by default) shows the PC's local time, with 2 the date
+//! after it (`dd/mm/yyyy`, as SJK writes dates) and with 3 the date alone; [`HOURS_CVAR`] (`cg_clock12h`)
 //! counts the hours from 1 to 12 with am/pm instead of 0 to 23. The text is centred on
 //! [`X_CVAR`] (640-wide units) with its bottom at [`Y_CVAR`] (480-high units), scaled by
 //! [`SIZE_CVAR`]; the HUD edit mode drags it like the speedometer
@@ -15,7 +15,7 @@ use sjk_ui::{DrawCommand, FontWeight, Rect, TextAlign, TextOverflow};
 use std::fmt::Write;
 use std::time::{Duration, Instant};
 
-/// 0 off (the default), 1 the time, 2 the time and the date.
+/// 0 off (the default), 1 the time, 2 the time and the date, 3 the date.
 pub(crate) const CVAR: &str = "cg_drawClock";
 /// Whether the hours run 1 to 12 with am/pm (off: 0 to 23).
 pub(crate) const HOURS_CVAR: &str = "cg_clock12h";
@@ -41,13 +41,15 @@ pub(crate) enum Show {
     Off,
     Time,
     TimeAndDate,
+    Date,
 }
 
 impl Show {
     fn of(value: i64) -> Self {
         match value {
             1 => Self::Time,
-            2.. => Self::TimeAndDate,
+            2 => Self::TimeAndDate,
+            3.. => Self::Date,
             _ => Self::Off,
         }
     }
@@ -59,7 +61,7 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         CVAR,
         0_i64,
         CvarFlags::ARCHIVE,
-        "Local time on the HUD: 0 off, 1 time, 2 time and date",
+        "Local time on the HUD: 0 off, 1 time, 2 time and date, 3 date",
     ))?;
     cvars.register(CvarDefinition::new(
         HOURS_CVAR,
@@ -138,6 +140,10 @@ impl Clock {
         self.twelve = twelve;
         self.text.clear();
         if show == Show::Off {
+            return;
+        }
+        if show == Show::Date {
+            let _ = write!(self.text, "{:02}/{:02}/{}", time.day, time.month, time.year);
             return;
         }
         if twelve {
@@ -225,6 +231,8 @@ mod tests {
             clock.preview(at(hour, 7), Show::Time, true);
             assert_eq!(clock.text, shown, "{hour}");
         }
+        clock.preview(at(21, 30), Show::Date, true);
+        assert_eq!(clock.text, "05/11/2026");
         clock.preview(at(9, 5), Show::Off, false);
         assert!(clock.text.is_empty());
     }
@@ -240,6 +248,7 @@ mod tests {
         assert_eq!(Show::of(0), Show::Off);
         assert_eq!(Show::of(1), Show::Time);
         assert_eq!(Show::of(2), Show::TimeAndDate);
+        assert_eq!(Show::of(3), Show::Date);
         assert_eq!(Show::of(-1), Show::Off);
     }
 

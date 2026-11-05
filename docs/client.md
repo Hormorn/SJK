@@ -3264,7 +3264,7 @@ holdable list. Existing saved values remain in effect.
 ## Local time clock
 
 `cg_drawClock` (off by default; Settings > HUD "Local time") shows the PC's local time
-on the HUD: 1 the time, 2 the time and the date (`dd/mm/yyyy`) after it, as Nib asked
+on the HUD: 1 the time, 2 the time and the date (`dd/mm/yyyy`) after it, 3 the date alone, as Nib asked
 (#ideas, 05/11/2026). `cg_clock12h` counts the hours 1 to 12 with am/pm instead of 0 to
 23. The text is centred on `cg_clockX` (640-wide units, default 320) with its bottom on
 `cg_clockY` (480-high units, default 476), scaled by `cg_clockSize` (0.6); the HUD editor
