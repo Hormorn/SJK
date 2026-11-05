@@ -767,6 +767,7 @@ mod tests {
             clock: &clock,
             corner: "Wed 07/10/2026 22:52:10",
             copied: None,
+            chat_only: false,
         };
         assert_eq!((facts.time(), facts.date()), ("22:52", "Wed 07/10/2026"));
     }
