@@ -929,9 +929,7 @@ impl Panel {
     fn forge_break(&mut self, frame: &Frame, inputs: &Inputs<'_>, seconds: f32) {
         let (copies, shaders, gives) = self.forge.spare;
         let line = if self.forge.selecting {
-            "Picking: click the shaders to break down, + and - for more or fewer copies of \
-             the chosen one, then Break down selected. S or Escape stops."
-                .to_owned()
+            "Picking: click shaders to pick them, + and - for copies.".to_owned()
         } else if self.forge.data.last {
             "Turn saber shaders you hold into kyber shards: duplicates first.".to_owned()
         } else {
@@ -1177,20 +1175,37 @@ impl Panel {
         }
     }
 
+    /// The sign of a picked copies' stepper button at `[x, y]` (56 by 56), large; quiet
+    /// while the button cannot be pressed.
+    fn forge_step_sign(&mut self, frame: &Frame, [x, y]: [f32; 2], sign: &str, lit: bool) {
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("{sign}"),
+            frame.rect(x, y + 8.0, 56.0, 40.0),
+            32.0 * frame.s,
+            if lit { color::TEXT } else { color::QUIET },
+            FontWeight::Semibold,
+            TextAlign::Center,
+        );
+    }
+
     /// A picked shader's mark over its card or row in `rect` (05/11/2026): a gold frame and
     /// a gold tick at its top left, the copies picked in its place when more than one.
     fn forge_pick_mark(&mut self, frame: &Frame, [x, y, width, height]: [f32; 4], copies: u32) {
         let s = frame.s;
+        // A wash and a thick bright frame just inside the card (the chosen one's white
+        // outline stays outside it), apart from a Mythical card's own gold edge.
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
             rect: frame.rect(x, y, width, height),
             radius: 12.0 * s,
-            color: color::alpha(color::GOLD, 0.1),
+            color: color::alpha(color::GOLD, 0.16),
         });
         let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
-            rect: frame.rect(x, y, width, height),
-            radius: 12.0 * s,
-            width: 2.4 * s,
-            color: color::GOLD,
+            rect: frame.rect(x + 1.0, y + 1.0, width - 2.0, height - 2.0),
+            radius: 11.0 * s,
+            width: 3.2 * s,
+            color: color::GOLD_BRIGHT,
         });
         let mark = if copies > 1 {
             format!("-{copies}")
@@ -1966,6 +1981,12 @@ impl Panel {
         let [x0, y0, width0, height0] = DETAIL;
         let bottom = y0 + height0;
         let sums_y = bottom - PAD - 56.0 - 26.0 - 122.0;
+        // While picking, the sums follow the copies picked of it (05/11/2026), else one.
+        let taken = match self.forge.picked_copies(skin.id) {
+            picked if self.forge.selecting && picked > 0 => picked,
+            _ => 1,
+        };
+        let keep = item.count.saturating_sub(taken);
         let note = if item.locked {
             (
                 format!(
@@ -1974,38 +1995,56 @@ impl Panel {
                 ),
                 color::GOLD_BRIGHT,
             )
-        } else if item.last() && item.worn {
+        } else if keep == 0 && item.worn {
             (
-                "Your only copy, and you wear it: it leaves your collection and your saber."
-                    .to_owned(),
+                format!(
+                    "{}, and you wear it: it leaves your collection and your saber.",
+                    if item.last() {
+                        "Your only copy"
+                    } else {
+                        "Every copy"
+                    }
+                ),
                 color::EMBER,
             )
-        } else if item.last() {
+        } else if keep == 0 {
             (
-                "Your only copy: it leaves your collection.".to_owned(),
+                format!(
+                    "{}: it leaves your collection.",
+                    if item.last() {
+                        "Your only copy"
+                    } else {
+                        "Every copy"
+                    }
+                ),
                 color::EMBER,
             )
         } else {
             (
                 format!(
-                    "You keep {} {}",
-                    item.count - 1,
-                    if item.count == 2 { "copy" } else { "copies" }
+                    "You keep {keep} {}",
+                    if keep == 1 { "copy" } else { "copies" }
                 ),
                 color::MUTED,
             )
+        };
+        let gives = u64::from(taken) * item.gives;
+        let gives_label = if taken == 1 {
+            "A copy gives".to_owned()
+        } else {
+            format!("{taken} copies give")
         };
         self.forge_sums(
             frame,
             sums_y,
             (
-                "A copy gives",
-                format!("+{}", crate::economy::shards_text(item.gives)),
+                &gives_label,
+                format!("+{}", crate::economy::shards_text(gives)),
                 crate::cards::shard::KYBER,
             ),
             (
                 "You will hold",
-                crate::economy::shards_text(shards + item.gives),
+                crate::economy::shards_text(shards + gives),
                 color::TEXT,
             ),
             (&note.0, note.1),
@@ -2072,16 +2111,19 @@ impl Panel {
             let picked = self.forge.picked_copies(skin.id);
             let most = self.forge.pick_max(item);
             let left = x0 + PAD + 346.0;
+            let fewer = open && !waiting && picked > 1;
+            let more = open && !waiting && picked < most;
             kit::button(
                 &mut self.ui,
                 frame,
                 [left, button_y, 56.0, 56.0],
-                "-",
+                "",
                 false,
-                open && !waiting && picked > 1,
+                fewer,
                 false,
                 PICK_LESS_TOKEN,
             );
+            self.forge_step_sign(frame, [left, button_y], "-", fewer);
             let words = if most == 0 {
                 "Cannot be picked".to_owned()
             } else if picked == 0 {
@@ -2107,12 +2149,13 @@ impl Panel {
                 &mut self.ui,
                 frame,
                 [left + 222.0, button_y, 56.0, 56.0],
-                "+",
+                "",
                 false,
-                open && !waiting && picked < most,
+                more,
                 false,
                 PICK_MORE_TOKEN,
             );
+            self.forge_step_sign(frame, [left + 222.0, button_y], "+", more);
             self.forge_answer_line(
                 frame,
                 press,
@@ -2182,7 +2225,12 @@ impl Panel {
             frame,
             &words,
             [x, y + 6.0, width],
-            (46, 2),
+            (
+                // As many letters as the row's width holds (46 beside the button), so a
+                // line above it stays on one row instead of falling onto the button.
+                ((width * 46.0 / 280.0) as usize).clamp(46, 120),
+                2,
+            ),
             15.0,
             colour,
             TextAlign::Start,
@@ -2308,9 +2356,10 @@ impl Panel {
                     );
                 }
                 lines.push(format!(
-                    "{copies} {} of the {picked} saber {} you picked become kyber shards.",
+                    "{copies} {} of the {picked} saber {} you picked {} kyber shards.",
                     if copies == 1 { "copy" } else { "copies" },
-                    if picked == 1 { "shader" } else { "shaders" }
+                    if picked == 1 { "shader" } else { "shaders" },
+                    if copies == 1 { "becomes" } else { "become" }
                 ));
                 if lasts > 0 {
                     lines.push(format!(

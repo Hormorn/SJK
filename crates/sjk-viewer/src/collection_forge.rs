@@ -1174,6 +1174,15 @@ impl Forge {
         }
         let listing = self.section != Section::Shop;
         let picking = self.section == Section::Break && self.selecting;
+        // + and - as typed, whatever the layout puts them on (a Slovak keyboard's + is on
+        // the 1 key, which otherwise changes section).
+        if picking {
+            match text {
+                Some("+") => return self.step_pick(true),
+                Some("-") => return self.step_pick(false),
+                _ => {}
+            }
+        }
         match key {
             // Escape stops picking first, then leaves.
             KeyCode::Escape if picking => self.toggle_select(),
@@ -2033,6 +2042,21 @@ mod tests {
             let _ = key(&mut panel, KeyCode::Equal);
         }
         assert_eq!(panel.forge.picked_copies("saber_tidal"), 2);
+        // + and - as typed come first, whatever key brings them (a Slovak layout's +).
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, true));
+        let _ = key(&mut panel, KeyCode::KeyS);
+        panel.forge.breaks = tidal;
+        let _ = key(&mut panel, KeyCode::Space);
+        let _ = panel
+            .forge
+            .key(Some("+"), KeyCode::Digit1, false, false, true);
+        assert_eq!(panel.forge.picked_copies("saber_tidal"), 2);
+        assert_eq!(panel.forge_section(), Section::Break, "not the Shop");
+        let _ = panel
+            .forge
+            .key(Some("-"), KeyCode::Slash, false, false, true);
+        assert_eq!(panel.forge.picked_copies("saber_tidal"), 1);
+        assert!(!panel.forge.search_focus, "not the search");
         // An older hub: no Select.
         let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, false));
         let _ = key(&mut panel, KeyCode::KeyS);
