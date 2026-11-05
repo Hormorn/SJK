@@ -44,6 +44,11 @@ finished one with that day, so a few friends cannot farm each other (Slash,
   what is left ("Hug Nib (done) and Sanji"; for a target "Al must hug you", then "Al
   hugged you"). The card hides with the world's words (menus, console, scoreboard,
   intermission).
+- **Chimes** (05/11/2026): the player given a quest and its targets hear the game's own
+  "secret found" (`sound/interface/secret_area.mp3`), and the player who finishes one
+  and finds its holocron the game's "mission updated" (`sound/interface/update.mp3`),
+  in both ears. Settings > Sound > Toys "Quests sounds" (`s_toyQuestsSound`, on by
+  default) silences them, as each toy's own switch does.
 - **Proof.** The hub never sees an emote. A target's client watches its own player
   state from the game server (never the prediction): the frame its player goes into the
   received half of the quest's emote (`BOTH_HUGGEE1` for a hug, `BOTH_KISSEE` for a
@@ -65,7 +70,6 @@ already started and counts.
 
 ## Not yet
 
-A sound as a quest is given (each toy's sounds have a switch of their own in Settings >
-Sound > Toys, which Quests does not have yet), more kinds (an emote before a player, a duel
+More kinds (an emote before a player, a duel
 against one), and quests for weekend events. A hunt is not a kind of its
 own: the [box hunt](mystery-boxes.md#box-hunt) is one.

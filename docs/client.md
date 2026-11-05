@@ -6087,7 +6087,8 @@ and everyone else's (`s_toyBoxSound`, `s_toyOrder66Sound`, `s_toyHaxSound`,
 [Banana peel](#banana-peel), 29/10/2026), `s_toyTagSound` (the [Tag](#tag)'s spray,
 03/11/2026), `s_toyMasterSound` (the toys [the Toy
 Master](toy-master.md) hides, 30/10/2026), `s_toyFishingSound`
-(the [Fishing](#fishing) toy), all
+(the [Fishing](#fishing) toy), `s_toyQuestsSound` (the [Quests](quests.md) chimes,
+05/11/2026), all
 on by default,
 archived). The toy still
 runs and is still seen; nothing is sent to anyone. The Illuminate holocron makes no

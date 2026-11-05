@@ -29,6 +29,13 @@ pub(crate) const TOY: &str = wire::TOY;
 /// The toy's icon (key bindings).
 pub(crate) const ICON: &str = "gfx/sjk/toy_quests.png";
 
+/// The chime as the player is given a quest or named in one: the game's own for a
+/// secret found.
+const GIVEN_SOUND: &str = "sound/interface/secret_area.mp3";
+/// The chime as the player finishes a quest and finds its holocron: the game's own for a
+/// mission updated.
+const DONE_SOUND: &str = "sound/interface/update.mp3";
+
 /// The bundled files at their game paths.
 const FILES: [(&str, &[u8]); 1] = [(ICON, include_bytes!("../assets/quests/toy_quests.png"))];
 
@@ -94,6 +101,10 @@ pub(crate) struct Quests {
     /// Whether the player was in the received half of the quest's emote last frame, so
     /// each hug or kiss is told once.
     received: bool,
+    /// The chimes to play ([`GIVEN_SOUND`], [`DONE_SOUND`]), and the audio generation they
+    /// were handed to.
+    cues: Vec<&'static str>,
+    sounds_registered: Option<u64>,
 }
 
 impl Quests {
@@ -312,6 +323,41 @@ fn card_words(own: u8, quest: &Quest, emote: Emote, left: u64) -> Option<(String
 }
 
 impl GpuState {
+    /// Play the quests' chimes, the player's own, in both ears ("Quests sounds" silences
+    /// them).
+    pub(crate) fn play_quest_sounds(&mut self, audio: &mut Option<crate::GameAudio>) {
+        let Some(audio) = audio.as_mut() else {
+            self.quests.cues.clear();
+            return;
+        };
+        // Registered as the toy is switched on, ahead of the first chime: the files load
+        // in the background.
+        if self.quests.on()
+            && self.quests.sounds_registered != Some(audio.generation())
+            && let Some(vfs) = self.vfs.as_deref()
+        {
+            audio.register_effect_paths(vfs, [GIVEN_SOUND, DONE_SOUND]);
+            self.quests.sounds_registered = Some(audio.generation());
+        }
+        if self.quests.cues.is_empty() {
+            return;
+        }
+        let slot = self
+            .live_session
+            .as_ref()
+            .map_or(0, |session| session.latest_snapshot().player.client_num());
+        for path in self.quests.cues.drain(..) {
+            audio.play_toy(
+                crate::toy_sounds::Toy::Quests,
+                path,
+                1.0,
+                None,
+                sjk_audio::SourceId(u32::from(slot)),
+                crate::audio::TOY_CHANNEL,
+            );
+        }
+    }
+
     /// The quest's players this client's player should find, while it takes part and the
     /// quest lasts.
     pub(crate) fn quest_marked(&self) -> Vec<Marked> {
@@ -435,6 +481,10 @@ impl GpuState {
             let words = given_words(own, quest.slot, &quest.name, emote, &targets);
             quests.told = Some((quest.slot, quest.until));
             quests.told_at = Some(now);
+            // A chime for the player given it and its targets (whose words are centred).
+            if words.0 {
+                quests.cues.push(GIVEN_SOUND);
+            }
             lines.push(words);
         }
         for event in events.iter().filter(|event| event.toy == wire::TOY) {
@@ -459,6 +509,9 @@ impl GpuState {
                 }
                 QuestEvent::Won { slot, tier } => {
                     quests.over();
+                    if slot == own && tier.is_some() {
+                        quests.cues.push(DONE_SOUND);
+                    }
                     lines.push(won_words(own, slot, &event.claimed_name, tier.as_deref()));
                 }
                 QuestEvent::Failed(slot) => {

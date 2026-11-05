@@ -12,13 +12,15 @@ day, against farming among friends; 05/11/2026, 150 credits before, never releas
 hub's `--quests off|staff|everyone` switch is off by default. Collection > Toys has a
 twelfth row, Quests (rows 53 high to fit), and the quick wheel's Toys group the toy.
 The quest's player and its targets find each other by the box hunt's gold-toned label and
-arrow over each other, and read a card at the top (the seconds left, who is done).
+arrow over each other, read a card at the top (the seconds left, who is done), and hear
+the game's own chimes as a quest is given and done (Settings > Sound > Toys "Quests
+sounds", `s_toyQuestsSound`).
 Verified on Windows 11: unit tests of the hub's store (the switch, the Echo within the
 caps, the pairs) and an API test of a whole quest; the client's `sjk-identity` and
 `sjk-viewer` tests (the Toys tab's layout test with twelve rows among them). Not yet tried
 on a live server: that JA+ puts the target in `BOTH_HUGGEE1` for `amhug` is read from the
 animation table, not seen; the Toys tab's new row, the arrows and the card are not seen on
-screen. Not done: a sound as a quest is given, other kinds.
+screen, nor the chimes heard. Not done: other kinds.
 
 ## No repeated commands on JoF (Heimdall kicks)
 

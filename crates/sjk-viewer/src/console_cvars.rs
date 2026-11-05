@@ -669,6 +669,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Play the Fishing toy's sounds (SJK)",
         ),
         CvarDefinition::new(
+            crate::toy_sounds::Toy::Quests.cvar(),
+            true,
+            archive,
+            "Play the chimes as you are given a quest or finish one (SJK)",
+        ),
+        CvarDefinition::new(
             crate::fishing::CUE_CVAR,
             crate::fishing::CUE_DEFAULT,
             archive,
