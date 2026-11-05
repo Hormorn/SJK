@@ -1246,6 +1246,18 @@ pub(crate) fn map_blocks() -> Vec<sjk_identity::MapBlock> {
     })
 }
 
+/// The maps on which SJK's creator blocked server remaps for every SJK client
+/// (`remap_blocked_maps.rs`), with their revision, when it is not `seen`: read twice a
+/// second, it allocates only on a change. `None` also before any hub answered.
+pub(crate) fn remap_blocks(seen: u64) -> Option<(u64, Vec<String>)> {
+    lock().service.as_ref()?.with_snapshot(|snapshot| {
+        (snapshot.remap_blocks_revision != seen)
+            .then(|| snapshot.remap_blocks.clone())
+            .flatten()
+            .map(|maps| (snapshot.remap_blocks_revision, maps))
+    })
+}
+
 /// The game server the hub sees this player on (their claim's), if any.
 pub(crate) fn claimed_server() -> Option<std::net::SocketAddr> {
     lock()

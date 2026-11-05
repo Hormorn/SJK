@@ -1,3 +1,20 @@
+## Shared remap blocks (`cg_remapsShared`)
+
+05/11/2026, `personal/remap-sync` from `main` `28ac9379`. Sol asked for a list of
+maps with blocked server remaps that only they edit and that every SJK player follows,
+on by default. Hub branch `remap-blocks`: table `remap_blocks`, `POST
+/v1/staff/remap-block` (creator only, logged `remap_block`, undoable), presence answers
+`remap_blocks` (the whole list). Client: `StaffRequest::RemapBlock`, presence's list in
+`Snapshot::remap_blocks`, copied by
+[remap_blocked_maps.rs](../crates/sjk-viewer/src/remap_blocked_maps.rs) into the archived
+`cg_remapsSharedMaps` (looked at twice a second); `cg_remapsShared` (on) applies it to
+maps whose own choice is `default`. `syncBlockRemaps` / `syncUnblockRemaps [map]`,
+`listRemaps` names the shared block. Verified: unit tests of the cache, hub db + API
+tests. Not run in game. The hub must deploy before the creator commands work; an old
+hub leaves the list out and clients keep the one they had. With `cg_serverRemaps` off
+(the default) server remaps are already ignored, and a map the player allowed is `on`,
+which the list leaves alone: the list matters to players who turned Server remaps on.
+
 ## No repeated commands on JoF (Heimdall kicks)
 
 04/11/2026, `personal/jof-packetdup` from `main` `ba165c38`: Turin was kicked by

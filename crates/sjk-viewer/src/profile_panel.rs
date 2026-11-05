@@ -1203,6 +1203,8 @@ pub(crate) mod tests {
             me,
             server: None,
             map_blocks: Vec::new(),
+            remap_blocks: None,
+            remap_blocks_revision: 0,
             players: Vec::new(),
             profiles: HashMap::new(),
             model_checks: HashMap::new(),

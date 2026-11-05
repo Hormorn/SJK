@@ -281,6 +281,32 @@ Principled BSDF whose Base Color is an Image Texture.
 Use it with your own files on your own disk. SJK never uploads, hosts or passes on
 models taken from other games ([the rule](../AGENTS.md#verification-and-scope)).
 
+### Edit while the game runs: `rig_reload`
+
+Export, then type `rig_reload` in the game's console: every player wearing a rig model
+loads it again from the new files, without a restart or a map load.
+
+- **The pack swap.** The game keeps every mounted PK3 open, so a plain overwrite fails
+  on Windows. The game opens them with delete sharing (Rust's default), and the add-on
+  (1.11) renames the new pack over the old one with POSIX semantics
+  (`SetFileInformationByHandle`, `FILE_RENAME_FLAG_POSIX_SEMANTICS`; Windows 10 1809+,
+  NTFS) when `os.replace` is refused. The game reads its old copy until it mounts again.
+- **The reload** ([rig_reload.rs](../crates/sjk-viewer/src/rig_reload.rs)): mounts the
+  map's own selection again on a worker (as a map load does, `session_content`), makes
+  it the world's file system, forgets the clip lenders `rig_model::SOURCES` keeps and
+  the actor material lists matched by name (`ClientInfoWatch::appended`, so a changed
+  texture is read again), and sends each player wearing a rig model (in the new files
+  or the old) through the mid-match model change path again (`ClientInfoWatch::reload`
+  lets an unchanged appearance load anyway).
+- **Not read again:** the map, its sounds and the shader scripts (a new shader needs
+  the next map); the menus' character grid follows (the catalogue refresh `fs_restart`
+  does), the menu stage still shows the driver. Body copies already in the corpse pool
+  keep the old model until the next map.
+- **Check:** the world shot `rig_reload_reads_a_replaced_pack_without_a_map_load`
+  (`SJK_TEST_DEMO`, `SJK_TEST_RIG`, `JKA_GAME_DATA`) dresses a demo's players in the rig
+  model, swaps its pack for a copy at half the scale in a GameData of hard links and
+  checks the players wear the new copy after `rig_reload`.
+
 ## Limits
 
 - Dismemberment is off for rig models: their glTF has none of the driver surfaces a
@@ -354,6 +380,9 @@ cargo test -p sjk-model gltf
 # target/world-shots/rig_model_orbit.png:
 JKA_GAME_DATA=<GameData> SJK_TEST_DEMO=<demo.dm_26> SJK_TEST_RIG=<model folder name> \
   cargo test -p sjk-viewer --bins rig_model_on_a_demo -- --ignored --nocapture --test-threads=1
+# rig_reload on a demo (the pack replaced by a half-scale copy; before/after in
+# target/world-shots/rig_reload.png):
+#   cargo test -p sjk-viewer --bins rig_reload_reads -- --ignored --nocapture
 # The same with an emote of the installed catalogue playing (a rig clip); 12 shots
 # about a third of a second apart in target/world-shots/rig_model_emote.png:
 #   add SJK_TEST_EMOTE=<emote id>

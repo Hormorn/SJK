@@ -406,6 +406,7 @@ impl Group {
                 crate::map_edits::CVAR,
                 crate::map_edits::SYNC_COMMAND,
                 crate::remap_blocked_maps::SERVER_CVAR,
+                crate::remap_blocked_maps::SHARED_CVAR,
                 crate::remap_blocked_maps::MAP_CVAR,
                 "cg_remaps",
                 crate::monitor::SHOW_CVAR,

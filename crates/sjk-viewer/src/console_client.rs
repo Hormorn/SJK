@@ -52,6 +52,14 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
         "unallowRemaps",
         "Let a map's server shader remaps follow cg_serverRemaps again: unallowRemaps [map]",
     ),
+    (
+        "syncBlockRemaps",
+        "SJK creator: ignore server shader remaps on a map for every SJK player, the loaded one by default: syncBlockRemaps [map]",
+    ),
+    (
+        "syncUnblockRemaps",
+        "SJK creator: take a map off the shared remap blocks: syncUnblockRemaps [map]",
+    ),
     ("speedometer", "Configure supported speedometer flags"),
     ("strafehelper", "Configure supported airborne CGAZ flags"),
     ("play", "Play local sound files"),
@@ -321,6 +329,7 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
     ),
     ("in_restart", "Reset held input and pointer capture"),
     (crate::fs_restart::COMMAND, crate::fs_restart::HELP),
+    (crate::rig_reload::COMMAND, crate::rig_reload::HELP),
     (
         crate::chat_gifs::hidden::UNHIDE_ALL,
         crate::chat_gifs::hidden::UNHIDE_ALL_HELP,
@@ -343,6 +352,8 @@ pub(super) struct Commands {
     pub name_clock: identity::NameClock,
     /// `fs_restart`'s mount in flight.
     pub fs_restart: crate::fs_restart::Task,
+    /// `rig_reload`'s mount in flight.
+    pub rig_reload: crate::fs_restart::Task,
 }
 
 /// JoF content's and the Sith cloud's commands (`jof.downloads`, `sith.downloads`),
@@ -993,6 +1004,7 @@ impl crate::GpuState {
             }
         }
         self.poll_fs_restart();
+        self.poll_rig_reload();
     }
 
     fn client_command(
@@ -1011,6 +1023,9 @@ impl crate::GpuState {
             }
             "blockremaps" | "unblockremaps" | "allowremaps" | "unallowremaps" => {
                 return self.remap_block_command(&name, args);
+            }
+            "syncblockremaps" | "syncunblockremaps" => {
+                return self.remap_shared_command(&name, args);
             }
             name if crate::map_edits::editor::is_command(name) => {
                 return self.map_edit_command(name, args);
@@ -1343,6 +1358,7 @@ impl crate::GpuState {
             crate::news_panel::NEWS_COMMAND => return self.news_command(),
             crate::gameplay_fps::COMMAND => return self.gameplay_fps_command(args),
             crate::fs_restart::COMMAND => return self.fs_restart_command(),
+            crate::rig_reload::COMMAND => return self.rig_reload_command(),
             crate::chat_gifs::hidden::UNHIDE_ALL => {
                 let count = crate::chat_gifs::hidden::clear();
                 return Ok(vec![crate::chat_gifs::hidden::unhide_all_reply(count)]);

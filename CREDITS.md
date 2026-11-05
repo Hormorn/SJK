@@ -177,6 +177,8 @@ includes:
   map hangs on movers drawn, such as t2_rancor's bar tables (13/10/2026);
 - material maps generation 7 (13/10/2026): the generator finds its overrides again and
   says which file it used; crates and concrete read right;
+- shared remap blocks (05/11/2026): a list of maps, kept on the hub, where every SJK
+  player ignores the server's texture swaps, followed unless they opt out;
 - decals that fade into fog with their walls, and no sky flicker through a ceiling
   built just under the sky (13/10/2026);
 - cards that tilt towards the pointer in perspective, their Holo and Solar light

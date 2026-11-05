@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 - Kept outside the game's GameData, SJK finds a Steam copy of Jedi Academy by itself, in any Steam library (another drive too), and a GOG copy on Windows; and Steam's Play button can start SJK: set Jedi Academy's launch options to the path of sjk.exe followed by %command% _(Slash)_
+- Shared remap blocks: the SJK team keeps a list of maps whose server texture swaps look broken, and SJK ignores those swaps there for everyone (Settings > GAME > "SJK remap blocks", `cg_remapsShared`, on by default); your own "Remaps on this map" choice comes first _(Sol)_
 
 ## 2026.1105.1 (Alpha) | 05/11/2026
 

@@ -1129,6 +1129,10 @@ const HELP: &[(&str, &str)] = &[
         "Lets servers swap the map's textures. Off by default; the map's own swaps and SJK's map fixes always apply.",
     ),
     (
+        crate::remap_blocked_maps::SHARED_CVAR,
+        "Ignores server texture swaps on the maps the SJK team lists. Your choice for this map comes first. On by default.",
+    ),
+    (
         crate::remap_blocked_maps::MAP_CVAR,
         "This map only: default follows Server remaps, on lets the server swap its textures anyway, off never.",
     ),

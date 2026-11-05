@@ -252,6 +252,12 @@ pub struct Snapshot {
     /// The players SJK staff blocked there for everyone until the map changes
     /// (`PROTOCOL.md`, "Map blocks"), by slot; counted in `revision` with `players`.
     pub map_blocks: Vec<crate::MapBlock>,
+    /// The maps on which SJK's creator blocked server remaps for every SJK client
+    /// (`PROTOCOL.md`, "Remap blocks"), as presence last gave them; `None` until a hub
+    /// that has them answered. Kept when the player leaves the server.
+    pub remap_blocks: Option<Vec<String>>,
+    /// Counts changes to [`Snapshot::remap_blocks`].
+    pub remap_blocks_revision: u64,
     /// Profiles fetched with [`Service::look_up`].
     pub profiles: HashMap<String, Profile>,
     /// What the hub answered to [`Service::check_model`], by server, slot and model.
@@ -717,6 +723,8 @@ impl Snapshot {
             server: None,
             players: Vec::new(),
             map_blocks: Vec::new(),
+            remap_blocks: None,
+            remap_blocks_revision: 0,
             profiles: HashMap::new(),
             model_checks: HashMap::new(),
             profiles_revision: 0,
@@ -2531,7 +2539,12 @@ impl Worker {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         staff.serial += 1;
         staff.busy = false;
-        if outcome.is_ok() && matches!(request, StaffRequest::MapBlock { .. }) {
+        if outcome.is_ok()
+            && matches!(
+                request,
+                StaffRequest::MapBlock { .. } | StaffRequest::RemapBlock { .. }
+            )
+        {
             // The list changed at the hub: see it now, not at the next poll.
             self.due_poll = Instant::now();
         }
@@ -3892,6 +3905,7 @@ impl Worker {
                         players,
                         blocks,
                         map_edits,
+                        remap_blocks,
                         secrets,
                         shows,
                     }) => {
@@ -3914,6 +3928,10 @@ impl Worker {
                         if snapshot.secret_shows.as_ref().map(|(_, shows)| shows) != Some(&shows) {
                             snapshot.secret_shows = Some((now, shows));
                             snapshot.secret_shows_revision += 1;
+                        }
+                        if remap_blocks.is_some() && snapshot.remap_blocks != remap_blocks {
+                            snapshot.remap_blocks = remap_blocks;
+                            snapshot.remap_blocks_revision += 1;
                         }
                         if snapshot.players != players || snapshot.map_blocks != blocks {
                             snapshot.players = players;
@@ -5559,6 +5577,7 @@ mod tests {
                     players,
                     blocks: Vec::new(),
                     map_edits: *self.edits_stamp.lock().unwrap(),
+                    remap_blocks: None,
                     secrets: *self.secrets_stamp.lock().unwrap(),
                     shows: Vec::new(),
                 })
@@ -5867,7 +5886,8 @@ mod tests {
                 StaffRequest::ChatDelete { .. }
                 | StaffRequest::ChatMute { .. }
                 | StaffRequest::ChatUnban { .. }
-                | StaffRequest::MapBlock { .. } => Vec::new(),
+                | StaffRequest::MapBlock { .. }
+                | StaffRequest::RemapBlock { .. } => Vec::new(),
                 StaffRequest::Verify {
                     key_id, verified, ..
                 } => vec![Profile {

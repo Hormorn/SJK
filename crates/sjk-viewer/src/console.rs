@@ -328,6 +328,10 @@ pub(crate) struct ViewerConsole {
     remap_allowed_maps: console_cvars::RevisionSetting,
     /// Changes of `cg_serverRemapsMap`, the loaded map's choice.
     remap_map_choice: console_cvars::RevisionSetting,
+    /// Changes of `cg_remapsSharedMaps`, the hub's shared list as last seen.
+    remap_shared_maps: console_cvars::RevisionSetting,
+    /// Changes of `cg_remapsShared`, whether the shared list applies.
+    remap_shared: console_cvars::RevisionSetting,
     packet_dup: console_cvars::IntegerSetting,
     /// `cl_packetdup_nocap`: 1 lifts the known servers' `cl_packetdup` caps.
     packet_dup_lifted: console_cvars::IntegerSetting,
@@ -1329,13 +1333,16 @@ impl ViewerConsole {
         self.map_edits.value() != 0
     }
 
-    /// How often `cg_remapsBlockedMaps`, `cg_remapsAllowedMaps` and
-    /// `cg_serverRemapsMap` have changed, read without a name lookup.
+    /// How often `cg_remapsBlockedMaps`, `cg_remapsAllowedMaps`, `cg_serverRemapsMap`,
+    /// `cg_remapsSharedMaps` and `cg_remapsShared` have changed, read without a name
+    /// lookup.
     pub(crate) fn remap_maps_revisions(&self) -> crate::remap_blocked_maps::Revisions {
         [
             self.remap_blocked_maps.value(),
             self.remap_allowed_maps.value(),
             self.remap_map_choice.value(),
+            self.remap_shared_maps.value(),
+            self.remap_shared.value(),
         ]
     }
 }

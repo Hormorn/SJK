@@ -168,6 +168,12 @@ blocked), and `cg_serverRemapsMap` shows and sets the loaded map's choice
 (`default`, `on`, `off`) for Settings. The frame reads a cached answer,
 refreshed when one of these cvars or the loaded map changes
 ([remap_blocked_maps.rs](../crates/sjk-viewer/src/remap_blocked_maps.rs)).
+SJK's creator also keeps a shared list on the hub (since 05/11/2026; `PROTOCOL.md`
+"Remap blocks"), given with presence and kept in the archived `cg_remapsSharedMaps`, so
+it holds at the next start before the hub answers. While `cg_remapsShared` is on (the
+default), a listed map whose own choice is `default` reads as `cg_remaps 0`; a map set
+`on` or `off` keeps its own choice. `syncBlockRemaps` / `syncUnblockRemaps [map]`
+change the list (creator only, `POST /v1/staff/remap-block`).
 `listRemaps` lists the map's, the enabled server and the local remaps in the order
 they were applied, with their source, and marks those a later remap overrides.
 `remapShader <old> <new>` sets a temporary local remap for the loaded map, without

@@ -98,6 +98,7 @@ did: Donations: Support SJK on the main page (GitHub Sponsors, Ko-fi), the Suppo
 did: Footprints and dust on sand, snow and mud; props hung on movers drawn (Rancor's tables)
 did: Material maps: overrides found again, crates and concrete read right (generation 7)
 did: Finishers: what saber kills do to the body, worn with any blade (Disintegrate first)
+did: Shared remap blocks: maps where every SJK player ignores broken server texture swaps
 did: Decals fade into fog with their walls; no sky flicker through ceilings under the sky
 did: Cards that tilt towards the pointer, their light following it
 did: SJK Symbols, our own symbol font for rarities and finishes

@@ -11,6 +11,8 @@ Everything goes into one `<GameData>/base/rig_<name>.pk3` (or loose folders), so
 removing the model is deleting one file; several models may share one pack (a
 pack name of your own), each export replacing only its model's files. In the game,
 `/model <name>` wears it and `sjkemote <id>` (or the quick wheel) plays an emote;
+an export while the game runs replaces the pack it holds open, and `rig_reload` in
+the game's console reads it again;
 the other rig models with the same skeleton (joint names, as Unreal mannequin
 characters share) play it too.
 
@@ -439,6 +441,55 @@ def manifest_text(preset):
     ])
 
 
+def replace_file(source, target):
+    """`os.replace`, also over a file another program holds open: the game keeps its
+    packs open (with delete sharing), so on Windows the pack is renamed over with POSIX
+    semantics (Windows 10 1809+, NTFS); the game reads its old copy until `rig_reload`."""
+    try:
+        os.replace(source, target)
+        return
+    except PermissionError:
+        if os.name != "nt":
+            raise
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CreateFileW.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+    ]
+    kernel.SetFileInformationByHandle.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+    ]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    delete, share_all, open_existing = 0x10000, 7, 3
+    handle = kernel.CreateFileW(os.path.abspath(source), delete, share_all, None,
+                                open_existing, 0, None)
+    if handle in (None, wintypes.HANDLE(-1).value):
+        raise PermissionError(ctypes.WinError(ctypes.get_last_error()))
+    try:
+        name = os.path.abspath(target)
+
+        class RenameInfo(ctypes.Structure):
+            _fields_ = [
+                ("Flags", wintypes.DWORD),
+                ("RootDirectory", wintypes.HANDLE),
+                ("FileNameLength", wintypes.DWORD),
+                ("FileName", wintypes.WCHAR * (len(name) + 1)),
+            ]
+
+        # FILE_RENAME_FLAG_REPLACE_IF_EXISTS | FILE_RENAME_FLAG_POSIX_SEMANTICS
+        info = RenameInfo(0x1 | 0x2, None, len(name) * 2, name)
+        file_rename_info_ex = 22
+        if not kernel.SetFileInformationByHandle(handle, file_rename_info_ex,
+                                                 ctypes.byref(info), ctypes.sizeof(info)):
+            raise PermissionError(ctypes.WinError(ctypes.get_last_error()))
+    finally:
+        kernel.CloseHandle(handle)
+
+
 def frame_rate(context):
     """The actions' frames per second: the setting, else the scene's."""
     settings = context.scene.sjk_rig_export
@@ -862,6 +913,7 @@ class SJK_OT_export_rig_model(Operator):
         )
         emotes = ", ".join(clip for _, clip, _ in written)
         self.report({"INFO"}, f"Exported {where}. In the game: /model {name}"
+                    + " (running already: rig_reload)"
                     + (f"; emotes: {emotes}" if emotes else ""))
         loose = os.path.join(base, "models", "players", name)
         if settings.pack and os.path.isdir(loose):
@@ -922,7 +974,7 @@ class SJK_OT_export_rig_model(Operator):
                         for entry in old.infolist():
                             if not entry.is_dir() and entry.filename not in replaced:
                                 archive.writestr(entry, old.read(entry))
-            os.replace(partial, path)
+            replace_file(partial, path)
         except PermissionError:
             raise RuntimeError(
                 f"{os.path.basename(path)} is in use: close the game, then export again"

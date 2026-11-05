@@ -382,10 +382,17 @@ struct Feet {
 const BORROW_SHARE: f32 = 0.6;
 
 /// Rig models loaded only to lend their clips, by folder; `None` for one that did not
-/// load. Kept for the session: a model re-exported while the game runs is read again
-/// after a restart.
+/// load. Kept until `rig_reload` ([`forget_sources`]) reads the packs again.
 static SOURCES: LazyLock<Mutex<HashMap<String, Option<Arc<RigModel>>>>> =
     LazyLock::new(Mutex::default);
+
+/// Drop the clip lenders [`SOURCES`] keeps, so the next load reads them again.
+pub(crate) fn forget_sources() {
+    SOURCES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clear();
+}
 
 /// The rig model in `directory`, without its surfaces, fitted to `driver`.
 fn source_rig(vfs: &VirtualFileSystem, directory: &str, driver: &Gla) -> Option<Arc<RigModel>> {
@@ -585,6 +592,15 @@ fn frame(direction: Vec3A) -> Option<Mat3A> {
 }
 
 impl RigModel {
+    /// The highest joint of the bind pose, in game units (tests compare scales by it).
+    #[cfg(test)]
+    pub(crate) fn top(&self) -> f32 {
+        self.joints
+            .iter()
+            .map(|joint| joint.bind.translation.z)
+            .fold(f32::MIN, f32::max)
+    }
+
     /// Load the glTF named by `manifest` from `directory` and fit it to `driver`,
     /// its feet planted on those of `driver_mesh` (the driver's GLM).
     pub(crate) fn load(
