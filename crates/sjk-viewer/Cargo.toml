@@ -10,6 +10,9 @@ name = "sjk"
 path = "src/main.rs"
 
 [dependencies]
+# Jedi Academy in Steam libraries and GOG, for a client kept outside GameData; shared
+# with the SJK Launcher.
+sjk-game-stores.workspace = true
 # The graphics card's video memory, for the small-card settings (`video_memory.rs`);
 # read on Windows only (the crate answers None elsewhere).
 sjk-gpu-memory.workspace = true

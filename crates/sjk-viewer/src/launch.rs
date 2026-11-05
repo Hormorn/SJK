@@ -173,18 +173,14 @@ fn find_game_data(configured: Option<&Path>) -> Result<PathBuf, LaunchError> {
     )
     // The stores last: asking the registry starts `reg.exe`, which a drop-in
     // installation never needs.
-    .or_else(|| {
-        crate::game_stores::game_data_candidates(home.as_deref())
-            .into_iter()
-            .find(|candidate| is_game_data(candidate))
-    })
+    .or_else(|| sjk_game_stores::find(home.as_deref(), is_game_data))
     .ok_or(LaunchError::GameDataNotFound)
 }
 
 // Explicit overrides win; a drop-in installation must not be redirected by a
 // saved path from another installation. Never change cwd: other relative paths
 // (for example a command-line demo path) still belong to the caller. The stores'
-// installs (game_stores.rs) are asked after these.
+// installs (the sjk-game-stores crate) are asked after these.
 fn find_game_data_in(
     configured: Option<&Path>,
     environment: Option<&Path>,

@@ -95,6 +95,7 @@ All 21 workspace crates are listed in [Cargo.toml](../Cargo.toml).
 | [sjk-mod](../crates/sjk-mod/src/lib.rs) | The interface client mods are written against ([mods.md](mods.md)) |
 | [sjk-mod-japlus](../crates/sjk-mod-japlus/src/lib.rs), [sjk-mod-jof](../crates/sjk-mod-jof/src/lib.rs) | The JA+ and JoF tools mods |
 | [sjk-jof-content](../crates/sjk-jof-content/src/lib.rs) | JoF content: JoF's repository manifest, checked downloads and the JoF folder ([jof-content.md](jof-content.md)) |
+| [sjk-game-stores](../crates/sjk-game-stores/src/lib.rs) | Jedi Academy installs that Steam (every library) and GOG know of, for the client's launch discovery and the SJK Launcher ([client.md](client.md#launch)) |
 | [sjk-materialgen](../crates/sjk-materialgen/src/lib.rs) | Offline tool: local material maps from installed textures |
 | [sjk-mediafoundation](../crates/sjk-mediafoundation/src/lib.rs) | Windows only: silent H.264 MP4 chat clips through Media Foundation, one of the two crates allowed `unsafe` |
 | [sjk-gpu-memory](../crates/sjk-gpu-memory/src/lib.rs) | Windows only: the graphics card's video memory and budget from DXGI, for the small-card settings; the other crate allowed `unsafe` |

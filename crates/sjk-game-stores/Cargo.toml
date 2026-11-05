@@ -1,0 +1,13 @@
+[package]
+name = "sjk-game-stores"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Jedi Academy installs that Steam and GOG know of, shared by SJK and the SJK Launcher"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

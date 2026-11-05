@@ -8,8 +8,11 @@
 //! `steamapps/common`. GOG Galaxy and GOG's offline installers record each game's folder
 //! in the registry on Windows.
 //!
-//! The candidates are not checked here: the launcher keeps the first holding the retail
-//! `base/assets0.pk3` to `assets3.pk3`, as for every other location.
+//! The candidates are not checked here: [`find`] keeps the first that the caller's own
+//! test accepts (SJK's client wants the retail `base/assets0.pk3` to `assets3.pk3`).
+//! Shared by SJK's client (`sjk-viewer`'s launch discovery, after the folder beside the
+//! program and the saved path) and the SJK Launcher. The registry is read through
+//! Windows' own `reg.exe`, as the workspace allows no `unsafe` here.
 
 use std::path::{Path, PathBuf};
 
@@ -50,7 +53,7 @@ const GOG_GAMES_REGISTRY: &str = r"HKLM\SOFTWARE\WOW6432Node\GOG.com\Games";
 
 /// Every `GameData` folder a store says Jedi Academy may be in, Steam's first, then
 /// GOG's; `home` is the user's home folder for Steam's Linux and Mac locations.
-pub(crate) fn game_data_candidates(home: Option<&Path>) -> Vec<PathBuf> {
+pub fn game_data_candidates(home: Option<&Path>) -> Vec<PathBuf> {
     let mut installs = Vec::new();
     for library in steam_libraries(&steam_roots(home)) {
         installs.extend(steam_installs(&library));
@@ -64,6 +67,13 @@ pub(crate) fn game_data_candidates(home: Option<&Path>) -> Vec<PathBuf> {
         push_unique(&mut candidates, install.join("GameData"));
     }
     candidates
+}
+
+/// The first of [`game_data_candidates`] that `is_game_data` accepts.
+pub fn find(home: Option<&Path>, is_game_data: impl Fn(&Path) -> bool) -> Option<PathBuf> {
+    game_data_candidates(home)
+        .into_iter()
+        .find(|candidate| is_game_data(candidate))
 }
 
 /// Steam's own folders on this machine: the registry's on Windows, then the folders
@@ -263,8 +273,7 @@ fn key_values(text: &str) -> Vec<(usize, String, String)> {
     pairs
 }
 
-/// One value of a registry key, through Windows' own `reg.exe` (no `unsafe` in this
-/// crate); `None` when the key or value is missing.
+/// One value of a registry key, through Windows' own `reg.exe`; `None` when the key or value is missing.
 #[cfg(windows)]
 fn registry_value(key: &str, value: &str) -> Option<String> {
     registry_values(&registry_query(&[key, "/v", value])?, value)
@@ -277,7 +286,15 @@ fn registry_value(key: &str, value: &str) -> Option<String> {
 fn registry_query(arguments: &[&str]) -> Option<String> {
     // By its full path: a `reg.exe` in the working directory must not answer.
     let system = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
-    let output = crate::platform::hidden_command(Path::new(&system).join(r"System32\reg.exe"))
+    let mut command = std::process::Command::new(Path::new(&system).join(r"System32\reg.exe"));
+    {
+        // No console window flashing up from a windowed program (a Windows release of
+        // SJK or the launcher has no console of its own).
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command
         .arg("query")
         .args(arguments)
         .stdin(std::process::Stdio::null())

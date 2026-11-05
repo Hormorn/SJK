@@ -153,7 +153,6 @@ mod free_camera;
 mod fs_restart;
 mod game_font;
 mod game_menu_actions;
-mod game_stores;
 mod gameplay_fps;
 mod ghost_replay;
 mod glow_pass;

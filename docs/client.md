@@ -128,7 +128,8 @@ in order and uses the first containing `base/assets0.pk3` and `base/assets3.pk3`
 4. The working directory, its `GameData` subdirectory, then its
    `Star Wars Jedi Knight - Jedi Academy/GameData` subdirectory.
 5. `~/Games/Jedi Academy/GameData`.
-6. The game stores' installs ([game_stores.rs](../crates/sjk-viewer/src/game_stores.rs)),
+6. The game stores' installs ([sjk-game-stores](../crates/sjk-game-stores/src/lib.rs), shared
+   with the SJK Launcher),
    so a client extracted anywhere (Downloads, say) finds the game by itself:
    - Steam: its folder from the registry on Windows (`HKCU\Software\Valve\Steam`
      `SteamPath`, then `HKLM\SOFTWARE\WOW6432Node\Valve\Steam` `InstallPath`) and
