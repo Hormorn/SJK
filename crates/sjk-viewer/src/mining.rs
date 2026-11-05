@@ -260,14 +260,14 @@ pub(crate) const FINDS: [Find; 13] = [
     rubble("slag", "a lump of slag"),
     rubble("drill_bit", "a worn drill bit"),
     rubble("fossil", "a fossil shell"),
-    ore("iron_ore", "a chunk of iron ore", 221),
-    ore("copper_ore", "a chunk of copper ore", 196),
-    ore("silver_nugget", "a silver nugget", 130),
-    ore("glowstone", "a glowstone", 98),
-    ore("sunstone", "a sunstone", 64),
-    ore("moonstone", "a moonstone", 44),
-    ore("star_quartz", "a star quartz", 26),
-    ore("void_crystal", "a void crystal", 20),
+    ore("iron_ore", "a chunk of iron ore", 96),
+    ore("copper_ore", "a chunk of copper ore", 86),
+    ore("silver_nugget", "a silver nugget", 57),
+    ore("glowstone", "a glowstone", 43),
+    ore("sunstone", "a sunstone", 28),
+    ore("moonstone", "a moonstone", 19),
+    ore("star_quartz", "a star quartz", 11),
+    ore("void_crystal", "a void crystal", 9),
     ore(HEART, "the Heart of the Mountain", 1),
 ];
 
@@ -278,8 +278,9 @@ const CLEAN_RUBBLE_CUT: u32 = 10;
 const RUBBLE_FLOOR: u32 = 20;
 /// Bad luck protection for the Heart of the Mountain, as Fishing's for Old Whiskers: its
 /// weight rises by one for every this many ores dug since the last one. With the weights
-/// above, one in about 600 boulders (some 100 minutes at six a minute).
-const HEART_PITY: u32 = 300;
+/// above, one in about 230 boulders (some 40 minutes at six a minute, near Old
+/// Whiskers' half hour since Fishing's balance pass).
+const HEART_PITY: u32 = 100;
 /// The mining log's count of the ores dug since the last Heart: `heart_wait <count>`.
 const HEART_WAIT: &str = "heart_wait";
 
@@ -1775,8 +1776,8 @@ mod tests {
     #[test]
     fn a_clean_strike_lifts_the_ore_a_tier_but_not_into_the_heart() {
         let iron = 0;
-        let void = 221 + 196 + 130 + 98 + 64 + 44 + 26;
-        let heart = void + 20;
+        let void = 96 + 86 + 57 + 43 + 28 + 19 + 11;
+        let heart = void + 9;
         assert_eq!(roll_find(99, iron, 0, 0).id, "iron_ore");
         assert_eq!(roll_find(99, iron, 1, 0).id, "copper_ore");
         // Two clean strikes lift it no further than one.
@@ -1791,10 +1792,10 @@ mod tests {
     fn the_heart_grows_likelier_the_longer_it_waits() {
         let mut log = Log::default();
         let iron = &FINDS[4];
-        for _ in 0..610 {
+        for _ in 0..210 {
             log.found(iron);
         }
-        assert_eq!(log.heart_wait(), 610);
+        assert_eq!(log.heart_wait(), 210);
         assert_eq!(weight(&FINDS[12], log.heart_wait()), 3);
         log.found(&FINDS[12]);
         assert_eq!(log.heart_wait(), 0);

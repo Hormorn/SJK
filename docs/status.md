@@ -12,7 +12,8 @@ strike (two blows, less rubble, the ore one tier rarer but never into the Heart)
 rubble, 9 ores, the Heart of the Mountain with Old Whiskers' kind of bad luck protection)
 jumps to the feet and is counted in `mining_log.txt`; another boulder comes up 4 to 8
 seconds later (balanced against Fishing: about six boulders a minute, the Heart some
-100 minutes; a 15 to 25 second wait was tried and felt slow). The player may walk with it; an alt attack or getting hurt puts it away, and it
+40 minutes, near Old Whiskers' half hour after Fishing's balance pass, #361; Sharp Eye, not
+Steady Hand, which #361 takes for Fishing; a 15 to 25 second wait was tried and felt slow). The player may walk with it; an alt attack or getting hurt puts it away, and it
 and the fishing rod put each other away. Boulders and swings are the miner's own (not
 sent); others see the pickaxe held. The fists are selected when the player has them,
 else a lit saber is switched off, and the pickaxe replaces what the hand held. Health

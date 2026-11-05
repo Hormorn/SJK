@@ -6084,7 +6084,7 @@ ground round the player, and each broken a blow at a time at the player's own pa
 gives nothing the economy counts: finds go to the player's own mining log, and five
 achievements count them on servers as the rest do (in a Mining category on the board's
 Hobbies page, beside Fishing's; [identity.md](identity.md)): First Strike (a boulder
-broken), Stonebreaker (500), Steady Hand (250 clean strikes), Prospector (every kind of
+broken), Stonebreaker (500), Sharp Eye (250 clean strikes), Prospector (every kind of
 ore, the Heart among them) and the hidden Heart of the Mountain. Selling them
 (phase 2) is to share Fishing junk's daily cap (one cap for both, so mining earns nothing
 on top of fishing); that needs the hub.
@@ -6133,12 +6133,13 @@ on top of fishing); that needs the hub.
   while it shines is a **clean strike**: it counts two blows, rings, and makes the find
   better.
 - **The find:** rubble 40% of the time (four kinds), 10 points less for each clean strike
-  (never under 20%), else an ore (nine kinds, weighted 221 iron, 196 copper, 130 silver,
-  98 glowstone, 64 sunstone, 44 moonstone, 26 star quartz, 20 void crystal and 1 the
+  (never under 20%), else an ore (nine kinds, weighted 96 iron, 86 copper, 57 silver,
+  43 glowstone, 28 sunstone, 19 moonstone, 11 star quartz, 9 void crystal and 1 the
   Heart of the Mountain). With any clean strike the ore is one tier rarer (iron becomes
   copper and so on), never into the Heart, which only its own roll gives. The Heart's
-  weight rises by one for every 300 ores dug since the last one, as Old Whiskers' does:
-  one in about 600 boulders, some 100 minutes of steady mining, near Old Whiskers' wait. The find jumps out of the broken boulder to the player's feet and is
+  weight rises by one for every 100 ores dug since the last one, as Old Whiskers' does:
+  one in about 230 boulders, some 40 minutes of steady mining (an hour at an easy pace),
+  near Old Whiskers' half hour. The find jumps out of the broken boulder to the player's feet and is
   said in the centre of the screen; each is counted in `mining_log.txt` in the settings
   folder (`<id> <count>` a line, and `heart_wait <count>`).
 - **Sounds:** Settings > Sound > Toys, "Mining sounds" (`s_toyMiningSound`), all retail

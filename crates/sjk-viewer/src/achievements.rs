@@ -1079,7 +1079,7 @@ pub(crate) const ALL: [Kind; 78] = [
     )
     .secret(),
     // 05/11/2026 (Slash): the Mining toy's, counted on servers as the rest; the goals set
-    // for its pace (some six boulders a minute, the Heart some 100 minutes).
+    // for its pace (some six boulders a minute, the Heart some 40 minutes).
     kind(
         "mine_first",
         "First Strike",
@@ -1098,7 +1098,7 @@ pub(crate) const ALL: [Kind; 78] = [
     ),
     kind(
         "mine_clean_250",
-        "Steady Hand",
+        "Sharp Eye",
         "Land 250 clean strikes, each as the boulder glints.",
         250,
         Mining,
@@ -2016,7 +2016,7 @@ mod tests {
         assert_eq!(Record::from_json(&record.to_json()), record);
     }
 
-    /// A boulder counts towards Stonebreaker, its clean strikes towards Steady Hand, an
+    /// A boulder counts towards Stonebreaker, its clean strikes towards Sharp Eye, an
     /// ore towards its kind, the Heart towards its own; rubble counts the boulder only,
     /// and the kinds of ore are kept in the file.
     #[test]
