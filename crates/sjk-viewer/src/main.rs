@@ -345,6 +345,7 @@ mod screenshot;
 mod server_browser;
 mod server_commands;
 mod server_passwords;
+mod server_view;
 mod session_log;
 mod session_transition;
 mod settings;
@@ -842,6 +843,8 @@ struct GpuState {
     legacy_world_adapter: Option<LegacyWorldAdapter>,
     presentation_clock: presentation_clock::SnapshotPresentationClock,
     net_timing: net_timing::NetTiming,
+    /// How old our commands are at the server, for the log (`server_view`).
+    server_view: server_view::ServerView,
     /// The 125 Hz user-command clock and the `cl_maxpackets` packet pace.
     command_schedule: sjk_client::command_rate::CommandSchedule,
     packet_pacer: sjk_client::command_rate::PacketPacer,
@@ -1795,6 +1798,7 @@ impl GpuState {
             legacy_world_adapter,
             presentation_clock,
             net_timing: net_timing::NetTiming::default(),
+            server_view: Default::default(),
             command_schedule: Default::default(),
             packet_pacer: Default::default(),
             server_clock,
@@ -2887,6 +2891,7 @@ impl GpuState {
                 audio.observe_saber_switches(snapshot, predicted);
                 audio.set_box_music(self.cardboard_box.music());
                 audio.set_hax_loop(self.hax_loop(presentation_time));
+                audio.set_weather(self.vfs.as_deref(), self.weather.heard());
                 audio.update_frame_loops(
                     snapshot,
                     presentation_time as i32,

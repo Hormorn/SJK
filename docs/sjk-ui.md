@@ -2087,7 +2087,7 @@ the column stays drawn, its keys lines turned to the flight's.
 
 - **Top:** "Map editor" (Rajdhani 42), the map and its state (no edits yet, N edits not
   published, or published with the hub's revision), then the pages as tabs: Selected,
-  Place, Edits (Camera control's tabs).
+  Place, Edits, Weather (Camera control's tabs, 28 apart so four fit the column).
 - **Selected:** what it is (Rajdhani 26; "Hidden face and 11 more" for several), its model
   or shader and its detail (Exo 2 16, muted, two lines; on faces the second is Fill's
   shader and share in gold), a row of kit buttons (two; three on a hidden face or a sky:
@@ -2106,6 +2106,11 @@ the column stays drawn, its keys lines turned to the flight's.
 - **Edits:** a list of eleven rows, an edit for another server in quiet print; Delete,
   Undo and Redo (each dimmed with nothing to do); then the Recent rows' switch ("Recent:
   remembered" or "Recent: off") and Forget recent.
+- **Weather** (05/11/2026, Sol's request): "This map's weather" heading, the map's own
+  weather (muted) and what an edit keeps here (gold; "Kept for this server" when the
+  edit is this server's), an ember note while the player forces weather; then Choose: a
+  row of four (Drizzle, Rain, Storm, Snow, the preset in force a gold pill), Fog and Wind
+  (on: a gold pill), Keep what I see and Map's own, and a muted note of who sees it.
 - **Foot:** New edits for and the kit's segments (All servers, This server) at y 800, the
   last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold) and
   Editor off at 898, and three lines of keys from 954, 30 apart (RMB fly, Click select,

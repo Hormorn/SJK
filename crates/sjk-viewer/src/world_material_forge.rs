@@ -390,9 +390,46 @@ impl Runtime {
         shaders: &ShaderCatalog,
         materials: &[ViewerMaterial],
     ) -> Result<DetachedMaterials, Box<dyn Error>> {
+        let known = self.forge.pipeline_keys.len();
+        let detached = self.compile_detached_stages(device, queue, vfs, shaders, materials)?;
+        for key in self.forge.pipeline_keys[known..].to_vec() {
+            self.push_pipelines(device, key);
+        }
+        Ok(detached)
+    }
+
+    /// [`Self::compile_detached`] without compiling the new pipelines: the returned jobs
+    /// do, on a worker ([`pipeline_jobs`]); a slot still empty when the materials first
+    /// draw compiles then, as before.
+    pub(crate) fn compile_detached_deferred(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        vfs: &VirtualFileSystem,
+        shaders: &ShaderCatalog,
+        materials: &[ViewerMaterial],
+    ) -> Result<(DetachedMaterials, pipeline_jobs::Jobs), Box<dyn Error>> {
+        let known = self.forge.pipeline_keys.len();
+        let detached = self.compile_detached_stages(device, queue, vfs, shaders, materials)?;
+        for _ in known..self.forge.pipeline_keys.len() {
+            self.push_pipeline_slots();
+        }
+        let jobs = self.pipeline_jobs(known..self.forge.pipeline_keys.len(), 0..0);
+        Ok((detached, jobs))
+    }
+
+    /// The stages of [`Self::compile_detached`]'s materials; new pipeline keys are
+    /// registered, their pipelines not made.
+    fn compile_detached_stages(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        vfs: &VirtualFileSystem,
+        shaders: &ShaderCatalog,
+        materials: &[ViewerMaterial],
+    ) -> Result<DetachedMaterials, Box<dyn Error>> {
         let mut image_cache = ImageCache::with_capacity(64);
         let mut compiled = Vec::with_capacity(materials.len());
-        let known = self.forge.pipeline_keys.len();
         for key in materials {
             let lightmap = self.forge.fallback_lightmap.clone();
             let material = compile_material(
@@ -416,9 +453,6 @@ impl Runtime {
                 blended: material.sort > SORT_OPAQUE,
                 stages,
             });
-        }
-        for key in self.forge.pipeline_keys[known..].to_vec() {
-            self.push_pipelines(device, key);
         }
         Ok(DetachedMaterials {
             materials: compiled,

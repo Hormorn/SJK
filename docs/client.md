@@ -1762,6 +1762,35 @@ tests: the hearing point, occlusion from rays and its glide, muffling, loops, th
 from its rays, the reverb bounded and dying away, a larger room ringing longer. Not yet
 heard in a game.
 
+## Weather sounds
+
+`s_weatherSounds` (Settings > Sound, Rain and wind sounds; off by default as it changes
+how stock Jedi Academy sounds, archived; Sol's request, 05/11/2026) plays the game's own
+outdoor loops with the weather ([weather_sound.rs](../crates/sjk-viewer/src/weather_sound.rs),
+[audio_weather.rs](../crates/sjk-viewer/src/audio_weather.rs)): `rainy_lp` and
+`windy1_lp` of `sound/ambience/outdoor/` (`assets0.pk3`), in both ears with the frame's
+loops, registered the first time they are heard.
+
+- Rain is as loud as the rain clouds' haze against a downpour's: `heavyrain` a full loop
+  (0.6 of the effects volume), `rain` 0.57 of it, `lightrain` 0.32; snow, sand and fog
+  make no rain sound.
+- Wind is as loud as the wind's speed across the ground against a gale of 3000 units a
+  second (the gusting wind's strongest, 0.5 of the effects volume), so it rises and falls
+  with the gusts; `constantwind ( -5000 0 0 )` blows at full.
+- Shelter: the weather cover's columns ([rendering.md](rendering.md#weather)) within 192
+  units of the listener, every 64, count by nearness; a column counts as open when its
+  weather comes down to 64 units above the listener and its sky is above them. Under open
+  sky the loops play fully, under a roof or indoors a fifth (the rain on the roof), in a
+  doorway about two thirds. Before the cover is surveyed, and on a map without sky whose
+  own weather falls everywhere, it is heard as open; weather chosen for a map without sky
+  (forced or a map edit's) is neither drawn nor heard.
+- Levels ease over 0.6 seconds; frozen weather and `r_weather 0` are silent. The listener
+  is the camera's position, so a free camera hears the weather where it flies.
+
+The loops are not positioned, so `s_spatial`'s muffling does not apply to them: shelter
+lowers them instead. Not done: thunder (the game has `sound/ambience/thunder*`, but the
+multiplayer weather has no lightning to go with it) and single gusts (`windy_a` to `_d`).
+
 ## Muted sounds
 
 `s_muteSounds` (Settings > Sound > Muted sounds, empty by default; akr's and Neffie's

@@ -32,6 +32,14 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+= s_weatherSounds: Hear the rain and the wind when a map has weather, quieter under a roof.
+
+- Browsing models no longer freezes the game: the model picker and the profile load a model in the background and swap it in once it is ready, as players' models already load in a match _(Sol)_
+- Map edits keep weather: staff give a map rain, a storm, snow, fog and wind (`mapedit_weather`, the map editor's Weather page), and every SJK player sees it with the map's other edits; your own Force weather setting still comes first _(Sol)_
+- Puddles mirror the world at Ultra weather quality (`r_weatherQuality 3`): the streets, walls and sky round a puddle show in it, rippled by the rain rings, where before it mirrored only a grey sky _(Sol, after VisionJK by Blackwolf)_
+- Rain and fog are lighter on the GPU: the fog is worked out at half size and blended back along the edges of what stands in it, about three times less time at the default quality and six times less at Ultra; the fog and the rain now glow towards the sun, and puddles mirror distant buildings and the sky, hazed by the rain _(Sol)_
+- Rain and wind sounds (Settings > Sound, `s_weatherSounds`, off by default): the game's own outdoor rain and wind loops play with the weather, as loud as it falls and blows, a fifth as loud under a roof or indoors _(Sol)_
+- Your log says how old your commands are when they reach the server, a line a minute and the last 10 seconds when a server drops you, so a JoF anti-cheat kick (Heimdall's "Set /cl_timeNudge 0") shows what the server measured _(Sol)_
 - Console: a chat-only view that lists just the chat, to follow a conversation: Settings > Interface "Console: chat only" (`con_chatOnly`, off by default); every line is still kept, switch it off to see them all _(Slash, after Hormorn's idea)_
 
 ## 2026.1105.2 (Alpha) | 05/11/2026

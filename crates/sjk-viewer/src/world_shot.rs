@@ -452,6 +452,9 @@ mod sharpen_shots;
 #[cfg(test)]
 #[path = "world_shot_tags.rs"]
 mod tags_shots;
+#[cfg(test)]
+#[path = "world_shot_weather.rs"]
+mod weather_shots;
 
 #[cfg(test)]
 mod tests {

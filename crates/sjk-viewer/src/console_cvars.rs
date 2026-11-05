@@ -549,6 +549,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "3D sound: heard from your head, muffled behind walls and doors, rooms ring",
         ),
         CvarDefinition::new(
+            crate::weather::sound::CVAR,
+            false,
+            archive,
+            "Rain and wind sounds with the weather, quieter under a roof",
+        ),
+        CvarDefinition::new(
             crate::team_sabers::TEAM_COLORS_CVAR,
             true,
             archive,

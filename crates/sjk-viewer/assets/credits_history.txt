@@ -9,6 +9,34 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 05/11/2026 | - | Model picker: read the stage model on a worker, a texture a frame
+- 8afefdc |  | Model picker: read the stage model on a worker, a texture a frame
++ 05/11/2026 | - | Log how old our commands are at the server (Heimdall kicks)
+- 131a717 |  | Log how old our commands are at the server (Heimdall kicks)
++ 05/11/2026 | - | Docs: Lumaya joins the maintainers who merge into main and cut alphas
+- da52328 |  | Docs: Lumaya joins the maintainers who merge into main and cut alphas
++ 05/11/2026 | - | Release 2026.1105.2
+- a3f0b15 |  | Release 2026.1105.2
++ 05/11/2026 | - | reviewing.md: maintainers merge economy changes and low-risk own PRs
+- af6dddc |  | reviewing.md: maintainers merge economy changes and low-risk own PRs
++ 05/11/2026 | - | Models take normal maps their shader names (normalMap), lit per pixel
+- efe978a |  | Models take normal maps their shader names (normalMap), lit per pixel
++ 05/11/2026 | - | Holocrons: the Sith pyramid becomes Sol's sculpted model (low poly, baked colour, glow and normal maps)
+- b334900 |  | Holocrons: the Sith pyramid becomes Sol's sculpted model (low poly, baked colour, glow and normal maps)
++ 05/11/2026 | - | Holocrons: the Sith pyramid's glow at 55 % so its runes stay purple
+- 6403327 |  | Holocrons: the Sith pyramid's glow at 55 % so its runes stay purple
++ 05/11/2026 | - | Credits and changelog: the sculpted Sith pyramid and model normal maps
+- 2dadac0 |  | Credits and changelog: the sculpted Sith pyramid and model normal maps
++ 05/11/2026 | - | Add reviewing.md: how pull requests are reviewed and merged
+- fc2df82 |  | Add reviewing.md: how pull requests are reviewed and merged
++ 05/11/2026 | - | Longer log requests: 1.5 MiB of this session, 512 KiB of the one before
+- 3f0af63 |  | Longer log requests: 1.5 MiB of this session, 512 KiB of the one before
++ 05/11/2026 | - | rig_reload: edit rig models in Blender while the game runs
+- 27479bb |  | rig_reload: edit rig models in Blender while the game runs
++ 05/11/2026 | - | Shared remap blocks: the creator's hub list of maps without server remaps
+- ae02f91 |  | Shared remap blocks: the creator's hub list of maps without server remaps
++ 05/11/2026 | - | Release 2026.1105.1
+- 28ac937 |  | Release 2026.1105.1
 + 04/11/2026 | - | JoF: no repeated commands in packets (cl_packetdup 0, Heimdall kicks)
 - 379a3be |  | JoF: no repeated commands in packets (cl_packetdup 0, Heimdall kicks)
 + 04/11/2026 | - | Credits history after the multi-selection gizmo

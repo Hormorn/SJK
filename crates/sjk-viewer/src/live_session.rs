@@ -48,6 +48,14 @@ impl GpuState {
     ) {
         use crate::frame_pacing::budget::Phase;
         timing.mark(Phase::Snapshot);
+        if self
+            .live_session
+            .as_ref()
+            .is_some_and(|session| !session.is_local())
+            && let Some(line) = self.server_view.frame(Instant::now())
+        {
+            crate::log::progress(format_args!("{line}"));
+        }
         let caught_up = drain_snapshots(|| {
             let Some(session) = &mut self.live_session else {
                 return false;
@@ -86,6 +94,7 @@ impl GpuState {
                 // Stock stamps the whole map load 0 (`CL_ClearState`); the
                 // world built for the new timeline anchors the clock again.
                 self.server_clock.restart();
+                self.server_view.restart();
                 self.pending_map_reload = true;
                 self.ghost_leave();
                 self.retain_world_for_connection();
@@ -120,6 +129,23 @@ impl GpuState {
                 return true;
             }
             self.net_timing.snapshot_received(snapshot.server_time);
+            // Our own commands only: not a followed player's state, not while the
+            // server holds everyone at the intermission, not before the clock
+            // stamps this time line (`server_view`).
+            let own_commands = snapshot.player.movement_flags() & sjk_game_jka::follow::PMF_FOLLOW
+                == 0
+                && snapshot.player.movement_type() != sjk_client::PM_INTERMISSION;
+            let remote = self
+                .live_session
+                .as_ref()
+                .is_some_and(|session| !session.is_local());
+            if own_commands && remote && self.server_clock.anchored() {
+                self.server_view.snapshot(
+                    snapshot.server_time,
+                    snapshot.player.command_time(),
+                    Instant::now(),
+                );
+            }
             self.present_live_snapshot(&snapshot, true, game_audio, visual_now);
             true
         });
@@ -362,6 +388,7 @@ impl GpuState {
             }
             let sent = self.local_prediction.command_for_server(command);
             session.queue_command(&sent);
+            self.server_view.command(sent.server_time);
             crate::emote_end_debug::observe_command(&sent, held_weapon, now);
             // With `cg_emoteAttackStop`, an attack or alt attack ends the player's
             // own emote, here and, as `sjkemote stop` does, for the other SJK
@@ -447,6 +474,7 @@ impl GpuState {
             return;
         }
         self.packet_pacer.sent(now);
+        self.server_view.packet_sent(now);
         // A press made after the packet's commands waits for the next one.
         if std::mem::take(&mut self.generic_command_sent) == self.pending_generic_command {
             self.pending_generic_command = 0;

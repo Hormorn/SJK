@@ -294,6 +294,11 @@ pub(super) const AUDIO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Rain and wind sounds",
+        cvar: crate::weather::sound::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Footprints and dust",
         cvar: crate::footprints::PRINTS_CVAR,
         kind: ValueKind::Bool,

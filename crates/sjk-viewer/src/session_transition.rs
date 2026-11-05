@@ -508,6 +508,7 @@ impl GpuState {
         to.demo_session = self.demo_session.take();
         to.console = self.console.take();
         to.net_timing = std::mem::take(&mut self.net_timing);
+        to.server_view = std::mem::take(&mut self.server_view);
         to.client_menu = self.client_menu.take();
         to.join_task = self.join_task.take();
         to.connect_timeline = self.connect_timeline.take().or(to.connect_timeline.take());

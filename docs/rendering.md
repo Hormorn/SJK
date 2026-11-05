@@ -654,6 +654,19 @@ cost 30 to 85 ms in one frame in Sol's 10/10/2026 logs (3 to 6 ms a pipeline); t
 pipelines are now compiled on first use like the others. Hilts, NPCs and models a
 server names later still compile on the render thread.
 
+The menu stage's model (the model picker, the profile's pages, the classic preview
+and the Collection's) loads the same way since 05/11/2026
+([menu_stage/load.rs](../crates/sjk-viewer/src/menu_stage/load.rs)): a worker reads
+the model, skins its first pose and prepares its textures (`warm_entity_materials`),
+the render thread uploads one texture a frame, then compiles its materials without
+their pipelines (`Runtime::compile_detached_deferred`) and makes its buffers, and a
+second worker compiles the pipelines before it is shown. The model on the stage stays
+until the new one is ready; one worker reads at a time, so scrolling past models loads
+the one the picker stops on. Built in one frame, it cost 100 to 485 ms a model in
+Turin's 04/11/2026 log as he scrolled models in a match (`view+menu+audio`), and no
+command leaves the client during such a frame ([networking.md](networking.md),
+Heimdall's kicks). A windowless client (world shots) takes every step in the frame.
+
 The same worker also builds the model's texture mip chains (`warm_entity_materials`
 with `mipmapped`), and the render thread uploads them under their material keys
 (`Runtime::upload_prepared_texture`, one a frame) before appending the materials, as the map
@@ -4262,7 +4275,10 @@ SJK draws the rain, snow, dust and blowing mist that maps ask for
 them as world effect commands in slot order, as cgame's `CG_ParseWeatherEffect` and
 the renderer's `RE_WorldEffectCommand` do, and again whenever an effect name
 changes. A world without a server (the menu backdrop) takes them from its own
-entities. `r_we <command>` adds one from the console until the next map. The clouds
+entities. `r_we <command>` adds one from the console until the next map. A map edit's
+weather ([map-edits.md](map-edits.md#weather), synced through the hub) runs its commands
+in place of the map's, under the player's own `r_weatherForce`; SJK adds one command for
+it, `mist`, the light ground fog `r_weatherFog 2` lays (`Mist::DEFAULT`). The clouds
 keep the original parameters: counts, sizes, gravity, colours, mass ranges, spawn
 boxes, five clouds and ten wind zones at most
 ([weather_effects.rs](../crates/sjk-viewer/src/weather_effects.rs)). Gusting wind
@@ -4356,14 +4372,30 @@ distant fog down 500 units, and a bright band at eye height came and went.)
 `r_weatherFog` decides the ground fog: 0 none (no fog sprites either), 1 the map's
 (default), 2 also a light fog on every map with sky.
 
+The march runs at half the scene's size (05/11/2026, `fragment_volume_half`, into an
+`Rg16Float` image of its own, freed when no fog is drawn): each texel stands for a 2x2
+block of the depth and marches to the block's nearest point or its farthest, in a
+checkerboard, keeping its alpha and how far its ray went. The full-size pass blends the
+four texels round each pixel by nearness and by how close their ray's length is to its
+own (a joint bilateral blend, tolerance 5% of the length and 16 units), the closest one
+alone where none is close, so the fog keeps to the edges of a pole or a player in front
+of a foggy street instead of haloing them. A ray takes a step per 110 units, at least
+four and at most the quality's count, so a wall near the eye costs four steps, the
+horizon all of them; the ground fog's noise is read only where the fog has not thinned
+below 1% of its floor's, and the march stops once 99.7% of the light is lost. Towards
+the sun the fog is lighter and away from it darker (forward scattering, Henyey-Greenstein
+with g 0.35, `sun_glow`: half of it at the sun's full strength, a third of that in a
+full storm), and the rain catches the light between the eye and the sun (up to 1.8 times
+as bright in a 30-degree cone). Measured on 05/11/2026 (release, Windows, RTX 5080, off-screen at 2560x1440 on `T2_Rogue` in a forced storm, `t2_rogue_storm_timing`, medians of the effect pass `scene-pass`, which holds the fog with the rain and the splashes): 0.266 ms before and 0.105 after at medium, 0.385 and 0.125 at high, 0.84 to 1.05 and 0.137 at ultra. A game ran on the same GPU meanwhile, so whole-frame times varied; the pass times held.
+
 **Quality** (`r_weatherQuality`, [weather_settings.rs](../crates/sjk-viewer/src/weather_settings.rs)):
 
 | Level | Draws |
 | --- | --- |
 | 0 low | Near streaks, the original's fog sprites; clouds with 10 samples |
-| 1 medium | Splashes, volumetric fog with 8 samples a ray, wet surfaces; clouds 16 |
-| 2 high (default) | The far rain layer, fog 12, water running down slopes and walls; clouds 24 |
-| 3 ultra | More far rain and splashes, fog 20, puddles with rain rings; clouds 40 |
+| 1 medium | Splashes, volumetric fog with 10 samples a ray at most, wet surfaces; clouds 16 |
+| 2 high (default) | The far rain layer, fog 16, water running down slopes and walls; clouds 24 |
+| 3 ultra | More far rain and splashes, fog 24, puddles with rain rings that mirror the world; clouds 40 |
 
 **Wet surfaces** (`fragment_wet` in weather.wgsl, from `r_weatherQuality` 1). Rain
 wets what it falls on, in one full-screen pass drawn into the scene right after the
@@ -4392,10 +4424,41 @@ times a slope-dependent speed: the streaks flickered and slid as the camera move
 they would shimmer. Level 3 adds puddles on
 flat ground (about a third of it, in noise patches 1100 units across), darker and an
 almost full mirror, with thin rain rings within 700 units. The pass blends
-`scene × alpha + colour` and never reads the scene, so the weather does not copy the
-frame; the price is that light painted into a wet wall's texture dims with it (by at
-most about a sixth on a wall). Not drawn: reflections of the scene in puddles (only
-the sky is mirrored) and wet models. Measured on 08/10/2026 (release, Windows, RTX
+`scene × alpha + colour`; the price is that light painted into a wet wall's texture
+dims with it (by at most about a sixth on a wall). Not drawn: wet models.
+
+**Puddles' mirror** (level 3, 05/11/2026, Sol: "take a look at the water effects of
+VisionJK and import some of it, to have nice water on the ground when there is rain";
+[weather_mirror.rs](../crates/sjk-viewer/src/weather_mirror.rs), `mirrored` in
+weather.wgsl). VisionJK has no rain-driven water of its own (its weather is the stock
+`tr_WorldEffects`); its water gun's wet ground (`wet.frag`, by Blackwolf) mirrors the room
+in its pools with a screen-space march, which SJK's puddles now use. Right after the
+opaque world, before the wet pass, the scene is copied at half its size (one bilinear tap
+per four texels, `fragment_mirror_copy`, about 17 MB at 3840×2160 while it rains at
+ultra, freed otherwise). Each puddle pixel within 2500 units (fading from 1500) marches
+its mirrored ray through the depth: 32 steps from 2 units, each 1.18 times the last
+(about 2000 units in all), a step counting as a hit when the ray lies behind the drawn
+world by less than twice the step and 16 units (deeper, it passes behind something
+nearer the eye and goes on), then five halvings round the hit; the copy is read there.
+A ray that meets nothing within the march takes what lies that way far off: the spot on
+the screen of the eye plus the ray's direction, where the screen shows the sky or a
+surface farther than the march went (a distant building; a nearer surface there stands in
+front of the ray and is refused). The copy is the world before the fog, so what the puddle
+mirrors is greyed towards the overcast sky by the rain's haze over the distance the light
+came. A hit fades within 8% of the screen's edge and over the march's last 600 units.
+Where something is found the reflectance is VisionJK's pond blend, `clamp(2 F + 0.2, 0,
+0.92)` with F water's Fresnel term, so a puddle mirrors a fifth even seen from above and
+almost all at grazing angles; where nothing is, the puddle keeps the sky-only mirror it
+has without the copy. (The first version, 05/11/2026, gave unfound rays the overcast
+colour at the pond's reflectance and looked for the sky 100 000 units away, past the far
+plane, so it never found it: puddles turned into flat pale slabs. Its edges also ended in
+a band of 3% of the noise, softened to 6%.) Within 700 units the rain rings tilt
+its normal (their slope, a third of it), so the reflection ripples where drops land.
+Players and models are drawn after the wet pass and are not in the copy: puddles mirror
+the world and its sky, not the players. The copy needs a scene target the client can
+sample (the render-scale or post-AA scene); a frame drawn straight to the window keeps
+the sky alone. The world shot `t2_rogue_storm_puddles` (`world_shot_weather.rs`) renders
+four views of a storm on `T2_Rogue` with and without the mirror. Measured on 08/10/2026 (release, Windows, RTX
 5080, off-screen at 3840×2160 on `T2_Rogue` in a forced storm, `SJK_GPU_PHASES` marks
 `world-opaque`/`rain-wet`): 0.19–0.26 ms a frame at levels 1 and 2, 0.27–0.37 ms at 3,
 in GPU frames of 5.5–7.9 ms.
@@ -4403,7 +4466,7 @@ in GPU frames of 5.5–7.9 ms.
 **Forced weather** (`r_weatherForce`): 1 drizzle (`lightrain`), 2 rain with a
 random wind, 3 a storm (`heavyrain`, gusting wind), 4 snow with wind, in place of the
 map's weather; `r_we` commands still add to it. Forced weather is drawn only on maps
-with sky, so it never falls indoors on a map without one.
+with sky, so it never falls indoors on a map without one; so is a map edit's weather.
 
 **Clouds** ([weather_clouds.rs](../crates/sjk-viewer/src/weather_clouds.rs),
 [clouds.wgsl](../crates/sjk-viewer/src/clouds.wgsl), `r_clouds`, on by default).
@@ -4425,6 +4488,9 @@ Fog and clouds share one noise volume ([weather_noise.rs](../crates/sjk-viewer/s
 noise at three frequencies for the eroded edges, after Schneider's published cloud
 technique (2015) and written for SJK. It tiles in every direction, is made once per
 run on a worker thread, and the clouds and the fog's billows appear when it is ready.
+
+Rain and wind can be heard with `s_weatherSounds` ([client.md](client.md#weather-sounds)),
+quieter under a roof by the same cover.
 
 `r_weather 0` turns weather off (the clouds stay with `r_clouds`);
 `r_weatherDensity` scales the counts (1 is the original's, SJK's default 2).

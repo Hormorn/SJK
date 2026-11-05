@@ -15,6 +15,7 @@ the hub copies in [sjk-identity's map_edits](../crates/sjk-identity/src/map_edit
 | `place` | an MD3 from the game data at a position, turned and scaled | lighting: entity light only, as props get |
 | `remap` | a shader drawn instead of another wherever the map draws it | |
 | `show_face` | one caulk, nodraw or sky side of a world brush, drawn with a shader | collision, the bake |
+| `weather` | the map's rain, snow, fog and wind, in place of its own ([below](#weather)) | gameplay: weather is drawn only |
 
 Edits change what is drawn, never collision. The server keeps every brush and entity: a
 hidden prop or surface with clip brushes is an invisible wall, and a placed model can be
@@ -62,6 +63,38 @@ already reads:
 A client older than this release reads a document with a covered sky side and skips that
 face alone (its face check refuses a sky side; the rest of the document applies), so
 publish sky covers once a release carries them. Sky swaps already work on older clients.
+
+## Weather
+
+A `weather` edit (05/11/2026, Sol: "save remaps of weather too, synced with SJK, so I
+can add rain, fog and stuff on some maps") keeps world effect commands for the map, the
+ones `r_we` runs and maps name in their `fx_rain` and `fx_wind` entities: `heavyrain`,
+`gustingwind`, `constantwind ( -5000 0 0 )`, `fog`, and SJK's own `mist`, the light
+ground fog `r_weatherFog 2` lays ([rendering.md](rendering.md#weather)). They run in place
+of the map's own weather, so a dry map gets rain and a rainy one snow. The edit is
+`{"kind":"weather","commands":["heavyrain","gustingwind","mist"]}`, 1 to 16 commands of
+at most 160 printable characters each, without `;` or `"`; a command the client does not
+know is skipped when the weather is built, as a map's unknown effect name is. A map keeps
+one weather edit per scope; on a server whose own weather edit exists, it wins over the
+every-server one.
+
+Who sees it: every SJK player with `cg_mapEdits` on (the default), as every edit; their
+`r_weather 0` still turns weather off, and their own `r_weatherForce` replaces the
+edit's as it replaces the map's. Like forced weather, an edit's weather stays off a map
+with no sky surface at all, where it would fall indoors. The cover (rain under open sky
+only, splashes, wet ground, puddles) is the map's, surveyed as for its own weather.
+
+`mapedit_weather` with no words keeps the weather seen now: the forced weather (or the
+edit's, or the map's), the `r_we` commands typed since the map loaded, and `mist` when
+`r_weatherFog 2` lays its fog on a map without its own. So staff try weather with
+`r_weatherForce`, `r_weatherFog 2` and `r_we`, then keep it. `mapedit_weather heavyrain,
+gustingwind, mist` keeps the commands named (commas between them), `mapedit_weather -`
+gives the map its own back. The panel's Weather page offers the same.
+
+Clients from before this release do not know the kind and ignore the map's whole document
+(`map edits ... ignored` in their log), so publish weather once players have the release
+that reads it, and staff should not edit such a map on an older client: it would start
+an empty document and a publish would replace the hub's list.
 
 A remap edit wins over the map's own worldspawn remaps and the server's, so a fix made
 for a server's remaps holds; a console `remapShader` made after them still wins
@@ -158,6 +191,7 @@ map without a server walks with its own movement.
 | `mapedit_sky <sky> \| - [all]` | Swap the selected sky for sky shader `sky` (`all`: every sky of the map, without a selection); `-` puts the map's back |
 | `mapedit_link plane\|surface` | The selected caulk, nodraw or sky face and the faces joined to it (Same plane, Connected surface, [as the page's](#the-browser-editor-creator-only-for-now)) become the selection |
 | `mapedit_fill [shader]` | Draw the selected faces with the shader the drawn surfaces round them use (the nearby vote's first), or `shader`; one step to undo |
+| `mapedit_weather [<command>, ...] \| -` | Keep the weather seen now for the map, or the world effect commands named (commas between); `-` gives the map its own weather back ([Weather](#weather)) |
 | `mapedit_scope [all\|server]` | New edits for all servers (the default) or only this one |
 | `mapedit_list`, `mapedit_delete <id>` | List, remove one |
 | `mapedit_undo`, `mapedit_redo` | Undo the last change to the map's edits (a hide, a placing, a turn, a move, a remap, a delete), or redo it |
@@ -215,6 +249,7 @@ all takes everything. The [gizmo](#gizmos) stands at the set's middle.
 | --- | --- |
 | Selected | what it is (map prop, placed model, surface, game entity, hidden face: a caulk or nodraw side nearer than any drawn surface, sky: a sky side) with its model and shader, and how many more are selected; on a sky the skies come first in the list, and its buttons are Swap sky (Cover side when a texture is chosen), Swap all skies and Take back; Hide (Remove for a placed model; Hide all for several), Hide whole model (a merged model's surfaces), Place a copy; on a hidden face or a sky side Same plane, Connected (`mapedit_link`) and Fill (`mapedit_fill`), the shader Fill would draw named under it with its share of the vote ("Fill: yavin/stone_walk (62 % nearby)"); Draw another shader: a search over the shaders a remap may draw (the world's `textures/` and the map objects' `models/`, shaders and images, never the player models'), the Recent rows first, opened on the selection's own folder with its own shader chosen, five rows; Remap (or a second click on the chosen row) and Remove remap. A name the list does not know is tried as typed |
 | Place | every MD3 of the game data outside the player models, the Recent rows first, narrowed by a search, six rows; Place where you aimed (or a second click on the chosen row); the current placed model's Turn left and right (15 degrees), Up and Down (8 units), Left, Right, Away and Closer (8 units along the world axis nearest the view's right and ahead, so steps add up straight), Smaller and Bigger (by 1.1), Grab and Remove. Shift held makes the steps 1 degree, 1 unit and a tenth of the growth |
+| Weather | the map's own weather and what an edit keeps here; Drizzle, Rain, Storm and Snow (`r_weatherForce`'s four, keeping the fog), Fog (`mist` on, or every fog off) and Wind (`wind` on, or every wind off), Keep what I see (`mapedit_weather`) and Map's own (`mapedit_weather -`); an ember line while your own `r_weatherForce` hides it |
 | Edits | the map's edits, newest first, eleven rows, named shortly (`3: Placed: crate.md3`, `Hidden surface: floor (1043)`, `Remap: wall -> wall2`, a server's address when for one), those for another server dimmed; choosing a placed model makes it the one Place's buttons move; Delete the chosen one, Undo and Redo; the Recent rows' switch ("Recent: remembered" or off) and Forget recent |
 
 Under them on every page: New edits for All servers or This server, the last command's
