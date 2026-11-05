@@ -1,6 +1,6 @@
 ## Mining toy (phase 1)
 
-04/11/2026, `feat/mining`, based on `main` `c0d603eb` (Slash's design): `toy_mining` puts a
+04/11/2026, `feat/mining`, based on `main` `c0d603eb` (Vinra's idea, built by Slash): `toy_mining` puts a
 pickaxe in the right hand, held as a hilt is (turned with the hand bolt, so it stays in
 the grip in every pose and in first person; the strong saber stance), and three
 boulders come up out of the ground round the player, in sight, on flat dry ground
