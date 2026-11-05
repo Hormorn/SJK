@@ -3261,6 +3261,17 @@ HUD to show it. The brief inventory selector still appears when cycling items,
 whether this permanent list is on or off. Trip-mine weapons are not part of the
 holdable list. Existing saved values remain in effect.
 
+## Local time clock
+
+`cg_drawClock` (off by default; Settings > HUD "Local time") shows the PC's local time
+on the HUD: 1 the time, 2 the time and the date (`dd/mm/yyyy`) after it, as Nib asked
+(#ideas, 05/11/2026). `cg_clock12h` counts the hours 1 to 12 with am/pm instead of 0 to
+23. The text is centred on `cg_clockX` (640-wide units, default 320) with its bottom on
+`cg_clockY` (480-high units, default 476), scaled by `cg_clockSize` (0.6); the HUD editor
+(`hud_edit`) drags it like the speedometer and its reset puts the defaults back. The
+PC's clock is read at most once a second into retained text
+([clock.rs](../crates/sjk-viewer/src/hud/clock.rs)).
+
 ## Speedometer placement
 
 `cg_speedometerX` is the speed label's right-edge anchor in the 640-wide virtual
@@ -3651,7 +3662,8 @@ Escape, Enter or Done leave (back to the game menu when the mode was opened from
 An element with position cvars of its own is moved by changing them, in their units,
 so the console and the mode agree: the lagometer (`cg_lagometerX`, `cg_lagometerY`),
 the movement keys (`cg_movementKeysX`, `cg_movementKeysY`), the speedometer
-(`cg_speedometerX`, `cg_speedometerY`), the kill feed (`cg_killfeedX`, `cg_killfeedY`),
+(`cg_speedometerX`, `cg_speedometerY`), the local time clock (`cg_clockX`, `cg_clockY`),
+the kill feed (`cg_killfeedX`, `cg_killfeedY`),
 the personal score (`cg_drawScoreX`, `cg_drawScoreY`) and the chat (`cg_chatBoxX`,
 `cg_chatBoxHeight`); a reset sets their defaults. The others keep an offset in
 `cg_hudOffsets`, `id:x,y` pairs in 480-line units (the screen's height over 480 pixels a

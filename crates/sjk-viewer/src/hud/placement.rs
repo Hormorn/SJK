@@ -53,6 +53,8 @@ pub(crate) enum Element {
     /// The personal score line (`cg_drawScore`).
     Score,
     Chat,
+    /// The local time (`cg_drawClock`, 05/11/2026).
+    Clock,
 }
 
 /// How many [`Element`]s there are.
@@ -111,7 +113,7 @@ pub(crate) enum Binding {
 }
 
 impl Element {
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::Vitals,
         Self::Force,
         Self::Weapon,
@@ -128,6 +130,7 @@ impl Element {
         Self::KillFeed,
         Self::Score,
         Self::Chat,
+        Self::Clock,
     ];
 
     pub(crate) const fn index(self) -> usize {
@@ -153,6 +156,7 @@ impl Element {
             Self::KillFeed => "killfeed",
             Self::Score => "score",
             Self::Chat => "chat",
+            Self::Clock => "clock",
         }
     }
 
@@ -175,6 +179,7 @@ impl Element {
             Self::KillFeed => "Kill feed",
             Self::Score => "Score",
             Self::Chat => "Chat",
+            Self::Clock => "Local time",
         }
     }
 
@@ -216,6 +221,11 @@ impl Element {
             Self::Chat => Binding::Cvars([
                 Axis::new("cg_chatBoxX", 1.0, Width640),
                 Axis::new("cg_chatBoxHeight", 1.0, Height480),
+            ]),
+            // The text's centre and bottom (`clock.rs`).
+            Self::Clock => Binding::Cvars([
+                Axis::new(super::clock::X_CVAR, 1.0, Width640),
+                Axis::new(super::clock::Y_CVAR, 1.0, Height480),
             ]),
             _ => Binding::Free,
         }

@@ -1,5 +1,6 @@
 //! Data-driven in-game HUD over authoritative snapshot values.
 
+pub(crate) mod clock;
 mod data_source;
 pub(crate) mod duel_pairs;
 use data_source::*;
@@ -258,6 +259,8 @@ pub(crate) struct HudOverlay {
     pub(crate) kill_feed: kill_feed::Feed,
     crosshair_name: String,
     speed: options::Speed,
+    /// The local time (`cg_drawClock`, [`clock`]).
+    clock: clock::Clock,
     crosshair_alpha: f32,
     crosshair_teammate: bool,
     match_timer: String,
@@ -495,6 +498,7 @@ impl HudOverlay {
             kill_feed: kill_feed::Feed::default(),
             crosshair_name: String::with_capacity(64),
             speed: options::Speed::default(),
+            clock: clock::Clock::default(),
             crosshair_alpha: 0.0,
             crosshair_teammate: false,
             match_timer: String::with_capacity(16),
@@ -813,6 +817,9 @@ impl HudOverlay {
             let start = self.draw_list.len();
             self.speed.emit(&mut self.draw_list, self.theme, viewport);
             self.place_from(Element::Speedometer, start, viewport);
+            let start = self.draw_list.len();
+            self.clock.emit(&mut self.draw_list, self.theme, viewport);
+            self.place_from(Element::Clock, start, viewport);
             let start = self.draw_list.len();
             self.movement_keys.emit(&mut self.draw_list, viewport);
             self.place_from(Element::MovementKeys, start, viewport);

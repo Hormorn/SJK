@@ -100,6 +100,9 @@ pub(super) fn classic_label<'a>(cvar: &str, label: &'a str) -> (&'a str, Timing)
 /// a code: each `(cvar, value, name)`. A value not listed is shown as it is
 /// written ([`super::classic_view::choice_label`]).
 const CHOICE_NAMES: &[(&str, &str, &str)] = &[
+    (crate::hud::clock::CVAR, "0", "Off"),
+    (crate::hud::clock::CVAR, "1", "Time"),
+    (crate::hud::clock::CVAR, "2", "Time and date"),
     (
         crate::chat::incoming_color::CVAR,
         "0",
@@ -1434,6 +1437,14 @@ const HELP: &[(&str, &str)] = &[
     // HUD+
     ("cg_crosshairSize", "Size of the crosshair."),
     ("cg_speedometer", "Shows how fast you move."),
+    (
+        crate::hud::clock::CVAR,
+        "Shows your PC's local time on the HUD, or the time and the date. Move it in the HUD editor, or with cg_clockX, Y and Size.",
+    ),
+    (
+        crate::hud::clock::HOURS_CVAR,
+        "Counts the HUD clock's hours from 1 to 12 with am and pm, instead of 0 to 23.",
+    ),
     (
         crate::hud::movement_keys::CVAR,
         "JoF EJK's movement keys on screen, each lit while you hold it. Place them with cg_movementKeysX, Y and Size.",
