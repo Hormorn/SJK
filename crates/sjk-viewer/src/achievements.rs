@@ -132,7 +132,7 @@ pub(crate) enum Counter {
     EchoesLanded,
     /// Old Whiskers, the great catfish, landed.
     GreatCatfish,
-    // The Mining toy's (Vinra's toy, Slash, 05/11/2026; [`crate::mining`]).
+    // The Mining toy's (vinry's toy, Slash, 05/11/2026; [`crate::mining`]).
     /// Boulders broken with the Mining toy.
     BouldersBroken,
     /// Clean strikes on them (a blow on the glint).

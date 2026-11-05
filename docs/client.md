@@ -6078,7 +6078,7 @@ game), and mounted below all game data. See
 
 ## Mining
 
-Mining (Vinra's idea, built by Slash, 04/11/2026; phase 1) is a toy for every SJK player, and unlike
+Mining (vinry's idea, built by Slash, 04/11/2026; phase 1) is a toy for every SJK player, and unlike
 [Fishing](#fishing) no waiting game: a pickaxe in the hand, boulders coming up out of the
 ground round the player, and each broken a blow at a time at the player's own pace. Phase 1
 gives nothing the economy counts: finds go to the player's own mining log, and five

@@ -1,4 +1,4 @@
-//! Mining, SJK's own toy (`toy_mining`; Vinra's idea, built by Slash, 04/11/2026, phase
+//! Mining, SJK's own toy (`toy_mining`; vinry's idea, built by Slash, 04/11/2026, phase
 //! 1): the player takes a pickaxe in hand, and boulders come up out of the ground round
 //! them, a few at a time ([`ROCKS`]). The player walks up to one and strikes it with the
 //! attack button (or `+use`), the whole body
