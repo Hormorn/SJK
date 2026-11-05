@@ -672,6 +672,15 @@ impl Mining {
         }
     }
 
+    /// The player chose a weapon (`weapon <n>`, the saber's 1 among them, or the next or
+    /// previous one): the pickaxe goes away and the weapon comes out.
+    pub(crate) fn weapon_chosen(&mut self) {
+        if self.on {
+            self.put_away();
+            self.said.push(Say::Centre("You put the pickaxe away."));
+        }
+    }
+
     /// The map being played is `map`: boulders on another are gone.
     pub(crate) fn set_map(&mut self, map: &str) {
         if self.map != map {
@@ -843,11 +852,11 @@ impl Mining {
             .map(|(index, _)| index)
     }
 
-    /// A blow lands, the player standing and facing as `frame` says.
+    /// A blow lands, the player standing and facing as `frame` says. One striking no
+    /// boulder says nothing: a word there would cut short what the last boulder gave,
+    /// shown in the centre while the attack is held (Slash, 05/11/2026).
     fn strike(&mut self, frame: Frame, now: Instant) {
         let Some(index) = self.target(Vec3::from_array(frame.origin), frame.yaw) else {
-            self.said
-                .push(Say::Centre("Walk up to a boulder and face it to strike."));
             return;
         };
         self.blows = self.blows.wrapping_add(1);
@@ -1554,11 +1563,13 @@ mod tests {
         assert_eq!(mining.target(Vec3::new(0.0, 0.0, 200.0), 0.0), None);
         // Standing on it, any way.
         assert_eq!(mining.target(Vec3::new(36.0, 0.0, 0.0), 2.0), Some(0));
-        // Nothing before them: the swing says so.
+        // Nothing before them: the swing says nothing in the centre (the last find
+        // stays).
         let mut empty = Mining::default();
         take_out(&mut empty, now);
+        empty.take_said().for_each(drop);
         swing(&mut empty, now);
-        assert!(empty.take_said().any(|say| matches!(say, Say::Centre(_))));
+        assert!(!empty.take_said().any(|say| matches!(say, Say::Centre(_))));
     }
 
     #[test]
@@ -1689,6 +1700,25 @@ mod tests {
             ..open
         };
         assert_eq!(ground_at(eye, spot, walled), None);
+    }
+
+    #[test]
+    fn choosing_a_weapon_puts_the_pickaxe_away() {
+        let now = Instant::now();
+        let mut mining = Mining::default();
+        take_out(&mut mining, now);
+        assert!(mining.on());
+        mining.take_said().for_each(drop);
+        mining.weapon_chosen();
+        assert!(!mining.on());
+        assert!(
+            mining
+                .take_said()
+                .any(|say| matches!(say, Say::Centre("You put the pickaxe away.")))
+        );
+        // Away already: nothing said.
+        mining.weapon_chosen();
+        assert_eq!(mining.take_said().count(), 0);
     }
 
     #[test]

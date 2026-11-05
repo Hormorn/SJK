@@ -6029,7 +6029,9 @@ on top of fishing); that needs the hub.
 
 - **`toy_mining`** (a bind, the quick wheel's Toys catalogue, Collection > Toys, "Pickaxe
   out") takes the pickaxe in hand or puts it away. The player may walk with it;
-  an alt attack, getting hurt, dying or leaving the game puts it away (health over the
+  an alt attack, choosing a weapon (`weapon <n>`, the saber's 1 among them, or the next
+  or previous one; it then comes out), getting hurt, dying or leaving the game puts it
+  away (health over the
   maximum counting down after a spawn is no hurt). The hands go empty: the fists when the
   player has them (`weapmelee`), else a lit saber is switched off; the pickaxe then
   replaces whatever that hand holds. It is held as a hilt is: on the right hand's bolt,
@@ -6060,7 +6062,8 @@ on top of fishing); that needs the hub.
   swooshes the animation's cues play (`sound/weapons/saber/`) are left out while a player
   holds the pickaxe (`actor_sounds.rs`): the pickaxe's own swing plays. The blow strikes the nearest boulder
   within 64 units before the player (about 57 degrees either side of the way they face),
-  or says to walk up to one. Others see the pickaxe held, not the swing: swings are not
+  or, striking none, says nothing (a word there cut short the find just shown while the
+  attack was held). Others see the pickaxe held, not the swing: swings are not
   sent.
 - **Blows:** a boulder takes 10 to 14, shrinking as it breaks and shaking at each.
 - **The glint:** 1 to 2.5 seconds after a boulder's first blow, then every 1.5 to 4

@@ -769,8 +769,16 @@ impl super::GpuState {
                     self.gameplay_input.flip_kick.start();
                 }
             }
-            Some(InputAction::Weapon(weapon)) => self.select_weapon(weapon),
-            Some(InputAction::WeaponCycle(direction)) => self.cycle_weapon(direction),
+            Some(InputAction::Weapon(weapon)) => {
+                // A weapon chosen (the saber's 1 among them) puts the pickaxe away
+                // (`mining`), and is taken out as ever.
+                self.mining.weapon_chosen();
+                self.select_weapon(weapon);
+            }
+            Some(InputAction::WeaponCycle(direction)) => {
+                self.mining.weapon_chosen();
+                self.cycle_weapon(direction);
+            }
             Some(InputAction::WeaponMelee) => self.select_melee(),
             Some(InputAction::SelectionCycle(inventory, direction)) => {
                 let snapshot = self
