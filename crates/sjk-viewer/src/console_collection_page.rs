@@ -134,6 +134,9 @@ impl ViewerConsole {
             PanelAction::ShatterAll => {
                 let _ = crate::economy::shatter_all();
             }
+            PanelAction::ShatterMany(items, last) => {
+                let _ = crate::economy::shatter_many(&items, last);
+            }
             PanelAction::Craft(id) => {
                 let _ = crate::economy::craft(id);
             }

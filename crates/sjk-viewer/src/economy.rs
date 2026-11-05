@@ -248,6 +248,17 @@ pub(crate) fn shatter_all() -> bool {
     crate::player_identity::with_service(|service| service.shatter_duplicates()).is_some()
 }
 
+/// Break the copies `items` names down at once (shader, copies), last copies too when
+/// `last` (a hub whose economy says `shatter_many`, 05/11/2026); false when the identity
+/// has not started. What came of it arrives in the snapshot's `trade`.
+pub(crate) fn shatter_many(items: &[(&'static str, u32)], last: bool) -> bool {
+    let items: Vec<(String, u32)> = items
+        .iter()
+        .map(|(id, copies)| ((*id).to_owned(), *copies))
+        .collect();
+    crate::player_identity::with_service(|service| service.shatter_many(items, last)).is_some()
+}
+
 /// Craft shader `id` with kyber shards; false when the identity has not started. What
 /// came of it arrives in the snapshot's `trade`.
 pub(crate) fn craft(id: &str) -> bool {
@@ -280,6 +291,15 @@ pub(crate) fn outcome_words(outcome: &sjk_identity::TradeOutcome, name: &str) ->
                 "duplicate"
             } else {
                 "duplicates"
+            }
+        ),
+        Trade::ShatterMany => format!(
+            "{} {} broken down: +{amount} kyber shards.",
+            outcome.copies,
+            if outcome.copies == 1 {
+                "shader"
+            } else {
+                "shaders"
             }
         ),
         Trade::Craft => format!("{name} crafted for {amount} kyber shards. It is yours."),

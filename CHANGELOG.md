@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), and Break down selected turns a copy of each into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, after Atrosex's idea)_
+
 ## 2026.1105.1 (Alpha) | 05/11/2026
 
 The Saber Lab, finishers, new vehicle HUDs, sharpening, aliases, whisper picking and a JoF anti-cheat fix.

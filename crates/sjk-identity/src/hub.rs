@@ -535,6 +535,20 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Shatter the copies `items` names, several shaders at once, last copies too when
+    /// `last` (`POST /v1/unlocks/shatter-many`, 05/11/2026, hubs whose economy says
+    /// `shatter_many`).
+    fn shatter_many(
+        &mut self,
+        _identity: &Identity,
+        _items: &[(String, u32)],
+        _last: bool,
+    ) -> Result<crate::wire::ShatterAllAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not shatter shaders".to_owned(),
+        ))
+    }
+
     /// Craft shader `id` with kyber shards (`POST /v1/unlocks/craft`, 17/10/2026).
     fn craft_unlock(
         &mut self,
@@ -1867,6 +1881,24 @@ impl Hub for HttpHub {
             "POST",
             "/v1/unlocks/shatter-duplicates",
             Some(json!({})),
+        )?)
+    }
+
+    fn shatter_many(
+        &mut self,
+        identity: &Identity,
+        items: &[(String, u32)],
+        last: bool,
+    ) -> Result<crate::wire::ShatterAllAnswer, HubError> {
+        let items: Vec<_> = items
+            .iter()
+            .map(|(id, copies)| json!({ "id": id, "copies": copies }))
+            .collect();
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/unlocks/shatter-many",
+            Some(json!({ "items": items, "last": last })),
         )?)
     }
 

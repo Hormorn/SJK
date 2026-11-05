@@ -3,7 +3,7 @@
 //! offers out as large cards over the whole width with the holocrons credits buy under
 //! them; Craft and Break down list their shaders on the left (a grid of cards or a list,
 //! as `ui_shaderList` says) and show the one chosen big on the right. A card over the
-//! page asks before the last copy or every duplicate goes.
+//! page asks before the last copy, every duplicate or the shaders picked go.
 
 use super::forge::*;
 use super::view::{LEFT_X, RIGHT_X, left_lines};
@@ -71,6 +71,8 @@ struct Item<'a> {
     locked: bool,
     new: bool,
     worn: bool,
+    /// Picked on Break down while Select is on (05/11/2026).
+    picked: bool,
 }
 
 impl Panel {
@@ -140,6 +142,8 @@ impl Panel {
             .collect();
         let all = owned(&inputs.holdings, self.forge.data.last, &self.marks);
         self.forge.spare = duplicates(&all);
+        self.forge.break_all = all.clone();
+        self.forge.prune_picks();
         let breaks = &self.forge.break_filter;
         self.forge.break_list = all
             .into_iter()
@@ -910,6 +914,7 @@ impl Panel {
                 locked: false,
                 new: false,
                 worn: false,
+                picked: false,
             };
             self.forge_item(frame, &shown, first, self.forge.craft, inputs, seconds);
         }
@@ -923,7 +928,11 @@ impl Panel {
     /// one chosen up close.
     fn forge_break(&mut self, frame: &Frame, inputs: &Inputs<'_>, seconds: f32) {
         let (copies, shaders, gives) = self.forge.spare;
-        let line = if self.forge.data.last {
+        let line = if self.forge.selecting {
+            "Picking: click the shaders to break down (a copy of each), then Break down \
+             selected. S or Escape stops."
+                .to_owned()
+        } else if self.forge.data.last {
             "Turn saber shaders you hold into kyber shards: duplicates first.".to_owned()
         } else {
             "Turn duplicate saber shaders into kyber shards: you keep your last copy.".to_owned()
@@ -973,6 +982,7 @@ impl Panel {
                 locked: item.locked,
                 new: item.new,
                 worn: item.worn,
+                picked: self.forge.picked.contains(&item.skin.id),
             };
             self.forge_item(frame, &shown, first, self.forge.breaks, inputs, seconds);
         }
@@ -1007,6 +1017,15 @@ impl Panel {
             ));
         }
         chips.push((ONLY_TOKEN, only.to_owned(), color::GOLD, filter.only));
+        // Break down's Select, on a hub that breaks several shaders at once (05/11/2026).
+        if self.forge.section == Section::Break && self.forge.data.many {
+            chips.push((
+                SELECT_TOKEN,
+                format!("{}  Select", symbols::TICK),
+                color::GOLD,
+                self.forge.selecting,
+            ));
+        }
         if favourites {
             chips.push((
                 FAVOURITES_TOKEN,
@@ -1136,13 +1155,55 @@ impl Panel {
                 TILE[1],
             ];
             self.forge_tile(frame, item, rect, item.index == chosen, inputs, seconds);
+            if item.picked {
+                // Over the card, as the chosen one stands raised.
+                let [x, y, width, height] = rect;
+                let y = if item.index == chosen { y - 5.0 } else { y };
+                self.forge_pick_mark(frame, [x, y, width, height]);
+            }
         } else {
             if item.index < first || item.index >= first + ROWS {
                 return;
             }
             let y = LIST_TOP + (item.index - first) as f32 * ROW_STEP;
             self.forge_row(frame, item, y, item.index == chosen, inputs, seconds);
+            if item.picked {
+                self.forge_pick_mark(frame, [LIST_LEFT, y, LIST_RIGHT - LIST_LEFT, ROW_HEIGHT]);
+            }
         }
+    }
+
+    /// A picked shader's mark over its card or row in `rect` (05/11/2026): a gold frame and
+    /// a gold tick at its top left.
+    fn forge_pick_mark(&mut self, frame: &Frame, [x, y, width, height]: [f32; 4]) {
+        let s = frame.s;
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect: frame.rect(x, y, width, height),
+            radius: 12.0 * s,
+            color: color::alpha(color::GOLD, 0.1),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect: frame.rect(x, y, width, height),
+            radius: 12.0 * s,
+            width: 2.4 * s,
+            color: color::GOLD,
+        });
+        let side = 26.0;
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect: frame.rect(x + 6.0, y + 6.0, side, side),
+            radius: side * 0.5 * s,
+            color: color::GOLD,
+        });
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("{}", symbols::TICK),
+            frame.rect(x + 6.0, y + 9.0, side, side - 6.0),
+            16.0 * s,
+            Color::new(0.078, 0.063, 0.02, 1.0),
+            FontWeight::Semibold,
+            TextAlign::Center,
+        );
     }
 
     /// A grid card in `rect`: the tier's band and frame, the live blade, the name, the tier
@@ -1962,16 +2023,41 @@ impl Panel {
         };
         let open = self.forge.data.can_trade;
         let button_y = bottom - PAD - 56.0;
-        kit::button(
-            &mut self.ui,
-            frame,
-            [x0 + PAD, button_y, 330.0, 56.0],
-            &label,
-            open && !item.last() && !item.locked,
-            open && !waiting && !item.locked,
-            armed,
-            ACTION_TOKEN,
-        );
+        if self.forge.selecting {
+            // Picking: the button breaks every pick down (after the card asks).
+            let (picked, gives, _) = self.forge.picked_sum();
+            let label = if waiting && self.forge.sent_many.is_some() {
+                "Breaking down...".to_owned()
+            } else if picked == 0 {
+                "Pick shaders to break down".to_owned()
+            } else {
+                format!(
+                    "Break down selected ({picked})  +{}",
+                    crate::economy::shards_text(gives)
+                )
+            };
+            kit::button(
+                &mut self.ui,
+                frame,
+                [x0 + PAD, button_y, 330.0, 56.0],
+                &label,
+                open && picked > 0,
+                open && !waiting && picked > 0,
+                false,
+                ACTION_TOKEN,
+            );
+        } else {
+            kit::button(
+                &mut self.ui,
+                frame,
+                [x0 + PAD, button_y, 330.0, 56.0],
+                &label,
+                open && !item.last() && !item.locked,
+                open && !waiting && !item.locked,
+                armed,
+                ACTION_TOKEN,
+            );
+        }
         // Every duplicate at once, beside it, on a hub that takes it.
         if self.forge.data.all && self.forge.spare.0 > 0 {
             let (copies, _, gives) = self.forge.spare;
@@ -2147,15 +2233,68 @@ impl Panel {
                     shown,
                 )
             }
+            Ask::Picked { yes } => {
+                let items = self.forge.picked_items();
+                let (picked, gives, lasts) = self.forge.picked_sum();
+                let mut lines = Vec::with_capacity(3);
+                if items.iter().any(|item| item.last() && item.worn) {
+                    lines.push(
+                        "You wear one of them now: breaking it down puts your saber back to \
+                         the stock blade."
+                            .to_owned(),
+                    );
+                }
+                lines.push(format!(
+                    "A copy of each of the {picked} saber {} you picked becomes kyber shards.",
+                    if picked == 1 { "shader" } else { "shaders" }
+                ));
+                if lasts > 0 {
+                    lines.push(format!(
+                        "{lasts} of them {} your only {}: {} your collection.",
+                        if lasts == 1 { "is" } else { "are" },
+                        if lasts == 1 { "copy" } else { "copies" },
+                        if lasts == 1 {
+                            "it leaves"
+                        } else {
+                            "they leave"
+                        }
+                    ));
+                }
+                let shown: Vec<_> = items.iter().map(|item| (item.skin, 1)).collect();
+                (
+                    if lasts > 0 {
+                        "Break down the picked shaders?"
+                    } else {
+                        "Break down the picked copies?"
+                    },
+                    lines,
+                    gives,
+                    "Break them down",
+                    "Cancel",
+                    yes,
+                    lasts > 0,
+                    shown,
+                )
+            }
         };
         // Worn: a pill beside the title, so it cannot be missed.
-        let worn_pill = matches!(ask, Ask::Last { skin, .. } if self.marks.worn(skin.id));
+        let worn_pill = match ask {
+            Ask::Last { skin, .. } => self.marks.worn(skin.id),
+            Ask::Picked { .. } => self
+                .forge
+                .picked_items()
+                .iter()
+                .any(|item| item.last() && item.worn),
+            Ask::All { .. } => false,
+        };
+        // A last copy among the picks reddens the title and the button, as for one.
+        let big = matches!(ask, Ask::Last { .. });
         // The card's height follows what it holds; it stands centred on the page.
         let wrapped: usize = lines
             .iter()
             .map(|line| crate::menu::sjk::wrap(line, 86).count().min(2))
             .sum();
-        let blades = if danger { 130.0 } else { 96.0 };
+        let blades = if big { 130.0 } else { 96.0 };
         let height = 112.0 + blades + 18.0 + wrapped as f32 * 25.6 + 30.0 + 40.0 + 52.0 + 44.0;
         let y = 545.0 - height * 0.5;
         kit::card(&mut self.ui, frame, [x, y, width, height]);
@@ -2195,7 +2334,7 @@ impl Panel {
                 TextAlign::Center,
             );
         }
-        if danger {
+        if big {
             let look = shown.first().and_then(|(skin, _)| self.skins.get(skin.id));
             let _ = swatch::small_swatch(
                 self.ui.draw_list_mut(),

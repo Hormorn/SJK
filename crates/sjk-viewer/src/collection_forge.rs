@@ -30,6 +30,12 @@
 //! them, and Shift+F shows Break down's favourites alone: favourites are listed first, and
 //! a locked shader is never broken down (its button says so) nor counted among all
 //! duplicates.
+//!
+//! Since 05/11/2026 (Atrosex's idea, hubs whose economy says `shatter_many`) Break down
+//! has a Select chip (S): while it is on, a click on a shader (or Space on the chosen one)
+//! picks a copy of it, and the button breaks every picked copy down at once after a card
+//! asks; Escape stops picking. A locked shader is never picked, a last copy only on a hub
+//! that breaks last copies down.
 
 use super::*;
 use crate::audio::ui_cues::{self, Cue};
@@ -58,6 +64,8 @@ pub(super) const ASK_NO_TOKEN: u16 = 9_053;
 pub(super) const STAR_TOKEN: u16 = 9_054;
 pub(super) const PADLOCK_TOKEN: u16 = 9_055;
 pub(super) const FAVOURITES_TOKEN: u16 = 9_056;
+/// Break down's Select chip (05/11/2026).
+pub(super) const SELECT_TOKEN: u16 = 9_057;
 pub(super) const TILE_BASE: u16 = 9_100;
 /// The most things a section lists (every blade skin fits).
 pub(super) const TILES_MAX: usize = 400;
@@ -68,6 +76,9 @@ const _: () = assert!(unlockables::ALL.len() <= TILES_MAX);
 pub(super) fn forge_token(token: u16) -> bool {
     (SECTION_BASE..TILE_BASE + TILES_MAX as u16).contains(&token)
 }
+
+/// The most shaders picked at once (the hub takes up to 256 in one request).
+pub(super) const PICKS_MAX: usize = 256;
 
 /// How long an armed button waits for its second press.
 pub(super) const CONFIRM: Duration = Duration::from_secs(5);
@@ -145,9 +156,11 @@ pub(crate) struct ForgeData {
     pub(crate) can_trade: bool,
     /// Why not, in a line, while the hub said so (opening for staff, an old build).
     pub(crate) why_not: Option<String>,
-    /// The hub's trade abilities: the last copy breaks down, every duplicate at once.
+    /// The hub's trade abilities: the last copy breaks down, every duplicate at once,
+    /// the copies picked of several shaders at once (05/11/2026).
     pub(crate) last: bool,
     pub(crate) all: bool,
+    pub(crate) many: bool,
     /// The shop's day as the hub last answered it, once asked.
     pub(crate) shop: Option<sjk_identity::ShopState>,
     /// What became of the last trade.
@@ -194,6 +207,7 @@ impl ForgeData {
             why_not,
             last: economy.is_some_and(|tables| tables.can("shatter_last")),
             all: economy.is_some_and(|tables| tables.can("shatter_duplicates")),
+            many: economy.is_some_and(|tables| tables.can("shatter_many")),
             shop: snapshot.shop.clone(),
             trade: snapshot.trade.clone(),
         }
@@ -381,12 +395,14 @@ pub(super) enum Ask {
     },
     /// Break down every duplicate; `yes` has the focus.
     All { yes: bool },
+    /// Break down a copy of each picked shader (05/11/2026); `yes` has the focus.
+    Picked { yes: bool },
 }
 
 impl Ask {
     fn yes(self) -> bool {
         match self {
-            Self::Last { yes, .. } | Self::All { yes } => yes,
+            Self::Last { yes, .. } | Self::All { yes } | Self::Picked { yes } => yes,
         }
     }
 
@@ -394,6 +410,7 @@ impl Ask {
         match self {
             Self::Last { skin, .. } => Self::Last { skin, yes },
             Self::All { .. } => Self::All { yes },
+            Self::Picked { .. } => Self::Picked { yes },
         }
     }
 }
@@ -502,6 +519,12 @@ pub(super) struct Forge {
     /// What the last frame listed, for keys and clicks.
     pub(super) craft_list: Vec<Craftable>,
     pub(super) break_list: Vec<Owned>,
+    /// Every shader Break down may list, past the filter (what the picks are read from).
+    pub(super) break_all: Vec<Owned>,
+    /// Break down's Select is on (05/11/2026): a click picks instead of only choosing.
+    pub(super) selecting: bool,
+    /// The shaders picked on Break down, a copy of each, in the order picked.
+    pub(super) picked: Vec<&'static str>,
     /// Every duplicate the player holds, past the filter: copies, shaders, shards.
     pub(super) spare: (u32, usize, u64),
     pub(super) craft_filter: ForgeFilter,
@@ -514,13 +537,16 @@ pub(super) struct Forge {
     pub(super) sent: Option<(u64, Press)>,
     /// All duplicates sent (their outcome has no shader).
     pub(super) sent_all: Option<u64>,
+    /// The picked copies sent: the outcome's serial before, and the last copies among
+    /// them (for the console to take off the saber once gone).
+    pub(super) sent_many: Option<(u64, Vec<&'static str>)>,
     /// The card asking before the last copy or all duplicates.
     pub(super) ask: Option<Ask>,
     /// The shop was asked for since the Shop section showed, and the day read again.
     pub(super) shop_asked: bool,
     pub(super) shop_reread: Option<u64>,
-    /// A last copy just broken down, for the console to take off the saber if worn.
-    pub(super) unequip: Option<&'static str>,
+    /// Last copies just broken down, for the console to take off the saber if worn.
+    pub(super) unequip: Vec<&'static str>,
     /// A shader to choose once the section lists it (the Shaders tab's pointers).
     pub(super) want: Option<String>,
     /// The outcome serial a last copy's answer was looked for at.
@@ -603,6 +629,10 @@ impl Forge {
         let serial = self.data.trade.as_ref().map_or(0, |trade| trade.serial);
         self.sent.is_some_and(|(asked, _)| asked == serial)
             || self.sent_all.is_some_and(|asked| asked == serial)
+            || self
+                .sent_many
+                .as_ref()
+                .is_some_and(|(asked, _)| *asked == serial)
     }
 
     /// Whether `press` is armed at `now`.
@@ -619,12 +649,19 @@ impl Forge {
         if let Some((asked, press)) = self.sent
             && outcome.serial > asked
             && outcome.trade != sjk_identity::Trade::ShatterAll
+            && outcome.trade != sjk_identity::Trade::ShatterMany
         {
             return Some((outcome, Some(press)));
         }
         if let Some(asked) = self.sent_all
             && outcome.serial > asked
             && outcome.trade == sjk_identity::Trade::ShatterAll
+        {
+            return Some((outcome, None));
+        }
+        if let Some((asked, _)) = &self.sent_many
+            && outcome.serial > *asked
+            && outcome.trade == sjk_identity::Trade::ShatterMany
         {
             return Some((outcome, None));
         }
@@ -737,6 +774,89 @@ impl Forge {
         PanelAction::None
     }
 
+    /// The picked shaders, as Break down lists them past the filter, in the order picked.
+    pub(super) fn picked_items(&self) -> Vec<Owned> {
+        self.picked
+            .iter()
+            .filter_map(|id| self.break_all.iter().find(|item| item.skin.id == *id))
+            .copied()
+            .collect()
+    }
+
+    /// What the picks give: shaders (a copy of each), kyber shards, and how many of them
+    /// are last copies.
+    pub(super) fn picked_sum(&self) -> (usize, u64, usize) {
+        let items = self.picked_items();
+        (
+            items.len(),
+            items.iter().map(|item| item.gives).sum(),
+            items.iter().filter(|item| item.last()).count(),
+        )
+    }
+
+    /// Whether `item` may be picked: never a locked one, a last copy only on a hub that
+    /// breaks last copies down.
+    fn pickable(&self, item: Owned) -> bool {
+        !item.locked && (!item.last() || self.data.last)
+    }
+
+    /// Keep the picks to what may still go: a shader no longer held, now locked or a last
+    /// copy the hub keeps is dropped; nothing is picked while Select is off.
+    pub(super) fn prune_picks(&mut self) {
+        if !self.data.many {
+            self.selecting = false;
+        }
+        if !self.selecting {
+            self.picked.clear();
+            return;
+        }
+        let keep: Vec<&'static str> = self
+            .picked_items()
+            .into_iter()
+            .filter(|item| self.pickable(*item))
+            .map(|item| item.skin.id)
+            .collect();
+        self.picked = keep;
+    }
+
+    /// Switch Break down's Select (S) on or off; off drops the picks.
+    pub(super) fn toggle_select(&mut self) -> PanelAction {
+        if self.section != Section::Break || !self.data.many {
+            return PanelAction::None;
+        }
+        self.selecting = !self.selecting;
+        self.armed = None;
+        if !self.selecting {
+            self.picked.clear();
+        }
+        ui_cues::post(Cue::Click);
+        PanelAction::None
+    }
+
+    /// Pick the Break down shader at `index` (or let it go when picked).
+    fn toggle_pick(&mut self, index: usize) {
+        let Some(item) = self.break_list.get(index).copied() else {
+            return;
+        };
+        if let Some(at) = self.picked.iter().position(|id| *id == item.skin.id) {
+            self.picked.remove(at);
+            ui_cues::post(Cue::Back);
+        } else if self.pickable(item) && self.picked.len() < PICKS_MAX {
+            self.picked.push(item.skin.id);
+            ui_cues::post(Cue::Click);
+        }
+    }
+
+    /// Break down what is picked: asks with the card first.
+    fn ask_picked(&mut self) -> PanelAction {
+        if self.data.many && self.data.can_trade && !self.waiting() && !self.picked.is_empty() {
+            self.armed = None;
+            self.ask = Some(Ask::Picked { yes: true });
+            ui_cues::post(Cue::Click);
+        }
+        PanelAction::None
+    }
+
     /// The card answered: yes sends it.
     fn answer_ask(&mut self, yes: bool) -> PanelAction {
         let Some(ask) = self.ask.take() else {
@@ -755,6 +875,18 @@ impl Forge {
                 self.sent_all = Some(self.serial());
                 PanelAction::ShatterAll
             }
+            Ask::Picked { .. } => {
+                let items = self.picked_items();
+                let lasts: Vec<&'static str> = items
+                    .iter()
+                    .filter(|item| item.last())
+                    .map(|item| item.skin.id)
+                    .collect();
+                // `last` only when a last copy is among them, as the one-shader button.
+                let last = !lasts.is_empty();
+                self.sent_many = Some((self.serial(), lasts));
+                PanelAction::ShatterMany(items.iter().map(|item| (item.skin.id, 1)).collect(), last)
+            }
         }
     }
 
@@ -763,6 +895,7 @@ impl Forge {
         match self.section {
             Section::Shop => self.press_shop(self.shop_selected, now),
             Section::Craft => self.press_craft(now),
+            Section::Break if self.selecting => self.ask_picked(),
             Section::Break => self.press_break(now),
         }
     }
@@ -970,7 +1103,10 @@ impl Forge {
             return PanelAction::None;
         }
         let listing = self.section != Section::Shop;
+        let picking = self.section == Section::Break && self.selecting;
         match key {
+            // Escape stops picking first, then leaves.
+            KeyCode::Escape if picking => self.toggle_select(),
             KeyCode::Escape => PanelAction::Close,
             KeyCode::Tab => {
                 self.show(self.section.next(!shift));
@@ -996,6 +1132,10 @@ impl Forge {
                 *self.chosen_mut() = self.listed().saturating_sub(1);
                 PanelAction::None
             }
+            KeyCode::Space if picking => {
+                self.toggle_pick(self.breaks);
+                PanelAction::None
+            }
             KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.activate(now),
             KeyCode::KeyV if listing => PanelAction::ShaderView(!grid),
             KeyCode::Slash if listing => self.focus_search(),
@@ -1004,6 +1144,7 @@ impl Forge {
             KeyCode::KeyA if self.section == Section::Craft => self.toggle_only(),
             KeyCode::KeyD if self.section == Section::Break => self.toggle_only(),
             KeyCode::KeyB if self.section == Section::Break => self.ask_all(),
+            KeyCode::KeyS if self.section == Section::Break && !control => self.toggle_select(),
             _ => PanelAction::None,
         }
     }
@@ -1055,6 +1196,10 @@ impl Forge {
                 self.armed = None;
             }
             *self.chosen_mut() = index;
+            // While Select is on, a click picks it too (or lets it go).
+            if self.section == Section::Break && self.selecting {
+                self.toggle_pick(index);
+            }
             return Some(PanelAction::None);
         }
         if !activate {
@@ -1086,6 +1231,7 @@ impl Forge {
             GRID_TOKEN => PanelAction::ShaderView(true),
             ACTION_TOKEN => self.activate(now),
             ALL_TOKEN => self.ask_all(),
+            SELECT_TOKEN => self.toggle_select(),
             SHARDS_TOKEN | CREDITS_TOKEN => PanelAction::None,
             _ => return None,
         })
@@ -1125,13 +1271,24 @@ impl Forge {
         }
         self.unequip_seen = outcome.serial;
         if outcome.done() && outcome.trade == sjk_identity::Trade::ShatterLast {
-            self.unequip = unlockables::find(&outcome.id).map(|skin| skin.id);
+            self.unequip
+                .extend(unlockables::find(&outcome.id).map(|skin| skin.id));
+        }
+        if outcome.done()
+            && outcome.trade == sjk_identity::Trade::ShatterMany
+            && let Some((asked, lasts)) = &self.sent_many
+            && outcome.serial > *asked
+        {
+            // Everything picked went: the last copies among them come off the saber.
+            self.unequip.extend(lasts.iter().copied());
+            self.picked.clear();
+            self.selecting = false;
         }
     }
 
-    /// The shader whose last copy the hub just broke down, once.
+    /// A shader whose last copy the hub just broke down, each once.
     pub(super) fn take_unequip(&mut self) -> Option<&'static str> {
-        self.unequip.take()
+        (!self.unequip.is_empty()).then(|| self.unequip.remove(0))
     }
 }
 
@@ -1335,7 +1492,7 @@ pub(crate) fn sample_day(left: i64) -> sjk_identity::ShopState {
 }
 
 /// The Forge's data in a world shot and the tests: the hub open to the player, its
-/// abilities as `last` and `all`, the day `left` seconds from turning.
+/// abilities as `last`, `all` and `many`, the day `left` seconds from turning.
 #[cfg(test)]
 pub(crate) fn sample_data(shards: u64, credits: u64, left: i64, abilities: bool) -> ForgeData {
     ForgeData {
@@ -1346,6 +1503,7 @@ pub(crate) fn sample_data(shards: u64, credits: u64, left: i64, abilities: bool)
         why_not: None,
         last: abilities,
         all: abilities,
+        many: abilities,
         shop: Some(sample_day(left)),
         trade: None,
     }
@@ -1674,6 +1832,106 @@ mod tests {
         assert_eq!(panel.forge.break_list.len(), 1);
         let _ = key(&mut panel, KeyCode::KeyB);
         assert_eq!(panel.forge.ask, None);
+    }
+
+    /// Atrosex, 05/11/2026: with Select on (S), a click or Space picks shaders, Enter
+    /// asks with the card and sends a copy of each at once; the hub's answer takes a last
+    /// copy off the saber and ends the picking. Escape stops picking before it leaves; a
+    /// locked shader is never picked, and a hub without `shatter_many` has no Select.
+    #[test]
+    fn several_shaders_are_picked_and_break_down_at_once() {
+        let held = [
+            copy("saber_tidal", 3),
+            copy("saber_aurora", 1),
+            copy("saber_circuit", 2),
+        ];
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, true));
+        let tidal = panel
+            .forge
+            .break_list
+            .iter()
+            .position(|item| item.skin.id == "saber_tidal")
+            .unwrap();
+        let aurora = panel
+            .forge
+            .break_list
+            .iter()
+            .position(|item| item.skin.id == "saber_aurora")
+            .unwrap();
+        // Picking is off: a click only chooses.
+        let _ = panel
+            .forge
+            .token(TILE_BASE + tidal as u16, true, Instant::now());
+        assert!(panel.forge.picked.is_empty());
+        let _ = key(&mut panel, KeyCode::KeyS);
+        assert!(panel.forge.selecting);
+        let _ = panel
+            .forge
+            .token(TILE_BASE + tidal as u16, true, Instant::now());
+        panel.forge.breaks = aurora;
+        let _ = key(&mut panel, KeyCode::Space);
+        assert_eq!(panel.forge.picked, ["saber_tidal", "saber_aurora"]);
+        // A second click lets one go; a third picks it again.
+        let _ = panel
+            .forge
+            .token(TILE_BASE + tidal as u16, true, Instant::now());
+        assert_eq!(panel.forge.picked, ["saber_aurora"]);
+        let _ = panel
+            .forge
+            .token(TILE_BASE + tidal as u16, true, Instant::now());
+        let (picked, gives, lasts) = panel.forge.picked_sum();
+        assert_eq!((picked, lasts), (2, 1));
+        assert!(gives > 0);
+        build(&mut panel, &held, [1920.0, 1080.0]);
+        assert_eq!(panel.forge.picked, ["saber_aurora", "saber_tidal"], "kept");
+        assert_eq!(key(&mut panel, KeyCode::Enter), PanelAction::None);
+        assert_eq!(panel.forge.ask, Some(Ask::Picked { yes: true }));
+        assert_eq!(
+            key(&mut panel, KeyCode::Escape),
+            PanelAction::None,
+            "Cancel"
+        );
+        assert_eq!(panel.forge.ask, None);
+        let _ = key(&mut panel, KeyCode::Enter);
+        assert_eq!(
+            key(&mut panel, KeyCode::Enter),
+            PanelAction::ShatterMany(vec![("saber_aurora", 1), ("saber_tidal", 1)], true)
+        );
+        let mut done = sample_data(5, 0, 3_600, true);
+        done.trade = Some(sjk_identity::TradeOutcome {
+            serial: 1,
+            trade: sjk_identity::Trade::ShatterMany,
+            id: String::new(),
+            amount: 10,
+            copies: 2,
+            message: String::new(),
+        });
+        panel.preview_forge(Some(done));
+        panel.set_forge(ForgeData::default());
+        assert_eq!(panel.take_forge_unequip(), Some("saber_aurora"));
+        assert_eq!(panel.take_forge_unequip(), None);
+        assert!(!panel.forge.selecting && panel.forge.picked.is_empty());
+        // Escape stops picking first; a second Escape leaves.
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, true));
+        let _ = key(&mut panel, KeyCode::KeyS);
+        let _ = key(&mut panel, KeyCode::Space);
+        assert_eq!(key(&mut panel, KeyCode::Escape), PanelAction::None);
+        assert!(!panel.forge.selecting && panel.forge.picked.is_empty());
+        assert_eq!(key(&mut panel, KeyCode::Escape), PanelAction::Close);
+        // A locked shader is never picked.
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, true));
+        let _ = key(&mut panel, KeyCode::KeyS);
+        let mut locked = panel.forge.break_list[tidal];
+        locked.locked = true;
+        panel.forge.break_list[tidal] = locked;
+        let _ = panel
+            .forge
+            .token(TILE_BASE + tidal as u16, true, Instant::now());
+        assert!(panel.forge.picked.is_empty());
+        // An older hub: no Select.
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, false));
+        let _ = key(&mut panel, KeyCode::KeyS);
+        assert!(!panel.forge.selecting);
     }
 
     /// Tab and the digits change section; the filter's chips and the search narrow the

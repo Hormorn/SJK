@@ -463,6 +463,9 @@ pub(crate) enum PanelAction {
     ShatterLast(&'static str),
     /// Break every duplicate down, one copy of each kept.
     ShatterAll,
+    /// Break these copies down at once (shader, copies), last copies too when `true` (a
+    /// hub that says `shatter_many`, 05/11/2026).
+    ShatterMany(Vec<(&'static str, u32)>, bool),
     /// Craft this shader with kyber shards.
     Craft(&'static str),
     /// Ask the hub to sell the player this offer of the day.
