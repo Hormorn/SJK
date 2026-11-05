@@ -237,7 +237,21 @@ const fn ore(id: &'static str, name: &'static str, weight: u32) -> Find {
     }
 }
 
+/// How many kinds of ore [`FINDS`] holds (Prospector's goal).
+pub(crate) const ORE_KINDS: usize = {
+    let mut count = 0;
+    let mut index = 0;
+    while index < FINDS.len() {
+        if matches!(FINDS[index].kind, Kind::Ore) {
+            count += 1;
+        }
+        index += 1;
+    }
+    count
+};
+
 /// The rarest ore's id: bad luck protection raises its weight ([`HEART_PITY`]).
+
 pub(crate) const HEART: &str = "heart_of_the_mountain";
 
 /// Everything a boulder can give: SJK's own names.
@@ -543,6 +557,8 @@ pub(crate) struct Mining {
     log_read: bool,
     dice: Dice,
     said: Vec<Say>,
+    /// The boulders broken, each find with its clean strikes, for the achievements.
+    broken: Vec<(&'static Find, u32)>,
     /// Each holder's pickaxe, for the actors to draw ([`pick_in_hand`]).
     pub(crate) picks: Picks,
     sounds_registered: Option<u64>,
@@ -573,6 +589,7 @@ impl Default for Mining {
             log_read: false,
             dice: Dice::seeded(),
             said: Vec::with_capacity(4),
+            broken: Vec::new(),
             picks: Picks::default(),
             sounds_registered: None,
             empty_hands_until: None,
@@ -633,6 +650,12 @@ impl Mining {
         if command.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK) != 0 {
             self.attacked = true;
         }
+    }
+
+    /// The boulders broken since the last call, for the achievements: each find and the
+    /// clean strikes on its boulder.
+    pub(crate) fn take_broken(&mut self) -> std::vec::Drain<'_, (&'static Find, u32)> {
+        self.broken.drain(..)
     }
 
     pub(crate) fn take_said(&mut self) -> std::vec::Drain<'_, Say> {
@@ -856,6 +879,7 @@ impl Mining {
         let pick = self.dice.next();
         let find = roll_find(roll, pick, rock.clean, heart_wait);
         let count = self.log.get_or_insert_with(Log::default).found(find);
+        self.broken.push((find, rock.clean));
         self.said.push(Say::Sound(BREAK));
         if find.id == HEART {
             self.said.push(Say::Sound(RARE));
@@ -1181,6 +1205,14 @@ impl GpuState {
             .said
             .iter()
             .any(|say| matches!(say, Say::Found(..)));
+        // The achievements count boulders on servers, as the rest: never a demo, a game
+        // this client hosts or a server on this machine (`achievements::tracker`).
+        let counts = !session.is_local() && !session.server().ip().is_loopback();
+        for (find, clean) in self.mining.take_broken().collect::<Vec<_>>() {
+            if counts {
+                crate::achievements::update(|record| record.mined(find, clean));
+            }
+        }
         if let Some(directory) = self
             .console
             .as_ref()

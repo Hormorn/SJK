@@ -31,6 +31,7 @@ pub(crate) fn tint(category: Category) -> Color {
         Category::Monitor => Color::new(0.62, 0.9, 0.95, 1.0),
         Category::BoxHunt => Color::new(1.0, 0.74, 0.3, 1.0),
         Category::Fishing => Color::new(0.3, 0.72, 0.86, 1.0),
+        Category::Mining => Color::new(0.78, 0.6, 0.42, 1.0),
         Category::ToyMaster => Color::new(1.0, 0.84, 0.36, 1.0),
     }
 }

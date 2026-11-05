@@ -1057,6 +1057,10 @@ and in the hub (same ids):
 | Every Fish in the Pond | `fish_kinds` | every kind of fish landed (12, `fishing::FISH_KINDS`) | client |
 | Echo Angler | `echo_angler` | 10 Echoes landed on the line | client |
 | Old Whiskers (hidden) | `old_whiskers` | Old Whiskers, the great catfish, landed | client |
+| First Strike, Stonebreaker | `mine_first`, `mine_500` | 1, 500 boulders broken with the Mining toy ([client.md](client.md#mining)) | client |
+| Steady Hand | `mine_clean_250` | 250 clean strikes (a blow as the boulder glints) | client |
+| Prospector | `mine_kinds` | every kind of ore dug (9, `mining::ORE_KINDS`, the Heart among them) | client |
+| Heart of the Mountain (hidden) | `heart_of_the_mountain` | the Heart of the Mountain dug | client |
 
 
 The fourteen after Decorated came on 26/10/2026 (Sol's list), with the categories
@@ -1064,9 +1068,15 @@ Collection and Toys; the five style masters on 29/10/2026 (Dante's idea in #idea
 duels only at Slash's call); the toys' own from Sneaking Mission on, on 30/10/2026 (a
 player's ideas, reworked with Sol), when Toys became a category for each toy on the
 board's Fun page; the five Fishing ones on 29/10/2026 (Slash), in a Fishing category of
-their own on the Fun page, after Box hunt. Each needs the same id in the hub's catalogue,
-and the hub bounds how fast a fishing count may rise as it does the others (a bite at most
-every 20 seconds). A hidden achievement (Touched by the Force) is a secret until it
+their own on the Fun page, after Box hunt; the five Mining ones on 05/11/2026 (Slash), in
+a Mining category, when Fishing and Mining moved to a third page, Pastimes (the Fun
+page's four bands were full; F turns the board through the three). Each needs the same
+id in the hub's catalogue, and the hub bounds how fast a fishing count may rise as it
+does the others (a bite at most every 20 seconds); a mining count should be bounded the
+same way, a boulder at most every 4 seconds (10 blows of 0.7 seconds, a clean strike
+counting two, which leaves 5 swings at best).
+The Mining goals are set for its pace (about six boulders a minute, the Heart some 100
+minutes): 100 boulders would be a quarter of an hour. A hidden achievement (Touched by the Force) is a secret until it
 is unlocked: the board, its hover card and the "Next up" list show "Secret" or "Secret
 achievement", a `?` in its medallion, no goal and no count; unlocked, it shows like any
 other (the unlock card names it). A retired achievement (Surveyor, since 26/10/2026)

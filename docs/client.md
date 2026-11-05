@@ -6019,7 +6019,11 @@ game), and mounted below all game data. See
 Mining (Slash's design, 04/11/2026; phase 1) is a toy for every SJK player, and unlike
 [Fishing](#fishing) no waiting game: a pickaxe in the hand, boulders coming up out of the
 ground round the player, and each broken a blow at a time at the player's own pace. Phase 1
-gives nothing the economy counts: finds go to the player's own mining log. Selling them
+gives nothing the economy counts: finds go to the player's own mining log, and five
+achievements count them on servers as the rest do (in a Mining category on the board's
+Pastimes page, beside Fishing's; [identity.md](identity.md)): First Strike (a boulder
+broken), Stonebreaker (500), Steady Hand (250 clean strikes), Prospector (every kind of
+ore, the Heart among them) and the hidden Heart of the Mountain. Selling them
 (phase 2) is to share Fishing junk's daily cap (one cap for both, so mining earns nothing
 on top of fishing); that needs the hub.
 

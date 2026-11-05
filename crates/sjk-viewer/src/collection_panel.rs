@@ -1847,14 +1847,9 @@ impl Panel {
         match key {
             KeyCode::Escape => return PanelAction::Close,
             KeyCode::KeyV if self.tab == Tab::Shaders => return self.set_grid(!self.grid),
-            // F turns the achievements board's page: General, Fun.
+            // F turns the achievements board's page: General, Fun, Pastimes.
             KeyCode::KeyF if self.tab == Tab::Achievements => {
-                let fun = self.achievement_page == crate::achievements::Page::General;
-                self.set_achievement_page(if fun {
-                    crate::achievements::Page::Fun
-                } else {
-                    crate::achievements::Page::General
-                });
+                self.set_achievement_page(self.achievement_page.next());
             }
             // K waits for a key to bind to the chosen toy.
             KeyCode::KeyK if self.tab == Tab::Toys => self.bind_wait = Some(0),
