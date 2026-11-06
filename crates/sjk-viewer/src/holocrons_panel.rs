@@ -93,6 +93,8 @@ pub(crate) struct Recent {
     /// How it came in a trade ([`holocrons::Entry::trade_line`]), colour codes kept;
     /// `None` when it did not.
     pub(crate) trade: Option<String>,
+    /// Its edition's word ("Alpha", [`crate::editions::word`]).
+    pub(crate) edition: String,
 }
 
 /// What the page shows of the identity and the hub, read by [`Data::read`].
@@ -121,6 +123,9 @@ pub(crate) struct Data {
     /// The ids of the kyber crystals of each tier that can still be opened, the oldest
     /// first.
     pub(crate) crystal_sealed: [Vec<u64>; crate::kyber::COUNT],
+    /// The edition of every holocron and crystal that can still be opened, by id
+    /// ([`crate::editions`], 06/11/2026): what opening it may bring.
+    pub(crate) editions: Vec<(u64, String)>,
     /// The person's pity counter, once the hub said.
     pub(crate) pity: Option<crate::kyber::Pity>,
     /// The player's credits, once known.
@@ -152,6 +157,7 @@ impl Data {
             sealed: Default::default(),
             crystals: None,
             crystal_sealed: Default::default(),
+            editions: Vec::new(),
             pity: None,
             credits: None,
             shards: None,
@@ -195,6 +201,11 @@ impl Data {
             }
         }
         let crystals = std::array::from_fn(|index| crystal_sealed[index].len() as u32);
+        let editions = known
+            .iter()
+            .filter(|(_, opened)| !opened)
+            .map(|(entry, _)| (entry.id, entry.edition.clone()))
+            .collect();
         // The recent list is the holocrons found: crystals are counted on their own.
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -216,6 +227,7 @@ impl Data {
                 trade: entry.trade_line(now, lock),
                 note: entry.note,
                 opened,
+                edition: crate::editions::word(&entry.edition),
             })
             .collect();
         let progress = snapshot.holocrons;
@@ -243,6 +255,7 @@ impl Data {
             sealed,
             crystals: Some(crystals),
             crystal_sealed,
+            editions,
             pity: crate::kyber::Pity::of(snapshot.kyber.as_ref()),
             credits: Some(me.credits),
             shards: Some(me.shards),
@@ -273,6 +286,41 @@ impl Data {
             Some(crystal) => self
                 .crystals
                 .and_then(|counts| counts.get(crystal).copied()),
+        }
+    }
+
+    /// What editions the tier at `slot`'s unopened ones are of, for its hover card:
+    /// "Alpha Edition" when they are all of one, else how many of each ("2 Alpha, 1
+    /// Beta", the oldest edition first); `None` when none is held.
+    pub(crate) fn editions_line(&self, slot: usize) -> Option<String> {
+        let sealed = self.sealed_of(slot);
+        let mut counts: Vec<(&str, u32)> = Vec::new();
+        for (_, edition) in self.editions.iter().filter(|(id, _)| sealed.contains(id)) {
+            match counts
+                .iter_mut()
+                .find(|(seen, _)| *seen == edition.as_str())
+            {
+                Some((_, count)) => *count += 1,
+                None => counts.push((edition, 1)),
+            }
+        }
+        let rank = |id: &str| {
+            crate::editions::ALL
+                .iter()
+                .position(|edition| edition.id == id)
+                .unwrap_or(usize::MAX)
+        };
+        counts.sort_by_key(|(id, _)| rank(id));
+        match counts.as_slice() {
+            [] => None,
+            [(only, _)] => Some(crate::editions::name(only)),
+            _ => Some(
+                counts
+                    .iter()
+                    .map(|(id, count)| format!("{count} {}", crate::editions::word(id)))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
         }
     }
 
@@ -1032,12 +1080,47 @@ mod tests {
             traded: None,
             traded_from_key: None,
             traded_from: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
             id,
             tier: tier.to_owned(),
             dropped: 1_791_641_100,
             source: source.to_owned(),
             note: note.to_owned(),
         }
+    }
+
+    /// Each unopened holocron and crystal keeps its edition (06/11/2026): a tier's hover
+    /// says the one edition they are all of, else how many of each, the oldest first; an
+    /// opened one does not count, and the recent list says each one's.
+    #[test]
+    fn the_unopened_ones_say_their_editions() {
+        use sjk_identity::Status;
+        let beta = |id, tier| sjk_identity::Holocron {
+            edition: crate::editions::BETA.to_owned(),
+            ..holocron(id, tier, "play", "")
+        };
+        let mut opened = beta(5, "rare");
+        opened.opened = Some(1);
+        let list = vec![
+            opened,
+            beta(4, "rare"),
+            holocron(3, "rare", "play", ""),
+            holocron(2, "rare", "play", ""),
+            holocron(1, "legendary", "play", ""),
+            beta(6, "kyber_uncommon"),
+        ];
+        let data = Data::of(true, &snapshot(Status::Online, Some(profile(list))));
+        assert_eq!(data.editions_line(1).as_deref(), Some("2 Alpha, 1 Beta"));
+        assert_eq!(data.editions_line(2).as_deref(), Some("Alpha Edition"));
+        assert_eq!(data.editions_line(3), None, "none held");
+        let crystal = crate::kyber::TIERS[0].slot;
+        assert_eq!(data.editions_line(crystal).as_deref(), Some("Beta Edition"));
+        let editions: Vec<&str> = data
+            .recent
+            .iter()
+            .map(|recent| recent.edition.as_str())
+            .collect();
+        assert_eq!(editions, ["Beta", "Beta", "Alpha", "Alpha", "Alpha"]);
     }
 
     /// The page follows the identity and the hub like the Collection does: off, no hub,

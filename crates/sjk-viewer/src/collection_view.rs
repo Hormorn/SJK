@@ -598,6 +598,7 @@ impl Panel {
                     keys.push((&["V"], "tiles"));
                 }
                 keys.push((&["T"], "tier"));
+                keys.push((&["E"], "edition"));
                 keys.push((&["/"], "search"));
                 // The marks (29/10/2026): the star and the padlock, and every New one seen.
                 if self.marks.kept && self.shader > 0 {

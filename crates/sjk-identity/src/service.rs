@@ -5859,6 +5859,7 @@ mod tests {
                         traded: None,
                         traded_from_key: None,
                         traded_from: None,
+                        edition: crate::wire::EDITION_FIRST.to_owned(),
                     }],
                     ..profile("Target")
                 }],

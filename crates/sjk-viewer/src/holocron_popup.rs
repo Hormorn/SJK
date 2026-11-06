@@ -717,6 +717,7 @@ mod tests {
             traded: None,
             traded_from_key: None,
             traded_from: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
             id,
             tier: tier.to_owned(),
             dropped: 1_791_641_100,
@@ -735,6 +736,7 @@ mod tests {
             note: String::new(),
             played: false,
             traded: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
         }
     }
 

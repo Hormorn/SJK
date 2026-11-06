@@ -258,6 +258,7 @@ mod blade_builder;
 mod blade_editor;
 mod blade_extras;
 mod blade_lab_designs;
+mod blade_load_all;
 mod blade_pictures;
 mod blade_signatures;
 mod blade_skin_file;
