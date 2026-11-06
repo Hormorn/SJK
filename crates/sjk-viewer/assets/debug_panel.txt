@@ -9028,7 +9028,11 @@ area: Menus & settings
 title: Character: species first under Customizable, their tiles marked (Blep idea)
 change: SJK UI Profile > Character > Model lists the game species first, "Customizable".
 change: Species tiles (community ones too) carry a gold badge with three sliders.
+change: Skin adds Custom after the presets: R, G and B sliders (char_color_*), worn on Apply.
 test: Profile > Character in the SJK UI: Customizable heading with the jedi_* species first.
 test: Click one: Head, Torso, Legs and Skin appear in the strip; Apply wears it.
 test: Type "jedi" in Search: the species stay under Customizable; arrows walk the grid.
+test: Skin: the presets, then Custom: it brings Red/Green/Blue sliders; the stage follows.
+test: Apply, reopen Character > Skin: Custom is chosen; a bot or second client sees the tint.
+test: Custom at 20 20 20: the note says servers show it white; a preset leaves Custom.
 test: Classic menu style: the model grid keeps the old order (species after the models).

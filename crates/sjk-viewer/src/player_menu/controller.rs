@@ -246,6 +246,23 @@ impl PlayerMenu {
             self.variants[..3].copy_from_slice(&variants);
         }
         self.choice = choice;
+        // The SJK UI's Skin: the preset the worn colour is, or Custom when it is none
+        // of them (`sjk_creator`); the classic menus keep their first preset.
+        if self.is_sjk()
+            && let Some(Choice::Species(index)) = choice
+            && let Some(skin) = self
+                .catalog()
+                .and_then(|catalog| catalog.species.get(index))
+                .map(|species| {
+                    let colors = &species.colors;
+                    colors
+                        .iter()
+                        .position(|color| color.rgb == self.draft.rgb)
+                        .unwrap_or(colors.len())
+                })
+        {
+            self.variants[3] = skin;
+        }
         self.resolved_catalogue = true;
         self.team = self.team_of_choice();
         self.rebuild_tiles();

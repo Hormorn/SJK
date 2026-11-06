@@ -296,8 +296,9 @@ impl PlayerMenu {
                 }
             }
             Category::Skin => {
+                // The presets, then Custom (item `colors.len()`), the sliders' colour.
                 if let Some(species) = species {
-                    items.extend(0..species.colors.len());
+                    items.extend(0..=species.colors.len());
                 }
             }
             Category::Hat | Category::Cape => {
@@ -350,8 +351,16 @@ impl PlayerMenu {
             Some(axis) => self.set_variant(axis, item),
             None => self.select_choice(item),
         }
-        // Shown, not worn yet: the Apply row has the keys, so Enter wears it.
-        self.selected = self.apply_row();
+        // Shown, not worn yet: the Apply row has the keys, so Enter wears it; Custom's
+        // first slider, to set the colour.
+        self.selected = if category == Category::Skin && self.skin_custom() {
+            self.character_rows()
+                .iter()
+                .position(|row| *row == rows::CharacterRow::Red)
+                .unwrap_or_else(|| self.apply_row())
+        } else {
+            self.apply_row()
+        };
     }
 
     /// Choose team `index` of Default, Red and Blue.
@@ -540,6 +549,20 @@ impl PlayerMenu {
             }
             Some(slot) if self.cosmetics.has_missing(slot) => {
                 Some("JoF's cosmetics pack has more than are installed.")
+            }
+            // `g_charRestrictRGB` (on by default): the server wears a tint whose red,
+            // green and blue add up to under 100 as white.
+            None if category == Category::Skin
+                && self.skin_custom()
+                && self
+                    .draft
+                    .rgb
+                    .iter()
+                    .map(|&part| u32::from(part))
+                    .sum::<u32>()
+                    < 100 =>
+            {
+                Some("Too dark: most servers show a colour this dark as white.")
             }
             _ => None,
         };
@@ -861,6 +884,50 @@ impl PlayerMenu {
                     }
                 }
             }
+            Category::Skin if self.skin_presets() == Some(item) => {
+                // Custom: the sliders' colour once chosen, "Custom" over it.
+                let inset = 6.0 * s;
+                let inner = sjk_ui::Rect::new(
+                    rect.x + inset,
+                    rect.y + inset,
+                    rect.width - 2.0 * inset,
+                    rect.height - 2.0 * inset,
+                );
+                if chosen {
+                    let _ = self.canvas.draw_list_mut().push(DrawCommand::RoundedRect {
+                        rect: inner,
+                        radius: 6.0 * s,
+                        color: super::sjk_view::rgb_color(self.draft.rgb),
+                    });
+                } else {
+                    let _ = self.canvas.draw_list_mut().push(DrawCommand::Border {
+                        rect: inner,
+                        radius: 6.0 * s,
+                        width: 1.5 * s,
+                        color: color::alpha(color::GOLD, 0.6),
+                    });
+                }
+                let light = self
+                    .draft
+                    .rgb
+                    .iter()
+                    .map(|&part| u32::from(part))
+                    .sum::<u32>()
+                    > 450;
+                self.canvas.text_aligned(
+                    "Custom",
+                    rect,
+                    15.0 * s,
+                    if chosen && light {
+                        color::SPACE
+                    } else {
+                        color::TEXT
+                    },
+                    FontWeight::Regular,
+                    0.0,
+                    TextAlign::Center,
+                );
+            }
             Category::Skin => {
                 let rgb = catalog_of(&self.loader)
                     .zip(species)
@@ -915,6 +982,23 @@ impl PlayerMenu {
                 },
             });
         }
+    }
+
+    /// How many skin colour presets the species on show has (`playerchoice.txt`): the
+    /// Custom tile's item; `None` without a species.
+    fn skin_presets(&self) -> Option<usize> {
+        let Some(Choice::Species(index)) = self.choice else {
+            return None;
+        };
+        catalog_of(&self.loader)
+            .and_then(|catalog| catalog.species.get(index))
+            .map(|species| species.colors.len())
+    }
+
+    /// Whether the species wears a Custom skin colour (the sliders'), not a preset.
+    pub(super) fn skin_custom(&self) -> bool {
+        self.skin_presets()
+            .is_some_and(|presets| self.variants[3] >= presets)
     }
 
     /// Whether catalogue entry `absolute` is a species (its head, torso, legs and skin
@@ -1176,12 +1260,16 @@ mod tests {
                 .map(|file| (format!("models/players/{name}/{file}"), b"x".to_vec()))
                 .to_vec()
         };
+        // Two skin colour presets: 200 150 100, then 90 60 40.
+        let choice = b"gfx/menus/players/a { setcvar ui_char_color_red 200 setcvar ui_char_color_green 150 setcvar ui_char_color_blue 100 }
+gfx/menus/players/b { setcvar ui_char_color_red 90 setcvar ui_char_color_green 60 setcvar ui_char_color_blue 40 }
+";
         let species = |name: &str| {
             let mut files = vec![
                 (format!("models/players/{name}/model.glm"), b"x".to_vec()),
                 (
                     format!("models/players/{name}/playerchoice.txt"),
-                    b"x".to_vec(),
+                    choice.to_vec(),
                 ),
             ];
             for part in ["head", "torso", "lower"] {
@@ -1271,6 +1359,86 @@ mod tests {
         draw(&mut menu);
         assert_eq!(menu.chosen_position(), Some(0));
         assert!(!menu.canvas.overflowed());
+    }
+
+    /// The Custom skin colour: after the species' presets, its tile brings the R, G and
+    /// B sliders, which colour the stage at once; Apply wears `char_color_*`; a preset
+    /// chosen again leaves Custom; a worn colour no preset has opens on Custom.
+    #[test]
+    fn a_custom_skin_colour_takes_the_sliders_and_apply_wears_it() {
+        let (mut menu, mut console, _directory) = with_species();
+        let at = centre(&menu, TILE_BASE);
+        click(&mut menu, &mut console, at);
+        menu.apply_look(&mut console);
+        menu.set_category(Category::Skin);
+        draw(&mut menu);
+        assert_eq!(menu.creator.items, [0, 1, 2]);
+        assert!(!menu.skin_custom());
+        assert_eq!(menu.stage_rgb(), [200, 150, 100], "the first preset");
+        assert!(
+            menu.character_rows()
+                .iter()
+                .all(|row| row.channel().is_none())
+        );
+        // Custom keeps the colour and brings the sliders, the keys on the first one.
+        let at = centre(&menu, TILE_BASE + 2);
+        click(&mut menu, &mut console, at);
+        assert!(menu.skin_custom());
+        assert_eq!(menu.stage_rgb(), [200, 150, 100]);
+        assert_eq!(
+            menu.character_rows().get(menu.selected),
+            Some(&rows::CharacterRow::Red)
+        );
+        menu.adjust(&mut console, -1);
+        assert_eq!(menu.stage_rgb(), [195, 150, 100]);
+        draw(&mut menu);
+        assert_eq!(menu.chosen_position(), Some(2));
+        assert!(!menu.canvas.overflowed());
+        for row in 0..menu.character_rows().len() {
+            if menu.character_rows()[row].channel().is_some() {
+                assert!(menu.canvas.rect_for(row as u16).is_some(), "slider {row}");
+            }
+        }
+        // Shown, worn only on Apply.
+        assert!(menu.look_pending());
+        assert_eq!(console.integer_cvar("char_color_red"), Some(200));
+        menu.apply_look(&mut console);
+        assert!(!menu.look_pending());
+        assert_eq!(console.integer_cvar("char_color_red"), Some(195));
+        assert_eq!(console.integer_cvar("char_color_green"), Some(150));
+        // Opened again, the worn colour is no preset's: Custom.
+        menu.resolved_catalogue = false;
+        menu.variants[3] = 0;
+        menu.resolve_current_choice();
+        assert!(menu.skin_custom());
+        // The second preset leaves Custom and puts on its colour.
+        draw(&mut menu);
+        let at = centre(&menu, TILE_BASE + 1);
+        click(&mut menu, &mut console, at);
+        assert!(!menu.skin_custom());
+        assert_eq!(menu.stage_rgb(), [90, 60, 40]);
+        assert_eq!(menu.selected, menu.apply_row());
+        // A worn colour a preset has opens on that preset.
+        menu.apply_look(&mut console);
+        menu.resolved_catalogue = false;
+        menu.resolve_current_choice();
+        assert_eq!(menu.variants[3], 1);
+    }
+
+    /// A Custom colour too dark for the server (`g_charRestrictRGB`) says so.
+    #[test]
+    fn a_custom_skin_colour_too_dark_is_told() {
+        let (mut menu, mut console, _directory) = with_species();
+        let at = centre(&menu, TILE_BASE);
+        click(&mut menu, &mut console, at);
+        menu.set_category(Category::Skin);
+        draw(&mut menu);
+        let at = centre(&menu, TILE_BASE + 2);
+        click(&mut menu, &mut console, at);
+        menu.draft.rgb = [30, 30, 30];
+        draw(&mut menu);
+        assert!(!menu.canvas.overflowed());
+        assert!(menu.skin_custom());
     }
 
     // The tokens stay apart from the tiles' and the screen's others.
