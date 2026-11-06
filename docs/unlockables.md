@@ -1028,6 +1028,14 @@ Built.
   the same and the answer says it shows only once unlocked. An unknown id is refused.
   Tab completes the command's name; its argument has no completion (the console
   completes command and cvar names only).
+- `saber_loadall` ([blade_load_all.rs](../crates/sjk-viewer/src/blade_load_all.rs); Sol,
+  06/11/2026, to class the tiers of Creyon's new blades): builds every loaded blade's own
+  shader now, after the blades worn and shown, instead of when a blade first draws, so the
+  Collection's pictures and the preview show each blade's real look the moment it comes up
+  (until its shader is built a signature blade draws plain, from its skin's file). Typed
+  again it says how far the builds are ("Blade shaders: 120 of 262 built (48 s so far).",
+  then "All 262 blade shaders are built (in 1 min 40 s)."). This PC and this run only;
+  `debug_collectibles 1` shows every blade as held to go with it.
 - `unlockables` opens (or closes) the Collection on its Shaders tab: in the SJK UI
   the Collection screen ([sjk-ui.md](sjk-ui.md#collection)).
 - `debug_collectibles` (archived, default 0; 15/10/2026,
@@ -2308,7 +2316,8 @@ owned line and the hover card say ", 2 held". The tab's headline still counts sh
 owned out of the catalogue the player sees ("5 of 23 owned"; an unheld Unique shader is
 not counted), a duplicate counting once. The tab has a filter
 since 14/10/2026 for a catalogue near 200: chips for All and each tier (Unique's only for
-a player who holds one; T and Shift+T step through them), Owned (O) and a search field
+a player who holds one; T and Shift+T step through them), Owned (O), the edition (E,
+since 06/11/2026, [Alpha and Beta](#alpha-and-beta-the-collections)) and a search field
 (/ or Ctrl+F; Enter or Esc leave it, Esc first clears it) that matches a name or a tier's word; the stock blade stays first,
 the rack and the grid scroll as before and the lead line says "n of 23 shaders shown"
 while anything is filtered. Row numbers are of the list shown, so the choice goes back
@@ -2375,8 +2384,49 @@ holds the table (`id`, full name, short tag); a new edition is one line there.
   it with the item.
 - Where it reads: the shader's big card (top right of its details), the medal's line
   under its name, and the hover card of each shader, medal, achievement and toy; the
-  Shaders search matches an edition's name ("alpha"). Nothing drops by edition yet: later
-  an edition can end its drops or limit its items, which will be the hub's table too.
+  Shaders search matches an edition's name ("alpha", "beta").
+
+### Alpha and Beta: the collections
+
+06/11/2026 (Sol: "the blades we had before this merge will be the Alpha collection, this
+one is the Beta collection"). The editions are the Collection's collections:
+
+- **Alpha Edition**: every blade before Creyon's round (blades 1 to 169), and every
+  medal, achievement, banner, tag, finisher and toy so far.
+- **Beta Edition**: Creyon's round, PR #370, blades 170 to 299 (`edition:
+  crate::editions::BETA` on each; `unlockables.rs` tests that exactly those 130 are
+  Beta), and what comes after it.
+- The Shaders tab filters by one: the toolbar's **Edition** chip, or E (Shift+E back),
+  goes All, Alpha, Beta, All; the lit chip reads the edition shown ("Beta Edition"),
+  and the tiers' counts (the strip and each heading's "N of M") follow it.
+
+**Holocrons and kyber crystals carry an edition too**, stamped by the hub when one is
+given (a play drop, a staff or operator gift, a purchase, a mystery box, a toy, an
+achievement's crystal) and kept for good, through trades too. Opening one brings only
+things of its edition or an older one: an Alpha holocron or crystal only Alpha things, a
+Beta one Beta or Alpha: the hub picks its shaders, tags, banners and crystal shaders
+among those `editions::within(item, holocron)` allows. Cards are not gated yet: every
+card face is the SJK Alpha set. The Holocrons tab says each one's: the recent list puts it
+before the date
+("Beta · 06/11/2026 14:05"), a tier's hover card says the editions of those held ("Alpha
+Edition", or "2 Alpha, 1 Beta"), and both loot tables say the rule. The wire field is
+`edition` on each holocron ([holocrons.md](holocrons.md)); a hub before 06/11/2026 sends
+none, which reads as Alpha. The shop and crafting are not gated by edition.
+
+**The hub's switch.** The hub stamps Beta only while `--beta-min-client VERSION|off`
+(`SJK_HUB_BETA_MIN_CLIENT`) names a release, off by default, and only for a person whose
+newest client meets that release (SJK development builds pass, as for the other
+minimum-client switches): an older client keeps getting Alpha ones, so nobody gets a blade their game
+cannot show. Until it is set, every holocron and crystal is Alpha.
+
+**Opening Beta** (when Sol's tests are done):
+
+1. `droppable: true` on the 130 blades in the hub's catalogue and the client's
+   `unlockables.rs` together, and both `COMING_TO_HOLOCRONS` constants go (they make
+   "Coming to holocrons soon." and keep the blades out of drops, crafting, the shop and
+   trades).
+2. A client release with it.
+3. The hub deployed with it, `SJK_HUB_BETA_MIN_CLIENT` set to that release.
 
 ## Saber smiths
 

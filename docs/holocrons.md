@@ -573,6 +573,25 @@ client reads; the Collection's Holocrons tab is built on it.
 - `Tier::light` is the colour of the tier's point light and `Tier::about()` what the tab says of
   the tier. The 3D holocron's models are `stage::TIER_MODELS` and `stage::LOCKED_MODEL`.
 
+## Editions
+
+Since 06/11/2026 (Sol's collections, [unlockables.md](unlockables.md#alpha-and-beta-the-collections)):
+every holocron and kyber crystal carries the **edition** the hub stamped on it when it was
+given, `"edition": "alpha"` or `"beta"` on each row of the profile's `holocrons` list (the
+wire `Holocron::edition`, [wire.rs](../crates/sjk-identity/src/wire.rs); a hub before then
+sends none, read as `alpha`, `wire::EDITION_FIRST`). It keeps it for good, through trades
+too. Opening one brings only things of its edition or an older one (the hub's
+`editions::within(item, holocron)`): an Alpha
+one only Alpha things, a Beta one Beta or Alpha. The hub stamps it at every give (play
+drop, staff or operator gift, purchase, mystery box, toy, kyber crystal), Beta only while
+its switch `--beta-min-client VERSION|off` (`SJK_HUB_BETA_MIN_CLIENT`, off by default)
+names a release and the person's newest client meets it; until then every one is Alpha.
+
+The client keeps it on `holocrons::Entry::edition`; the Holocrons tab shows it before each
+recent row's date ("Beta · 06/11/2026 14:05"), on a tier's hover card (the editions of the
+unopened ones held, `Data::editions_line`: "Alpha Edition", or "2 Alpha, 1 Beta"), and in
+both loot tables' notes.
+
 ## Checked and not checked
 
 Verified (10/10/2026, Windows 11, `cargo test --locked --workspace`): the wire types parse

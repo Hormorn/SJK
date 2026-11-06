@@ -263,6 +263,10 @@ const FILTER_FAVOURITE_TOKEN: u16 = 7_320;
 const _: () =
     assert!(SORT_BASE as usize + ShaderSort::ALL.len() <= FILTER_FAVOURITE_TOKEN as usize);
 const _: () = assert!(FILTER_FAVOURITE_TOKEN < CARD_BASE);
+/// The edition chip (06/11/2026, Sol's collections): All, then each edition by turn.
+const FILTER_EDITION_TOKEN: u16 = 7_321;
+const _: () = assert!(FILTER_FAVOURITE_TOKEN < FILTER_EDITION_TOKEN);
+const _: () = assert!(FILTER_EDITION_TOKEN < CARD_BASE);
 /// The most characters a search holds.
 const SEARCH_MAX: usize = 24;
 /// The tiers the Forge's chips filter by, after All, the commonest first, as its Craft
@@ -294,7 +298,8 @@ const STRIP_TIERS_WITH_UNIQUE: [unlockables::Rarity; 6] = [
 ];
 
 /// What the Shaders tab lists: a tier, the shaders held only, the chromas only, the
-/// favourites only (29/10/2026), and words of a name (or a tier) or a blade's number the
+/// favourites only (29/10/2026), one edition (06/11/2026, [`crate::editions`]: Sol's
+/// collections, Alpha and Beta), and words of a name (or a tier) or a blade's number the
 /// search names. The stock blade is always the first row.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct ShaderFilter {
@@ -302,6 +307,8 @@ pub(super) struct ShaderFilter {
     pub(super) owned: bool,
     pub(super) chroma: bool,
     pub(super) favourite: bool,
+    /// One edition's id (`crate::editions::ALL`), `None` for every edition.
+    pub(super) edition: Option<&'static str>,
     pub(super) query: String,
 }
 
@@ -312,6 +319,7 @@ impl ShaderFilter {
             || self.owned
             || self.chroma
             || self.favourite
+            || self.edition.is_some()
             || !self.query.trim().is_empty()
     }
 
@@ -326,6 +334,7 @@ impl ShaderFilter {
             || (self.owned && !owned)
             || (self.chroma && !skin.chroma)
             || (self.favourite && !favourite)
+            || self.edition.is_some_and(|edition| edition != skin.edition)
         {
             return false;
         }
@@ -1501,6 +1510,7 @@ impl Panel {
                 KeyCode::KeyT => return self.cycle_tier(shift),
                 KeyCode::KeyO => return self.toggle_owned(),
                 KeyCode::KeyC if !control => return self.toggle_chroma(),
+                KeyCode::KeyE if !control => return self.cycle_edition(shift),
                 KeyCode::KeyS if !self.grid && !control => {
                     return self.sort_by(self.shader_sort.next(self.shader_numbers));
                 }
@@ -1665,6 +1675,25 @@ impl Panel {
             (at + 1) % count
         };
         self.shader_filter.tier = next.checked_sub(1).map(|index| tiers[index]);
+        self.filter_changed()
+    }
+
+    /// Show one edition of shaders (E): the next one (the previous with Shift), every
+    /// edition again after the last.
+    fn cycle_edition(&mut self, back: bool) -> PanelAction {
+        let editions = &crate::editions::ALL;
+        let at = self
+            .shader_filter
+            .edition
+            .and_then(|id| editions.iter().position(|edition| edition.id == id))
+            .map_or(0, |index| index + 1);
+        let count = editions.len() + 1;
+        let next = if back {
+            (at + count - 1) % count
+        } else {
+            (at + 1) % count
+        };
+        self.shader_filter.edition = next.checked_sub(1).map(|index| editions[index].id);
         self.filter_changed()
     }
 
@@ -2243,6 +2272,9 @@ impl Panel {
             if token == FILTER_FAVOURITE_TOKEN {
                 return self.toggle_favourites_only();
             }
+            if token == FILTER_EDITION_TOKEN {
+                return self.cycle_edition(false);
+            }
             if let Some(sort) = token
                 .checked_sub(SORT_BASE)
                 .and_then(|index| ShaderSort::ALL.get(usize::from(index)))
@@ -2727,6 +2759,38 @@ mod tests {
             .map(|skin| skin.number)
             .collect();
         assert_eq!(found, [2]);
+    }
+
+    /// The Edition chip (E, 06/11/2026) lists one edition alone: Alpha, then Beta
+    /// (Creyon's round, 130 blades), then every edition again; Shift goes back.
+    #[test]
+    fn the_edition_filter_lists_one_edition_and_comes_round() {
+        let held = [sun()];
+        let inputs = inputs(Holdings::Known(&held), "");
+        let mut panel = drawn(Tab::Shaders, &inputs);
+        let all = ids(&panel);
+        assert!(
+            panel.ui.rect_for(FILTER_EDITION_TOKEN).is_some(),
+            "the chip"
+        );
+        let _ = panel.cycle_edition(false);
+        redraw(&mut panel, &inputs);
+        assert_eq!(panel.shader_filter.edition, Some(crate::editions::ALPHA));
+        let alpha = ids(&panel);
+        let _ = panel.cycle_edition(false);
+        redraw(&mut panel, &inputs);
+        assert_eq!(panel.shader_filter.edition, Some(crate::editions::BETA));
+        let beta = ids(&panel);
+        assert_eq!(beta.len(), 130);
+        assert_eq!(alpha.len() + beta.len(), all.len());
+        assert!(beta.iter().all(|id| !alpha.contains(id)));
+        let _ = panel.cycle_edition(false);
+        redraw(&mut panel, &inputs);
+        assert_eq!(panel.shader_filter.edition, None);
+        assert_eq!(ids(&panel), all, "every edition again after the last");
+        let _ = panel.cycle_edition(true);
+        assert_eq!(panel.shader_filter.edition, Some(crate::editions::BETA));
+        assert!(panel.shader_filter.active());
     }
 
     /// A tier's segment lists that tier's shaders alone, the rarest first as the wall

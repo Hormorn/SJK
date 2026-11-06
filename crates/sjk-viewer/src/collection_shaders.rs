@@ -16,6 +16,10 @@
 //! a favourite (listed first, under a heading of their own by tier) and a padlock for one
 //! the player locked against breaking down and trading; the card's two toggles, F and L set
 //! them, Shift+F shows the favourites alone and N marks every New one seen.
+//!
+//! Since 06/11/2026 (Sol's collections) the toolbar's Edition chip, or E (Shift+E back),
+//! shows one edition alone ([`crate::editions`]: Alpha, the blades before Creyon's round,
+//! and Beta, from it on), and the tiers' counts follow it.
 
 use super::view::{LEAD_Y, LEFT_X, RIGHT_X, SABER_AREA};
 use super::*;
@@ -1004,7 +1008,7 @@ impl Panel {
         );
         let mut rule_x = LIST_X + 4.0 + width + 4.0;
         if let Some(tier) = tier.filter(|_| inputs.holdings.reason().is_none()) {
-            let (held, total) = tier_count(inputs, Some(tier));
+            let (held, total) = tier_count(inputs, Some(tier), self.shader_filter.edition);
             let count = format!("{held} of {total}");
             let count_width = crate::text::display_width(&count, 15.0) * text_scale() + 12.0;
             text(
@@ -1028,13 +1032,19 @@ impl Panel {
         }
     }
 
-    /// The filters' line under the headline: Owned (O), Chroma (C), Favourites (Shift+F,
-    /// while the hub keeps marks), and the search field to the list's right edge (/).
+    /// The filters' line under the headline: Owned (O), Chroma (C), the edition (E, since
+    /// 06/11/2026: "Edition" for all of them, else the one shown, "Beta Edition"),
+    /// Favourites (Shift+F, while the hub keeps marks), and the search field to the list's
+    /// right edge (/).
     fn toolbar(&mut self, frame: &Frame) {
         let s = frame.s;
         let y = TOOLBAR_Y;
         let mut left = LEFT_X;
         let favourites = format!("{}  Favourites", symbols::EDITION);
+        let edition = self
+            .shader_filter
+            .edition
+            .map_or_else(|| "Edition".to_owned(), crate::editions::name);
         let chips = [
             (FILTER_OWNED_TOKEN, "Owned", self.shader_filter.owned, false),
             (
@@ -1044,13 +1054,19 @@ impl Panel {
                 true,
             ),
             (
+                FILTER_EDITION_TOKEN,
+                edition.as_str(),
+                self.shader_filter.edition.is_some(),
+                false,
+            ),
+            (
                 FILTER_FAVOURITE_TOKEN,
                 favourites.as_str(),
                 self.shader_filter.favourite,
                 false,
             ),
         ];
-        let shown = if self.marks.kept { 3 } else { 2 };
+        let shown = if self.marks.kept { 4 } else { 3 };
         for (token, label, lit, chroma) in chips.into_iter().take(shown) {
             let mark = if chroma { MARK + 8.0 } else { 0.0 };
             let width = crate::text::display_width(label, 15.0) * text_scale() + 36.0 + mark;
@@ -1197,7 +1213,7 @@ impl Panel {
                 FontWeight::Semibold,
                 TextAlign::Start,
             );
-            let (held, total) = tier_count(inputs, tier);
+            let (held, total) = tier_count(inputs, tier, self.shader_filter.edition);
             let words = if known {
                 format!("{held}/{total}")
             } else {
@@ -2726,12 +2742,15 @@ enum Fact {
     Icon(char),
 }
 
-/// How many shaders of `tier` (`None`: all of them) the player holds and sees.
-fn tier_count(inputs: &Inputs<'_>, tier: Option<Rarity>) -> (usize, usize) {
+/// How many shaders of `tier` (`None`: all of them) and of `edition` (`None`: every
+/// one, the filter's, 06/11/2026) the player holds and sees.
+fn tier_count(inputs: &Inputs<'_>, tier: Option<Rarity>, edition: Option<&str>) -> (usize, usize) {
     let mut held = 0;
     let mut total = 0;
     for skin in inputs.holdings.listed() {
-        if tier.is_some_and(|tier| tier != skin.tier) {
+        if tier.is_some_and(|tier| tier != skin.tier)
+            || edition.is_some_and(|edition| edition != skin.edition)
+        {
             continue;
         }
         total += 1;

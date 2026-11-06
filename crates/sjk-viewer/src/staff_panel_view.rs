@@ -2437,6 +2437,7 @@ mod tests {
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                     id: 1_000 - id,
                     tier: crate::holocrons::TIERS[id as usize % crate::holocrons::COUNT]
                         .id
