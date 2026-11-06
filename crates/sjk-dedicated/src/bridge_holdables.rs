@@ -270,7 +270,7 @@ impl NativeGame {
     }
 
     /// `Jedi_Cloak`/`Jedi_Decloak` on a player: `PW_CLOAKED` and the sound.
-    fn cloak_toggled(&mut self, client: usize, toggled: Toggled, level_time: i32) {
+    pub(super) fn cloak_toggled(&mut self, client: usize, toggled: Toggled, level_time: i32) {
         let (cloak, sound): (i32, &[u8]) = match toggled {
             Toggled::Cloaked => (Q3_INFINITE, b"sound/chars/shadowtrooper/cloak.wav"),
             Toggled::Decloaked => (0, b"sound/chars/shadowtrooper/decloak.wav"),
@@ -299,7 +299,13 @@ impl NativeGame {
     }
 
     /// `G_Sound`/`G_SoundAtLoc`: a sound event at `origin` on `channel`.
-    fn holdable_sound(&mut self, name: &[u8], origin: [f32; 3], channel: u32, level_time: i32) {
+    pub(super) fn holdable_sound(
+        &mut self,
+        name: &[u8],
+        origin: [f32; 3],
+        channel: u32,
+        level_time: i32,
+    ) {
         let told = &mut self.told;
         let index = self.sounds.index(name, &mut |index, value| {
             told.push(Told::ConfigString {

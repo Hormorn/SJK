@@ -9001,3 +9001,17 @@ test: rcon jp_DuelAlpha -1: duellists collide again, still no pulling back.
 test: /engage_FullForceDuel on a second client, accept: push and lightning work in the duel.
 test: Win: centre print with health and armour; console line for everyone.
 note: Not run with a client yet. No 3 s pass-through after a duel (no JA+ client predicts it).
+
+[japlus-admin]
+area: Gameplay
+title: JA+ admins on SJK's server (g_mod japlus): ranks, key login, admin commands
+change: Council/knight/instructor/rcon with JA+'s masks; passwords only with japlus.adminPasswords 1.
+change: SJK clients log in with their key (admin_keys.txt); amcode makes one-time codes.
+change: amkick, amban, amtele, amslap, amsleep, amprotect, amsilence, amsay, ammap, amlockteam...
+test: identity adminkey: copies your public key (nothing shown). Make a folder for --home.
+test: Put "council <key> Sol" in <home>/base/admin_keys.txt; start sjk-server as for japlus-mode
+test: ... with --home <folder>. Connect: "Sol is logged as an admin council" without typing.
+test: aminfo lists the council's commands; amtele <bot>; amslap needs admToggle 5 council first.
+test: Server console: amcode knight, then amlogin <code> on a second client: logged as knight.
+test: amsilence <bot>, amsleep <bot>, amprotect, amlockteam s then team spectator: refused.
+note: Not run with a client yet. Ghost, empower, merc, mindtrick, npc, polls: not built.

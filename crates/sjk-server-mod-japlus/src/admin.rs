@@ -226,14 +226,13 @@ pub const TEXTS: AdminTexts = AdminTexts {
     red_locked: "^7Sorry, the ^1Red team^7 is locked!\n",
     blue_locked: "^7Sorry, the ^4Blue team^7 is locked!\n",
     say_prefix: "^3<Admin>^7",
-    motd_title: "^5JA+ Mod v2.4 Build 7\n^5SJK\n\n^7",
+    motd_title: "^5SJK\n^5JA+ Mod v2.4 Build 7\n\n^7",
     motd_time_left: "\nTimeLeft : ^2%i s",
     whois_titles: ["^3Admin Council", "^5Admin Knight", "^2Admin Instructor"],
     no_plugin: "^1No Plugin",
+    // VisionJK `g_cmds.c:2237-2240`.
+    vote_denied: "You are not allowed to callVote\n",
 };
-
-/// The callvote refusal of a player who lost the right (VisionJK `g_cmds.c:2237-2240`).
-pub const DENIED_VOTE: &str = "You are not allowed to callVote\n";
 
 /// JA+'s admin system.
 pub const SYSTEM: AdminSystem = AdminSystem {

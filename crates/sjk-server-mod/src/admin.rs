@@ -254,6 +254,8 @@ pub struct AdminTexts {
     pub whois_titles: [&'static str; 3],
     /// `amstatus`' line when a player has no JA+ plugin.
     pub no_plugin: &'static str,
+    /// The callvote refusal of a player who lost the right.
+    pub vote_denied: &'static str,
 }
 
 /// A mod's admin system, all of it static: its command table, the names of its
@@ -406,6 +408,50 @@ impl AbuseCounter {
     /// Seconds left in the window at `now`, as the wait message tells them.
     pub fn seconds_left(&self, now: i32) -> i32 {
         (self.window_end - now) / 1000
+    }
+}
+
+/// The team a `team` command asks for, as the team lock sees it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TeamAsked {
+    Spectator,
+    /// Into the game, outside the team games.
+    Free,
+    Red,
+    Blue,
+    /// A team game's `PickTeam`.
+    Auto,
+}
+
+/// What the team lock makes of a team asked for.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TeamLock {
+    Allowed,
+    /// Refused, with the text the player is told.
+    Refused(&'static str),
+    /// The automatic choice goes to the team that is not locked.
+    Instead(TeamAsked),
+}
+
+/// `JP_TeamLockRefused` (VisionJK `g_japlus_admin2.c:250-288`): `lock` is the setting
+/// (`jp_teamLock`: bit 1 the spectators, 2 joining a game without teams, 3 blue, 4 red);
+/// the duels' game types never lock the spectators nor the game.
+pub fn team_lock(lock: i32, asked: TeamAsked, duel_gametype: bool, texts: &AdminTexts) -> TeamLock {
+    let (blue, red) = (bit_allowed(lock, 3), bit_allowed(lock, 4));
+    match asked {
+        TeamAsked::Spectator if !duel_gametype && bit_allowed(lock, 1) => {
+            TeamLock::Refused(texts.spectators_locked)
+        }
+        TeamAsked::Free if !duel_gametype && bit_allowed(lock, 2) => {
+            TeamLock::Refused(texts.free_locked)
+        }
+        TeamAsked::Spectator | TeamAsked::Free => TeamLock::Allowed,
+        TeamAsked::Auto if blue && red => TeamLock::Refused(texts.all_teams_locked),
+        TeamAsked::Auto if blue => TeamLock::Instead(TeamAsked::Red),
+        TeamAsked::Auto if red => TeamLock::Instead(TeamAsked::Blue),
+        TeamAsked::Red if red => TeamLock::Refused(texts.red_locked),
+        TeamAsked::Blue if blue => TeamLock::Refused(texts.blue_locked),
+        _ => TeamLock::Allowed,
     }
 }
 
@@ -633,6 +679,101 @@ mod tests {
         );
         assert_eq!(counter.bans_left, 0);
     }
+
+    #[test]
+    fn locked_teams_refuse_and_the_choice_avoids_them() {
+        let texts = AdminTexts {
+            spectators_locked: "s",
+            free_locked: "f",
+            all_teams_locked: "all",
+            red_locked: "r",
+            blue_locked: "b",
+            ..TEST_TEXTS
+        };
+        assert_eq!(
+            team_lock(0, TeamAsked::Red, false, &texts),
+            TeamLock::Allowed
+        );
+        assert_eq!(
+            team_lock(2, TeamAsked::Spectator, false, &texts),
+            TeamLock::Refused("s")
+        );
+        assert_eq!(
+            team_lock(2, TeamAsked::Spectator, true, &texts),
+            TeamLock::Allowed
+        );
+        assert_eq!(
+            team_lock(4, TeamAsked::Free, false, &texts),
+            TeamLock::Refused("f")
+        );
+        assert_eq!(
+            team_lock(16, TeamAsked::Red, false, &texts),
+            TeamLock::Refused("r")
+        );
+        assert_eq!(
+            team_lock(8, TeamAsked::Blue, false, &texts),
+            TeamLock::Refused("b")
+        );
+        assert_eq!(
+            team_lock(8, TeamAsked::Auto, false, &texts),
+            TeamLock::Instead(TeamAsked::Red)
+        );
+        assert_eq!(
+            team_lock(24, TeamAsked::Auto, false, &texts),
+            TeamLock::Refused("all")
+        );
+    }
+
+    /// Texts for the tests, every one empty.
+    const TEST_TEXTS: AdminTexts = AdminTexts {
+        not_allowed: "",
+        not_allowed_on: "",
+        bad_password: "",
+        no_such_code: "",
+        unset_password_typed: "",
+        admin_banned_try: "",
+        too_many_tries: "",
+        logged_out: "",
+        rcon_login: "",
+        admin_banned: "",
+        admin_unbanned: "",
+        abuse_wait: "",
+        abuse_countdown: "",
+        info_heading: ["", "", ""],
+        info_player: &[],
+        disallowed_gametype: "",
+        in_alt_dim: "",
+        slap_flood: "",
+        refuses_tele: "",
+        refuse_tele_hint: "",
+        refuse_on: "",
+        refuse_off: "",
+        lava: "",
+        lava_console: "",
+        hurt_below: "",
+        tele_mark: "",
+        vote_killed: "",
+        team_lock_usage: "",
+        force_team_usage: "",
+        map_usage: "",
+        map_gametypes: "",
+        map_gametypes_console: "",
+        map_bad_gametype: "",
+        invalid_string: "",
+        team_locked: "",
+        team_unlocked: "",
+        spectators_locked: "",
+        free_locked: "",
+        all_teams_locked: "",
+        red_locked: "",
+        blue_locked: "",
+        say_prefix: "",
+        motd_title: "",
+        motd_time_left: "",
+        whois_titles: ["", "", ""],
+        no_plugin: "",
+        vote_denied: "",
+    };
 
     #[test]
     fn texts_take_the_name_and_line_breaks() {

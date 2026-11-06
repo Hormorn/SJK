@@ -226,8 +226,7 @@ unknown there.
   each begin, as JA+ does. A wrong password or code takes the rank away (JA+'s
   behaviour) and counts as a wrong try: after three, the player waits 30 seconds, then
   twice as long after each one more, at most 30 minutes (VisionJK's, not JA+'s). The
-  rank's message (`jp_*LoginMSG`, `%s` the name, `
-` a line break) is told to everyone;
+  rank's message (`jp_*LoginMSG`, `%s` the name, `\n` a line break) is told to everyone;
   the log gets `<name> is logged as an <rank>.` and the console a line saying how
   (password, code or key). `amlogout` ends it. `aminfo` lists the commands the rank may
   use, in one line rather than JA+'s line per command, then every player's (JA+'s
@@ -290,6 +289,59 @@ code in [admin_keys.rs](../crates/sjk-dedicated/src/admin_keys.rs) and
   (any letter case), with or without `japlus.adminPasswords`.
 - The rcon rank has every right, and JA+ has no login message for it: only the player
   is told.
+
+### JA+ admin commands
+
+What the commands do, from VisionJK's `g_japlus_admin.c`, `g_japlus_admin2.c`,
+`g_japlus_fx.c` and `g_japlus_tele.c`, carried out in
+[bridge_admin.rs](../crates/sjk-dedicated/src/bridge_admin.rs) and
+[bridge_admin_effects.rs](../crates/sjk-dedicated/src/bridge_admin_effects.rs). A player
+is named by client number, by a part of its name (colours and case ignored, the first
+match) or, where a command takes everybody, by -1. Each needs its bit in the rank's mask
+(the rcon rank and the console need none) and, on another player, `jp_admUsableOn`'s
+leave; those marked "abuse" count for the abuse counter. The texts are JA+'s: the
+`jp_msg*` settings (`jp_msgTarget*` for the player, `jp_msgBroadcast*` for the others with
+`%s` its name, `jp_msgAll*` when it was for everybody), centre printed, a typed `\n` a
+line break; nobody but the player is told when an admin of the rcon rank ran it. JA+'s
+default masks leave the council without `amslap`, `ammindtrick`, `npc` and `amweather`.
+
+| Command | Console | Effect |
+| --- | --- | --- |
+| `amkick <player>` | yes | Kicked (abuse) |
+| `amban <player>` | yes | Its address into `g_banIPs` (`addip`), then kicked (abuse) |
+| `amtele <player> <x> <y> <z> <yaw>`, `amtele <x> <y> <z> <yaw>`, `amtele <player> <to player>`, `amtele <to player>`, `amtele` | the forms with a player | Teleported (abuse): to the place, 60 units beside and 50 above the other player facing yaw 180 (JA+'s), or to the tele mark. Free-for-all without `g_jediVmerc` only. Refused over lava or slime (5000 units down) or over a linked hurting trigger near the ground below. With `jp_starTrekTeleport 1` (the default) a playing player is cloaked, beamed two seconds later without the flashes and uncloaked two seconds after that; otherwise at once, with the flashes. The speed is cleared, as JA+'s own teleport does. The player is told it may `refuseTele` |
+| `amtelemark` | | Where `amtele` alone goes, told as `(x y z)` |
+| `amorigin [player]` | | Where the player is |
+| `refuseTele` | | Any player: the admins' teleports refused, or accepted again |
+| `amslap <player>` | yes | Knocked down for a second and thrown in a random direction (175 or 200 units a second, 170 up) with a punch sound, once in 15 seconds a player but by the rcon rank (abuse). Free-for-all only |
+| `amsleep <player\|-1>` | yes | Lying, kept down every second, hurt by nothing that spares god mode, no private duel (abuse). Free-for-all only |
+| `amwake <player\|-1>` | yes | Up again |
+| `amprotect [player]` | yes, with a player | Protected (`EF_INVULNERABLE`): no other player nor NPC hurts it until it swings a saber or fires; again to take it away (abuse, counted on oneself too, as in JA+). Free-for-all only |
+| `amsilence <player\|-1>`, `amunsilence <player\|-1>` | yes | No `say`, `say_team`, `tell` or `amsay` (`gc` still works) and no rename, or the end of it |
+| `amsay <text>` | | Any player not silenced: chat (`^3<Admin>`) that only the admins and the sender read; logged as `say_admin:` |
+| `ampsay <player\|-1> <text>` | yes | A centre print and a console line |
+| `amstatus` | yes | Every player with its JA+ plugin version (`cjp_client`; a bot shows JA+'s latest) |
+| `amwhois` | yes | The admins and their ranks, told to everyone (to the asker alone when it has the rcon rank) |
+| `ammap <gametype\|HL> <map>` | yes | `jp_highlander`, `g_gametype` and `map` queued, `nextmap` kept; free-for-all (0), duel (3), power duel (4), team (6), siege (7), CTF (8), or `HL` (free-for-all with `jp_highlander 1`, which does nothing yet) |
+| `amrename <player> <name>` | yes | Renamed, and kept from renaming itself for 30 seconds |
+| `amlockteam <s\|f\|b\|r>` | yes | A team locked or unlocked (`jp_teamLock` bits 1 to 4, told to everyone): `team` then refuses it with JA+'s texts, an automatic choice takes the other team, and the duels never lock the spectators or the game |
+| `amforceteam <player\|-1> <team>` | yes | Moved to the team, past the locks |
+| `amkillvote` | yes | The vote running fails and nothing of it is carried out |
+| `amdenyvote <player>` | yes | No `callvote` ("You are not allowed to callVote"), or the right back |
+| `ammotd` | | Any player: the message of the day (`jp_motd`) centre printed for `jp_motdtime` seconds with the seconds left |
+| `amShowMotd <player\|-1>` | yes | The same for other players (abuse) |
+
+What the admin system leaves out, each waiting for a whole feature: `amghost`,
+`amempower`, `ammerc`, `ammindtrick`, `amForceAltDim`/`amUnForceAltDim` (the alternate
+dimension), `npc`, `amweather`, `ampoll`, `amvstr`, `amseeGhost`, the admin guns and
+script (`gun*`, `admCmdEXE`, `admCmdPrev`/`Next`, `playerPrev`/`Next`), the rcon rank's
+own `freeze`, `size`, `jpclient`, `amfollow`, `amplayefx` and `amtest`, `say_team_mod`'s
+routes into `amsay`/`ampsay`, the login effect (`jp_admLoginEffect`), the flood
+exemption bit, the message of the day shown at every join, and the saber damage lines of
+`aminfo`. Typed, they stay unknown commands; their bits stay in the masks. A kick or
+Force use does not end `amprotect` (a swing or a shot does), a player's grapple is not
+checked before a teleport, and `teleTime`'s five seconds of Force protection after one
+are not kept. There is no security log: the login lines go to the console.
 
 Not built yet, in the order planned: the rest of the Force changes (`jp_forceCombo`'s
 push and pull grabs and its rage with speed, the flamethrower `jp_allowFlameThrower`);

@@ -2498,8 +2498,10 @@ impl NativeGame {
         request: DamageRequest,
         location: Option<HitLocation>,
     ) -> Damaged {
-        // A siege player waiting for its wave cannot be hurt (`takedamage = qfalse`).
+        // A siege player waiting for its wave cannot be hurt (`takedamage = qfalse`), nor
+        // a player an admin protects by another (`bridge_admin_effects`).
         if self.duel_refuses(target, &request)
+            || self.admin_protects(target, &request)
             || self
                 .peer(target)
                 .is_some_and(|peer| peer.temp_spectate != 0)
@@ -2532,7 +2534,11 @@ impl NativeGame {
             std::array::from_fn(|axis| origin[axis] + bottom[axis] - 1.0),
             std::array::from_fn(|axis| origin[axis] + top[axis] + 1.0),
         );
-        let (team, god) = (victim.session.team, victim.god);
+        // `FL_GODMODE`: the cheat's, or an admin's sleep.
+        let (team, god) = (
+            victim.session.team,
+            victim.god || victim.admin.effects.sleeping,
+        );
         let mut target_view = Target {
             client: target as u16,
             state: &mut victim.state,
@@ -2642,6 +2648,7 @@ impl NativeGame {
             self.look_around(client, server_time);
             self.run_bot_client(client, server_time);
             self.siege_ex_data(client, server_time);
+            self.admin_second_actions(client, server_time);
         }
         self.run_siege_hacks();
         self.update_saber_entities(server_time);
@@ -3456,6 +3463,8 @@ use bridge_spawn::spawn_place;
 
 #[path = "bridge_admin.rs"]
 mod bridge_admin;
+#[path = "bridge_admin_effects.rs"]
+mod bridge_admin_effects;
 #[path = "bridge_bots.rs"]
 mod bridge_bots;
 #[path = "bridge_commands.rs"]
@@ -3509,6 +3518,7 @@ mod bridge_use;
 #[path = "bridge_world_effects.rs"]
 mod bridge_world_effects;
 pub(crate) use bridge_admin::AdminState;
+pub(crate) use bridge_admin_effects::AdminEffects;
 pub(crate) use bridge_saber::PlayerSkeleton;
 pub(crate) use bridge_saber_damage::SaberCut;
 pub use bridge_votes::SUPPORTED_VOTES;

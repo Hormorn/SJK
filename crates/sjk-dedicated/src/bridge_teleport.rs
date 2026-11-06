@@ -17,6 +17,30 @@ impl NativeGame {
         spectating: bool,
         level_time: i32,
     ) {
+        self.teleport_client_with(
+            client,
+            from,
+            destination,
+            angles,
+            spectating,
+            level_time,
+            true,
+        );
+    }
+
+    /// [`Self::teleport_client`], the flashes only where `flashes` (a JA+ admin's beam
+    /// under the cloak has none).
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn teleport_client_with(
+        &mut self,
+        client: usize,
+        from: [f32; 3],
+        destination: [f32; 3],
+        angles: [f32; 3],
+        spectating: bool,
+        level_time: i32,
+        flashes: bool,
+    ) {
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
@@ -29,7 +53,7 @@ impl NativeGame {
         );
         sjk_game_jka::triggers::face(&mut peer.state, teleported.angles, command_angles);
         peer.movement = peer.movement.reseeded(&peer.state);
-        if teleported.flashes {
+        if teleported.flashes && flashes {
             let out = EventEntity::teleport_out(from, client as u16);
             let arrived = EventEntity::teleport_in(destination, client as u16);
             let _ = self.pool.spawn_temporary(out.state(), level_time, None);

@@ -47,6 +47,8 @@ pub(crate) struct AdminState {
     challenge: Option<([u8; 32], Instant)>,
     /// The hellos since the first of this nonce's time.
     hellos: Option<(Instant, u32)>,
+    /// What the admin commands did to the player (`pers.jp`), for this level only.
+    pub(crate) effects: crate::bridge::AdminEffects,
 }
 
 impl AdminState {
@@ -86,7 +88,8 @@ pub(super) enum Caller {
 }
 
 impl Caller {
-    fn player(self) -> Option<usize> {
+    /// The player's place, `None` for the console.
+    pub(super) fn player(self) -> Option<usize> {
         match self {
             Caller::Console => None,
             Caller::Player(client) => Some(client),
@@ -540,6 +543,7 @@ impl NativeGame {
                     self.admin_reply(caller, format!("\"{name}\" is:\"{value}^7\"\n").as_bytes());
                 }
             }
+            _ if self.run_admin_effect(caller, entry, command, words) => {}
             (_, Caller::Player(client)) => {
                 // Not carried out yet: the game's own answer.
                 let name = words.first().copied().unwrap_or_default();
@@ -1249,8 +1253,12 @@ pub(super) mod tests {
             game.connect_client(client, userinfo.as_bytes(), false)
                 .unwrap();
             game.begin(client, 0, None);
+            // Into the game, then away from the spawn point the next one joins at.
+            game.set_team_to(client, b"free", 0);
             let peer = game.peer_mut(client).unwrap();
             peer.state.set_origin(origin);
+            peer.movement = peer.movement.reseeded(&peer.state);
+            peer.invulnerable_until = 0;
             peer.address = format!("10.0.0.{client}:29070").into_bytes();
         }
         game.last_frame_time = 1_000;

@@ -152,6 +152,14 @@ impl NativeGame {
             }
             return;
         }
+        // The running mod's team locks (JA+'s `jp_teamLock`), which `SetTeam` asks first.
+        let mut arguments = arguments;
+        if let Some(&word) = arguments.first() {
+            match self.admin_team_word(client, word) {
+                Some(word) => arguments[0] = word,
+                None => return,
+            }
+        }
         let gametype = self.gametype;
         // `SetTeam` on a siege server, once `Cmd_Team_f`'s own checks have passed.
         if self.siege.is_some()
