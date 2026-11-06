@@ -90,8 +90,8 @@ pub struct Peer {
     /// game.
     pub(crate) duel_rest_until: i32,
     /// A mod's `refuseTele` is on: admins may not teleport the player
-    /// (`pers.jp.refuseTele`); never set on the base game, and no admin teleport reads it
-    /// yet.
+    /// (`pers.jp.refuseTele`), which `amtele` reads (`bridge_admin_effects`); never set on
+    /// the base game.
     pub(crate) refuse_teleport: bool,
     /// No mod saber change before this time (JA+'s `/saber`, `pers.jp.saberSwitchTime`).
     pub(crate) saber_switch_time: i32,

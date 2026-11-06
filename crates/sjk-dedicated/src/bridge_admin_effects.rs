@@ -53,8 +53,6 @@ pub(crate) struct AdminEffects {
     pub(crate) protected: bool,
     /// `amdenyvote`: no `callvote`.
     pub(crate) deny_vote: bool,
-    /// `refuseTele`: the admins' teleports refused.
-    refuse_tele: bool,
     /// `amtelemark`'s place and yaw.
     tele_mark: Option<([f32; 3], f32)>,
     /// No `amslap` on it before this level time (`slapTime`).
@@ -582,10 +580,7 @@ impl NativeGame {
         if !self.admin_allowed_on(caller, target, true, true) {
             return;
         }
-        if self
-            .peer(target)
-            .is_some_and(|peer| peer.admin.effects.refuse_tele)
-        {
+        if self.peer(target).is_some_and(|peer| peer.refuse_teleport) {
             self.admin_reply(caller, system.texts.refuses_tele.as_bytes());
             return;
         }
@@ -782,8 +777,9 @@ impl NativeGame {
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
-        let refused = !peer.admin.effects.refuse_tele;
-        peer.admin.effects.refuse_tele = refused;
+        // The one flag the player command `refuseTele` toggles too (`bridge_mod_commands`).
+        let refused = !peer.refuse_teleport;
+        peer.refuse_teleport = refused;
         let text = if refused {
             system.texts.refuse_on
         } else {

@@ -208,7 +208,7 @@ What the mode does so far:
     more often than `jp_allowSaberSwitch` milliseconds.
   - *`ammove`*, *`amDMGs`*, *`duelWhois`*: JA+'s moves list (JA+'s own, moves SJK does not
     play included), its damage settings, the duels being fought.
-  - *`refuseTele`*: toggled and said; no admin teleport reads it yet.
+  - *`refuseTele`*: toggled and said; admins' `amtele` then refuses to move the player.
   - The server console's `serverTime` and `modVersion` (`ServerMod::console_command`).
 - **JA+'s grappling hook** (`+button12`; `sjk_game_jka::japlus_hook`, the server's part in
   [bridge_hook.rs](../crates/sjk-dedicated/src/bridge_hook.rs), from VisionJK's
