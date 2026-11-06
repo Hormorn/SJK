@@ -151,10 +151,15 @@ pub(super) struct Chains {
     /// The capsules each one ignores (a bit per capsule): its anchor's, and those it
     /// already lies in at rest.
     pub(super) ignored: Vec<u64>,
+    /// The same for the middle of its bone, on its own: a bone coming out of the hips has
+    /// its middle inside them at rest, and its joint must still collide with them.
+    ignored_middle: Vec<u64>,
     /// The body's parts the chains are kept out of.
     pub(super) capsules: Vec<Capsule>,
     /// How far out of each capsule each joint stays: a row of [`Self::capsules`] per joint.
     reach: Vec<f32>,
+    /// The same for the middle of its bone.
+    reach_middle: Vec<f32>,
     /// For a limited joint with no bone of its own to aim (stacked on its parent, with no
     /// children): from its pivot to the middle of the vertices it carries, in its own
     /// frame. It swings about the pivot along this. A rig's single-joint hair strand.
@@ -210,8 +215,10 @@ impl Chains {
             settings: found.iter().map(|(.., settings)| *settings).collect(),
             anchor: found.iter().map(|(_, _, anchor, _)| *anchor).collect(),
             ignored: vec![0; found.len()],
+            ignored_middle: vec![0; found.len()],
             capsules: Vec::new(),
             reach: Vec::new(),
+            reach_middle: Vec::new(),
             levers: vec![None; found.len()],
             layers: vec![None; found.len()],
         }
@@ -377,7 +384,7 @@ impl Chains {
     /// Keep the chains out of `capsules` (the first [`MAX_CAPSULES`]; those touching
     /// a chain's joints are dropped). Each joint ignores its anchor's capsules and
     /// those it already lies in at rest, so a cape hanging from the back is not
-    /// shoved off it.
+    /// shoved off it; the middle of its bone does the same on its own account.
     pub(super) fn collide_with(&mut self, joints: &[Joint], capsules: Vec<Capsule>) {
         self.capsules = capsules
             .into_iter()
@@ -387,6 +394,7 @@ impl Chains {
             .take(MAX_CAPSULES)
             .collect();
         self.reach.clear();
+        self.reach_middle.clear();
         for slot in 0..self.joints.len() {
             let joint = &joints[self.joints[slot]];
             let point = joint.bind.translation;
@@ -394,20 +402,28 @@ impl Chains {
                 (joints[parent].bind.translation + point) / 2.0
             });
             let mut ignored = 0u64;
+            let mut ignored_middle = 0u64;
             for (bit, capsule) in self.capsules.iter().enumerate() {
                 let a = joints[capsule.from].bind.translation;
                 let b = joints[capsule.to].bind.translation;
                 let away = |point: Vec3A| (point - closest(a, b, point)).length();
-                let rest = away(point).min(away(middle));
-                if capsule.from == self.anchor[slot] || rest < capsule.radius {
+                let (tip, halfway) = (away(point), away(middle));
+                let anchored = capsule.from == self.anchor[slot];
+                if anchored || tip < capsule.radius {
                     ignored |= 1 << bit;
+                }
+                if anchored || halfway < capsule.radius {
+                    ignored_middle |= 1 << bit;
                 }
                 // Out by the clearance, but no further than it lies at rest: standing
                 // still should not move it.
                 let wanted = capsule.radius + self.settings[slot].clearance;
-                self.reach.push(wanted.min(rest.max(capsule.radius)));
+                self.reach.push(wanted.min(tip.max(capsule.radius)));
+                self.reach_middle
+                    .push(wanted.min(halfway.max(capsule.radius)));
             }
             self.ignored[slot] = ignored;
+            self.ignored_middle[slot] = ignored_middle;
         }
     }
 }
@@ -611,17 +627,21 @@ fn push_out(
 ) -> bool {
     let count = chains.capsules.len();
     let reach = &chains.reach[slot * count..(slot + 1) * count];
+    let reach_middle = &chains.reach_middle[slot * count..(slot + 1) * count];
     let mut moved = false;
     for (bit, capsule) in chains.capsules.iter().enumerate() {
-        if chains.ignored[slot] & (1 << bit) != 0 {
-            continue;
-        }
-        let radius = reach[bit];
         let from = pose[capsule.from].translation;
         let to = pose[capsule.to].translation;
         // The tip, then the middle: moving the tip moves the middle half as far, so the
         // middle's way out asks for twice its depth.
-        for (share, leverage) in [(1.0, 1.0), (0.5, 2.0)] {
+        let samples = [
+            (1.0, 1.0, chains.ignored[slot], reach[bit]),
+            (0.5, 2.0, chains.ignored_middle[slot], reach_middle[bit]),
+        ];
+        for (share, leverage, ignored, radius) in samples {
+            if ignored & (1 << bit) != 0 {
+                continue;
+            }
             let sample = origin + (*point - origin) * share;
             let offset = sample - closest(from, to, sample);
             let distance = offset.length();
@@ -929,5 +949,56 @@ mod tests {
         // A capsule on a chain joint is dropped.
         chains.collide_with(&joints, vec![capsule(3, 1, 6.0)]);
         assert!(chains.capsules.is_empty());
+    }
+
+    #[test]
+    fn a_joint_outside_a_capsule_collides_though_its_bones_middle_starts_inside() {
+        // A bone coming out of a body along +X: its middle lies inside the capsule at rest,
+        // its joint outside.
+        let hip = Vec3A::new(0.0, 0.0, 40.0);
+        let anchor = Vec3A::new(1.0, 0.0, 30.0);
+        let tip = Vec3A::new(11.0, 0.0, 30.0);
+        let joints = vec![
+            joint(None, Vec3A::ZERO, hip),
+            joint(Some(0), hip, Vec3A::ZERO),
+            joint(Some(0), hip, anchor),
+            joint(Some(2), anchor, tip),
+        ];
+        let still = Settings {
+            gravity: 0.0,
+            wag: 0.0,
+            ..Settings::default()
+        };
+        let mut chains = Chains::under(&joints, &[0, 1, 2, 3], &[(2, still)]);
+        let capsule = Capsule {
+            from: 0,
+            to: 1,
+            radius: 7.0,
+        };
+        chains.collide_with(&joints, vec![capsule]);
+        assert_eq!(chains.ignored, [0]);
+        assert_eq!(chains.ignored_middle, [1]);
+        // Standing still it stays where it is: the capsule holds only its own side.
+        let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
+        let mut state = State::default();
+        let mut pose = rest.clone();
+        simulate(&joints, &chains, &mut pose, &mut state, None);
+        for _ in 0..30 {
+            pose.clone_from(&rest);
+            simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        }
+        assert!((pose[3].translation - tip).length() < 1e-2);
+        // The body swings onto the joint, and it is pushed out.
+        let mut moved = rest;
+        for joint in &mut moved[..2] {
+            joint.translation += Vec3A::new(8.0, 4.0, 0.0);
+        }
+        for _ in 0..60 {
+            pose.clone_from(&moved);
+            simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        }
+        let at = pose[3].translation;
+        let near = closest(pose[0].translation, pose[1].translation, at);
+        assert!((at - near).length() > 6.5, "{at:?}");
     }
 }

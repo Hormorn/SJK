@@ -8,7 +8,9 @@ animation made a long chain's tip jump. New `dynamic` options `limit` and `clear
 `layer <outer> over <inner>` line, swinging about a pivot for stacked single joints, and
 pushes and tilts eased in over a few frames for limited chains
 ([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Collision of a bone's middle
-applies to every colliding chain; the rest needs the new options. Verified on Windows 10:
+applies to every colliding chain, with its own at-rest exemption, and a push on the middle
+moves the joint twice as far; the rest needs the new options. The log names `layer` lines that
+do nothing. Verified on Windows 10:
 unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
 tests. Played in game on this client with `main` merged: it works and the frame
 rate was fine. Not verified: in a game on Linux and macOS, other machines or other rigs; arms

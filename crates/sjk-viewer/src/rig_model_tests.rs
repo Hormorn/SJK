@@ -758,6 +758,45 @@ fn a_dynamic_tail_wags_while_the_body_stands_still() {
 }
 
 #[test]
+fn a_chains_limit_may_be_anything_from_none_to_no_limit() {
+    let limit = |line: &str| manifest(line).dynamic[0].1.limit;
+    assert_eq!(limit("dynamic tail limit 0"), 0.0);
+    assert_eq!(limit("dynamic tail limit 180"), dynamics::NO_LIMIT);
+}
+
+#[test]
+fn layer_lines_that_do_nothing_are_named() {
+    let names = ["a", "b", "c", "d"];
+    let problems = |layers: &[(usize, usize)], anchors: &[usize]| {
+        layer_problems(layers, anchors, |joint| names[joint])
+    };
+    assert!(problems(&[(0, 1), (0, 2), (1, 2)], &[0, 1, 2]).is_empty());
+    assert_eq!(
+        problems(&[(0, 0)], &[0]),
+        ["layer a over a: a chain cannot lie over itself"]
+    );
+    assert_eq!(
+        problems(&[(0, 3)], &[0]),
+        ["layer a over d: d has no dynamic line"]
+    );
+    assert_eq!(
+        problems(&[(3, 0)], &[0]),
+        ["layer d over a: d has no dynamic line"]
+    );
+    assert_eq!(
+        problems(&[(0, 1), (1, 0)], &[0, 1]),
+        [
+            "layer a over b: the layer lines go round in a circle",
+            "layer b over a: the layer lines go round in a circle"
+        ]
+    );
+    // Round three chains, each line named.
+    assert_eq!(problems(&[(0, 1), (1, 2), (2, 0)], &[0, 1, 2]).len(), 3);
+    // A line leading into a circle is not in it.
+    assert_eq!(problems(&[(2, 0), (0, 1), (1, 0)], &[0, 1, 2]).len(), 2);
+}
+
+#[test]
 fn a_manifest_names_its_dynamic_joints() {
     let parsed = manifest(
         "dynamic tail_root\ndynamic hair 0\n\
@@ -807,6 +846,7 @@ fn a_manifest_names_its_dynamic_joints() {
     );
     for bad in [
         "dynamic tail limit -1",
+        "dynamic tail limit 181",
         "dynamic tail heavy",
         "dynamic tail wag",
         "dynamic tail stiffness 0",
