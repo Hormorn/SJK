@@ -27,6 +27,20 @@ on a local hair rig (largest turn in a frame 137 degrees before, 13 after), fmt,
 clippy, workspace tests. Not verified: in a game on this branch alone; the rig's short
 bones still stray far from their animated direction under a hard sway.
 
+
+## Chat row tools: x, + and a cog
+
+06/11/2026, `personal/chat-tab-tools` from `main` `6b317e9f`, Sol's request: the open
+chat composer's row gets an × on a hovered button to take it off, a + to put a hidden
+chat back, and a cog for quick settings (only this chat or every chat while typing,
+Tab skipping the chosen chat, opening on the last chat), each writing the Settings >
+Chat setting it stands for ([client.md](client.md)). Verified on Windows 11: unit
+tests (the × only on hover and never on All, closing the chosen chat moves to All, the
++ lists only usable hidden chats and closes when empty, the cog's switches and what
+the frame saves, Escape and a press elsewhere closing the menus), the chat tests,
+world shots of the three states, fmt, clippy, the startup stack check. Not verified:
+in a game.
+
 ## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
 
 06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`
@@ -1841,6 +1855,180 @@ this PC; and off screen with the game data: the nameplate snapshot
 duellist, a player who does not share, the own plate over a large shield) and the Collection
 tab, both shared and not. Not verified: in a match (pictures from a live hub, head icons of
 real players' models, the duel badge drawn, the far fade in motion), or on a GPU at 4K.
+## The Moon blade
+
+26/10/2026, `feat/moon-blade` (Creyon's fork), based on `main` `685edded` (Creyon's idea: Sol
+has his Sun, Creyon his Moon; Creyon's character is a wolf): blade 270 (169 until Sol's Mystery took that number, 1/11/2026), `saber_moon`, the Moon blade, a Mythical
+signature and chroma ([unlockables.md](unlockables.md), "Moon"; `blade_signatures/moon.glsl`)
+over its own file: a silver moonlit blade with the moon's seas in its core, glitter and a purple
+moonstone sheen on its glow, thousands of glistening glints with soft tails streaming slowly off it in true depth along
+rising curves from ignition, out to about 7 units and fading into the open (purple spirit sparks
+in the eclipse; cells on nine sheets round the axis and five discs across it, one look each a pixel), moonlit veils on its sides, Sol's mist from its file (his motes and the afterimages dropped,
+Creyon found them cheap); its
+own effects, a detailed living moon circling the blade, lit by the blade so it waxes and wanes,
+its moonbeam and a stream of purple moonlight pouring from it to the blade and spiralling round
+it down to the hilt and up to the tip, and the Lunar
+Eclipse, a 39 s cycle (14 s moonlit, 5 s in, 14 s total, 6 s out; 34 s with 10 s total at first) in which the Earth's shadow covers the moon (grey penumbra, a purple
+umbra) and creeps down the blade into a black core (`sig_solid`) in a white sheath, purple and
+silver waves running along it, the glitter drawn into the blade and bursting back out after,
+the sky blazing; a full night sky, moondust its swings and its wearer's movement shed into the
+world (`"kind": "moon"` and the new `moving` in `saber_petals.rs`), a nightfall ignition with a
+moonrise at the tip and three purple claw slashes on a clash. It drops from holocrons and
+Creyon's card (SJK Alpha 002) brings it (`unlockables::CARD_BLADES`). Its own sounds
+(`sound/sjk/creyon/moon/`, synthesized: two wolves howling and glistening moondust on ignition)
+and the hub's side (the catalogue entry, which its tests pin, the card file's `grants`, the
+blade's file and sounds in the pack) are a separate hub change.
+
+See-through moon (Creyon's report): the shared blade test (`bladeSeen`, `behindBlade`) hides
+whatever a view ray passes near the blade's axis behind; seen from first person every ray starts
+near the hilt, so the moon faded to see-through. The moon now uses its own test (`mo_hidden`):
+only the blade's core itself, above the emitter, hides it, and it is otherwise fully solid.
+
+Frame cost: Creyon saw 125 FPS fall to 30 zoomed in on an earlier version (about 200 particles
+looped over in every pixel of the blade's quad). The stars are now grid cells (a couple of
+cell looks a pixel), the glitter one cell on each of its sheets, the moon stream is skipped where the ray passes far from it, the
+falling shards and the marched mist are gone. On a software GPU (llvmpipe, the Blade Lab's
+`sig3d.py`, 1200 px first-person frames filled by the blade) a frame costs about a quarter of
+the earlier version's and about half the Sun's there; not yet measured in game. Creyon's next
+in-game video (26/10/2026) showed the glitter, then a flat picture, hugging the blade (about 3
+units out on a 40-unit blade) and the sides empty: a signature's quad fades from 0.6 of its
+extent (`sig_edge`), so with `@room 10` everything faded from about 7 units. For a round the
+Moon had 16 units of room and its glitter, tailed glints drifting slowly out, reached about 14
+units in depth round the blade (later brought back to 7 units and `@room 10`, see below), the
+moon's stream became two visible spiral ribbons (Creyon: it read as a straight fall). In the same round, on a chroma every purple
+thing (the sheen, stream, veils, claws, the moon's eclipse shadow) and the
+swing's coloured moondust (`PetalSpec::turn`, set from the skin's chroma where the blade sheds)
+take the wearer's colour; an enchantment on the blade (two winding strands and rising
+crescents, later taken out for the moonstone); and softer swing sounds. Creyon's video of that (26/10/2026, "the right way, but
+far too extreme"): the glitter a snowstorm hiding the blade, and racing when the eclipse came.
+Now about two fifths as many at rest and kept off the glow, many more on a swing (and more swing
+and movement moondust: `per_unit` 0.6, `moving` 0.8, `life` 3.4), constant speeds, each glint
+turning colour at its own moment and star flashes through the transition, and the eclipse's
+veils stronger; and a bigger clash (a ring of moonlight and a burst of tailed glints).
+Creyon's next round (screenshot from above, 26/10/2026): the spirals angular and not joined to
+the stream, nothing from above, and a wish for something new in place of the afterimages and
+for each of the two changes its own effects. Now the stream's grains ride on from its curve
+round the spirals; the glints flow off the blade moonlit and are drawn in to it in the eclipse
+(purple stars as it comes, a silver flood as it goes), on nine discs across the blade as well
+for views along it, each glint's light fading before its cell's edges (zoomed in, cut star rays
+showed as faint rectangles); the flat pictures sit where the ray passes closest to the axis
+(from above they lay edge on); and new: the moonflood and the phase wave on the blade, the
+tidal whirl round the moon and the wolf constellation in the eclipse; the afterimages are
+gone. Creyon's screenshot of that (27/10/2026): the effects fought each other, the whirl looked
+wrong, the spirals barely showed, and it was so wide it reached into other players' faces. The
+whirl, the moonflood and the phase wave are out; everything round the blade is about half as
+wide again (glitter to about 7 units, sky, veils and clash with it, `@room 10` again, so
+signatures keep the 10-unit cap), the constellation smaller, the spirals' grains bigger and
+brighter with a soft glow along them. Then (Creyon, 27/10/2026): the wolf's eyes out, and in the
+eclipse the glitter is drawn into the blade by the shadow (one flow squeezed toward the axis per
+height, no second purple flow), the stream and veils fading, so only the blade, moon and sky are
+left, and it floods back out sparkling to its places as the moonlight returns. The
+constellation out as well (Creyon); calm sounds throughout (the hum got irritating after a
+while); and no gap at the hilt in the eclipse (the silver core and the glow under the black core
+were taken away below where the black core starts, just past the emitter; Creyon saw it in the
+card preview and in game). Then (Creyon's video and screenshots, 27/10/2026: the spirals
+should be clearer in the eclipse, the draw-in smoother, something odd over the top as the glitter
+came back, the moon see-through, the tip odd, and next to his other mythicals it lacked something
+of its own): the blade is now a moonstone, a real round crystal round its light (`mo_stone`, a capsule with a
+round tip, its six faces painted on as lines; a first six-sided one with a point Creyon found
+too sharp), a crystal of light moonlit and
+solid black glass in the eclipse; the spirals stay in the eclipse, brighter; the draw-in is eased
+and above the tip follows the tip; the stone and moon hide what is behind them; the moon's eclipse
+shadow darker. A first-person frame on
+llvmpipe costs about 1.3 times the Sun's. His sounds had not changed because older loose copies
+in his test install's `base/sound/sjk/creyon/moon` came before the test pack. Then (Creyon:
+"not yet a mythical saber"; round tips, the spirals' glow drawn in and out too, the black pure
+black, the sounds too heavy): the stone is a round capsule with its end inside the blade's tip;
+the spirals and their glow are drawn in with the glitter; the black glass is pure black; the
+moonshatter is new (cracks beating through totality, the moon bursting into 22 glowing
+splinters that drift round and fuse back, `mo_since_shatter`); and the sounds are lighter (a
+110 Hz hum under an airy major pad). Then (Creyon's video with two sabers: they went out of step;
+"more beautiful" sounds; no stones out of the saber; as exciting as the Abyssal Eye; a choice to
+keep the black or the white blade): the cycle no longer takes each blade's seed; the sounds are
+a harp (Karplus-Strong plucks) and a soft pad moving between A minor 9 and F major 7; only
+moondust is shed; and the "Moon stream" part became "Moonlight" (off: the eclipse held), the
+stream going with the living moon. Then (Creyon: the solid tube and the lightning out; smaller
+pieces and more dust round the blade; the glow drawn into the black; a change with two lines
+round the blade): the moonstone is no longer drawn (an unseen core-sized capsule still hides what
+is behind the core); no arcs; the glow narrows to a fine edge round the black core with the
+shadow; two lines wind round the blade at the shadow's front through each change; and the
+shatter blows 28 small splinters and 72 specks of dust out round the whole blade on their own
+paths before they fuse back. Then (Creyon: the timing): the moon cracks in the last three seconds
+before totality and explodes as it comes, its pieces stay out round the blade through the 14 s
+of totality (brighter, breathing) and are drawn home over the 6 s of the moonlight's return; the
+stars are drawn into the blade in the eclipse too, and the night sky moves (its fields rise at
+different speeds, the bright stars wheel round the blade). Last (Creyon): a soft purple glow round
+the black tip and a few pieces round it, and quieter, more peaceful sounds (no wolf, a softer
+harp, about a third of the loudness). Then (Creyon): the purple at both ends in depth (the glow
+round the tip had barely shown); the pieces on their paths within about a second; the burst's
+flash kept inside the effects' room (a straight edge showed); the moon's glow kept low and its
+face never brighter than white (it read as see-through, its glow washing over it); the unseen
+body that hides what is behind the blade as narrow as the core; a calm glimmer in the swings;
+and the glitter calmer at rest (about three fifths as many; Creyon: too busy on the saber).
+Frame cost (Creyon: Sol had just made the Sun about 40 % cheaper, and this blade must not drop
+frames): timed with Sol's `signature_gpu_cost_against_stock` (here on a software GPU, llvmpipe,
+so only the ratios mean anything), the Moon first cost 1.6 (close), 2.0 (along) and 1.6 (game)
+times the new Sun; the moon stream's grains were most of it (each worked the eclipse out again
+through `mo_pull`, and all were drawn wherever the ray was near the blade). Now the shadow's front
+is worked out once (`mo_front`, `mo_pull_at`), the stream looks only at the pieces and grains at
+the ray's heights near the blade, with a quick distance test first and 32 grains (was 80), the
+glitter has nine sheets and five discs (was twelve and nine), no sheets for a ray along the
+blade, and a hash for each glint's reach in place of a noise look, and the sky's band, haze and
+sheen take one noise look where they took three. Timed after: 132 ms close, 111 along and 231
+game against the Sun's 127, 83 and 213 (1.04, 1.33 and 1.09 times); to be timed on a real GPU.
+Last (Creyon's close-up video by the hilt): the silver and purple waves at the eclipse's moments
+are shaped round the core (scaled by the file's glow, which runs to the quad's edge, they made a
+band with a hard straight edge); the white core goes out within the first half of the shadow's
+front (half-dark it flashed as a flat grey band); the glow's glitter fades in and out at its
+ends; and the swings are only air and glimmer, on and off a cascade of glimmer, clearly heard.
+Then (Creyon: still flickering in the eclipse, a hard line, a blocky spiral, too much glow): the
+glow's glitter is gone under the shadow and the file's glow moves calmly (its granulation,
+flares, tongues and fringe slower and weaker), the moonlit veils are out (their vertical
+curtains read as lines), the spirals' glow has about sixteen pieces a turn (it had six), and the
+glow and the moonlight round the blade are about two thirds and half as bright. Last (Creyon:
+"the rest is good"): the moon is hidden by the blade only when it is behind it as a whole, in a
+narrow soft band (per pixel the blade as drawn, bent by its swing, did not match the straight
+axis and cut a see-through band through the moon in front); the pieces are kept a unit out from
+the blade; the black core starts at the emitter (the white core and glow below it flickered);
+and in `saber.wgsl` a signature's solid parts, once the blade is all out, are cut only past its
+rounded tip (the cut began a unit below the tip, leaving the Moon's black tip half see-through;
+this applies to every signature's solid parts at the tip). The unseen body that hides what is behind the
+blade is as wide as the black core (0.46; at 0.24 the moon's pieces behind the black blade still
+showed over it, Creyon's video). Then (Creyon: still the blade through the moon; 37 fps zoomed
+in, 125 from afar): the moon is never hidden by the blade, drawn whole over it (every way of
+working out the hiding showed a band through it); and with the camera near the blade
+(`mo_near`) the glitter has five sheets and no discs, the stream 20 grains and fewer spiral
+pieces, the moon's dust half its specks and the sky one field fewer. Timed after: close 0.95,
+along 1.21 and game 1.05 times the Sun.
+
+Then, 28/10/2026 (Creyon, after Sol's word that the blade must be special and Sol's Sun trails;
+"the Sun has 9 effects"): rebased onto `main` `db63b4f5`. A trail of its own for every wearer,
+moonlight (style 7), and three extras a Solar copy of Creyon's card (SJK Alpha 002) unlocks, as
+a Solar copy of Sol's unlocks the Sun's: the Eclipse trail (8), the Starfall trail (9) and a
+Moonlit wake (the shared wake), so it has nine choices like the Sun (`blade_extras.rs`,
+`saber_trail.wgsl`; the trail colour is now lilac, so the trail takes the wearer's colour on a
+chroma). Frame cost (Creyon: Sol's Sun steady at 125 fps): the stream's spiral glow works out one
+point a piece (it worked out two), the body test and the moonbeam only where they can show, and
+a far blade (beyond about 160 units) is drawn with the fewer pieces a near one is, and a pixel
+more than about 9 units from the blade (and from the moon) skips the volume and orbit passes at
+once (the quad holds 10 units of room). Timed: game 214, close 118, along 101 ms against the
+Sun's 211, 127 and 83 (1.01, 0.93 and 1.22 times). Swings: a
+clear soft whoosh with a light tone and the glimmer (the whoosh had been too faint). Checked:
+the trail styles rendered in a stand-alone harness from the shader's own functions (not yet in a
+world shot or in game). Last (Creyon: "the blade looks so amazing"): lit during the eclipse, the whole moon
+showed a moment before its pieces (the shatter waited for the lighting's nightfall); it now
+follows the switches alone.
+
+Rebased onto `main` `685edded` (27/10/2026): the petals now sit beside the Sun's swing embers
+(`moon_dust` after `ember`; the moon's shard picture, no longer shed, left out). Verified on
+x86_64 Linux: `cargo fmt --all --check`, the locked workspace build, tests (3099) and
+all-target Clippy (no errors), `scripts/blade_signatures.py --check`, and off-screen renders
+with the Blade Lab's `sig3d.py` (moonlit, the change with its two lines, the cracks, the
+explosion, the pieces round the blade, their return, the moving sky, the tip, a swing, a
+clash). The tests that used `saber_moon` as an unknown id use `saber_starfall`. Seen in game
+by Creyon round by round (his videos and screenshots); not verified: the last round in game,
+the frame rate in game, the hub's side (catalogue entry, card grant, the blade's file and
+sounds in its pack).
 
 ## Tag toy
 

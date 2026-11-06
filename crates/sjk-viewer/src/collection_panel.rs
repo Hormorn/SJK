@@ -97,9 +97,9 @@ const ACHIEVEMENT_PAGE_BASE: u16 = 6_200;
 /// found (`achievements::secret_kind`), up to the pages' switch after them.
 const WALL_MAX: usize = (ACHIEVEMENT_PAGE_BASE - ACHIEVEMENT_BASE) as usize;
 const _: () = assert!(crate::achievements::ALL.len() + 8 <= WALL_MAX);
-/// The shaders' rows have a range of their own, 7000 to 7299, for a catalogue of up
-/// to 299 skins (the stock blade is row 0).
-const SHADER_BASE: u16 = 7_000;
+/// The shaders' rows have a range of their own, 6900 to 7299, for a catalogue of up
+/// to 399 skins (the stock blade is row 0).
+const SHADER_BASE: u16 = 6_900;
 const SHADER_LIMIT: u16 = 7_300;
 /// The click every page plays for a press.
 fn ui_cues_click() {
@@ -2760,7 +2760,7 @@ mod tests {
         let _ = panel.cycle_tier(true);
         redraw(&mut panel, &inputs);
         assert_eq!(panel.shader_filter.tier, Some(unlockables::Rarity::Common));
-        assert_eq!(ids(&panel).len(), 43);
+        assert_eq!(ids(&panel).len(), 68);
         // C lists the chromas only.
         panel.shader_filter = ShaderFilter::default();
         let _ = panel.toggle_chroma();
@@ -2809,7 +2809,7 @@ mod tests {
         assert_eq!(ids(&panel), ["saber_tidal"]);
         panel.shader_filter.query = "creyon".to_owned();
         redraw(&mut panel, &inputs);
-        assert_eq!(ids(&panel).len(), 151, "the saber smith is searched");
+        assert_eq!(ids(&panel).len(), 281, "the saber smith is searched");
         panel.shader_filter.query = "mythical".to_owned();
         redraw(&mut panel, &inputs);
         assert_eq!(
@@ -2827,6 +2827,15 @@ mod tests {
                 "saber_world_shift",
                 "saber_exegol_rift",
                 "saber_varykino_blossom",
+                "saber_moraband_erasure",
+                "saber_wellspring_triad",
+                "saber_korriban_ragnos",
+                "saber_tatooine_krayt_spine",
+                "saber_dromund_kaas_vitiate",
+                "saber_nihilus_hunger",
+                "saber_moon",
+                "saber_taris_undercity",
+                "saber_angel",
             ]
         );
         panel.shader_filter.query = "nothing".to_owned();

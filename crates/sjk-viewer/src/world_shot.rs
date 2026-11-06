@@ -397,6 +397,9 @@ mod find_blades_shots;
 #[path = "world_shot_text_sizes.rs"]
 mod text_sizes_shots;
 
+#[path = "world_shot_chat_tools.rs"]
+mod chat_tools_shots;
+
 #[path = "world_shot_chat_reactions.rs"]
 mod chat_reactions_shots;
 #[path = "world_shot_chat_readability.rs"]

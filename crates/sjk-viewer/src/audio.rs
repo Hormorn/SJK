@@ -226,11 +226,11 @@ impl GameAudio {
     /// called every frame. Until the gamestate's tables are ready there is nothing to set.
     pub(crate) fn set_saber_sound_overrides(
         &mut self,
-        clients: &[Option<u8>; sjk_client::SABER_SOUND_CLIENTS],
+        clients: &[Option<u16>; sjk_client::SABER_SOUND_CLIENTS],
     ) {
         if let Some(adapter) = &mut self.legacy {
             // With the skins' sounds off, nobody wears a sound set.
-            const NONE: [Option<u8>; sjk_client::SABER_SOUND_CLIENTS] =
+            const NONE: [Option<u16>; sjk_client::SABER_SOUND_CLIENTS] =
                 [None; sjk_client::SABER_SOUND_CLIENTS];
             adapter.set_saber_sound_overrides(if self.skin_sounds_off { &NONE } else { clients });
             adapter.set_saber_skin_sounds_only(self.skin_sounds_only);

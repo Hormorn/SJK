@@ -87,7 +87,12 @@ pub(crate) fn look_bits<'a>(
 /// Whether `skin`'s option `option` is on in `setting`: a part unless its word is there,
 /// an extra only when it is.
 pub(crate) fn is_on(setting: &str, skin: &str, option: &str) -> bool {
-    off_ids(setting, skin).any(|id| id == option) == crate::blade_extras::is_extra(skin, option)
+    off_ids(setting, skin).any(|id| id == option) == starts_off(skin, option)
+}
+
+/// Whether an option is off until switched on: an extra.
+fn starts_off(skin: &str, option: &str) -> bool {
+    crate::blade_extras::is_extra(skin, option)
 }
 
 /// `setting` with `skin`'s option `option` switched on or off: its word gone, or there
@@ -99,7 +104,7 @@ pub(crate) fn with(setting: &str, skin: &str, option: &str, on: bool) -> String 
         .split_whitespace()
         .filter(|other| *other != word)
         .collect();
-    if on == crate::blade_extras::is_extra(skin, option) {
+    if on == starts_off(skin, option) {
         words.push(&word);
     }
     words.sort_unstable();

@@ -217,7 +217,7 @@ link: https://sol-vulpes.github.io/SJK/
 
 [Creyon]
 github: Creyon94
-role: Contributor and tester: 77 merged pull requests, EternalJK parity
+role: Contributor and tester: 78 merged pull requests, EternalJK parity
 medal: early_contributor
 did: #2 #7 Duel challenges from names with symbols, centre prints kept whole
 did: #3 The third-person camera damped per frame as EternalJK (cg_cameraFPS)
@@ -277,6 +277,7 @@ did: #328 Shaders chosen by a click; new ones wear a New sticker and gold outlin
 did: #317 Client numbers on SJK's scoreboard; rank by score minus deaths
 did: #321 A finished trade's toast says what it gave, names in full
 did: #236 JoF hats as in JoF EJK, from the old EternalJK folder
+did: #370 130 new blades from his Star Wars round, Common to Mythical (blades 170 to 299)
 link: Creyon's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ACreyon94
 
 [Lumaya]

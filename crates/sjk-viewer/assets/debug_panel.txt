@@ -91,6 +91,17 @@ test: Bind it (bind v lowjump), jump with it and with Space: the low jump is low
 test: With Force jump 3, hold Space and press it: the held jump goes on as before.
 note: Nothing the server would not take from a quick tap; no restriction applies.
 
+[chat-tab-tools]
+area: Console & chat
+title: Chat row: x on a button, + to put chats back, cog for quick settings
+change: Point at Team/SJK/JoF/S/Admin/PM while typing: an x after it takes it off the row.
+change: + after the row lists the chats taken off (PM by default); a click puts one back.
+change: Cog: only this chat / every chat, Tab skips this chat, open on the last chat.
+test: Open chat, point at Team, click its x: Team leaves the row and Settings > Chat says Off.
+test: Click +, pick Team: it comes back. With nothing hidden, the + is gone.
+test: Cog > Show every chat: other channels' lines stay in view while on Team.
+test: Esc closes an open menu first, then the composer. Restart: the choices stayed.
+
 [clan-chat-own]
 area: Console & chat
 title: Clan chats: JoF players see JoF only, S players S only
@@ -369,6 +380,17 @@ test: toy_fishing on duel6: pond, float dips, +use within 1 s lands a fish in th
 test: Move or take damage: the rod goes away. Another SJK player sees rod and bucket.
 test: debug_holocron while fishing: card at once, no Echo on the line, no Echo Angler count.
 note: Achievements need hub-shared #9 imported and deployed before they record online.
+
+[creyon-new-blades-370]
+area: Rendering & effects
+title: 130 new blades (Creyon #370), blades 170 to 299: not in holocrons yet
+change: Star Wars round: 25 Common, 24 Uncommon, 34 Rare, 38 Legendary, 9 Mythical.
+change: Their effects in the air draw in a half-size layer; older blades draw as before.
+change: Hub: in the catalogue and sjk_skins_2, droppable false until Sol opens them.
+test: Staff panel > Unlock a few (Angel, Rakata Infinite, Moon): they wear and swing.
+test: Close to the camera at 4K: FPS holds; effects line up with walls and players.
+test: Chroma blades take your colour; Shaders tab pictures and parts switch on and off.
+note: God Ki left out (Dragon Ball material). Make droppable on the hub once tested.
 
 [finishers]
 area: Gameplay

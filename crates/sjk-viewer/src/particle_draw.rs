@@ -215,6 +215,8 @@ impl GpuState {
             self.weather
                 .encode_fog(encoder, camera, &depth.sample_bind_group);
         }
+        self.saber_gpu
+            .draw_volumes(encoder, camera, &depth.view, layer.size(), region);
         let mut pass = layer.begin_effects(encoder, &depth.view);
         if let Some([x, y, w, h]) = region {
             pass.set_scissor_rect(x, y, w, h);

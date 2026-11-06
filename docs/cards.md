@@ -324,6 +324,10 @@ on; `sjk_alpha_010` is the Toxiee meme card (Legendary, it was `sol_lore_001`), 
 `sjk_alpha_000`, Sol's, brings the Sun blade while held (20/10/2026). Sol edits the cards
 on the live hub since 29/10/2026 (from 20/10/2026 with a card editor on their PC), so the
 hub's catalogue is the list as it stands, not this page.
+`sjk_alpha_000`, Sol's, brings the Sun blade while held (20/10/2026), and `sjk_alpha_002`,
+Creyon's, the Moon blade (26/10/2026, Creyon's blade, the Sun's sister). Sol edits the cards
+himself since 20/10/2026 with the hub's Card Studio (`scripts/card_studio.py`), so the
+hub's `assets/dist/cards.json` is the list as it stands, not this page.
 
 **Credits cards (20/10/2026, Sol's decision):** so that no credit reads as ranked above
 another, every credits card is Mythical (the hub's import and pack build refuse any other

@@ -49,6 +49,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - A JA+ server (`g_mod japlus`) deals JA+'s saber damage: `jp_alterDMG` gives each saber move the damage of JA+'s move table (set by the `jp_*Attack` settings with 1), with `jp_SaberThrowScaleDMG`, `jp_reduceSaberBlock` and `jp_allowSaberTouchDMG`; nobody is cut from under the chat bubble, and a `/kill` right after being pushed or hit gives the frag to the one who did it _(Sol, after VisionJK by Blackwolf)_
 - SJK's server can run as a JA+ server: started with `g_mod japlus`, it calls itself JA+ 2.4 B7, takes the JA+ settings (`jp_*`) of a JA+ server.cfg and plays the JA+ movement rules it announces in `jp_cinfo` (flip kick, roll fix, yellow DFA, slide on players), so SJK, EternalJK and JA+ plugin players all predict it. The rest of JA+ (duels, saber damage, emotes, admins) comes in later steps _(Sol, after VisionJK by Blackwolf)_
 - JA+ duels on SJK's server in JA+ mode: duellists and everybody else pass through each other and cannot hurt each other (`jp_DuelAlpha` 0 or more), any weapon challenges, both start with full health, Force and `jp_duelStartArmor`, bow (`jp_autoDuelBOW`) and light their own sabers, `engage_FullForceDuel` lets the Force work between the two, no distance limit (`jp_removeDistanceDuelLimit`), and the winner's health and armour are told (`jp_endDuelBroadcastMSG`). On JA+ servers SJK now predicts the pass-through only where the server plays it (`jp_DuelAlpha` 0 or more, free-for-all or team deathmatch, players only) _(Sol, after VisionJK by Blackwolf)_
+- 130 new blades, 9 of them Mythical, each with its own colours, trail and sounds _(Creyon; the Angel blade after Kushina's idea)_
 
 ## 2026.1105.2 (Alpha) | 05/11/2026
 
@@ -429,6 +430,7 @@ Capsule nameplates, the Sith cloud, a chest and a hunt for mystery boxes, and a 
 - Black sabers: Profile > Saber has a black blade of its own (the custom colour's chip now reads RGB), and black blades show in game, on SJK's own server too, as in JoF EJK _(Creyon, PR #230, after JoF EJK)_
 - Cardboard box: the free camera works while you hide in it, and a boxed player stays crouched in the box when they open the chat or the menu, for everyone; their lunges and kicks still play (#152) _(Creyon, PR #231)_
 - Ragdoll: your limp body no longer disappears while you fly the free camera, and rising or speeding up in the free camera no longer gets you up _(Creyon, PR #232)_
+- The Moon blade, a Mythical blade and the Sun blade's night-time sister: silver moonlight with stars drifting off it and a living moon circling it. In the Lunar Eclipse the blade turns black and the moon shatters, then fuses back. A moonlight trail of its own, and a Solar copy of Creyon's card unlocks three more extras. Found in holocrons, and Creyon's card brings it _(Creyon)_
 
 ## 2026.1027.2 (Alpha) | 27/10/2026
 

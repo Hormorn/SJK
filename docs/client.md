@@ -3217,6 +3217,24 @@ Tabs hide other chat) keeps the feed whole while typing: every chat in view, eac
 labelled with its channel (TEAM, SJK, JoF, S), the button picking only where the
 message goes.
 
+The row has its own tools since 06/11/2026 (Sol's request;
+[chat/row_tools.rs](../crates/sjk-viewer/src/chat/row_tools.rs), drawn in
+[chat/view/row_tools.rs](../crates/sjk-viewer/src/chat/view/row_tools.rs) as strokes,
+not glyphs, set level with the middle of the words' capitals and as tall as them
+(`UiFont::capital_middle`, `capital_height`; 06/11/2026). Pointing at any button but All shows a small × right after its word; a
+click takes it off the row (its setting to 0, as Settings > Chat would), and a
+composer on it moves to All. After the words, a + (only while a usable chat is off the
+row: PM by default, Admin only on servers that have it, a clan chat only once joined)
+lists those chats in their colours, and a click puts one back (1); the menu closes
+once none is left. A cog opens quick settings: Show only this chat and Show every chat
+(`cg_chatTabFilter` 1 or 0, the picked one lit), Tab skips the chosen chat (its
+setting 2 or 1; not offered on All or PM) and Open on the last chat
+(`cg_chatRememberChannel`), each On or Off; the menu stays open for the next change.
+Both menus open in a dark panel above their button, over the feed; a press anywhere
+else, the same button again, or Escape (before the composer) closes them. The frame
+saves each change to the profile (`GpuState::save_chat_settings`), so Settings and the
+row always agree.
+
 Open the chat composer with your chat binding: the cursor is free while composing.
 Resting the pointer on a name (a sender's, or an SJK chat sender's) shows their
 sender card (picture, name, hub, medals) beside it, with Block or Unblock: a block is

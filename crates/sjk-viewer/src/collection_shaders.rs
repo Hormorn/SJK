@@ -2922,6 +2922,40 @@ mod tests {
     /// Every shader's name stands on a tile in two lines at most, each inside the tile,
     /// at the ordinary text size.
     #[test]
+    fn every_signature_cards_parts_fit_above_its_button() {
+        // Creyon, 3/11/2026: the Trayus Scythe's long text and third row of parts ran under Equip.
+        for skin in unlockables::blade_skins() {
+            let Some(signature) = crate::blade_signatures::of(skin.id) else {
+                continue;
+            };
+            let options = signature.parts().count() + 1;
+            let rows = options.min(6).div_ceil(if options > 4 { 3 } else { 2 });
+            let about = paragraph_lines(skin.description, ABOUT_CHARS) as f32 * ABOUT_SIZE * 1.42;
+            // The card's fixed rows, a one-line source, its owned note, the parts at their closest.
+            let needed = 20.0
+                + 36.0
+                + 72.0
+                + FACT_HEIGHT
+                + 16.0
+                + 6.0
+                + about
+                + 2.0 * LINE_SIZE * 1.42
+                + 2.0
+                + 10.0
+                + 28.0
+                + rows as f32 * 26.0
+                + 12.0
+                + 44.0
+                + CARD_PAD;
+            assert!(
+                needed <= CARD_BOTTOM - CARD_TOP_MIN,
+                "{}: its card needs {needed}",
+                skin.id
+            );
+        }
+    }
+
+    #[test]
     fn every_name_fits_a_tile_on_two_lines() {
         for skin in unlockables::blade_skins() {
             let (first, second) = name_lines(card_name(skin.name), TILE_WIDTH - 20.0, 16.0);
@@ -3251,7 +3285,18 @@ mod tests {
                             assert!(area.right() <= right, "{index} {viewport:?}");
                         }
                     }
-                    assert!(shown >= if grid { 18 } else { 12 }, "{shown} {grid}");
+                    // Every tile or row of the lines in view is drawn: as many as those lines
+                    // hold (at the end of the wall a tier's last line may be short, so a fixed
+                    // count only held for one catalogue size), and never fewer than a screenful.
+                    let held: usize = panel.shader_lines[first..first + panel.shader_shown]
+                        .iter()
+                        .map(|line| match *line {
+                            Line::Things(start, end) => end - start,
+                            Line::Head(_) => 0,
+                        })
+                        .sum();
+                    assert_eq!(shown, held.min(SHADER_ROWS), "{grid}");
+                    assert!(shown >= 12, "{shown} {grid}");
                     for command in panel.ui.draw_list().commands() {
                         if let DrawCommand::Text { rect, .. } = command {
                             assert!(rect.bottom() <= keys || rect.y >= keys, "{rect:?}");

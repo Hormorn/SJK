@@ -1,0 +1,149 @@
+// Kowak Silkweb (reworked 2/11/2026, update 24; Creyon: improve what has to be improved): the jungle-spider silk of Kowak wrapped round and round a blade, a green glow of venom showing through the wrappings, long loose threads lifting off it in the air, dew beading on them.
+// @part Wrapped silk
+// @part Green venom
+// @part Loose threads
+// @part Dew
+// @raycache fast
+// @room 10
+// @solid 1
+// @palette {"corona.rim_cool":[0.193,0.358,0.193],"corona.rim_hot":[0.385,0.715,0.385],"corona.inner":[0.675,0.825,0.675],"core.white":[0.9,1.0,0.95],"core.fringe_cool":[0.28,0.52,0.28],"core.fringe_hot":[0.72,1,0.72],"light.color":[0.35,0.65,0.35],"trail":[0.35,0.65,0.35]}
+// @speed 1.0
+
+const vec3 M = vec3(0.720, 0.760, 0.620);
+const vec3 D = vec3(0.240, 0.280, 0.200);
+const vec3 H = vec3(1.000, 1.000, 0.940);
+const vec3 A = vec3(0.450, 0.820, 0.420);
+
+float kf(float a, float c){ return rxFlow(vec2(a, c)); }
+float kl(float v, float w){ return 1.0 - smoothstep(0.0, w, abs(v)); }
+float k_half(float y, float sd){
+  float L = uLength;
+  float T = uTime, C = uClock;
+  float s = clamp(y/max(L, 1.0), 0.0, 1.0);
+  float w = 0.72;
+  float top = L*rxLife(0.0, 0.45, 0.32);
+  if (y > top) return 0.0;
+  float e = 1.0 - clamp((top - y)/max(w*1.0, 0.05), 0.0, 1.0);
+  return w*sqrt(max(1.0 - e*e, 0.0));
+}
+vec3 sig_glow_t1(vec3 g, vec2 b, float r, float px){
+  float L = uLength;
+  float yc = clamp(b.y, 0.0, L*rxLife(0.0, 0.45, 0.32));
+  float d = max(length(vec2(b.x, b.y - yc)) - k_half(yc, b.x < 0.0 ? -1.0 : 1.0), 0.0);
+  float T = uTime, C = uClock, y = b.y, s = clamp(b.y/max(L, 1.0), 0.0, 1.0);
+  vec3 col = M*(halo(d, 0.16)*0.4 + halo(d, 0.8)*0.3 + halo(d, 2.4)*0.06);
+  col += lvl(g)*M*(1.0 - smoothstep(0.3, 1.5, abs(b.y)))*0.28;
+  col *= tipFadeB(b);
+  return col*roomFade(abs(b.x))*(1.0 + 0.6*clamp(uClash, 0.0, 1.0));
+}
+vec3 sig_core(vec3 c, vec2 b, float px){ return c*0.0; }
+vec4 k_solid(vec4 o, vec2 b, float px){
+  float L = uLength;
+  if (b.y < -0.3 || b.y > L + 0.3) return o;
+  float half = k_half(b.y, b.x < 0.0 ? -1.0 : 1.0);
+  float cov = (1.0 - smoothstep(half - 0.05 - px, half + 0.03 + px, abs(b.x)))*smoothstep(0.02, 0.12 + px, half);
+  if (cov <= 0.0) return o;
+  float u = clamp(b.x/max(half, 0.01), -1.0, 1.0);
+  float ang = asin(u), nz = sqrt(max(1.0 - u*u, 0.0));
+  float x = b.x, y = b.y, s = clamp(y/max(L, 1.0), 0.0, 1.0);
+  float T = uTime, C = uClock;
+  vec3 col = M;
+  if (part(0.0) > 0.5){
+    float w1 = sin(ang*3.0 + y*0.7), w2 = sin(ang*3.0 - y*0.7 + 1.0);
+    float wv = max(w1, w2); float sheen = sin(ang*1.4 + y*0.16 - C*0.8);
+    col = mix(D, M, 0.5 + 0.5*wv*wv*sign(wv));
+    col += H*smoothstep(0.55, 1.0, sheen)*0.35;
+    if (part(1.0) > 0.5) col = mix(col, A*1.2, smoothstep(0.42, 0.75, kf(x*1.2, y*0.1 - T*0.09))*0.6);
+  }
+  col *= (0.55 + 0.55*nz)*1.5;
+  col += M*pow(1.0 - nz, 3.0)*0.65;
+  col = mix(col, H, (1.0 - smoothstep(0.0, 0.55, abs(u)))*0.35);
+  col += H*halo(max(b.y, 0.0), 0.5)*0.5;
+  col = mix(col, H, 0.45*clamp(uClash, 0.0, 1.0));
+  return vec4(mix(o.rgb, col, cov), max(o.a, cov));
+}
+vec4 sig_solid(vec4 o, vec2 b, float px){
+  vec4 r = k_solid(o, b, px);
+  float j = smoothstep(-0.25, 0.3, b.y);
+  return vec4(mix(o.rgb, r.rgb, j), mix(o.a, r.a, j));
+}
+float kMoment(){ return rxCycle(26.0, 15.0, 17.2, 19.2, 22.2); }
+vec3 sig_vol_t1(vec3 ro, vec3 rd, float px){
+  vec3 fx = vec3(0.0);
+  if (uFx <= 0.0) return fx;
+  float L = uLength, T = uTime, C = uClock, t;
+  float aft = rxLife(0.15, 0.7, 0.35);
+  if (aft <= 0.01 || fxNear(ro, rd, 0.0, L) > 16.0) return fx;
+  float mom = kMoment();
+  if (part(2.0) > 0.5){ for (int i = 0; i < 7; i++){ float k = float(i); float yy = L*(0.2 + 0.1*k); fx += 1.0*rxRibbon(ro, rd, 0.9, 2.1 + 0.3*sin(C*0.4 + k), 0.24, k*0.382 + 0.012*C, yy, min(yy + L*0.24, L*0.98), 0.14, k + 31.0, H, M*0.6); }
+   fx += 0.75*syMistSpin(ro, rd, L*0.2, L*0.98, 0.9, 2.5, 0.02, 38.0, M*0.45, A*0.16); }
+  if (part(3.0) > 0.5){ fx += 1.1*vec3(0.0); for (int i = 0; i < 9; i++){ float k = float(i); float q = fract(C*(0.05 + 0.03*h11(k*2.1)) + h11(k*7.3)); vec3 p = around(1.05 + 0.5*h11(k*3.9), h11(k*4.3) + 0.012*C, L*(0.95 - 0.72*q)); float d = rayPt(ro, rd, p, t); fx += (A*halo(d, 0.12)*1.5 + mix(A, H, 0.4)*halo(d, max(0.04, px))*1.1 + A*halo(d, 0.5)*0.18)*sin(3.1416*q); } }
+  if (part(1.0) > 0.5) fx += (0.35 + 0.7*mom)*fxAura(ro, rd, 0.0, L, 1.4, A)*0.3;
+  if (part(2.0) > 0.5){ fx += 0.7*syMistSpin(ro, rd, L*0.2, L*0.98, 1.0, 3.1, -0.015, 58.0, mix(M, H, 0.3)*0.5, A*0.2); for (int i = 0; i < 2; i++){ float k = float(i); fx += 1.0*xPuffs(ro, rd, 1.2, 1.9, 0.8, k*0.5 + 0.018*C, L*0.2, L*0.97, 0.38, k + 51.0, H, M*0.55); fx += 1.3*xBeads(ro, rd, 1.3, 1.9, 0.8, k*0.5 + 0.018*C, L*0.2, L*0.97, 0.07, k + 53.0, H, A); } for (int i = 0; i < 5; i++){ float k = float(i); fx += 0.75*rxTongue(ro, rd, L*(0.25 + 0.14*k), k*0.37 + 0.008*C, 2.3, 0.9, 0.3, k + 55.0, H, M, A*0.3); } }
+  if (part(1.0) > 0.5) fx += 1.0*shFire(ro, rd, 1.05, L*0.2, L, 1.3, 0.3, 5.0, A*0.08, A*0.5, mix(A, H, 0.4));
+  // effects rise with the blade as it lights and sink with it as it goes out
+  float sa;
+  raySeg(ro, rd, vec3(0.0, 0.0, 0.0), vec3(0.0, L + 4.0, 0.0), sa);
+  float grownTop = (L + 6.0)*rxLife(0.0, 0.55, 0.32);
+  fx *= 1.0 - smoothstep(grownTop - 4.0, grownTop, sa*(L + 4.0));
+  // nothing over the point
+  fx *= tipFade(ro, rd);
+  return fx*aft*uFx*hiltFade(ro, rd);
+}
+
+// >>> update 34: this blade's signature piece
+const vec3 SX_HOT = vec3(0.385, 0.715, 0.385);
+const vec3 SX_DEEP = vec3(0.193, 0.358, 0.193);
+const vec3 SX_PALE = vec3(0.675, 0.825, 0.675);
+vec4 sig_vol_solid(vec3 ro, vec3 rd, float px){
+  vec4 o = vec4(0.0);
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, uLength) > 16.0) return o;
+  float L = uLength, C = uClock;
+  vec4 n = (sxShards(ro, rd, px, 3.0, 2.8, 0.6, 0.016, 418.0, vec3(0.08, 0.075, 0.08), SX_PALE))*rxLife(0.45, 1.3, 0.4)*uFx*hiltFade(ro, rd);
+  return vec4(mix(o.rgb, n.rgb, n.a), max(o.a, n.a));
+}
+// <<< update 34
+vec3 sig_vol_w2(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_t1(ro, rd, px), a = vec3(0.0);
+  float L = uLength, C = uClock;
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, L) > 16.0) return base;
+  if (part(3.0) > 0.5){
+  a += 1.1*shStreaks(ro, rd, 2.63, L*0.05, L*0.95, 8.4, 3.0, 1.55, 0.4, 865.0, vec3(0.675, 0.825, 0.675), vec3(0.385, 0.715, 0.385));
+  a += 0.95*syMistSpin(ro, rd, 0.3, L*0.96, 1.21, 4.60, 0.015, 868.0, vec3(0.385, 0.715, 0.385)*0.24, vec3(0.193, 0.358, 0.193)*0.3);
+  }
+  return base + a*rxLife(0.3, 1.2, 0.4)*uFx*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+vec3 sig_glow_w2(vec3 g, vec2 b, float r, float px){
+  float wv = pow(0.5 + 0.5*sin(b.y*0.22 - uClock*0.70), 3.0);
+  float d = max(abs(b.x) - 0.5, 0.0);
+  return sig_glow_t1(g, b, r, px) + vec3(0.385, 0.715, 0.385)*wv*(halo(d, 0.9)*0.28 + halo(d, 2.6)*0.17)*rxLife(0.3, 1.2, 0.35)*uFx*tipFadeB(b)*smoothstep(0.0, 4.0, b.y)*roomFade(abs(b.x));
+}
+vec3 sig_vol_own(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_w2(ro, rd, px), a = vec3(0.0);
+  float L = uLength, C = uClock;
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, L) > 16.0) return base;
+
+  if (part(3.0) > 0.5){
+    a += 1.3*syPetalsAir(ro, rd, 8.0, 4.39, 0.031, 1426.0, vec3(0.675, 0.825, 0.675), vec3(0.385, 0.715, 0.385));
+  }
+  return base + a*rxLife(0.3, 1.2, 0.4)*uFx*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+vec3 sig_glow(vec3 g, vec2 b, float r, float px){
+  vec3 col = sig_glow_w2(g, b, r, px);
+  float d = max(abs(b.x) - 0.5, 0.0), C = uClock, on = rxLife(0.3, 1.3, 0.35)*uFx*tipFadeB(b)*growGlow(b)*roomFade(abs(b.x))*smoothstep(0.0, 4.0, b.y);
+
+  if (part(3.0) > 0.5){
+    col += vec3(0.0);
+  }
+  return col;
+}
+
+// >>> what this blade has in the air of its own
+vec3 sig_vol(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_own(ro, rd, px), a = vec3(0.0);
+  if (uFx <= 0.0) return base;
+  a += 1.1*gxSwarm(ro, rd, px, 8.0, 3.4, 90.0, vec3(0.675, 0.825, 0.675), vec3(0.385, 0.715, 0.385));
+  return base + a*rxLife(0.8, 3.0, 0.45)*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+// <<<
+

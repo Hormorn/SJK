@@ -459,7 +459,7 @@ includes:
 Creyon and Lumaya wear the SJK team's Contributor medal, shown on their
 cards of the in-game credits page.
 
-Creyon ([Creyon94](https://github.com/Creyon94)), contributor and tester, has 77
+Creyon ([Creyon94](https://github.com/Creyon94)), contributor and tester, has 78
 pull requests merged into SJK, most of them bringing SJK in line with EternalJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ACreyon94)):
 
@@ -583,6 +583,9 @@ pull requests merged into SJK, most of them bringing SJK in line with EternalJK
   deaths (`cg_scoreboardDeathsRank`, off).
 - #321 a finished trade's toast says what it gave and received, names shown in full.
 - #236 JoF hats as in JoF EJK: their pictures from the old EternalJK folder, McFox two-sided.
+- #370 130 new blades from his Star Wars round (blades 170 to 299): 25 Common, 24 Uncommon,
+  34 Rare, 38 Legendary and 9 Mythical, each with its own colours, trail and sounds, and
+  their effects in the air drawn at half size so a close blade stays cheap.
 
 Lumaya ([lumayaa](https://github.com/lumayaa)), contributor, has 88 pull requests
 merged into SJK
@@ -1036,6 +1039,8 @@ palette with pink as its main colour, light purple and white mist, afterimages m
 falling blossoms like the Spectral's, and a branch with a flower where the blade starts
 (and one day a wooden hilt). Sol built it as the Varykino Blossom, a Mythical saber shader
 (blade 166, 21/10/2026), with all of it but the hilt, which waits for custom hilts.
+Kushina also gave the idea of the Angel blade (05/11/2026).
+
 Kushina also asked for JA+ and jaPRO plugin options she would not have to type as a
 `cp_pluginDisable` number: Sol built them as Settings switches named after each feature,
 with JoF EJK's `plugin` command (29/10/2026). She asked too for three JoF EJK options that

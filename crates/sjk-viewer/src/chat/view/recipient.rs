@@ -301,6 +301,7 @@ impl ChatOverlay {
     pub(in crate::chat) fn toggle_pm_list(&mut self) {
         if let Some(input) = &mut self.input {
             input.pm_list = !input.pm_list;
+            input.menu = None;
         }
     }
 

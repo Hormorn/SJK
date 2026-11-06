@@ -2800,6 +2800,16 @@ at that point and returning the blade's own: `sig_glow(g, b, r, px)` the glow's 
   arcs and the Void's orbiting black holes are; no volume is marched. `sig_edge` fades
   everything out before the quad's edges, and `uFx` is 0 when the wearer turns the
   effects off. `@solid 1` marks a signature with `sig_solid` or `sig_vol_solid`.
+  A solid layer is cut just past the tip the blade has (so a crust follows the blade as it
+  grows); `@solidpast 1` (`Signature::solid_past`, `SIG_SOLID_PAST_TIP`) leaves a fully
+  grown blade's solid layer uncut there, for one that closes itself past the point: Angel's
+  cloud bank rounds off in a billowed crown a little above the tip, where the cut drew a
+  flat top seen up close (Creyon, 5/11/2026).
+  `@nearpull <units>` (`Signature::near_pull`, `SIG_NEAR_PULL`) sets how far a `@solidnear`
+  layer's depth is pulled toward the camera (14 by default, so a wide plane does not slice
+  its wearer); Angel pulls 3, as its bank covered its wearer's head and face. Its bank is also
+  narrow from the hand up to head height and thins away with the camera within some 17 units
+  of the blade (Creyon, 6/11/2026).
 - **A fixed frame and the full length (round 9, 20/10/2026).** Until round 9 the frame's x
   pointed to the camera's side, so every effect turned round the blade with the view: in
   Creyon's test they raced round it whenever he turned the mouse. The hand path now stamps
@@ -3148,7 +3158,11 @@ at that point and returning the blade's own: `sig_glow(g, b, r, px)` the glow's 
   (largest difference 0.001), on Linux with lavapipe.
 - **Drawing.** [blade_signatures.rs](../crates/sjk-viewer/src/blade_signatures.rs) names
   the signature skins (`SIGNATURES`); a loaded skin with one carries `LAB_SIGNATURE`
-  (100) in its `design` lane, with its `@room` (units, in the lane's metres) and `@solid`
+  (100) in its `design` lane, with its `@room` (units, in the lane's metres; its solid parts are cut at the tip the blade has
+  grown to, and once it is all out only past its rounded tip, 27/10/2026) and `@solid`
+  (`@speed <factor>` sets how fast a signature's motion runs, `uTime` through `SIG_SPEED` in
+  `sig_take`, 1 by default; its cycles and moments (`uClock`), lighting, swings and clashes keep
+  real time)
   (`@moments own` keeps a mythical out of `sig_mythic`: the Sun draws its own sunrise and
   eclipse),
   and its chroma's own hue in `design_color.w` (-1 for none). A signature replaces a
@@ -3183,6 +3197,10 @@ at that point and returning the blade's own: `sig_glow(g, b, r, px)` the glow's 
   own colours, as do Obsidian Edge, Quicksilver, Mortis (day and night) and the Bleeding
   Kyber (its red corruption). A signature's solid layer may keep its own colours where it
   sets `uOwn` (0 to 1; the Abyssal Eye's amber eye, round 9).
+  `uTurn` is the chroma's turn (0 with none), for a blade that colours parts of itself under an RGB
+  (Lotho Minor Lavaglass). `liveArcs` draws lightning that moves every frame and fades in and out
+  (`fxArcs` holds a shape and swaps it); `tipFade` and `tipFadeB` end effects in a soft dome round the
+  tip, where a cut on height alone would show as a straight line.
 - **Options.** Every signature skin offers its wearer `Effects round the blade` (off: only
   the blade itself, nothing past a stock glow's width or the tip), `Swing and clash
   bursts` (off: swings and clashes set nothing off) and `Ignition show` (off: lit at
@@ -3251,7 +3269,10 @@ tip, 132 blades) within 1/255 of `main`'s:
   did with the cache switched off by a constant or reached through a wrapper, though the same
   arithmetic in one function did not. Its header says `@raycache off`: `module_source` renames
   `behindBladeFull` to `behindBlade` in its module, so its pieces call the old body and the kept
-  one goes uncalled (`Signature::ray_cache`, test `world_shift_alone_goes_without_the_ray_cache`).
+  one goes uncalled (`Signature::ray_cache`, test `world_shift_moon_and_vulptex_go_without_the_ray_cache`).
+  Since 1/11/2026 (update 15 of Creyon's round) the Moon and Vulptex Spiritfire do too: Creyon's
+  RTX fell to 60-70 frames a second on them though on llvmpipe they cost less than Abyssal Eye in
+  every scene, the pattern World Shift showed; not yet timed on his GPU.
 - `bolt3` takes `px` and skips its ten segments when the whole bolt (within half its length and
   0.71 of its zigzag of its middle) is more than six units and three pixels off the ray: every
   caller turns its distance into Gaussian glows at most 1.5 wide, under a ten-thousandth there.
@@ -3282,6 +3303,31 @@ blades' `game` total fell by 2.9 of 54.6 ms, 0.29 ms at most for one blade (Star
 Its noise has no exact shortcut, so it is left as it is. Measuring while the client runs is
 unreliable: during one run the stand-in blade went from 0.57 to 2.57 ms and the switched-off
 helpers seemed to cost time; check the stand-in line of each run.
+
+Shells and coarse outlines (1/11/2026, Creyon's Star Wars round, blades 170 to 270): Zeffo
+Thunderchorus fell from 125 to 30 frames a second in his game when he zoomed in on it, its loops
+of 3D bolts run for every pixel of a quad that filled the screen. Two kinds of change, timed with
+`scripts/blade_cost.py` (scene `close`, llvmpipe; the Sun 20.8 to 27.2 ms in the same runs):
+
+- **Shells** (`sh*` at the end of `lab.glsl`): `shT` finds where the view ray crosses a cylinder
+  of radius R round the axis (at most twice), `shAt` weighs each crossing (none behind the camera
+  or hidden by the body, fading where the ray grazes the cylinder and over soft ends, so its
+  outline never shows) and gives its place on the shell, and a pattern is read there: motes,
+  flakes, glints, streaks, strands, sheaths of flowing light, fire, veins, bolts drawn in the
+  shell's own flat coordinates, curtains, caustics, facets, and `shSmokeA` for a solid layer. A
+  quadratic and a few noise reads a pixel; particles live in cells at least eight sizes across,
+  so none is cut at its cell's edge. Zeffo Thunderchorus, redrawn on them, 63.4 to 15.4 ms.
+- **Coarse outlines first** in `rxRibbon`, `rxTongue` and `rxHelix`: four chords of the curve
+  first; every point of it lies within their sagitta (and its sway's bend), so a ray past that
+  and 3.2 widths of its widest glow (under a ten-thousandth) skips the 10 to 24 segments
+  (`rxHelix` returns the chords' distance less their error, a lower bound, past three units).
+  `rxMist` and `rxMistSpin` read their second wave first and skip the first where it cannot be
+  dense; `rxStarCloud` skips a star before its twinkle where the ray is past its glow. The same
+  pictures. Utapau Whirlwind 168.3 to 33.1 ms, Zonama Starlight 66.7 to 27.4, Nur Shadowflame 57.3
+  to 26.6, Nihilus Hunger 48.6 to 25.2, Cantonica Ascension 48.5 to 25.4, Bastila Battle
+  Meditation 47.2 to 25.5; Dume Wolfspirit (its tails read off a three-point outline first, six
+  segments for eight) 49.1 to 40.3. Not timed on a real GPU here: run the script on main and the
+  branch in one sitting before review, as AGENTS.md asks.
 
 ### Falling blossoms
 
@@ -3339,6 +3385,20 @@ when it is swung, which its own quad could not hold: they are particles in the w
   settle as the petals do: a ragged grey flake (`ash_grey.png`) and, one in three, the same
   flake with its edge still glowing orange (`ash_ember.png`), both drawn by
   `scripts/petal_assets.py`, tumbling as they fall.
+- **Moondust** (26/10/2026, the Moon, Creyon's): `"kind": "moon"` sheds moondust, switched with
+  its "Moon glitter" part: `// @petals {"part":1,"kind":"moon",
+  "per_unit":0.6,"life":3.4,"size":1.1,"fall":0.0,"drift":20.0,"rise":30.0,"moving":0.8}`.
+  Specks of moondust with four short rays (`moon_dust.png`,
+  white light added with `blendFunc GL_SRC_ALPHA GL_ONE` and tinted by the particle a colour
+  of the blade's moonlight: silver, white, lilac or purple, turned to the wearer's saber colour
+  on a chroma by the skin's turn, `PetalSpec::turn`, which only the shedding blade sets) that float up through the world as
+  the cranes do, drawn by `scripts/petal_assets.py`, shrinking a little as they fade. At first
+  half were ragged flakes of moon rock that dropped and settled; Creyon did not want stones
+  falling out of the saber, and that picture is gone.
+- **Shed while moving** (26/10/2026): a line's optional `moving` sheds that many for each unit
+  the tip travels through the world beyond its swing (the wearer running, jumping or riding:
+  the world travel less the swing's), as well as the swing's `per_unit`. 0 (the default)
+  keeps the old rule, so a turn of the view or a run sheds nothing; the Moon blade's is 0.8.
 
 ## Saber trails
 
@@ -3384,7 +3444,21 @@ the Sun blade (Sol: a sun or fire trail; 1 the default, the Solar card unlocking
   units (never more than 2 % of the screen, `HAZE_REACH`, the room the effect rectangle
   keeps), gone at the slice's edges and as it ages, so the merge sees no seam.
 
-The plasma, flare and a wake live three times as long as the blur (`LONG_LIFE`: 90 to 120 ms
+Built 27/10/2026 for the Moon blade (Creyon, after Sol's Sun trails: the Sun's night sister):
+
+- **Moonlight** (style 7, every Moon's, `// @trail moonlight`): a soft silver ribbon where the
+  blade just passed, light rippling across it as moonlight on water (the plasma's world noise,
+  slower), cooling through the trail colour (lilac, the wearer's on a chroma) to deep violet,
+  its trailing edge dissolving into stardust: specks in world cells (`moon_glitter`), drifting
+  down as they age where the plasma's flames rise, twinkling out; a fine silver seam where the
+  tip went.
+- **Eclipse** (style 8, the Moon's Eclipse trail extra): the ribbon hollowed into a ring of
+  light along its edges, as the corona round an eclipsed moon, white within and the trail
+  colour without, a diamond-ring flash where the tip just passed, stardust still drifting.
+- **Starfall** (style 9, the Moon's Starfall trail extra): a faint moonlight ribbon with
+  shooting stars in nine lanes across the band, each a bright head and a fading silver tail.
+
+The plasma, flare, moonlight, eclipse, starfall and a wake live three times as long as the blur (`LONG_LIFE`: 90 to 120 ms
 for most moves): the cooling and the shimmer need that time to be seen. Each slice's age
 reaches the fragment shader in the colour's alpha, which the additive blend ignores. Verified
 by unit tests (the styles and the wake bit from the Sun's choices, the shader validated by

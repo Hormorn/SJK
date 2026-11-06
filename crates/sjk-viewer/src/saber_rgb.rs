@@ -75,7 +75,7 @@ impl BladeColor {
             .filter(|index| (*index as usize) < MAX_SKINS)
         {
             return Self::Skin(SkinColor {
-                index: index as u8,
+                index: index as crate::saber_skins::SkinIndex,
                 trail: tint,
                 light: tint,
                 flicker: Default::default(),
