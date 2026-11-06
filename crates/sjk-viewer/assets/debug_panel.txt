@@ -384,13 +384,15 @@ note: Achievements need hub-shared #9 imported and deployed before they record o
 [creyon-new-blades-370]
 area: Rendering & effects
 title: 130 new blades (Creyon #370), blades 170 to 299: not in holocrons yet
-change: Star Wars round: 25 Common, 24 Uncommon, 34 Rare, 38 Legendary, 9 Mythical.
+change: Star Wars round: 25 Common, 21 Uncommon, 29 Rare, 38 Legendary, 17 Mythical.
 change: Their effects in the air draw in a half-size layer; older blades draw as before.
 change: Hub: in the catalogue and sjk_skins_2, droppable false until Sol opens them.
 test: Staff panel > Unlock a few (Angel, Rakata Infinite, Moon): they wear and swing.
 test: Close to the camera at 4K: FPS holds; effects line up with walls and players.
 test: Chroma blades take your colour; Shaders tab pictures and parts switch on and off.
 note: God Ki left out (Dragon Ball material). Make droppable on the hub once tested.
+note: 06/11 Sol raised 19 a tier: 170 171 175 191 198 206 272 278 Mythical, 197 212 214
+note: 215 223 279 281 286 Legendary, 180 288 293 Rare.
 
 [editions-alpha-beta]
 area: Menus & settings
@@ -3679,6 +3681,15 @@ note: Not tried in a running client: the HUD hiding and the compact board over a
 note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab is pressed again.
 
 # ---- Rendering & effects ----
+
+[rig-forked-chains]
+area: Rendering & effects
+title: Rig chains that fork or stack joints no longer jump (Kushina, #373)
+change: Dynamic chains are simulated in one pass, parents first; a joint stacked on its
+change: parent (under 0.01 units) no longer turns the parent at random.
+test: Wear a rig model with dynamic hair (a stem with several strands) and run, jump, turn.
+test: The strands swing smoothly; no bone flips or jitters from frame to frame.
+test: A rig tail or cape without forks moves as before.
 
 [sun-trails]
 area: Rendering & effects
@@ -8775,14 +8786,13 @@ test: on JoF with gameplay_fps 0, play 30 min with com_maxfps 60: no Heimdall ki
 test: movement and jumps feel as before at 125+ FPS; at 60 FPS like JoF EJK.
 test: on a non-JoF server at 60 FPS, gameplay_fps 333 still moves like 333.
 
-[jof-packetdup]
+[jof-packetdup-back]
 area: Gameplay
-title: JoF: no repeated commands in packets (Heimdall kicks)
-change: On JoF, cl_packetdup counts as 0: a packet carries only its new commands.
-change: cl_packetdup_nocap 1 keeps the cvar; gameplay_fps_nocap does not lift it.
-test: join JoF: the console says JoF servers take 0 repeated packets at most.
-test: play 30 min on JoF with cl_packetdup 1 (default): no Heimdall kick.
-test: on a non-JoF server the console names no cl_packetdup cap; movement as before.
+title: JoF: packets repeat the packet before again (cl_packetdup default 1)
+change: The JoF-only cl_packetdup cap at 0 is gone (Milamber confirmed the default is right).
+change: cl_packetdup_nocap no longer exists; cl_packetdup applies as set on every server.
+test: join JoF: the console no longer names a cl_packetdup cap, only the 8 ms command step.
+test: play on JoF as usual: no Heimdall kick, movement and hits as before.
 
 [picker-worker]
 area: Menus & settings
