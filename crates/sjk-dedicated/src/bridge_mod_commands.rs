@@ -67,14 +67,16 @@ impl NativeGame {
         }
     }
 
-    /// A command the running server mod adds, `command` as the player typed it, with its
-    /// `arguments`. None at the intermission (VisionJK `g_japlus_admin.c:1264-1272`).
+    /// A command the running server mod adds, `command` as the player typed it (the whole
+    /// line `text`), with its `arguments`, at the server's clock `server_time`. None at the intermission (VisionJK `g_japlus_admin.c:1264-1272`).
     pub(super) fn mod_command(
         &mut self,
         client: usize,
         command: &[u8],
+        text: &[u8],
         arguments: &[&[u8]],
         added: ModCommand,
+        server_time: i32,
     ) {
         let rules = self.command_rules();
         if self.match_end.ending() {
@@ -86,6 +88,9 @@ impl NativeGame {
         let level_time = self.last_frame_time;
         match added {
             ModCommand::FullForceDuel => self.duel_key(client, level_time, true),
+            ModCommand::Admin(admin) => {
+                self.admin_player_command(client, text, admin, server_time);
+            }
             ModCommand::Emote(emote) => self.emote_command(client, emote, &rules, level_time),
             ModCommand::Hug => self.hug(client, &rules, level_time),
             ModCommand::Kiss => {

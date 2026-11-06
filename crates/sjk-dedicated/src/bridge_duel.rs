@@ -165,6 +165,10 @@ impl NativeGame {
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
+        // An admin's sleeper challenges nobody (VisionJK `g_cmds.c:3283`).
+        if peer.admin.effects.sleeping {
+            return;
+        }
         if full_force {
             // Not for one already duelling (VisionJK `g_cmds.c:3456-3462`).
             if peer.state.duel_in_progress() {

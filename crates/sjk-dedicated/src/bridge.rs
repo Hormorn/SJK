@@ -300,6 +300,8 @@ pub struct NativeGame {
     hooks_freed: Vec<EntityId>,
     /// The frame's shots that may cut a hook's rope: shooter, from, to (`bridge_hook`).
     rope_cutters: Vec<(u16, [f32; 3], [f32; 3])>,
+    /// Its admin system's own state beside the players' (`bridge_admin`).
+    admin: bridge_admin::AdminServer,
 }
 
 /// The serverId a world starts on. `SV_SpawnServer` uses `com_frameTime`, which is only
@@ -504,6 +506,7 @@ impl NativeGame {
             mod_hook,
             hooks_freed: Vec::new(),
             rope_cutters: Vec::new(),
+            admin: Default::default(),
         };
         game.pool = EntityPool::with_budget(0, game.entity_budget());
         game.spawn_items();
@@ -542,6 +545,7 @@ impl NativeGame {
         }
         game.apply_cvars();
         game.process_ip_bans();
+        game.process_admin_bans();
         Ok(game)
     }
 
@@ -1459,6 +1463,8 @@ impl NativeGame {
         if self.power_duel_begin(client, server_time) {
             return;
         }
+        // `JP_ClientBegin`: the JA+ plugin's own login, where the mod has admins.
+        self.admin_userinfo_login(client);
         if !std::mem::replace(&mut self.begun_once, true) {
             let (sounds, told) = (&mut self.sounds, &mut self.told);
             first_begin_sounds(sounds, &mut |index, value| {
@@ -2505,8 +2511,10 @@ impl NativeGame {
         request: DamageRequest,
         location: Option<HitLocation>,
     ) -> Damaged {
-        // A siege player waiting for its wave cannot be hurt (`takedamage = qfalse`).
+        // A siege player waiting for its wave cannot be hurt (`takedamage = qfalse`), nor
+        // a player an admin protects by another (`bridge_admin_effects`).
         if self.duel_refuses(target, &request)
+            || self.admin_protects(target, &request)
             || self
                 .peer(target)
                 .is_some_and(|peer| peer.temp_spectate != 0)
@@ -2539,7 +2547,11 @@ impl NativeGame {
             std::array::from_fn(|axis| origin[axis] + bottom[axis] - 1.0),
             std::array::from_fn(|axis| origin[axis] + top[axis] + 1.0),
         );
-        let (team, god) = (victim.session.team, victim.god);
+        // `FL_GODMODE`: the cheat's, or an admin's sleep.
+        let (team, god) = (
+            victim.session.team,
+            victim.god || victim.admin.effects.sleeping,
+        );
         let mut target_view = Target {
             client: target as u16,
             state: &mut victim.state,
@@ -2651,6 +2663,7 @@ impl NativeGame {
             self.look_around(client, server_time);
             self.run_bot_client(client, server_time);
             self.siege_ex_data(client, server_time);
+            self.admin_second_actions(client, server_time);
         }
         self.run_siege_hacks();
         self.update_saber_entities(server_time);
@@ -3495,6 +3508,10 @@ mod bridge_intermission;
 use bridge_cvars::{SERVERINFO_DEFAULTS, server_info_with};
 use bridge_spawn::spawn_place;
 
+#[path = "bridge_admin.rs"]
+mod bridge_admin;
+#[path = "bridge_admin_effects.rs"]
+mod bridge_admin_effects;
 #[path = "bridge_bots.rs"]
 mod bridge_bots;
 #[path = "bridge_commands.rs"]
@@ -3547,6 +3564,8 @@ mod bridge_teleport;
 mod bridge_use;
 #[path = "bridge_world_effects.rs"]
 mod bridge_world_effects;
+pub(crate) use bridge_admin::AdminState;
+pub(crate) use bridge_admin_effects::AdminEffects;
 pub(crate) use bridge_saber::PlayerSkeleton;
 pub(crate) use bridge_saber_damage::SaberCut;
 pub use bridge_votes::SUPPORTED_VOTES;

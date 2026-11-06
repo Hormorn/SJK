@@ -136,6 +136,10 @@ impl NativeGame {
         if self.refused_at_intermission(client, command) {
             return true;
         }
+        // An admin took the right (`amdenyvote`).
+        if calling && self.admin_denies_vote(client) {
+            return true;
+        }
         let settings = self.vote_settings();
         let voters = self.client_views();
         let said = if calling {

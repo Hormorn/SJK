@@ -4109,6 +4109,9 @@ pub struct Service {
     finished: Mutex<Receiver<()>>,
     /// The last tag given to a note ([`Service::note`]).
     note_tags: std::sync::atomic::AtomicU64,
+    /// The key itself, for the admin key login's signature, which never waits for the
+    /// worker (`crate::key_login`).
+    key: Identity,
 }
 
 impl Service {
@@ -4147,6 +4150,7 @@ impl Service {
         let feed_identity = identity.clone();
         let vitals_identity = identity.clone();
         let relay_identity = identity.clone();
+        let key = identity.clone();
         let mut worker = Worker::new(
             identity,
             make_hub,
@@ -4281,7 +4285,29 @@ impl Service {
             relay,
             finished: Mutex::new(finished),
             note_tags: std::sync::atomic::AtomicU64::new(0),
+            key,
         }
+    }
+
+    /// Whether a server's admin key login names this key among its admins' (its hints).
+    pub fn key_login_named(&self, challenge: &crate::key_login::Challenge) -> bool {
+        self.key.named_by(challenge)
+    }
+
+    /// The signed answer to a server's admin key login, for client `client` of the
+    /// server at `address` as the client sees it.
+    pub fn key_login_answer(
+        &self,
+        challenge: &crate::key_login::Challenge,
+        address: &str,
+        client: u16,
+    ) -> String {
+        self.key.key_login_answer(challenge, address, client)
+    }
+
+    /// The public key as a server's `admin_keys.txt` takes it (unpadded base64url).
+    pub fn admin_key_text(&self) -> String {
+        self.key.public_key_text()
     }
 
     /// Apply the player's settings; the service starts or stops talking to the hub.

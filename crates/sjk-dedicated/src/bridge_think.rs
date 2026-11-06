@@ -88,7 +88,9 @@ impl NativeGame {
             peer.push_effect_until = 0;
             peer.state.set_raw_field(EFLAGS, flags & !EF_BODYPUSH);
         }
-        if peer.invulnerable_until <= server_time {
+        // An admin's protection holds until the player attacks (VisionJK
+        // `g_active.c:2097`).
+        if peer.invulnerable_until <= server_time && !peer.admin.effects.protected {
             let flags = peer.state.raw_field(EFLAGS).unwrap_or(0);
             peer.state.set_raw_field(EFLAGS, flags & !EF_INVULNERABLE);
         }
@@ -281,6 +283,8 @@ impl NativeGame {
                 peer.state.set_raw_field(EFLAGS, flags & !EF_INVULNERABLE);
                 peer.invulnerable_until = 0;
                 peer.force.danger_time = level_time;
+                // Attacking ends an admin's protection (`amprotect`).
+                peer.admin.effects.protected = false;
             }
         }
         // `ClientEvents`' landings and item uses.
@@ -306,6 +310,7 @@ impl NativeGame {
             peer.state.set_raw_field(EFLAGS, flags & !EF_INVULNERABLE);
             peer.invulnerable_until = 0;
             peer.force.danger_time = level_time;
+            peer.admin.effects.protected = false;
             if matches!(
                 peer.state.weapon(),
                 WP_DISRUPTOR

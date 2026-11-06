@@ -60,6 +60,34 @@ fuel numbers compared in a game), a hook on a map's walls (only a mapless server
 the blade and thrown saber cuts in a game. Left out: see server.md (the alternate
 dimension, model scale, the server-only flip kick rule).
 
+## SJK's server as a JA+ server, step 3: admins, logged in with SJK keys
+
+06/11/2026, `personal/japlus-admin` from `main` `403b06e0`. Under `g_mod japlus` the
+server runs JA+ 2.4 B7's admin system, after VisionJK's rebuild of its module
+(`g_japlus_admin.c`, `g_japlus_admin2.c`, `g_japlus_fx.c`, `g_japlus_tele.c`): the
+council, knight, instructor and rcon ranks with JA+'s allowed-command masks, the "usable
+on" rule, the abuse counter, the admin-ban list, the command log, the server console's
+`admGrant`/`admToggle`/`admBan`/`admAddIP`/`admRemoveIP`/`admListIP`, and the commands
+most used (kick, ban, the teleports with the star-trek beam, slap, sleep, protect,
+silence, the admins' chat and centre prints, status, whois, map, rename, team locks and
+moves, votes, the message of the day). Sol's decision: an admin logs in with the SJK
+identity key (`admin_keys.txt`, a nonce, hints so that a non-admin's key never leaves
+the client, a signature over a domain-separated message with the host key, the address
+and the client number; the client keeps each address's host key); JA+'s rank passwords
+count only with `japlus.adminPasswords 1`; one-time codes (`amcode`) for other clients
+([server.md](server.md#ja-admins), [identity.md](identity.md#admin-key-login)). The
+generic part is `sjk_server_mod::admin` and a new `ServerMod::admin` hook (none on the
+base game), JA+'s table and texts are the mod's. Verified on Windows 11: unit tests of
+the rights, masks, usable-on rule, abuse counter, team lock, key file, hints, signature
+(right, replayed, late, for another slot, host key, address or key), host-key pinning,
+codes, and of each command on a mapless server with players (`bridge_admin.rs`,
+`bridge_admin_effects.rs`), the base game's tests that none of it exists there. Not
+verified: in a game with a client (the key login end to end, what JA+ plugin and
+EternalJK players see), against a running JA+ or VisionJK server, the lava and trigger
+checks of `amtele` on a real map. Left out (documented): ghost, empower, merc,
+mindtrick, the alternate dimension, npc, weather, polls, `amvstr`, the admin guns, the
+login effect, the join message of the day.
+
 ## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
 
 06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`

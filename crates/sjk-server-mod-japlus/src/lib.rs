@@ -19,7 +19,10 @@
 //! - [`commands`]: its emotes and player commands, and the server console's own.
 //! - [`JaPlus::hook`]: JA+'s grappling hook (`sjk_game_jka::japlus_hook`), whose pull every
 //!   JA+ client predicts ([`ModMovement::grapple`]).
+//! - [`admin`]: JA+'s admin system, its ranks' commands and texts, which the server runs
+//!   (`sjk_server_mod::admin`).
 
+pub mod admin;
 pub mod cinfo;
 pub mod combat;
 pub mod commands;
@@ -171,7 +174,14 @@ impl ServerMod for JaPlus {
     }
 
     fn command(&self, name: &[u8]) -> Option<ModCommand> {
-        commands::command(name)
+        // JA+'s own commands (`engage_FullForceDuel` among them), then the admin system's
+        // a player types (`JP_ClientCommand`); those not carried out yet stay unknown.
+        commands::command(name).or_else(|| {
+            admin::SYSTEM
+                .entry(name, false)
+                .and_then(|entry| entry.command)
+                .map(ModCommand::Admin)
+        })
     }
 
     fn player_commands(&self, settings: &dyn Settings) -> PlayerCommandRules {
@@ -188,6 +198,10 @@ impl ServerMod for JaPlus {
 
     fn console_command(&self, name: &[u8], level_time: i32) -> Option<String> {
         commands::console(name, level_time)
+    }
+
+    fn admin(&self) -> Option<&'static sjk_server_mod::admin::AdminSystem> {
+        Some(&admin::SYSTEM)
     }
 }
 
@@ -340,6 +354,18 @@ mod tests {
             Some(ModCommand::FullForceDuel)
         );
         assert_eq!(JaPlus.command(b"engage_duel"), None);
+    }
+
+    #[test]
+    fn admin_commands_are_commands_and_the_unbuilt_ones_are_not() {
+        use sjk_server_mod::admin::AdminCommand;
+        assert_eq!(
+            JaPlus.command(b"AMLOGIN"),
+            Some(ModCommand::Admin(AdminCommand::Login))
+        );
+        assert_eq!(JaPlus.command(b"amghost"), None);
+        assert_eq!(JaPlus.command(b"admGrant"), None);
+        assert!(JaPlus.admin().is_some());
     }
 
     #[test]

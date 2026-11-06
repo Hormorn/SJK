@@ -12,6 +12,8 @@
 //! the same bits ([`ServerMod::movement`]), so no client is pulled back for a rule it was
 //! told about.
 
+pub mod admin;
+
 use sjk_game_jka::duel::DuelRules;
 use sjk_game_jka::force_rules::ForceRules;
 use sjk_game_jka::japlus_hook::HookRules;
@@ -189,6 +191,10 @@ pub enum ModCommand {
     DuelList,
     /// Whether admins may teleport the player, toggled (JA+'s `refuseTele`).
     RefuseTeleport,
+    // The admin system.
+    /// A command of the mod's admin system ([`ServerMod::admin`]), as its table names it:
+    /// the server checks the rank's rights and carries it out.
+    Admin(admin::AdminCommand),
 }
 
 /// One of a mod's emotes ([`ModCommand::Emote`]).
@@ -375,6 +381,12 @@ pub trait ServerMod: Sync {
     fn console_command(&self, _name: &[u8], _level_time: i32) -> Option<String> {
         None
     }
+
+    /// Its admin system (ranks, the commands each may use, the settings and texts it
+    /// reads), if it has one; the base game has none, so no player is ever an admin.
+    fn admin(&self) -> Option<&'static admin::AdminSystem> {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -442,6 +454,12 @@ mod tests {
     fn a_mod_without_a_hook_has_none() {
         assert!(!Plain.hook(&NoSettings).enabled());
         assert_eq!(ModMovement::default().grapple, None);
+    }
+
+    #[test]
+    fn a_mod_without_an_admin_system_has_no_admin_commands() {
+        assert!(Plain.admin().is_none());
+        assert_eq!(Plain.command(b"amlogin"), None);
     }
 
     #[test]

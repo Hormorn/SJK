@@ -69,6 +69,7 @@ impl NativeGame {
         ) {
         } else if self.cvar_line(line, print) {
         } else if !self.stopped && self.bot_command(&words, server_time, bots, print).is_some() {
+        } else if !self.stopped && self.admin_console_command(&words, server_time, print) {
         } else if !self.stopped && self.game_console_command(&words, server_time, print) {
         } else if is(b"say") {
             self.console_say(&words[1..]);
@@ -145,6 +146,7 @@ impl NativeGame {
     /// `G_InitGame` opens the game log there, as the first level starts.
     pub fn set_config_files(&mut self, files: crate::config_files::ConfigFiles) {
         self.config_files = files;
+        self.load_admin_keys(false);
         self.register_stock_rules();
         self.open_log();
         self.start_warmup();
