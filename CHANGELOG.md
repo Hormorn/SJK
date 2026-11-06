@@ -36,6 +36,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_clouds reset: Volumetric clouds over open sky are now off by default under every graphics preset; switch them on here if you like them.
 = r_weatherLightning: Lightning in storms: flashes light up the rain, the fog and the wet streets, and thunder rolls in after them.
 
+- The vote panel is easier to read: a centred SJK card under the match timer with the proposal in large text, the seconds left with a shrinking bar, the YES and NO counts in green and red with a bar of their share, and the keys to vote under them (`/vote yes` / `/vote no` when no key is bound); `testvote` shows a made-up vote to see it _(Slash)_
 - Create game can host a JA+ game: the new Server mod row (under Server) picks Base game, the default, or JA+, and the game you start runs that mod; your choice is kept for next time _(Sol)_
 - SJK's server in JA+ mode (`g_mod japlus`) plays JA+'s Force rules: push and pull reach players on the ground (`jp_pushPullKnockDown`) and teammates with `g_friendlyFire`, and fling items (`jp_pushAll`); absorb gains more (`jp_fixAbsorb`); a grip may start rolling (`jp_fixRoll`); `jp_gripOpenSaber`, `jp_cloakFuel` and `jp_gripSpeedScale` work, and SJK players predict a JA+ server's grip speed from its server info _(Sol, after VisionJK by Blackwolf)_
 - Browsing models no longer freezes the game: the model picker and the profile load a model in the background and swap it in once it is ready, as players' models already load in a match _(Sol)_

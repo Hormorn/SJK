@@ -45,6 +45,7 @@ pub(crate) mod vehicle;
 pub(crate) mod vehicle_feed;
 mod vitals_estimate;
 mod vote;
+pub(crate) use vote::{PREVIEW_COMMAND as VOTE_PREVIEW_COMMAND, PREVIEW_HELP as VOTE_PREVIEW_HELP};
 mod widgets;
 
 use super::{TextVertex, UiFont};
@@ -247,11 +248,10 @@ pub(crate) struct HudOverlay {
     weapon_alpha: f32,
     vote_active: bool,
     team_vote_active: bool,
-    vote_heading: String,
-    vote_text: String,
-    team_vote_heading: String,
-    team_vote_text: String,
-    vote_keys: String,
+    /// The global and the team vote's cards.
+    vote_cards: [vote::Card; 2],
+    /// The `testvote` preview.
+    vote_preview: vote::Preview,
     yes_keys: String,
     no_keys: String,
     /// The kill feed at the top right.
@@ -485,11 +485,8 @@ impl HudOverlay {
 
             vote_active: false,
             team_vote_active: false,
-            vote_heading: String::with_capacity(64),
-            vote_text: String::with_capacity(160),
-            team_vote_heading: String::with_capacity(64),
-            team_vote_text: String::with_capacity(160),
-            vote_keys: String::with_capacity(96),
+            vote_cards: Default::default(),
+            vote_preview: Default::default(),
             yes_keys: String::with_capacity(48),
             no_keys: String::with_capacity(48),
             kill_feed: kill_feed::Feed::default(),
@@ -637,6 +634,7 @@ impl HudOverlay {
             weapon_row: self.weapon_select.shown.is_some(),
             vote_active: self.vote_active,
             team_vote_active: self.team_vote_active,
+            votes: self.vote_meters(),
             crosshair_name: !self.crosshair_name.is_empty(),
             timer: !self.match_timer.is_empty(),
             warmup: !self.warmup_text.is_empty(),

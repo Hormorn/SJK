@@ -315,6 +315,10 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
     ("vid_restart", restarts::VID_RESTART_HELP),
     (crate::fps_help::COMMAND, crate::fps_help::HELP),
     (crate::hud_edit::COMMAND, crate::hud_edit::HELP),
+    (
+        crate::hud::VOTE_PREVIEW_COMMAND,
+        crate::hud::VOTE_PREVIEW_HELP,
+    ),
     (crate::map_edits::SYNC_COMMAND, crate::map_edits::SYNC_HELP),
     (crate::emote_help::COMMAND, crate::emote_help::HELP),
     (crate::emote_picker::COMMAND, crate::emote_picker::HELP),
@@ -1350,6 +1354,9 @@ impl crate::GpuState {
             crate::mimic::COMMAND => return self.mimic_command(args),
             crate::fps_help::COMMAND => return self.fps_help_command(),
             crate::hud_edit::COMMAND => return self.hud_edit_command(args),
+            crate::hud::VOTE_PREVIEW_COMMAND => {
+                return self.hud.preview_vote_command(args).map(|line| vec![line]);
+            }
             crate::map_edits::SYNC_COMMAND => return self.map_edits_sync_command(),
             crate::emote_help::COMMAND => return self.emote_help_command(),
             crate::emote_picker::COMMAND => return self.emote_picker_command(),
