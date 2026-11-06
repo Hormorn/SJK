@@ -628,26 +628,41 @@ fn push_out(
     let count = chains.capsules.len();
     let reach = &chains.reach[slot * count..(slot + 1) * count];
     let reach_middle = &chains.reach_middle[slot * count..(slot + 1) * count];
+    let (ignored, ignored_middle) = (chains.ignored[slot], chains.ignored_middle[slot]);
     let mut moved = false;
     for (bit, capsule) in chains.capsules.iter().enumerate() {
+        let mask = 1u64 << bit;
+        if ignored & ignored_middle & mask != 0 {
+            continue;
+        }
         let from = pose[capsule.from].translation;
-        let to = pose[capsule.to].translation;
+        let along = pose[capsule.to].translation - from;
+        let squared = along.length_squared();
+        let per_squared = if squared <= f32::EPSILON {
+            0.0
+        } else {
+            squared.recip()
+        };
         // The tip, then the middle: moving the tip moves the middle half as far, so the
         // middle's way out asks for twice its depth.
         let samples = [
-            (1.0, 1.0, chains.ignored[slot], reach[bit]),
-            (0.5, 2.0, chains.ignored_middle[slot], reach_middle[bit]),
+            (1.0, 1.0, ignored, reach[bit]),
+            (0.5, 2.0, ignored_middle, reach_middle[bit]),
         ];
-        for (share, leverage, ignored, radius) in samples {
-            if ignored & (1 << bit) != 0 {
+        for (share, leverage, skip, radius) in samples {
+            if skip & mask != 0 {
                 continue;
             }
             let sample = origin + (*point - origin) * share;
-            let offset = sample - closest(from, to, sample);
-            let distance = offset.length();
-            if distance >= radius || distance <= 1e-4 {
+            // As [`closest`], with the division shared; this runs for most pairs of joint
+            // and capsule, and most of them are far apart, so they take no square root.
+            let from_start = sample - from;
+            let offset = from_start - along * (from_start.dot(along) * per_squared).clamp(0.0, 1.0);
+            let apart = offset.length_squared();
+            if apart >= radius * radius || apart <= 1e-8 {
                 continue;
             }
+            let distance = apart.sqrt();
             let normal = offset / distance;
             *point += normal * (radius - distance) * leverage;
             let into = velocity.dot(normal);
