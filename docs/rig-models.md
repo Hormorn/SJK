@@ -97,7 +97,8 @@ from lets physics pull it down): the test model's rose 29 degrees from level, to
 the game; with the default it hangs 24 degrees below (measured with the ignored test
 `dynamic_chains_of_an_installed_rig`, `SJK_TEST_PACK` naming the pack). The named joint stays where the animation holds it. It all happens in the
 model's space, per actor (`Scratch`): the chain answers the animation (steps, jumps,
-turns of the hips, emotes), not the player's run through the world or their turns.
+turns of the hips, emotes). The player's run through the world and their turns reach it
+only through `drag`, below.
 A frame step over 0.1 s (a hitch, a teleport) starts the chain again where the
 animation puts it.
 
@@ -118,6 +119,17 @@ up down a chain, so hair that should barely move takes a few degrees. A limited 
 stacked on its anchor with no children, as a rig's single-joint hair strand or sleeve is,
 has no bone to aim; it swings about its pivot instead, along the line to the
 weighted middle of the vertices it carries. Without `limit` such a joint stays still.
+
+`drag <n>` lets a chain feel the air as the player moves (0 by default, so nothing changes
+without it). Each frame the actor's origin and legs' yaw give its velocity and turn, smoothed
+at 10 per second so prediction's steps and other players' snapshots do not shake it, and turned
+into the model's space. Each point then accelerates against that, by `drag` per second squared
+for each unit per second at the tip and less towards the anchor, and against its own speed
+round the player as they turn. So the steady lag at the tip is `speed * drag / stiffness`:
+at the game's run of 250, drag 1 and stiffness 70 lag 3.6 units, which with a `limit` tilts
+each bone 64 percent of it. Falling blows a chain up as a run blows it back. Movement counts up
+to 800 units per second and turns up to 12 radians per second; a jump of more than 3000 units
+per second is a teleport, and a gap of more than 0.1 s starts again at rest.
 
 A chain may fork, and joints may be stacked on one spot, as some rigs do. Each joint
 is placed from where its parent now stands. A parent is turned towards its first child
@@ -157,8 +169,10 @@ seven-bone cape when stopping and starting: 5.7 degrees in the first tick, then 
 rising smoothly; the cost is that a fast leg can get about a unit further into a loose
 flap for a moment). Each joint and the middle of its bone collide, so a long bone no
 longer cuts through a leg its two ends miss; the cloth between two chains and the mesh
-itself are not checked, so a sharp pose can still show some through. Arms and head are not
-capsules. The capsules are only measured for a rig with dynamic chains, at most 64 of
+itself are not checked, so a sharp pose can still show some through. The head is not a
+capsule, and the arms are only for a chain whose line says `arms`: then the rig also measures
+the upper arms and forearms (`ARM_BONES`) the same way, and a chain without the word ignores them. A rig
+with no such chain has no arm capsules at all. The capsules are only measured for a rig with dynamic chains, at most 64 of
 them, and the check is a few vector operations per point and capsule.
 
 A `layer <outer> over <inner>` line keeps the chain under the first joint on its own side
@@ -218,7 +232,7 @@ A model folder (`models/players/<name>/`) with `sjk_rig.cfg` is a rig model; `/m
 | `scale <n>` or `scale auto` | game units per glTF metre | `auto` |
 | `lift <units>` | raise (negative: lower) the planted rig by hand | `0` |
 | `layer <joint> over <joint>` | the first's chain stays on its side of the second's, one line per column of a sheet (see [Dynamic joints](#dynamic-joints-tails-capes)) | none |
-| `dynamic <joint> [gravity] [gravity <n>] [wag <units>] [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [nocollide]` | the joints under it move on their own (spring, wag, gravity in units per second squared), kept out of the body unless `nocollide`, one line per chain (see [Dynamic joints](#dynamic-joints-tails-capes)) | none; gravity 1600, wag 2.5, stiffness 70, damping 7, no limit, clearance 0 |
+| `dynamic <joint> [gravity] [gravity <n>] [wag <units>] [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [drag <n>] [arms] [nocollide]` | the joints under it move on their own (spring, wag, gravity in units per second squared), kept out of the body unless `nocollide`, the arms too with `arms`, trailing behind the player's movement with `drag`, one line per chain (see [Dynamic joints](#dynamic-joints-tails-capes)) | none; gravity 1600, wag 2.5, stiffness 70, damping 7, no limit, clearance 0, drag 0, no arms |
 | `map <joint> <bone>` | the joint follows the JKA bone, bind orientation kept | |
 | `map <joint> <bone> <joint end> <bone end>` | ... aimed along the bone | |
 | `map <joint> <bone> as <other joint>` | ... with another joint's alignment (finger chains) | |

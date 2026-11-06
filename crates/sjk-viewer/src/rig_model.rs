@@ -198,8 +198,8 @@ pub(crate) struct Manifest {
 
 /// The driver's bones whose rig joints (from their bone map entry to the joint it
 /// aims at) become the capsules dynamic chains are kept out of: the trunk and the
-/// legs, which a tail or a cape hangs against. Arms and head are left out (a cape
-/// rests on the shoulders, the hands pass through a tail anyway).
+/// legs, which a tail or a cape hangs against. The head is left out (hair grows from it)
+/// and the arms are [`ARM_BONES`].
 const COLLISION_BONES: &[&str] = &[
     "pelvis",
     "lower_lumbar",
@@ -211,9 +211,13 @@ const COLLISION_BONES: &[&str] = &[
     "rtibia",
 ];
 
+/// The same for the arms, measured only for a rig with a chain that asks (`arms` on its
+/// `dynamic` line): they move fast, and a cape rests on the shoulders.
+const ARM_BONES: &[&str] = &["lhumerus", "rhumerus", "lradius", "rradius"];
+
 /// A `dynamic` line's words after the joint: `[gravity] [gravity <n>] [wag <n>]
-/// [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [nocollide]`, any
-/// order after the bare gravity.
+/// [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [drag <n>] [arms]
+/// [nocollide]`, any order after the bare gravity.
 fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
     let mut settings = dynamics::Settings::default();
     let number = |word: &str| word.parse::<f32>().ok().filter(|n| n.is_finite());
@@ -231,6 +235,8 @@ fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
             "damping" => settings.damping = number(words.next()?).filter(|n| *n >= 0.0)?,
             "limit" => settings.limit = number(words.next()?).filter(|n| *n >= 0.0)?,
             "clearance" => settings.clearance = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "drag" => settings.drag = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "arms" => settings.arms = true,
             _ => return None,
         }
     }
@@ -567,8 +573,8 @@ pub(crate) struct RigModel {
 }
 
 /// The capsules dynamic chains are kept out of: one per bone map entry on a
-/// [`COLLISION_BONES`] bone that aims at another joint, round the bind-pose vertices
-/// whose strongest joint is that one (or an unmapped joint under it, such as a twist
+/// [`COLLISION_BONES`] bone (and [`ARM_BONES`] if a chain asks) that aims at another
+/// joint, round the bind-pose vertices whose strongest joint is that one (or an unmapped joint under it, such as a twist
 /// bone), the chains' own vertices left out.
 fn body_capsules(
     map: &[MapEntry],
@@ -578,14 +584,19 @@ fn body_capsules(
     surfaces: &[Surface],
     joint_index: impl Fn(&str) -> Option<usize>,
 ) -> Vec<dynamics::Capsule> {
-    let spans: Vec<(usize, usize)> = map
+    let arms = chains.wants_arms();
+    let spans: Vec<(usize, usize, bool)> = map
         .iter()
-        .filter(|entry| COLLISION_BONES.contains(&entry.bone.as_str()))
-        .filter_map(|entry| match &entry.align {
-            Align::Toward { joint_end, .. } => {
-                Some((joint_index(&entry.joint)?, joint_index(joint_end)?))
+        .filter_map(|entry| {
+            let bone = entry.bone.as_str();
+            let arm = ARM_BONES.contains(&bone);
+            if !COLLISION_BONES.contains(&bone) && !(arms && arm) {
+                return None;
             }
-            _ => None,
+            let Align::Toward { joint_end, .. } = &entry.align else {
+                return None;
+            };
+            Some((joint_index(&entry.joint)?, joint_index(joint_end)?, arm))
         })
         .collect();
     // Each vertex on the nearest mapped joint at or above its strongest one.
@@ -615,7 +626,10 @@ fn body_capsules(
     spans
         .iter()
         .zip(&carried)
-        .filter_map(|(&(from, to), points)| dynamics::Capsule::measure(joints, from, to, points))
+        .filter_map(|(&(from, to, arm), points)| {
+            let capsule = dynamics::Capsule::measure(joints, from, to, points)?;
+            Some(dynamics::Capsule { arm, ..capsule })
+        })
         .collect()
 }
 
@@ -1575,6 +1589,14 @@ pub(crate) struct Scratch {
     /// The rise the feet planting gave the last pose ([`PLANT_EASE`]).
     plant: Option<f32>,
     last: Option<std::time::Instant>,
+}
+
+impl Scratch {
+    /// The actor stands at `origin` facing `yaw_degrees` at `time_ms`: the air on its
+    /// dynamic chains answers this.
+    pub(crate) fn observe_motion(&mut self, origin: [f32; 3], yaw_degrees: f32, time_ms: i64) {
+        self.dynamics.motion.observe(origin, yaw_degrees, time_ms);
+    }
 }
 
 /// `vertex` skinned with `palette` (the CPU path): position and unit normal.

@@ -188,6 +188,13 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
         mesh.animator
             .set_player_angles(&mesh.preview.animation, angles)?;
         mesh.render_yaw_degrees = Some(angles.legs_yaw_degrees);
+        if mesh.preview.rig.is_some() {
+            mesh.preview.rig_pose.observe_motion(
+                origin,
+                angles.legs_yaw_degrees,
+                presentation_time,
+            );
+        }
     } else {
         mesh.animator.clear_player_angles();
     }

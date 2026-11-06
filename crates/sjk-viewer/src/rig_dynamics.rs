@@ -7,12 +7,14 @@
 //! straight; the game it comes from lets physics pull it down).
 //! Then each parent is turned to point at its simulated child. The state is the
 //! actor's ([`super::Scratch`]); it all happens in the model's space, so the chain
-//! answers the animation (steps, jumps, turns of the hips), not the player's
-//! movement through the world.
+//! answers the animation (steps, jumps, turns of the hips). A chain with a
+//! [`Settings::drag`] also feels the player's movement through the world, as air on
+//! it ([`Motion`]).
 //!
 //! Each chain has its own [`Settings`] (a cape: no wag, stiffer), and its points are
-//! pushed out of the body's [`Capsule`]s (trunk and legs, measured once from the mesh)
-//! so a tail or a cape swings past the legs rather than through them.
+//! pushed out of the body's [`Capsule`]s (trunk and legs, measured once from the mesh;
+//! the arms too for a chain that asks, [`Settings::arms`]) so a tail or a cape swings
+//! past the legs rather than through them.
 
 use super::Joint;
 use glam::{Affine3A, Mat3A, Quat, Vec3A};
@@ -46,6 +48,16 @@ const TILT_RATE: f32 = 14.0;
 pub(super) const NO_LIMIT: f32 = 180.0;
 /// How far a limited joint's spring lags, game units, to tilt its bone half its limit.
 const LIMIT_HALF_LAG: f32 = 2.0;
+/// The most movement the air on a chain answers, game units per second: a force jump or
+/// a long fall blows a chain as far as this and no further.
+const MAX_WIND: f32 = 800.0;
+/// The fastest turn the air on a chain answers, radians per second.
+const MAX_TURN: f32 = 12.0;
+/// How fast [`Motion`] follows the player's movement, per second, so the steps of
+/// prediction and the snapshots of other players do not shake the chain.
+const MOTION_RATE: f32 = 10.0;
+/// Movement faster than this, game units per second, is a teleport or a respawn.
+const TELEPORT_SPEED: f32 = 3000.0;
 
 /// One `dynamic` line's chain: how it hangs, swings and wags, and whether the body
 /// pushes it away.
@@ -69,6 +81,12 @@ pub(crate) struct Settings {
     /// How far outside the body's capsules the chain stays, game units: they sit under
     /// the skin, so cloth that should clear it asks for a little more.
     pub(crate) clearance: f32,
+    /// How hard the air pushes on the chain as the player moves: its acceleration at the
+    /// tip, per second squared, for each game unit per second of movement. 0, the
+    /// default, leaves the chain to the animation.
+    pub(crate) drag: f32,
+    /// Whether the arms' capsules push the chain's points out too.
+    pub(crate) arms: bool,
 }
 
 impl Default for Settings {
@@ -81,7 +99,69 @@ impl Default for Settings {
             collide: true,
             limit: NO_LIMIT,
             clearance: 0.0,
+            drag: 0.0,
+            arms: false,
         }
+    }
+}
+
+/// How the player moves through the world, smoothed, as the model's space sees it: what
+/// the air on a chain with a [`Settings::drag`] answers. It stays at rest for an actor
+/// nobody tells of its movement.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct Motion {
+    /// Game units per second in the world.
+    world: Vec3A,
+    /// The same in the model's space (-Y the front, +Z up).
+    velocity: Vec3A,
+    /// The turn about the up axis, radians per second.
+    turn: f32,
+    /// Where it last stood: origin, facing (degrees) and time (milliseconds).
+    last: Option<(Vec3A, f32, i64)>,
+}
+
+impl Motion {
+    /// The actor stands at `origin` facing `yaw_degrees` (the game's: +X at 0) at
+    /// `time_ms`. A repeated time changes nothing, so a paused demo holds its chains; a
+    /// gap too long to simulate, or time running back, starts again at rest.
+    pub(super) fn observe(&mut self, origin: [f32; 3], yaw_degrees: f32, time_ms: i64) {
+        let origin = Vec3A::from_array(origin);
+        let Some((last_origin, last_yaw, last_time)) = self.last else {
+            self.last = Some((origin, yaw_degrees, time_ms));
+            return;
+        };
+        if time_ms == last_time {
+            return;
+        }
+        let seconds = (time_ms - last_time) as f32 / 1000.0;
+        let last = Some((origin, yaw_degrees, time_ms));
+        if !(0.0..=MAX_STEP).contains(&seconds) {
+            *self = Self {
+                last,
+                ..Self::default()
+            };
+            return;
+        }
+        self.last = last;
+        let moved = (origin - last_origin) / seconds;
+        let moved = if moved.length() > TELEPORT_SPEED {
+            Vec3A::ZERO
+        } else {
+            moved
+        };
+        let turned = ((yaw_degrees - last_yaw + 180.0).rem_euclid(360.0) - 180.0).to_radians();
+        let share = 1.0 - (-seconds * MOTION_RATE).exp();
+        self.world += (moved - self.world) * share;
+        self.turn += (turned / seconds - self.turn) * share;
+        // The model's -Y is the entity's +X (`weapon_view::actor_world_rotation`).
+        self.velocity = Mat3A::from_rotation_z(-(yaw_degrees + 90.0).to_radians()) * self.world;
+    }
+
+    /// How `point` moves through the air, in the model's space: with the player, and
+    /// round them as they turn.
+    fn wind(&self, point: Vec3A) -> Vec3A {
+        let turn = self.turn.clamp(-MAX_TURN, MAX_TURN);
+        self.velocity.clamp_length_max(MAX_WIND) + Vec3A::new(-point.y, point.x, 0.0) * turn
     }
 }
 
@@ -93,6 +173,8 @@ pub(super) struct Capsule {
     pub(super) from: usize,
     pub(super) to: usize,
     pub(super) radius: f32,
+    /// An arm's: only a chain that asks ([`Settings::arms`]) is kept out of it.
+    pub(super) arm: bool,
 }
 
 /// At most this many capsules (one bit each in a chain joint's mask).
@@ -124,7 +206,12 @@ impl Capsule {
         distances.sort_by(f32::total_cmp);
         let at = ((distances.len() - 1) as f32 * RADIUS_PERCENTILE) as usize;
         let radius = distances[at];
-        (radius > 0.0).then_some(Self { from, to, radius })
+        (radius > 0.0).then_some(Self {
+            from,
+            to,
+            radius,
+            arm: false,
+        })
     }
 }
 
@@ -358,6 +445,13 @@ impl Chains {
         self.joints.is_empty()
     }
 
+    /// Whether a chain is kept out of the arms, so they need capsules at all.
+    pub(super) fn wants_arms(&self) -> bool {
+        self.settings
+            .iter()
+            .any(|settings| settings.collide && settings.arms)
+    }
+
     /// How far each layered joint stands outside its plane in `pose`, less its gap:
     /// below zero when it has got through.
     #[cfg(test)]
@@ -399,7 +493,10 @@ impl Chains {
                 let b = joints[capsule.to].bind.translation;
                 let away = |point: Vec3A| (point - closest(a, b, point)).length();
                 let rest = away(point).min(away(middle));
-                if capsule.from == self.anchor[slot] || rest < capsule.radius {
+                if capsule.from == self.anchor[slot]
+                    || rest < capsule.radius
+                    || (capsule.arm && !self.settings[slot].arms)
+                {
                     ignored |= 1 << bit;
                 }
                 // Out by the clearance, but no further than it lies at rest: standing
@@ -423,6 +520,8 @@ pub(crate) struct State {
     lags: Vec<Vec3A>,
     /// Seconds simulated, for the wag.
     time: f32,
+    /// How the player moves through the world, for the air on the chains.
+    pub(super) motion: Motion,
     /// The animated pose before the chain moved it (scratch).
     animated: Vec<Affine3A>,
     aimed: Vec<bool>,
@@ -464,10 +563,18 @@ pub(super) fn simulate(
         for slot in 0..count {
             let pull = target(slot, pose) - state.points[slot];
             let Settings {
-                stiffness, damping, ..
+                stiffness,
+                damping,
+                drag,
+                ..
             } = chains.settings[slot];
+            let air = if drag > 0.0 {
+                state.motion.wind(state.points[slot]) * -drag * chains.along[slot]
+            } else {
+                Vec3A::ZERO
+            };
             let velocity = &mut state.velocities[slot];
-            *velocity += (pull * stiffness - *velocity * damping + weight(slot)) * step;
+            *velocity += (pull * stiffness - *velocity * damping + weight(slot) + air) * step;
             state.points[slot] += *velocity * step;
         }
     }
@@ -703,6 +810,7 @@ mod tests {
                 from: 0,
                 to: 1,
                 radius: 6.0,
+                arm: false,
             }],
         );
         let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
@@ -776,6 +884,7 @@ mod tests {
             from: 0,
             to: 1,
             radius: 10.0,
+            arm: false,
         };
         chains.collide_with(&joints, vec![capsule]);
         let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
@@ -820,6 +929,7 @@ mod tests {
             from: 0,
             to: 1,
             radius: 3.0,
+            arm: false,
         };
         chains.collide_with(&joints, vec![capsule]);
         let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
@@ -919,7 +1029,12 @@ mod tests {
     fn a_joint_ignores_its_anchors_capsule_and_those_it_starts_in() {
         let joints = leg_and_pendulum();
         let mut chains = Chains::under(&joints, &[0, 1, 2, 3], &[(2, Settings::default())]);
-        let capsule = |from, to, radius| Capsule { from, to, radius };
+        let capsule = |from, to, radius| Capsule {
+            from,
+            to,
+            radius,
+            arm: false,
+        };
         chains.collide_with(
             &joints,
             vec![capsule(0, 1, 6.0), capsule(2, 0, 2.0), capsule(0, 1, 15.0)],
@@ -929,5 +1044,139 @@ mod tests {
         // A capsule on a chain joint is dropped.
         chains.collide_with(&joints, vec![capsule(3, 1, 6.0)]);
         assert!(chains.capsules.is_empty());
+    }
+
+    /// A 20-unit strand hanging from the anchor at 40 units, after `seconds` of `motion`.
+    fn strand_tip_in(settings: Settings, motion: Motion, seconds: usize) -> Vec3A {
+        let top = Vec3A::new(0.0, 0.0, 40.0);
+        let middle = Vec3A::new(0.0, 0.0, 30.0);
+        let joints = vec![
+            joint(None, Vec3A::ZERO, top),
+            joint(Some(0), top, middle),
+            joint(Some(1), middle, Vec3A::new(0.0, 0.0, 20.0)),
+        ];
+        let chains = Chains::under(&joints, &[0, 1, 2], &[(0, settings)]);
+        let mut state = State {
+            motion,
+            ..State::default()
+        };
+        let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
+        let mut pose = rest.clone();
+        simulate(&joints, &chains, &mut pose, &mut state, None);
+        for _ in 0..seconds * 60 {
+            pose.clone_from(&rest);
+            simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        }
+        pose[2].translation
+    }
+
+    fn in_air(drag: f32) -> Settings {
+        Settings {
+            gravity: 0.0,
+            wag: 0.0,
+            drag,
+            ..Settings::default()
+        }
+    }
+
+    /// The motion after running at `speed` along the entity's facing, `yaw_degrees`.
+    fn running(speed: f32, yaw_degrees: f32) -> Motion {
+        let mut motion = Motion::default();
+        let along = Mat3A::from_rotation_z(yaw_degrees.to_radians()) * Vec3A::X * speed;
+        for tick in 0..200i32 {
+            let at = along * (tick as f32 * 0.008);
+            motion.observe(at.to_array(), yaw_degrees, i64::from(tick) * 8);
+        }
+        motion
+    }
+
+    #[test]
+    fn running_is_towards_the_models_front_whatever_the_facing() {
+        for yaw in [0.0, 37.0, 180.0, -90.0] {
+            let velocity = running(250.0, yaw).velocity;
+            assert!(
+                (velocity - Vec3A::NEG_Y * 250.0).length() < 3.0,
+                "{yaw}: {velocity:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_chain_with_drag_trails_behind_a_running_player() {
+        let tip = strand_tip_in(in_air(1.0), running(250.0, 30.0), 3);
+        // The model's front is -Y, so behind is +Y.
+        assert!(tip.y > 2.0, "{tip:?}");
+        assert!(tip.x.abs() < 0.05, "{tip:?}");
+    }
+
+    #[test]
+    fn a_chain_without_drag_does_not_feel_the_movement() {
+        let still = strand_tip_in(in_air(0.0), Motion::default(), 3);
+        let run = strand_tip_in(in_air(0.0), running(250.0, 30.0), 3);
+        assert_eq!(still, run);
+    }
+
+    #[test]
+    fn a_limited_chain_with_drag_stays_under_its_limit() {
+        let settings = Settings {
+            limit: 10.0,
+            ..in_air(4.0)
+        };
+        let tip = strand_tip_in(settings, running(800.0, 0.0), 3);
+        // Two bones of 10 units, each under 10 degrees more than the one above.
+        let most = 10.0 * (10.0f32.to_radians().sin() + 20.0f32.to_radians().sin());
+        assert!(tip.y > 0.5 && tip.y < most, "{tip:?}");
+    }
+
+    #[test]
+    fn a_teleport_a_paused_clock_or_a_long_gap_is_not_movement() {
+        let mut motion = Motion::default();
+        motion.observe([0.0; 3], 0.0, 0);
+        motion.observe([4000.0, 0.0, 0.0], 0.0, 8);
+        assert_eq!(motion.velocity, Vec3A::ZERO);
+        motion.observe([9000.0, 0.0, 0.0], 0.0, 8);
+        assert_eq!(motion.velocity, Vec3A::ZERO);
+        let mut motion = running(250.0, 0.0);
+        motion.observe([0.0; 3], 0.0, 60_000);
+        assert_eq!(motion.velocity, Vec3A::ZERO);
+    }
+
+    #[test]
+    fn turning_across_the_wrap_is_the_short_way_round() {
+        let mut motion = Motion::default();
+        for tick in 0..200i32 {
+            // A turn of 60 degrees a second, through 180.
+            let yaw = (170.0 + tick as f32 * 0.48 + 180.0).rem_euclid(360.0) - 180.0;
+            motion.observe([0.0; 3], yaw, i64::from(tick) * 8);
+        }
+        assert!(
+            (motion.turn - 60.0f32.to_radians()).abs() < 0.02,
+            "{}",
+            motion.turn
+        );
+    }
+
+    #[test]
+    fn only_a_chain_that_asks_is_kept_out_of_the_arms() {
+        let joints = leg_and_pendulum();
+        let order = [0, 1, 2, 3];
+        let arm = Capsule {
+            from: 0,
+            to: 1,
+            radius: 1.0,
+            arm: true,
+        };
+        let mut chains = Chains::under(&joints, &order, &[(2, Settings::default())]);
+        assert!(!chains.wants_arms());
+        chains.collide_with(&joints, vec![arm]);
+        assert_eq!(chains.ignored, [1]);
+        let asks = Settings {
+            arms: true,
+            ..Settings::default()
+        };
+        let mut chains = Chains::under(&joints, &order, &[(2, asks)]);
+        assert!(chains.wants_arms());
+        chains.collide_with(&joints, vec![arm]);
+        assert_eq!(chains.ignored, [0]);
     }
 }
