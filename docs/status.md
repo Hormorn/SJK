@@ -13,8 +13,12 @@ rigs, a whole pose per actor while running: 19.5 to 22.1 us (55 chain joints, dr
 in the arms' capsules on one rig: 46 to 0 on the empty-handed run, 27 to 5 on a saber swing.
 A cost: arms pushing hair move it faster on the empty-handed run, its largest step in 8 ms
 going from 1.3 units to 2.2 with drag and 4.1 without, so the two go together; saber swings
-and the saber run did not jump more. Not verified: in a game on Linux and macOS, other machines
-or other rigs.
+and the saber run did not jump more. A cape's outer columns should not take `arms`: the arm swings
+with the stride and shoved them, their hem rising and falling 13.6 units per stride (2.5 without)
+and following the knees, so a local cape keeps it on its middle columns only. Played in game on
+Windows 10 with `main` merged: hair and capes trail as they should, and the frame rate was fine.
+Not verified: in a game on Linux and macOS, other machines or other rigs; the arm can show through
+a column without `arms`.
 
 ## Rig cloth: limits, clearance, layers, levers and eased tilts
 

@@ -174,7 +174,11 @@ capsule, and the arms are only for a chain whose line says `arms`: then the rig 
 the upper arms and forearms (`ARM_BONES`) the same way, and a chain without the word ignores them. A rig
 with no such chain has no arm capsules at all. An arm moves fast, so hair it pushes moves fast
 too (measured on the empty-handed run: the largest step in 8 ms went from 1.3 units to 4.1;
-to 2.2 with `drag` holding the hair behind the arms). The capsules are only measured for a rig with dynamic chains, at most 64 of
+to 2.2 with `drag` holding the hair behind the arms). A push high on a chain tilts everything
+below it, so an arm against a cape's outer column shoved its whole edge, and as the arm swings with
+the stride the edge seemed to copy the legs (measured on a five-column cape on the run: the outer
+hem rose and fell 13.6 units per stride, 2.5 without `arms`; leg capsules made no difference). Give
+`arms` to the middle columns only, or to none. The capsules are only measured for a rig with dynamic chains, at most 64 of
 them, and the check is a few vector operations per point and capsule.
 
 A `layer <outer> over <inner>` line keeps the chain under the first joint on its own side
