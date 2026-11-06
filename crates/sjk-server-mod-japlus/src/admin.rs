@@ -125,6 +125,7 @@ pub const SETTINGS: AdminSettings = AdminSettings {
     password: ["jp_councilPass", "jp_knightPass", "jp_instructorPass"],
     unset_password: "NOT SET",
     passwords_allowed: crate::cvars::ADMIN_PASSWORDS,
+    key_hosts: crate::cvars::ADMIN_HOSTS,
     usable_on: "jp_admUsableOn",
     abuse_timer: "jp_antiAdmAbuseTimer",
     abuse_commands: "jp_antiAdmAbuseCmdsNumber",
@@ -310,6 +311,7 @@ mod tests {
             .chain(&settings.password)
             .chain(&[
                 settings.passwords_allowed,
+                settings.key_hosts,
                 settings.usable_on,
                 settings.abuse_timer,
                 settings.abuse_commands,

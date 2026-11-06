@@ -157,6 +157,9 @@ pub struct AdminSettings {
     pub unset_password: &'static str,
     /// Whether the rank passwords count at all (SJK's switch, off by default).
     pub passwords_allowed: &'static str,
+    /// The addresses the server is reached by, a space between them; when set, a key
+    /// login signed for another address is refused.
+    pub key_hosts: &'static str,
     /// On whom an admin may use a command (`jp_admUsableOn`, see [`usable_on`]).
     pub usable_on: &'static str,
     /// The anti-abuse counter: seconds of its window (0: off), commands in it, abuses

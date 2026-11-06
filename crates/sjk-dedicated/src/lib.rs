@@ -3,6 +3,7 @@
 //! (`sjk-network`). The executable in `main.rs` adds only the socket, the clocks and
 //! the operator's options.
 
+pub mod admin_keys;
 pub mod bridge;
 pub mod collision;
 pub mod command_buffer;

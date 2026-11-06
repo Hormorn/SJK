@@ -118,6 +118,7 @@ works with `mod_japlus 0` ([What stays in the core](#rules)).
 | Part | Where | Name |
 | --- | --- | --- |
 | Admin teleports, auto login, server options | [sjk-mod-japlus](../crates/sjk-mod-japlus/src/lib.rs) | `japlus.*` commands |
+| Admin key login on SJK's JA+ servers | [admin_key_login.rs](../crates/sjk-viewer/src/admin_key_login.rs) (core: it needs the identity key) | `identity adminkey`, [identity.md](identity.md#admin-key-login) |
 | Plugin options: the table, the command, the Settings switches | [plugin.rs](../crates/sjk-mod-japlus/src/plugin.rs), bridged by [plugin_rows.rs](../crates/sjk-viewer/src/settings/plugin_rows.rs) | `japlus.plugin` |
 | Anti-kiss | [anti_kiss.rs](../crates/sjk-mod-japlus/src/anti_kiss.rs), bridged by [anti_emote.rs](../crates/sjk-viewer/src/anti_emote.rs) | `japlus.antiAmKiss` |
 | Passwords the console masks | [secrets.rs](../crates/sjk-mod-japlus/src/secrets.rs) | |

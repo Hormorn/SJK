@@ -3034,7 +3034,10 @@ dependencies = [
 name = "sjk-dedicated"
 version = "0.1.0"
 dependencies = [
+ "base64",
+ "ed25519-dalek",
  "getrandom 0.3.4",
+ "sha2",
  "sjk-bsp",
  "sjk-entity",
  "sjk-game-jka",
@@ -3097,6 +3100,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sjk-protocol",
  "tempfile",
  "ureq",
 ]

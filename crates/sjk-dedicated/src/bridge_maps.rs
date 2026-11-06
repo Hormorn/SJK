@@ -102,6 +102,8 @@ impl NativeGame {
         }
         // `SV_Map_f`'s `Cvar_Get("g_gametype")`: a game type waiting for this map.
         self.take_latched_cvars();
+        // `G_AuthInit`, with every level: the admins' keys read again.
+        self.load_admin_keys(false);
         println!(
             "map change to {mapname} at {server_time} (world {} -> {})",
             self.map_generation,

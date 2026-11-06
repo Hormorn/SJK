@@ -1449,7 +1449,8 @@ once.
   `player_identity::is_others_key` only tells whose a key is (for chat bans). Its
   controls are optional: the on/off switch, a bio field with Save, a button that copies
   the key id (to the clipboard, never on screen), Show file. The words do the same
-  without it: `identity bio <text>` sets the bio, `identity key` copies the key id to the
+  without it: `identity bio <text>` sets the bio, `identity adminkey` copies the public
+  key for a server's admins ([Admin key login](#admin-key-login)), `identity key` copies the key id to the
   clipboard and says where the key file is, `identity who [slot]` lists the players the
   hub knows here (with a slot, their bio). `identity name` explains that the name is the
   one played under (`/name`).
@@ -1463,6 +1464,38 @@ would silently end that identity. The player must back it up: it cannot be
 recovered, and copying it to another PC makes that PC the same identity. On Unix it
 is created readable by its owner only; on Windows it relies on the folder's default
 permissions.
+
+## Admin key login
+
+On a JA+ server run by SJK's `sjk-server` whose owner listed the player's key as an
+admin's ([server.md](server.md#ja-key-login)), the client logs in as that admin by
+itself, with the identity key and no password: the server's own message ("is logged as
+an admin council") is all the player sees. `identity adminkey` copies the public key to
+the clipboard, never on screen, for the player to send to the server's owner.
+
+- The client asks (`sjk_amkey hello`) once per level, only on a server whose server info
+  has `sjk_amkey 1` (one with admin keys), and only while it has an identity key
+  (`cl_identity 1`). The server answers with a one-use nonce, its host key and a hint per
+  admin key (the first 8 bytes of SHA-256 of a fixed line, the nonce and the key). The
+  client answers only when a hint is its own key's, so a server where the player is no
+  admin never learns the key; nothing else of the player's goes to the server.
+- The answer is the public key and a signature over SJK's login message: a fixed first
+  line (`SJK admin key login 1`, so the signature is worth nothing for the hub's
+  requests or the whispers the same key signs), the nonce (against a replay), the
+  server's host key and its address as the client sees it (against a server passing
+  another server's login on to its players) and the client number (against another
+  slot). The format is [key_login.rs](../crates/sjk-protocol/src/key_login.rs), the
+  client's half [sjk-identity's key_login.rs](../crates/sjk-identity/src/key_login.rs)
+  and [admin_key_login.rs](../crates/sjk-viewer/src/admin_key_login.rs).
+- `admin_hosts.txt`, beside `identity.key`, keeps each server address's host key, kept
+  at the first login there. From then on the client signs for that address only with
+  that key, and never with a key it keeps for another address: a server that sends
+  another one's host key gets no answer, and the console says why (the player removes
+  the address's line if its owner made a new key). No key shows in that line either.
+- A refusal by the server (`fail <why>`: a wrong signature, an address the server does
+  not have, too many tries) is one console line. After VisionJK's login without a
+  password (Blackwolf's JA+ rebuild, `codemp/game/auth/`): the idea and the threat
+  model, SJK's own format and code.
 
 ## Planned, not built
 

@@ -9,12 +9,15 @@
 //! mod has are read from its [`AdminSystem`], never written here.
 
 use super::{NativeGame, Told};
+use crate::admin_keys::{self, AdminKey, Codes};
 use sjk_game_jka::ip_filter::IpFilter;
 use sjk_network::LegacyTokens;
+use sjk_protocol::key_login;
 use sjk_server_mod::admin::{
     self as rules, Abuse, AbuseCounter, AbuseRules, AdminCommand, AdminEntry, AdminSystem, Named,
     Rank,
 };
+use std::time::{Duration, Instant};
 
 /// Wrong logins before a player has to wait (not JA+'s: VisionJK
 /// `g_japlus_admin.c:385-388`), the first wait, which doubles with each wrong try after
@@ -22,6 +25,11 @@ use sjk_server_mod::admin::{
 const LOGIN_TRIES: u32 = 3;
 const LOGIN_WAIT_MSEC: i32 = 30_000;
 const LOGIN_WAIT_MAX_MSEC: i32 = 1_800_000;
+/// Hellos of the key login a player may send in one nonce's time (VisionJK's
+/// `AUTH_HELLOS`): a client with one key needs one per level.
+const HELLOS: u32 = 5;
+/// A nonce's life.
+const NONCE_LIFE: Duration = Duration::from_millis(key_login::NONCE_MSEC as u64);
 
 /// What the server keeps of one player for the admin system.
 #[derive(Clone, Debug, Default)]
@@ -35,6 +43,10 @@ pub(crate) struct AdminState {
     /// Wrong logins, and until when it may not try again.
     login_fails: u32,
     login_until: i32,
+    /// The key login's nonce waiting for its answer, and when it was sent.
+    challenge: Option<([u8; 32], Instant)>,
+    /// The hellos since the first of this nonce's time.
+    hellos: Option<(Instant, u32)>,
 }
 
 impl AdminState {
@@ -55,6 +67,14 @@ pub(crate) struct AdminServer {
     filter: IpFilter,
     /// What the server console's admin commands answered, printed when the line is done.
     console_out: Vec<u8>,
+    /// The admins' keys (`admin_keys.txt`), read as every level starts and by `amkeys`.
+    keys: Vec<AdminKey>,
+    /// The server's host key, made once while there are keys.
+    host: Option<[u8; 32]>,
+    /// The one-time codes waiting.
+    codes: Codes,
+    /// Added to the clock (the tests' way to let time pass).
+    skew: Duration,
 }
 
 /// Who runs an admin command: a player, or the server console (and the remote one),
@@ -502,6 +522,9 @@ impl NativeGame {
             (AdminCommand::Login, Caller::Player(client)) => self.amlogin(client, words),
             (AdminCommand::Logout, Caller::Player(client)) => self.amlogout(client, entry),
             (AdminCommand::Info, Caller::Player(client)) => self.aminfo(client),
+            (AdminCommand::KeyLogin, Caller::Player(client)) => self.key_login(client, words),
+            (AdminCommand::Code, Caller::Console) => self.amcode(words),
+            (AdminCommand::Keys, Caller::Console) => self.amkeys(),
             (AdminCommand::Kick, _) => self.amkick(caller, entry, words, false),
             (AdminCommand::Ban, _) => self.amkick(caller, entry, words, true),
             (AdminCommand::Grant, Caller::Console) => self.adm_grant(words),
@@ -683,9 +706,279 @@ impl NativeGame {
         self.admin_login_typed(client, &password, true, true);
     }
 
-    /// A one-time code's rank, the code used up; none before the key login exists.
-    fn admin_take_code(&mut self, _typed: &[u8]) -> Option<Rank> {
-        None
+    /// A one-time code's rank, the code used up.
+    fn admin_take_code(&mut self, typed: &[u8]) -> Option<Rank> {
+        let now = self.admin_now();
+        self.admin.codes.take(typed, now)
+    }
+
+    /// The clock of nonces and codes.
+    fn admin_now(&self) -> Instant {
+        Instant::now() + self.admin.skew
+    }
+
+    /// `admin_keys.txt` read again (as every level starts, and by `amkeys`), the host key
+    /// read or made while it has keys, and the key login offered in the server info only
+    /// then (`tell`: to the players in the game now).
+    pub(super) fn load_admin_keys(&mut self, tell: bool) {
+        let mut print = |text: &[u8]| {
+            let _ = std::io::Write::write_all(&mut std::io::stdout(), text);
+        };
+        let text = self
+            .admin_system()
+            .and_then(|_| self.config_files.read_home(admin_keys::KEYS_FILE));
+        self.admin.keys = text.map_or_else(Vec::new, |text| {
+            admin_keys::parse_keys(&String::from_utf8_lossy(&text), &mut print)
+        });
+        if !self.admin.keys.is_empty() && self.admin.host.is_none() {
+            self.admin.host = self
+                .config_files
+                .read_home(admin_keys::HOST_FILE)
+                .and_then(|text| admin_keys::parse_host(&text))
+                .or_else(|| {
+                    let host = admin_keys::random::<32>()?;
+                    let line = format!("{}\n", key_login::hex(&host));
+                    if self
+                        .config_files
+                        .write_home(admin_keys::HOST_FILE, line.as_bytes())
+                        .is_err()
+                    {
+                        print(
+                            format!(
+                                "couldn't write {}: the host key is new at every start\n",
+                                admin_keys::HOST_FILE
+                            )
+                            .as_bytes(),
+                        );
+                    }
+                    Some(host)
+                });
+            if self.admin.host.is_none() {
+                print(b"the system gave no random bytes: nobody can log in with a key\n");
+            }
+        }
+        let offered = !self.admin.keys.is_empty() && self.admin.host.is_some();
+        self.set_server_info(
+            key_login::SERVER_INFO_KEY,
+            if offered { "1" } else { "" },
+            tell,
+        );
+    }
+
+    /// A key login answer to `client`.
+    fn key_reply(&mut self, client: usize, text: &str) {
+        self.told.push(Told::One(
+            client,
+            format!("{} {text}", key_login::COMMAND).into_bytes(),
+        ));
+    }
+
+    /// `sjk_amkey hello` and `sjk_amkey sign <public key> <signature> <address>`: SJK's key
+    /// login (`sjk_protocol::key_login`).
+    fn key_login(&mut self, client: usize, words: &[&[u8]]) {
+        let (Some(host), Some(wire), false) = (
+            self.admin.host,
+            sjk_protocol::LegacyClientNumbers::client(client),
+            self.admin.keys.is_empty(),
+        ) else {
+            self.key_reply(client, "fail none");
+            return;
+        };
+        let what = words.get(1).copied().unwrap_or_default();
+        if what.eq_ignore_ascii_case(b"hello") {
+            self.key_hello(client, host);
+        } else if what.eq_ignore_ascii_case(b"sign") {
+            self.key_sign(client, host, wire as u16, &words[2..]);
+        }
+    }
+
+    /// `sjk_amkey hello`: a nonce with the host key and the admins' hints.
+    fn key_hello(&mut self, client: usize, host: [u8; 32]) {
+        let now = self.admin_now();
+        if let Some(peer) = self.peer_mut(client) {
+            peer.admin.challenge = None;
+        }
+        if self.admin_login_blocked(client, false) {
+            self.key_reply(client, "fail blocked");
+            return;
+        }
+        let Some(peer) = self.peer_mut(client) else {
+            return;
+        };
+        let hellos = match peer.admin.hellos {
+            Some((first, count)) if now.saturating_duration_since(first) <= NONCE_LIFE => {
+                (first, count + 1)
+            }
+            _ => (now, 1),
+        };
+        peer.admin.hellos = Some(hellos);
+        if hellos.1 > HELLOS {
+            self.key_reply(client, "fail busy");
+            return;
+        }
+        // The rank is kept over a map change, and the client asks after each: nothing
+        // new is told.
+        if peer.admin.by_key
+            && let Some(rank) = peer.admin.rank
+        {
+            self.key_reply(client, &format!("ok {} kept", rank.name()));
+            return;
+        }
+        let Some(nonce) = admin_keys::random::<32>() else {
+            println!("sjk_amkey: the system gave no random bytes, nobody can log in with a key");
+            self.key_reply(client, "fail server");
+            return;
+        };
+        peer.admin.challenge = Some((nonce, now));
+        let hints = admin_keys::hints(&self.admin.keys, &nonce).join(" ");
+        self.key_reply(
+            client,
+            &format!(
+                "nonce {} {} {hints}",
+                key_login::hex(&nonce),
+                key_login::hex(&host)
+            ),
+        );
+    }
+
+    /// `sjk_amkey sign <public key> <signature> <address>`: the login, if the signature
+    /// is the key's over this nonce, this host key, an address of this server and the
+    /// client's number.
+    fn key_sign(&mut self, client: usize, host: [u8; 32], wire: u16, words: &[&[u8]]) {
+        let now = self.admin_now();
+        let Some(peer) = self.peer_mut(client) else {
+            return;
+        };
+        // A nonce is good for one answer, whatever the answer is.
+        let challenge = peer
+            .admin
+            .challenge
+            .take()
+            .filter(|(_, sent)| now.saturating_duration_since(*sent) <= NONCE_LIFE);
+        let Some((nonce, _)) = challenge else {
+            self.key_reply(client, "fail late");
+            return;
+        };
+        if self.admin_login_blocked(client, true) {
+            self.key_reply(client, "fail blocked");
+            return;
+        }
+        let public = words
+            .first()
+            .and_then(|word| key_login::from_hex::<32>(word));
+        let signature = words
+            .get(1)
+            .and_then(|word| key_login::from_hex::<64>(word));
+        let address =
+            String::from_utf8_lossy(words.get(2).copied().unwrap_or_default()).into_owned();
+        let (Some(public), Some(signature), false) = (public, signature, address.is_empty()) else {
+            self.admin_login_failed(client, "malformed key login");
+            self.key_reply(client, "fail malformed");
+            return;
+        };
+        let Some(key) = self
+            .admin
+            .keys
+            .iter()
+            .find(|key| key.public == public)
+            .cloned()
+        else {
+            self.admin_login_failed(client, "unknown key");
+            self.key_reply(client, "fail unknown");
+            return;
+        };
+        let message = key_login::message(&nonce, &host, &address, wire);
+        if !admin_keys::verify(&public, &message, &signature) {
+            self.admin_login_failed(client, "bad signature");
+            self.key_reply(client, "fail signature");
+            return;
+        }
+        // A right signature for another address: a server that passed this one's nonce
+        // on, or an address the setting lacks.
+        let hosts = self
+            .admin_system()
+            .map(|system| {
+                String::from_utf8_lossy(self.cvars.string(system.settings.key_hosts.as_bytes()))
+                    .into_owned()
+            })
+            .unwrap_or_default();
+        if !hosts.trim().is_empty()
+            && !hosts
+                .split_whitespace()
+                .any(|known| known.eq_ignore_ascii_case(&address))
+        {
+            println!(
+                "sjk_amkey: a login signed for {address}, which the server's addresses do not have"
+            );
+            self.admin_login_failed(client, "signature for another server");
+            self.key_reply(client, "fail address");
+            return;
+        }
+        let how = if key.comment.is_empty() {
+            "key".to_owned()
+        } else {
+            format!("key ({})", key.comment)
+        };
+        self.admin_login_done(client, key.rank, true, &how);
+        if let Some(peer) = self.peer_mut(client) {
+            peer.admin.by_key = true;
+        }
+        self.key_reply(client, &format!("ok {}", key.rank.name()));
+    }
+
+    /// `amcode <rank>`: a code for one login with that rank, typed as `amlogin <code>`
+    /// within a minute.
+    fn amcode(&mut self, words: &[&[u8]]) {
+        let Some(rank) = words.get(1).and_then(|word| Rank::from_name(word)) else {
+            self.admin_reply(
+                Caller::Console,
+                b"usage: amcode <council|knight|instructor|rcon>: a code for one login with that rank, typed as \"amlogin <code>\" within a minute\n",
+            );
+            return;
+        };
+        let Some(random) = admin_keys::random::<8>() else {
+            self.admin_reply(
+                Caller::Console,
+                b"the system gave no random bytes, no code was made\n",
+            );
+            return;
+        };
+        let now = self.admin_now();
+        let code = self.admin.codes.make(rank, random, now);
+        let seconds = admin_keys::CODE_LIFE.as_secs();
+        self.admin_reply(
+            Caller::Console,
+            format!(
+                "amlogin {code}    ({}, once, for {seconds} seconds)\n",
+                rank.name()
+            )
+            .as_bytes(),
+        );
+    }
+
+    /// `amkeys`: `admin_keys.txt` read again and listed (public keys are no secret on the
+    /// server's own console).
+    fn amkeys(&mut self) {
+        self.load_admin_keys(true);
+        let mut out = format!(
+            "{} admin keys in {}{}\n",
+            self.admin.keys.len(),
+            admin_keys::KEYS_FILE,
+            if self.admin.keys.is_empty() {
+                " (a line is: <council|knight|instructor|rcon> <public key> [comment])"
+            } else {
+                ":"
+            }
+        );
+        for key in &self.admin.keys {
+            out += &format!(
+                "  {:<10} {}  {}\n",
+                key.rank.name(),
+                key_login::hex(&key.public),
+                key.comment
+            );
+        }
+        self.admin_reply(Caller::Console, out.as_bytes());
     }
 
     /// `amlogout` (`Cmd_amlogout_f`).
@@ -961,6 +1254,7 @@ pub(super) mod tests {
             peer.address = format!("10.0.0.{client}:29070").into_bytes();
         }
         game.last_frame_time = 1_000;
+        game.told.clear();
         game
     }
 
@@ -1177,6 +1471,170 @@ pub(super) mod tests {
         assert!(said.contains("admin-banned"), "{said}");
         assert_eq!(game.admin_rank(0), None);
         assert_eq!(game.cvars.string(b"jp_banAdminIPs"), b"10.0.0.0 ");
+    }
+
+    use ed25519_dalek::{Signer, SigningKey};
+
+    const ADDRESS: &str = "127.0.0.1:29186";
+
+    /// A JA+ server whose admins are `keys`, by seed.
+    fn keyed(keys: &[(u8, Rank)]) -> NativeGame {
+        let mut game = game("japlus");
+        game.admin.keys = keys
+            .iter()
+            .map(|&(seed, rank)| AdminKey {
+                rank,
+                public: SigningKey::from_bytes(&[seed; 32])
+                    .verifying_key()
+                    .to_bytes(),
+                comment: format!("seed {seed}"),
+            })
+            .collect();
+        game.admin.host = Some([0x42; 32]);
+        game
+    }
+
+    /// The nonce, host key and hints `client`'s hello brought back.
+    fn hello(game: &mut NativeGame, client: usize) -> ([u8; 32], [u8; 32], Vec<String>) {
+        let said = command(game, client, "sjk_amkey hello");
+        let words: Vec<&str> = said.split_whitespace().collect();
+        assert_eq!(words[..2], ["sjk_amkey", "nonce"], "{said}");
+        (
+            key_login::from_hex(words[2].as_bytes()).unwrap(),
+            key_login::from_hex(words[3].as_bytes()).unwrap(),
+            words[4..].iter().map(|hint| (*hint).to_owned()).collect(),
+        )
+    }
+
+    /// `seed`'s key's answer for `client` of the server at `address` to `nonce`.
+    fn sign(seed: u8, nonce: [u8; 32], host: [u8; 32], address: &str, client: u16) -> String {
+        let key = SigningKey::from_bytes(&[seed; 32]);
+        let message = key_login::message(&nonce, &host, address, client);
+        format!(
+            "sjk_amkey sign {} {} {address}",
+            key_login::hex(&key.verifying_key().to_bytes()),
+            key_login::hex(&key.sign(&message).to_bytes())
+        )
+    }
+
+    #[test]
+    fn a_key_logs_in_once_per_nonce() {
+        let mut game = keyed(&[(1, Rank::Council), (2, Rank::Knight)]);
+        let (nonce, host, hints) = hello(&mut game, 0);
+        assert_eq!(host, [0x42; 32]);
+        // A hint per key, none of them the key.
+        assert_eq!(hints, admin_keys::hints(&game.admin.keys, &nonce));
+        let answer = sign(1, nonce, host, ADDRESS, 0);
+        let said = command(&mut game, 0, &answer);
+        assert!(
+            said.contains("P0 ^7is logged as an ^3admin council."),
+            "{said}"
+        );
+        assert!(said.contains("sjk_amkey ok council"), "{said}");
+        assert_eq!(game.admin_rank(0), Some(Rank::Council));
+        // The same answer again: the nonce is spent.
+        assert!(command(&mut game, 0, &answer).contains("fail late"));
+        // Another level: kept, not told again.
+        let said = command(&mut game, 0, "sjk_amkey hello");
+        assert_eq!(said, "sjk_amkey ok council kept");
+    }
+
+    #[test]
+    fn a_signature_for_another_slot_server_or_key_fails() {
+        let mut game = keyed(&[(1, Rank::Council)]);
+        // Signed as client 1, sent by 0.
+        let (nonce, host, _) = hello(&mut game, 0);
+        assert!(
+            command(&mut game, 0, &sign(1, nonce, host, ADDRESS, 1)).contains("fail signature")
+        );
+        // Another server's host key.
+        let (nonce, _, _) = hello(&mut game, 0);
+        assert!(
+            command(&mut game, 0, &sign(1, nonce, [7; 32], ADDRESS, 0)).contains("fail signature")
+        );
+        assert_eq!(game.admin_rank(0), None);
+        // A key not in the file: three wrong tries make the player wait.
+        let (nonce, host, _) = hello(&mut game, 0);
+        assert!(command(&mut game, 0, &sign(9, nonce, host, ADDRESS, 0)).contains("fail unknown"));
+        assert!(command(&mut game, 0, "sjk_amkey hello").contains("fail blocked"));
+        // An address the server does not have, once it says which it has.
+        let mut game = keyed(&[(1, Rank::Council)]);
+        game.set_cvar("japlus.adminHosts", "203.0.113.5:29070 127.0.0.1:29070");
+        let (nonce, host, _) = hello(&mut game, 0);
+        assert!(command(&mut game, 0, &sign(1, nonce, host, ADDRESS, 0)).contains("fail address"));
+        let (nonce, host, _) = hello(&mut game, 0);
+        command(&mut game, 0, &sign(1, nonce, host, "127.0.0.1:29070", 0));
+        assert_eq!(game.admin_rank(0), Some(Rank::Council));
+    }
+
+    #[test]
+    fn a_nonce_waits_thirty_seconds() {
+        let mut game = keyed(&[(2, Rank::Knight)]);
+        let (nonce, host, _) = hello(&mut game, 1);
+        game.admin.skew = NONCE_LIFE + Duration::from_secs(1);
+        assert!(command(&mut game, 1, &sign(2, nonce, host, ADDRESS, 1)).contains("fail late"));
+        // Five hellos in a nonce's time (a new one began with the late answer's), then
+        // no more.
+        for _ in 0..5 {
+            hello(&mut game, 1);
+        }
+        assert!(command(&mut game, 1, "sjk_amkey hello").contains("fail busy"));
+    }
+
+    #[test]
+    fn the_key_login_is_offered_only_with_keys() {
+        let folder = std::env::temp_dir().join(format!(
+            "sjk-admin-keys-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let mut game = game("japlus");
+        game.config_files = crate::config_files::ConfigFiles::new(Some(folder.clone()), None);
+        game.load_admin_keys(false);
+        assert!(!String::from_utf8_lossy(&game.status_info).contains("sjk_amkey"));
+        let public = SigningKey::from_bytes(&[1; 32]).verifying_key().to_bytes();
+        std::fs::create_dir_all(folder.join("base")).unwrap();
+        std::fs::write(
+            folder.join("base").join(admin_keys::KEYS_FILE),
+            format!("rcon {} owner\n", key_login::hex(&public)),
+        )
+        .unwrap();
+        let listed = console(&mut game, "amkeys");
+        assert!(
+            listed.contains("1 admin keys") && listed.contains("owner"),
+            "{listed}"
+        );
+        assert!(String::from_utf8_lossy(&game.status_info).contains("\\sjk_amkey\\1"));
+        // The host key is made once, and kept.
+        let host = std::fs::read(folder.join("base").join(admin_keys::HOST_FILE)).unwrap();
+        assert_eq!(admin_keys::parse_host(&host), game.admin.host);
+        let _ = std::fs::remove_dir_all(&folder);
+        // The base game offers nothing and knows no such command.
+        let mut base = super::tests::game("base");
+        base.load_admin_keys(false);
+        assert!(!String::from_utf8_lossy(&base.status_info).contains("sjk_amkey"));
+        assert!(command(&mut base, 0, "sjk_amkey hello").contains("Unknown command"));
+    }
+
+    #[test]
+    fn a_one_time_code_logs_in_once_without_passwords() {
+        let mut game = game("japlus");
+        let made = console(&mut game, "amcode knight");
+        let code = made.split_whitespace().nth(1).unwrap().to_owned();
+        assert!(made.contains("once, for 60 seconds"), "{made}");
+        let said = command(&mut game, 2, &format!("amlogin {}", code.to_lowercase()));
+        assert!(said.contains("admin knight"), "{said}");
+        assert_eq!(game.admin_rank(2), Some(Rank::Knight));
+        assert!(command(&mut game, 3, &format!("amlogin {code}")).contains("No such code"));
+        assert!(console(&mut game, "amcode nobody").contains("usage"));
+        // The rcon rank: every right, told only to the player.
+        let made = console(&mut game, "amcode rcon");
+        let code = made.split_whitespace().nth(1).unwrap().to_owned();
+        let said = command(&mut game, 3, &format!("amlogin {code}"));
+        assert!(said.contains("every right"), "{said}");
+        assert_eq!(game.admin_rank(3), Some(Rank::Rcon));
     }
 
     #[test]

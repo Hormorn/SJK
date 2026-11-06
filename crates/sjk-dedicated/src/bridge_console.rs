@@ -146,6 +146,7 @@ impl NativeGame {
     /// `G_InitGame` opens the game log there, as the first level starts.
     pub fn set_config_files(&mut self, files: crate::config_files::ConfigFiles) {
         self.config_files = files;
+        self.load_admin_keys(false);
         self.register_stock_rules();
         self.open_log();
         self.start_warmup();

@@ -253,6 +253,44 @@ unknown there.
   and `admToggle <bit> <council|knight|instructor>` (one bit of a mask flipped and told
   to everyone; with no argument the list of bits).
 
+### JA+ key login
+
+An SJK client logs its player in as an admin with its identity key
+([identity.md](identity.md#admin-key-login)); other clients use a one-time code. Both
+are SJK's own, after VisionJK's login without a password (`codemp/game/auth/`), the
+code in [admin_keys.rs](../crates/sjk-dedicated/src/admin_keys.rs) and
+[bridge_admin.rs](../crates/sjk-dedicated/src/bridge_admin.rs).
+
+- **`admin_keys.txt`** in the home directory's `base` (beside `sjk_server.cfg`): a line
+  per admin, `<council|knight|instructor|rcon> <public key> [comment]`, the key as the
+  player's `identity adminkey` copies it (or 64 hex digits); `#` starts a comment line, a
+  wrong line is told on the console and skipped. It is read as every level starts and by
+  `amkeys` on the console, which also lists it (public keys are no secret there).
+- **`admin_host.key`**, beside it: the server's host key, 32 random bytes made the first
+  time the file has keys. No secret: it tells a client which server it signs for. If it
+  cannot be written, it is new at every start, and clients that kept the old one refuse
+  to sign until the player removes its line.
+- **The offer.** With keys, the server info has `sjk_amkey 1`; without, nothing, and no
+  client asks. The exchange (`sjk_amkey hello`, `nonce`, `sign`, `ok`, `fail`) is
+  [key_login.rs](../crates/sjk-protocol/src/key_login.rs): a nonce is good for one
+  answer and 30 seconds; a hello comes with a hint per key (40 at most) so that only an
+  admin's client answers; the signature covers the nonce, the host key, the address the
+  client sees and its client number. Five hellos per 30 seconds; a wrong signature or an
+  unknown key counts as a wrong try, as a wrong password does. A player who has its
+  key's rank already (kept over a map change) is answered `ok <rank> kept`, not logged
+  in or announced again.
+- **`japlus.adminHosts`** (empty by default): the addresses the server is reached by,
+  `"1.2.3.4:29070 192.168.0.5:29070"`. When set, a login signed for another address is
+  refused (`fail address`), which stops a server passing this one's nonce on to its own
+  players even for a client that never logged in here before; set it on a public
+  server.
+- **One-time codes**, for clients that cannot sign (the JA+ plugin, `jamp.exe`, other
+  clients): `amcode <council|knight|instructor|rcon>` on the server console prints a code
+  of eight letters and digits, which logs in once as `amlogin <code>` within a minute
+  (any letter case), with or without `japlus.adminPasswords`.
+- The rcon rank has every right, and JA+ has no login message for it: only the player
+  is told.
+
 Not built yet, in the order planned: the rest of the Force changes (`jp_forceCombo`'s
 push and pull grabs and its rage with speed, the flamethrower `jp_allowFlameThrower`);
 then the emotes and player commands (`amkiss`, `amflip`, the hook, `/saber`...); then
