@@ -1,3 +1,19 @@
+## Rig cloth: limits, clearance, layers, levers and eased tilts
+
+06/11/2026, `feat/rig-dynamics-cloth` from `fix/rig-dynamics-forked-chains`. Hair, capes
+and soft parts on rig models could not be tuned to behave: the spring's lag is in game
+units, so short bones swung far on a small step; a long bone passed through a leg its two
+ends missed; layered chains crossed; single-joint strands could not move; and a change of
+animation made a long chain's tip jump. New `dynamic` options `limit` and `clearance`, a
+`layer <outer> over <inner>` line, swinging about a pivot for stacked single joints, and
+pushes and tilts eased in over a few frames for limited chains
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Collision of a bone's middle
+applies to every colliding chain; the rest needs the new options. Verified on Windows 10:
+unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
+tests. Not verified: the final state's feel in a game, other machines or other rigs; arms
+and head are not capsules and the mesh itself is not checked, so a sharp pose can show
+cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
+
 ## Rig chains that fork or stack joints no longer jump
 
 06/11/2026, `fix/rig-dynamics-forked-chains` from `main` `26526290`. A dynamic chain whose

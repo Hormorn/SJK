@@ -35,6 +35,17 @@ const MAX_STEP: f32 = 0.1;
 /// A bone shorter than this, in game units, has no direction to aim along: some rigs
 /// stack joints on one spot, and their offsets are only the bind matrices' rounding.
 const MIN_BONE: f32 = 0.01;
+/// How fast a limited joint takes up a push from the body or a chain under it, per second.
+/// Its short bones would turn far in a frame at the push's full step.
+const PUSH_RATE: f32 = 12.0;
+/// How fast a limited joint's bone takes up its spring's lag, per second. A change of
+/// animation moves the body far in a tenth of a second; at once, every bone down a chain
+/// would tilt with it and the tip would jump.
+const TILT_RATE: f32 = 14.0;
+/// A [`Settings::limit`] that never holds a bone back.
+pub(super) const NO_LIMIT: f32 = 180.0;
+/// How far a limited joint's spring lags, game units, to tilt its bone half its limit.
+const LIMIT_HALF_LAG: f32 = 2.0;
 
 /// One `dynamic` line's chain: how it hangs, swings and wags, and whether the body
 /// pushes it away.
@@ -50,6 +61,14 @@ pub(crate) struct Settings {
     pub(crate) damping: f32,
     /// Whether the body's capsules push the chain's points out.
     pub(crate) collide: bool,
+    /// The angle a bone's tilt from its animated direction under its parent approaches,
+    /// degrees, never reaching it (the default, [`NO_LIMIT`], lets it swing freely, its
+    /// spring's point at its bone's length). The spring's lag is in game units, so a
+    /// short bone would otherwise swing far on a small step.
+    pub(crate) limit: f32,
+    /// How far outside the body's capsules the chain stays, game units: they sit under
+    /// the skin, so cloth that should clear it asks for a little more.
+    pub(crate) clearance: f32,
 }
 
 impl Default for Settings {
@@ -60,6 +79,8 @@ impl Default for Settings {
             stiffness: STIFFNESS,
             damping: DAMPING,
             collide: true,
+            limit: NO_LIMIT,
+            clearance: 0.0,
         }
     }
 }
@@ -108,7 +129,7 @@ impl Capsule {
 }
 
 /// The point of segment `a`-`b` nearest `point`.
-fn closest(a: Vec3A, b: Vec3A, point: Vec3A) -> Vec3A {
+pub(super) fn closest(a: Vec3A, b: Vec3A, point: Vec3A) -> Vec3A {
     let ab = b - a;
     let length = ab.length_squared();
     if length <= f32::EPSILON {
@@ -129,9 +150,30 @@ pub(super) struct Chains {
     anchor: Vec<usize>,
     /// The capsules each one ignores (a bit per capsule): its anchor's, and those it
     /// already lies in at rest.
-    ignored: Vec<u64>,
+    pub(super) ignored: Vec<u64>,
     /// The body's parts the chains are kept out of.
     pub(super) capsules: Vec<Capsule>,
+    /// How far out of each capsule each joint stays: a row of [`Self::capsules`] per joint.
+    reach: Vec<f32>,
+    /// For a limited joint with no bone of its own to aim (stacked on its parent, with no
+    /// children): from its pivot to the middle of the vertices it carries, in its own
+    /// frame. It swings about the pivot along this. A rig's single-joint hair strand.
+    levers: Vec<Option<Vec3A>>,
+    /// The other chain's bone each joint stays on one side of (`layer` lines).
+    layers: Vec<Option<Layer>>,
+}
+
+/// Where a joint lies against a chain it is layered over: the plane through that chain's
+/// nearest bone, which it stays outside. A fixed bone and a plane rather than the nearest
+/// point each frame, so the push never jumps as the two slide along each other.
+#[derive(Clone, Copy, Debug)]
+struct Layer {
+    /// The bone's parent joint: the plane goes through it, and turns with it.
+    from: usize,
+    /// The plane's normal, towards the joint's side, in `from`'s frame at rest.
+    outward: Vec3A,
+    /// How far out it stays: its chain's clearance, or as far as it lies at rest if less.
+    gap: f32,
 }
 
 impl Chains {
@@ -169,11 +211,167 @@ impl Chains {
             anchor: found.iter().map(|(_, _, anchor, _)| *anchor).collect(),
             ignored: vec![0; found.len()],
             capsules: Vec::new(),
+            reach: Vec::new(),
+            levers: vec![None; found.len()],
+            layers: vec![None; found.len()],
+        }
+    }
+
+    /// Keep the chains under each pair's first anchor outside those under its second, as
+    /// hair lying over a cape: `(outer, inner)`. Several pairs with one outer anchor make
+    /// one sheet of the inner chains, side by side. The inner chains move first, so the
+    /// outer ones meet them where they are drawn. Call this before the other steps.
+    pub(super) fn layer(&mut self, joints: &[Joint], pairs: &[(usize, usize)]) {
+        let is_inner = |anchor: usize| pairs.iter().any(|(_, inner)| *inner == anchor);
+        let mut slots: Vec<usize> = (0..self.joints.len()).collect();
+        // A stable sort: each chain stays parents first.
+        slots.sort_by_key(|slot| !is_inner(self.anchor[*slot]));
+        self.joints = slots.iter().map(|slot| self.joints[*slot]).collect();
+        self.along = slots.iter().map(|slot| self.along[*slot]).collect();
+        self.settings = slots.iter().map(|slot| self.settings[*slot]).collect();
+        self.anchor = slots.iter().map(|slot| self.anchor[*slot]).collect();
+        for slot in 0..self.joints.len() {
+            let inners: Vec<usize> = pairs
+                .iter()
+                .filter(|(outer, _)| *outer == self.anchor[slot])
+                .map(|(_, inner)| *inner)
+                .collect();
+            self.layers[slot] = self.layer_of(joints, slot, &inners);
+        }
+    }
+
+    /// The layer of `slot` over the chains under `inners`, on the side it lies at rest;
+    /// `None` when it lies beyond their ends or right on them.
+    fn layer_of(&self, joints: &[Joint], slot: usize, inners: &[usize]) -> Option<Layer> {
+        let columns: Vec<Vec<usize>> = inners
+            .iter()
+            .map(|inner| {
+                (0..self.joints.len())
+                    .filter(|other| self.anchor[*other] == *inner)
+                    .map(|other| self.joints[other])
+                    .filter(|joint| {
+                        joints[*joint].parent.is_some_and(|parent| {
+                            let bone =
+                                joints[*joint].bind.translation - joints[parent].bind.translation;
+                            bone.length() >= MIN_BONE
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        let point = joints[self.joints[slot]].bind.translation;
+        let mut nearest: Option<(f32, usize, usize)> = None;
+        for (column, bones) in columns.iter().enumerate() {
+            for row in 0..bones.len() {
+                let to = joints[bones[row]].bind.translation;
+                let from = joints[joints[bones[row]].parent?].bind.translation;
+                let distance = (point - closest(from, to, point)).length();
+                if nearest.is_none_or(|(best, ..)| distance < best) {
+                    nearest = Some((distance, column, row));
+                }
+            }
+        }
+        let (_, column, row) = nearest?;
+        let joint = columns[column][row];
+        let from = joints[joint].parent?;
+        let start = joints[from].bind.translation;
+        let along = joints[joint].bind.translation - start;
+        let share = (point - start).dot(along) / along.length_squared();
+        if !(0.0..=1.0).contains(&share) {
+            return None;
+        }
+        // Across the sheet where it has a width; otherwise straight at the joint.
+        let across = columns
+            .first()
+            .zip(columns.last())
+            .filter(|(first, last)| first.len() > row && last.len() > row && columns.len() > 1)
+            .and_then(|(first, last)| {
+                let side = joints[last[row]].bind.translation - joints[first[row]].bind.translation;
+                along.cross(side).try_normalize()
+            })
+            .or_else(|| (point - (start + along * share)).try_normalize())?;
+        let depth = (point - start).dot(across);
+        let (outward, depth) = if depth >= 0.0 {
+            (across, depth)
+        } else {
+            (-across, -depth)
+        };
+        (depth >= MIN_BONE).then(|| Layer {
+            from,
+            outward: joints[from].inverse_bind.matrix3 * outward,
+            gap: self.settings[slot].clearance.min(depth),
+        })
+    }
+
+    /// The joints that swing on a lever, with it.
+    #[cfg(test)]
+    pub(super) fn swings(&self) -> Vec<(usize, Vec3A)> {
+        self.joints
+            .iter()
+            .zip(&self.levers)
+            .filter_map(|(&joint, lever)| Some((joint, (*lever)?)))
+            .collect()
+    }
+
+    /// Find the levers of the limited joints that have no bone of their own, from each
+    /// skin weight's joint, bind-pose position and share.
+    pub(super) fn swing_from(
+        &mut self,
+        joints: &[Joint],
+        vertices: impl Iterator<Item = (usize, Vec3A, f32)>,
+    ) {
+        // Only limited chains swing, so a rig without any does not walk its vertices.
+        if self
+            .settings
+            .iter()
+            .all(|settings| settings.limit >= NO_LIMIT)
+        {
+            return;
+        }
+        let mut slot_of = vec![None; joints.len()];
+        for (slot, &joint) in self.joints.iter().enumerate() {
+            slot_of[joint] = Some(slot);
+        }
+        let mut carried = vec![(Vec3A::ZERO, 0.0f32); self.joints.len()];
+        for (joint, position, weight) in vertices {
+            if let Some(slot) = slot_of.get(joint).copied().flatten() {
+                carried[slot].0 += position * weight;
+                carried[slot].1 += weight;
+            }
+        }
+        for (slot, &(sum, count)) in carried.iter().enumerate() {
+            let index = self.joints[slot];
+            let joint = &joints[index];
+            let stacked = joint.parent.is_some_and(|parent| {
+                (joint.bind.translation - joints[parent].bind.translation).length() < MIN_BONE
+            });
+            let leaf = !joints.iter().any(|other| other.parent == Some(index));
+            self.levers[slot] =
+                (self.settings[slot].limit < NO_LIMIT && stacked && leaf && count > 0.0)
+                    .then(|| sum / count - joint.bind.translation)
+                    .filter(|lever| lever.length() >= MIN_BONE)
+                    .map(|lever| joint.inverse_bind.matrix3 * lever);
         }
     }
 
     pub(super) fn is_empty(&self) -> bool {
         self.joints.is_empty()
+    }
+
+    /// How far each layered joint stands outside its plane in `pose`, less its gap:
+    /// below zero when it has got through.
+    #[cfg(test)]
+    pub(super) fn layer_margins(&self, pose: &[Affine3A]) -> Vec<f32> {
+        self.joints
+            .iter()
+            .zip(&self.layers)
+            .filter_map(|(joint, layer)| {
+                let layer = (*layer)?;
+                let outward = (pose[layer.from].matrix3 * layer.outward).normalize_or_zero();
+                let offset = pose[*joint].translation - pose[layer.from].translation;
+                Some(offset.dot(outward) - layer.gap)
+            })
+            .collect()
     }
 
     /// Keep the chains out of `capsules` (the first [`MAX_CAPSULES`]; those touching
@@ -188,16 +386,26 @@ impl Chains {
             })
             .take(MAX_CAPSULES)
             .collect();
+        self.reach.clear();
         for slot in 0..self.joints.len() {
-            let point = joints[self.joints[slot]].bind.translation;
+            let joint = &joints[self.joints[slot]];
+            let point = joint.bind.translation;
+            let middle = joint.parent.map_or(point, |parent| {
+                (joints[parent].bind.translation + point) / 2.0
+            });
             let mut ignored = 0u64;
             for (bit, capsule) in self.capsules.iter().enumerate() {
                 let a = joints[capsule.from].bind.translation;
                 let b = joints[capsule.to].bind.translation;
-                let inside = (point - closest(a, b, point)).length() < capsule.radius;
-                if capsule.from == self.anchor[slot] || inside {
+                let away = |point: Vec3A| (point - closest(a, b, point)).length();
+                let rest = away(point).min(away(middle));
+                if capsule.from == self.anchor[slot] || rest < capsule.radius {
                     ignored |= 1 << bit;
                 }
+                // Out by the clearance, but no further than it lies at rest: standing
+                // still should not move it.
+                let wanted = capsule.radius + self.settings[slot].clearance;
+                self.reach.push(wanted.min(rest.max(capsule.radius)));
             }
             self.ignored[slot] = ignored;
         }
@@ -209,6 +417,10 @@ impl Chains {
 pub(crate) struct State {
     points: Vec<Vec3A>,
     velocities: Vec<Vec3A>,
+    /// The push each limited joint has taken up so far.
+    pushes: Vec<Vec3A>,
+    /// How far each limited joint's spring lags, as its bone has taken it up so far.
+    lags: Vec<Vec3A>,
     /// Seconds simulated, for the wag.
     time: f32,
     /// The animated pose before the chain moved it (scratch).
@@ -246,6 +458,8 @@ pub(super) fn simulate(
             .map(|slot| target(slot, pose) + weight(slot) / chains.settings[slot].stiffness)
             .collect();
         state.velocities = vec![Vec3A::ZERO; count];
+        state.pushes = vec![Vec3A::ZERO; count];
+        state.lags = vec![Vec3A::ZERO; count];
     } else {
         for slot in 0..count {
             let pull = target(slot, pose) - state.points[slot];
@@ -280,11 +494,63 @@ pub(super) fn simulate(
                 .unwrap_or(Vec3A::Z);
             origin + towards * length
         };
-        let mut point = at_length(state.points[slot]);
+        // A limited joint's spring runs free of the bone: the bone only tilts by how far
+        // the spring lags, so it cannot snap from side to side as the lag turns round.
+        let limit = chains.settings[slot].limit;
+        let limited = limit < NO_LIMIT;
+        let lag = if limited {
+            let raw = state.points[slot] - state.animated[index].translation;
+            let share = if restart {
+                1.0
+            } else {
+                1.0 - (-step * TILT_RATE).exp()
+            };
+            let taken = &mut state.lags[slot];
+            *taken += (raw - *taken) * share;
+            *taken
+        } else {
+            Vec3A::ZERO
+        };
+        let mut point = if limited {
+            origin + tilted(animated, lag, limit)
+        } else {
+            at_length(state.points[slot])
+        };
+        let free = point;
         if chains.settings[slot].collide
-            && push_out(chains, slot, pose, &mut point, &mut state.velocities[slot])
+            && push_out(
+                chains,
+                slot,
+                pose,
+                origin,
+                &mut point,
+                &mut state.velocities[slot],
+            )
         {
             point = at_length(point);
+        }
+        if let Some(layer) = chains.layers[slot] {
+            let outward = (pose[layer.from].matrix3 * layer.outward).normalize_or_zero();
+            let depth = (point - pose[layer.from].translation).dot(outward);
+            if depth < layer.gap {
+                point = at_length(point + outward * (layer.gap - depth));
+                let velocity = &mut state.velocities[slot];
+                let into = velocity.dot(outward);
+                if into < 0.0 {
+                    *velocity -= outward * into;
+                }
+            }
+        }
+        if limited {
+            // At once on a restart; otherwise eased in, so a short bone does not jump.
+            let share = if restart {
+                1.0
+            } else {
+                1.0 - (-step * PUSH_RATE).exp()
+            };
+            let push = &mut state.pushes[slot];
+            *push += (point - free - *push) * share;
+            point = at_length(free + *push);
         }
         // The parent turned to point at its first real child. A bone with no length
         // gives no direction, only rounding noise, so it turns nothing and leaves the
@@ -299,43 +565,77 @@ pub(super) fn simulate(
             state.aimed[parent] = true;
         }
         pose[index] = pose[parent] * local;
+        // A joint with no bone to aim swings itself about its pivot.
+        if let Some(lever) = chains.levers[slot] {
+            let now = pose[index].matrix3 * lever;
+            let wanted = tilted(now, lag, limit);
+            if let (Some(now), Some(wanted)) = (now.try_normalize(), wanted.try_normalize()) {
+                let turn = Mat3A::from_quat(Quat::from_rotation_arc(now.into(), wanted.into()));
+                pose[index].matrix3 = turn * pose[index].matrix3;
+            }
+        }
         // The joint's point is where it now stands: another branch of a fork follows
         // its parent's turn, and its own chain goes on from there.
-        state.points[slot] = pose[index].translation;
+        if !limited {
+            state.points[slot] = pose[index].translation;
+        }
     }
 }
 
-/// Push `point` out of the capsules `slot` does not ignore, in `pose`, and stop its
-/// `velocity` going further in. Whether it moved.
+/// The bone `animated` tilted towards `lag`, at its length. The tilt grows smoothly with
+/// the lag across the bone, from none to nearly `limit` degrees, so it passes through no
+/// jump as the lag changes direction.
+fn tilted(animated: Vec3A, lag: Vec3A, limit: f32) -> Vec3A {
+    let Some(along) = animated.try_normalize() else {
+        return animated;
+    };
+    let across = lag - along * lag.dot(along);
+    let Some(side) = across.try_normalize() else {
+        return animated;
+    };
+    let lagging = across.length();
+    let angle = limit.to_radians() * lagging / (lagging + LIMIT_HALF_LAG);
+    let (sin, cos) = angle.sin_cos();
+    (along * cos + side * sin) * animated.length()
+}
+
+/// Push `point`, and the middle of its bone from `origin`, out of the capsules `slot` does
+/// not ignore, in `pose`, and stop its `velocity` going further in. Whether it moved.
 fn push_out(
     chains: &Chains,
     slot: usize,
     pose: &[Affine3A],
+    origin: Vec3A,
     point: &mut Vec3A,
     velocity: &mut Vec3A,
 ) -> bool {
+    let count = chains.capsules.len();
+    let reach = &chains.reach[slot * count..(slot + 1) * count];
     let mut moved = false;
     for (bit, capsule) in chains.capsules.iter().enumerate() {
         if chains.ignored[slot] & (1 << bit) != 0 {
             continue;
         }
-        let near = closest(
-            pose[capsule.from].translation,
-            pose[capsule.to].translation,
-            *point,
-        );
-        let offset = *point - near;
-        let distance = offset.length();
-        if distance >= capsule.radius || distance <= 1e-4 {
-            continue;
+        let radius = reach[bit];
+        let from = pose[capsule.from].translation;
+        let to = pose[capsule.to].translation;
+        // The tip, then the middle: moving the tip moves the middle half as far, so the
+        // middle's way out asks for twice its depth.
+        for (share, leverage) in [(1.0, 1.0), (0.5, 2.0)] {
+            let sample = origin + (*point - origin) * share;
+            let offset = sample - closest(from, to, sample);
+            let distance = offset.length();
+            if distance >= radius || distance <= 1e-4 {
+                continue;
+            }
+            let normal = offset / distance;
+            *point += normal * (radius - distance) * leverage;
+            let into = velocity.dot(normal);
+            if into < 0.0 {
+                *velocity -= normal * into;
+            }
+            moved = true;
         }
-        let normal = offset / distance;
-        *point = near + normal * capsule.radius;
-        let into = velocity.dot(normal);
-        if into < 0.0 {
-            *velocity -= normal * into;
-        }
-        moved = true;
     }
     moved
 }
@@ -441,6 +741,178 @@ mod tests {
         });
         let distance = (tip - closest(hip, knee, tip)).length();
         assert!(distance < 4.5, "left inside: {distance} {tip:?}");
+    }
+
+    #[test]
+    fn a_chains_clearance_holds_it_further_from_the_body() {
+        let (tip, hip, knee) = tip_after_the_leg_swings(Settings {
+            gravity: 0.0,
+            wag: 0.0,
+            clearance: 3.0,
+            ..Settings::default()
+        });
+        let distance = (tip - closest(hip, knee, tip)).length();
+        assert!(distance > 8.5, "kept out: {distance} {tip:?}");
+    }
+
+    #[test]
+    fn a_chains_clearance_does_not_move_it_at_rest() {
+        let joints = leg_and_pendulum();
+        let mut chains = Chains::under(
+            &joints,
+            &[0, 1, 2, 3],
+            &[(
+                2,
+                Settings {
+                    gravity: 0.0,
+                    wag: 0.0,
+                    clearance: 5.0,
+                    ..Settings::default()
+                },
+            )],
+        );
+        // The pendulum hangs 12 units from the leg: inside radius and clearance.
+        let capsule = Capsule {
+            from: 0,
+            to: 1,
+            radius: 10.0,
+        };
+        chains.collide_with(&joints, vec![capsule]);
+        let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
+        let mut state = State::default();
+        let mut pose = rest.clone();
+        simulate(&joints, &chains, &mut pose, &mut state, None);
+        for _ in 0..30 {
+            pose.clone_from(&rest);
+            simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        }
+        assert!((pose[3].translation - rest[3].translation).length() < 1e-2);
+    }
+
+    #[test]
+    fn a_long_bones_middle_stays_out_of_a_capsule_its_ends_miss() {
+        // A rod across the pendulum's middle: both its ends lie well clear of it.
+        let anchor = Vec3A::new(12.0, 0.0, 40.0);
+        let tip = Vec3A::new(12.0, 0.0, 20.0);
+        let joints = vec![
+            joint(None, Vec3A::ZERO, Vec3A::new(0.0, -10.0, 30.0)),
+            joint(
+                Some(0),
+                Vec3A::new(0.0, -10.0, 30.0),
+                Vec3A::new(0.0, 10.0, 30.0),
+            ),
+            joint(Some(0), Vec3A::new(0.0, -10.0, 30.0), anchor),
+            joint(Some(2), anchor, tip),
+        ];
+        let mut chains = Chains::under(
+            &joints,
+            &[0, 1, 2, 3],
+            &[(
+                2,
+                Settings {
+                    gravity: 0.0,
+                    wag: 0.0,
+                    ..Settings::default()
+                },
+            )],
+        );
+        let capsule = Capsule {
+            from: 0,
+            to: 1,
+            radius: 3.0,
+        };
+        chains.collide_with(&joints, vec![capsule]);
+        let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
+        let mut state = State::default();
+        let mut pose = rest.clone();
+        simulate(&joints, &chains, &mut pose, &mut state, None);
+        let mut moved = rest;
+        moved[0].translation.x = 13.0;
+        moved[1].translation.x = 13.0;
+        for _ in 0..60 {
+            pose.clone_from(&moved);
+            simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        }
+        let middle = (pose[2].translation + pose[3].translation) / 2.0;
+        let near = closest(pose[0].translation, pose[1].translation, middle);
+        assert!((middle - near).length() > 2.5, "{middle:?}");
+    }
+
+    #[test]
+    fn a_chain_layered_over_another_stays_on_its_side() {
+        let inner = Vec3A::new(0.0, 0.0, 40.0);
+        let outer = Vec3A::new(0.0, 3.0, 40.0);
+        let joints = vec![
+            joint(None, Vec3A::ZERO, Vec3A::ZERO),
+            joint(Some(0), Vec3A::ZERO, inner),
+            joint(Some(1), inner, Vec3A::new(0.0, 0.0, 20.0)),
+            joint(Some(0), Vec3A::ZERO, outer),
+            joint(Some(3), outer, Vec3A::new(0.0, 3.0, 20.0)),
+        ];
+        let still = Settings {
+            gravity: 0.0,
+            wag: 0.0,
+            collide: false,
+            clearance: 2.0,
+            ..Settings::default()
+        };
+        let mut chains = Chains::under(&joints, &[0, 1, 2, 3, 4], &[(3, still), (1, still)]);
+        chains.layer(&joints, &[(3, 1)]);
+        let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
+        let mut state = State::default();
+        let mut pose = rest.clone();
+        simulate(&joints, &chains, &mut pose, &mut state, None);
+        // The inner chain's anchor steps past the outer's.
+        let mut moved = rest;
+        moved[1].translation.y = 8.0;
+        moved[2].translation.y = 8.0;
+        for _ in 0..120 {
+            pose.clone_from(&moved);
+            simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        }
+        let gap = pose[4].translation.y - pose[2].translation.y;
+        assert!(gap > 1.9, "{gap} {:?}", pose[4].translation);
+        // Its length held.
+        let length = (pose[4].translation - pose[3].translation).length();
+        assert!((length - 20.0).abs() < 1e-2, "{length}");
+    }
+
+    /// A strand stacked on its anchor with its vertices 10 units below, the anchor
+    /// stepped sideways: the strand's angle from straight down, in degrees.
+    fn strand_tilt(limit: f32) -> f32 {
+        let anchor = Vec3A::new(0.0, 0.0, 40.0);
+        let joints = vec![
+            joint(None, Vec3A::ZERO, anchor),
+            joint(Some(0), anchor, anchor),
+        ];
+        let settings = Settings {
+            gravity: 0.0,
+            wag: 0.0,
+            limit,
+            ..Settings::default()
+        };
+        let mut chains = Chains::under(&joints, &[0, 1], &[(0, settings)]);
+        chains.swing_from(&joints, std::iter::once((1, anchor - Vec3A::Z * 10.0, 1.0)));
+        let rest: Vec<Affine3A> = joints.iter().map(|joint| joint.bind).collect();
+        let mut state = State::default();
+        let mut pose = rest.clone();
+        simulate(&joints, &chains, &mut pose, &mut state, None);
+        let mut moved = rest;
+        for joint in &mut moved {
+            joint.translation.x += 5.0;
+        }
+        pose.clone_from(&moved);
+        simulate(&joints, &chains, &mut pose, &mut state, Some(1.0 / 60.0));
+        let down = (pose[1].matrix3 * Vec3A::NEG_Z).normalize();
+        down.dot(Vec3A::NEG_Z).clamp(-1.0, 1.0).acos().to_degrees()
+    }
+
+    #[test]
+    fn a_limited_strand_with_no_bone_swings_about_its_pivot_within_its_limit() {
+        let tilt = strand_tilt(12.0);
+        assert!(tilt > 3.0 && tilt < 12.0, "{tilt}");
+        // Without a limit it stays as it was.
+        assert!(strand_tilt(NO_LIMIT) < 0.01);
     }
 
     #[test]

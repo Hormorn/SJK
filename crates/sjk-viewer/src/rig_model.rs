@@ -192,6 +192,8 @@ pub(crate) struct Manifest {
     /// Joints whose chains below move on their own (`dynamic` lines), each with its
     /// chain's settings.
     pub(crate) dynamic: Vec<(String, dynamics::Settings)>,
+    /// `layer` lines: the chain under the first joint stays outside that under the second.
+    pub(crate) layers: Vec<(String, String)>,
 }
 
 /// The driver's bones whose rig joints (from their bone map entry to the joint it
@@ -210,7 +212,8 @@ const COLLISION_BONES: &[&str] = &[
 ];
 
 /// A `dynamic` line's words after the joint: `[gravity] [gravity <n>] [wag <n>]
-/// [stiffness <n>] [damping <n>] [nocollide]`, any order after the bare gravity.
+/// [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [nocollide]`, any
+/// order after the bare gravity.
 fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
     let mut settings = dynamics::Settings::default();
     let number = |word: &str| word.parse::<f32>().ok().filter(|n| n.is_finite());
@@ -226,6 +229,8 @@ fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
             "wag" => settings.wag = number(words.next()?)?,
             "stiffness" => settings.stiffness = number(words.next()?).filter(|n| *n > 0.0)?,
             "damping" => settings.damping = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "limit" => settings.limit = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "clearance" => settings.clearance = number(words.next()?).filter(|n| *n >= 0.0)?,
             _ => return None,
         }
     }
@@ -243,6 +248,7 @@ impl Manifest {
             lift: 0.0,
             map: Vec::new(),
             dynamic: Vec::new(),
+            layers: Vec::new(),
         };
         for (number, line) in text.lines().enumerate() {
             let line = line.split("//").next().unwrap_or("").trim();
@@ -275,6 +281,9 @@ impl Manifest {
                 ["dynamic", joint, rest @ ..] => manifest
                     .dynamic
                     .push(((*joint).to_owned(), dynamic_settings(rest).ok_or_else(bad)?)),
+                ["layer", outer, "over", inner] => manifest
+                    .layers
+                    .push(((*outer).to_owned(), (*inner).to_owned())),
                 ["map", joint, bone] => manifest.map.push(entry(joint, bone, Align::Rest)),
                 ["map", joint, bone, "as", other] => {
                     manifest
@@ -873,6 +882,20 @@ impl RigModel {
             })
             .collect();
         let mut chains = dynamics::Chains::under(&joints, &order, &dynamic_anchors);
+        let layers: Vec<(usize, usize)> = manifest
+            .layers
+            .iter()
+            .filter_map(|(outer, inner)| {
+                let found = joint_index(outer).zip(joint_index(inner));
+                if found.is_none() {
+                    crate::log::progress(format_args!(
+                        "rig model {base}: {MANIFEST}: no joints for layer {outer:?} over {inner:?}"
+                    ));
+                }
+                found
+            })
+            .collect();
+        chains.layer(&joints, &layers);
         // Alignments first (an `As` entry reads another's), then the driven joints.
         let mut aligned: Vec<Option<Mat3A>> = vec![None; joints.len()];
         for entry in &map {
@@ -995,6 +1018,20 @@ impl RigModel {
                 joint_index(name)
             });
             chains.collide_with(&joints, capsules);
+            chains.swing_from(
+                &joints,
+                surfaces
+                    .iter()
+                    .flat_map(|surface| &surface.vertices)
+                    .flat_map(|vertex| {
+                        let position = Vec3A::from_array(vertex.position);
+                        vertex
+                            .joints
+                            .into_iter()
+                            .zip(vertex.weights)
+                            .map(move |(joint, weight)| (usize::from(joint), position, weight))
+                    }),
+            );
         }
         crate::log::progress(format_args!(
             "rig model {base}: {} joints ({mapped} driven by {:?}), {} surfaces, {} clips{}, scale {scale:.2}",
