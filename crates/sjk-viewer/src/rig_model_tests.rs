@@ -316,7 +316,8 @@ fn feet_against_the_driver() {
     let config =
         sjk_model::AnimationConfig::parse(&read("models/players/_humanoid/animation.cfg")).unwrap();
     let directory = format!("models/players/{name}");
-    let manifest = super::manifest(&vfs, &directory)
+    let variant = std::env::var("SJK_TEST_VARIANT").unwrap_or_else(|_| "default".to_owned());
+    let manifest = super::manifest(&vfs, &directory, &variant)
         .unwrap()
         .expect("a rig model");
     let rig = RigModel::load(&vfs, &directory, &manifest, &gla, &glm).unwrap();
@@ -337,7 +338,8 @@ fn feet_against_the_driver() {
         .flat_map(|s| s.vertices)
         .map(|v| v.position[2])
         .fold(f32::MAX, f32::min);
-    rig.pose(&identity, None, &mut scratch);
+    // Each pose stands alone (`None`: planted at once, not eased from the last).
+    rig.pose_after(&identity, None, &mut scratch, None);
     let rig_base = rig
         .surfaces
         .iter()
@@ -368,7 +370,7 @@ fn feet_against_the_driver() {
             .map(|v| v.position[2])
             .fold(f32::MAX, f32::min);
         let matrices = gla.frame_matrices(frame).unwrap();
-        rig.pose(&matrices, None, &mut scratch);
+        rig.pose_after(&matrices, None, &mut scratch, None);
         let lowest = rig
             .surfaces
             .iter()
@@ -379,15 +381,36 @@ fn feet_against_the_driver() {
         let kyle_ankle = affine(&matrices[talus])
             .transform_point3a(affine(&gla.bones[talus].base_pose).translation)
             .z;
+        // The feet: the vertices whose strongest joint is a foot's or under it (a tail
+        // or a cape may hang lower, printed apart).
+        let feet_joints: Vec<usize> = rig.feet.as_ref().map_or(Vec::new(), |f| f.joints.clone());
+        let on_foot = |mut joint: usize| loop {
+            if feet_joints.contains(&joint) {
+                return true;
+            }
+            match rig.joints[joint].parent {
+                Some(parent) => joint = parent,
+                None => return false,
+            }
+        };
+        let paws = rig
+            .surfaces
+            .iter()
+            .flat_map(|s| &s.vertices)
+            .filter(|v| on_foot(usize::from(v.joints[0])))
+            .map(|v| skin(v, &scratch.palette).0[2])
+            .fold(f32::MAX, f32::min);
+        let paws = if paws < f32::MAX { paws } else { lowest };
         let foot = rig.joints.len();
         println!(
-            "{animation}: Kyle lowest {kyle:.2}, ankle {kyle_ankle:.2}; rig lowest {lowest:.2} ({:+.2}), {foot} joints",
+            "{animation}: Kyle lowest {kyle:.2}, ankle {kyle_ankle:.2}; rig feet {paws:.2} ({:+.2}), lowest {lowest:.2} ({:+.2}), {foot} joints",
+            paws - kyle,
             lowest - kyle
         );
         assert!(
-            (lowest - kyle).abs() < 1.5,
+            (paws - kyle).abs() < 1.5,
             "{animation}: feet off by {}",
-            lowest - kyle
+            paws - kyle
         );
         // A clip of the rig's own over this frame stands on the same ground.
         if !rig.clips.is_empty() {
@@ -396,7 +419,7 @@ fn feet_against_the_driver() {
                 time: 0.0,
                 weight: 1.0,
             };
-            rig.pose(&matrices, Some(play), &mut scratch);
+            rig.pose_after(&matrices, Some(play), &mut scratch, None);
             let dancing = rig
                 .surfaces
                 .iter()
@@ -490,6 +513,96 @@ fn the_feet_land_on_the_drivers_ground_and_lift_raises_them() {
         .fold(f32::MAX, f32::min);
     assert!((low + 23.0).abs() < 1e-3, "{low}");
     assert!(Manifest::parse("lift up").is_err());
+}
+
+#[test]
+fn soles_plant_the_lowest_sole_point_eased_over_time() {
+    // The driver and rig of the test above, planted by their soles: the driver's 8
+    // units under its ankles, the rig's sole vertex.
+    let mut driver = driver();
+    for (name, x) in [("ltalus", 5.0), ("rtalus", -5.0)] {
+        driver.bones.push(GlaBone {
+            name: name.into(),
+            flags: 0,
+            parent: Some(1),
+            base_pose: translated(x, 0.0, 10.0),
+            inverse_base_pose: identity_rows(),
+            children: Vec::new(),
+        });
+    }
+    let mut model = rig();
+    for (name, x) in [("foot_l", 0.1), ("foot_r", -0.1)] {
+        model.joints.push(GltfJoint {
+            name: name.to_owned(),
+            parent: Some(0),
+            bind: translated(x, 0.1, 0.0),
+            inverse_bind: translated(-x, -0.1, 0.0),
+            rest: translated(x, -0.9, 0.0),
+        });
+    }
+    let primitive = &mut model.primitives[0];
+    primitive.positions.push([0.1, 0.0, 0.0]);
+    primitive.normals.push([0.0, 1.0, 0.0]);
+    primitive.texture_coordinates.push([0.0; 2]);
+    primitive.joints.push([2, 0, 0, 0]);
+    primitive.weights.push([1.0, 0.0, 0.0, 0.0]);
+    let mut rig = RigModel::fit(
+        model,
+        "",
+        &manifest(
+            "map foot_l ltalus
+map foot_r rtalus",
+        ),
+        &driver,
+    )
+    .unwrap()
+    .with_feet(&driver, Some(2.0));
+    let sole = Vec3A::from_array(rig.surfaces[0].vertices.last().unwrap().position);
+    rig.feet.as_mut().expect("feet").soles = Some(Soles {
+        driver: vec![
+            vec![(3, Vec3A::new(5.0, 0.0, 2.0))],
+            vec![(4, Vec3A::new(-5.0, 0.0, 2.0))],
+        ],
+        rig: vec![vec![(2, sole)], vec![(3, sole)]],
+    });
+    let lowest = |scratch: &Scratch| {
+        let vertex = rig.surfaces[0].vertices.last().unwrap();
+        skin(vertex, &scratch.palette).0[2]
+    };
+    // The driver sunk 27 units (a GLA frame), its ankles `depth`.
+    let sunk = |depth: f32| {
+        let mut bones = vec![identity_rows(); 5];
+        for bone in &mut bones[1..3] {
+            bone[2][3] = -27.0;
+        }
+        for bone in &mut bones[3..] {
+            bone[2][3] = depth;
+        }
+        bones
+    };
+    let mut scratch = Scratch::default();
+    // First pose: the rig's sole exactly on the driver's (2 - 27).
+    rig.pose_after(&sunk(-27.0), None, &mut scratch, None);
+    assert!(
+        (lowest(&scratch) + 25.0).abs() < 1e-3,
+        "{}",
+        lowest(&scratch)
+    );
+    // The driver's feet drop 2 more: a pose PLANT_EASE later goes 1 - 1/e of the way.
+    rig.pose_after(&sunk(-29.0), None, &mut scratch, Some(PLANT_EASE));
+    let expected = -25.0 - 2.0 * (1.0 - (-1.0f32).exp());
+    assert!(
+        (lowest(&scratch) - expected).abs() < 1e-3,
+        "{}",
+        lowest(&scratch)
+    );
+    // A long gap (a teleport) plants at once.
+    rig.pose_after(&sunk(-29.0), None, &mut scratch, Some(0.5));
+    assert!(
+        (lowest(&scratch) + 27.0).abs() < 1e-3,
+        "{}",
+        lowest(&scratch)
+    );
 }
 
 /// [`rig`]'s skeleton with a longer neck (the head 0.8 metres above the pelvis), a
@@ -796,7 +909,8 @@ fn dynamic_chains_of_an_installed_rig() {
     let gla = Gla::parse(&read("models/players/_humanoid/_humanoid.gla")).unwrap();
     let glm = sjk_model::Glm::parse(&read("models/players/kyle/model.glm")).unwrap();
     let directory = format!("models/players/{name}");
-    let manifest = super::manifest(&vfs, &directory)
+    let variant = std::env::var("SJK_TEST_VARIANT").unwrap_or_else(|_| "default".to_owned());
+    let manifest = super::manifest(&vfs, &directory, &variant)
         .unwrap()
         .expect("a rig model");
     let mut weightless = manifest.clone();
@@ -1604,7 +1718,8 @@ fn lineup_beside_a_stock_model() {
     let config =
         sjk_model::AnimationConfig::parse(&read("models/players/_humanoid/animation.cfg")).unwrap();
     let directory = format!("models/players/{name}");
-    let manifest = super::manifest(&vfs, &directory)
+    let variant = std::env::var("SJK_TEST_VARIANT").unwrap_or_else(|_| "default".to_owned());
+    let manifest = super::manifest(&vfs, &directory, &variant)
         .unwrap()
         .expect("a rig model");
     let rig = RigModel::load(&vfs, &directory, &manifest, &gla, &kyle).unwrap();
@@ -1729,4 +1844,206 @@ fn lineup_beside_a_stock_model() {
         write(&format!("{pose}_rig.obj"), &rig_mesh);
     }
     println!("written to {}", out.display());
+}
+
+#[test]
+fn a_variant_wears_its_own_manifest_else_the_default() {
+    let mut vfs = VirtualFileSystem::new();
+    vfs.mount_memory(
+        "pack",
+        [
+            (
+                "models/players/fox/sjk_rig.cfg",
+                b"model model.gltf
+scale 60
+"
+                .to_vec(),
+            ),
+            (
+                "models/players/fox/sjk_rig_cloak.cfg",
+                b"model model_cloak.gltf
+scale 61
+dynamic cape_0
+"
+                .to_vec(),
+            ),
+        ],
+    )
+    .unwrap();
+    let wear = |variant: &str| {
+        super::manifest(&vfs, "models/players/fox", variant)
+            .unwrap()
+            .expect("a rig model")
+    };
+    assert_eq!(wear("default").model.as_deref(), Some("model.gltf"));
+    assert_eq!(wear("").scale, Some(60.0));
+    let cloak = wear("Cloak");
+    assert_eq!(cloak.model.as_deref(), Some("model_cloak.gltf"));
+    assert_eq!(cloak.scale, Some(61.0));
+    assert_eq!(cloak.dynamic.len(), 1);
+    // A variant without a manifest of its own looks like the default.
+    assert_eq!(wear("red").model.as_deref(), Some("model.gltf"));
+    assert!(
+        super::manifest(&vfs, "models/players/kyle", "default")
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// Per frame of a walk and a run: how far the rig's pelvis stands from the driver's
+/// (constant when the rig rides the animation as the driver does) and its lowest point
+/// against the driver's (the feet on the ground).
+#[test]
+#[ignore = "reads the retail Kyle and an installed rig model (JKA_GAME_DATA, SJK_TEST_RIG)"]
+fn walk_against_the_driver() {
+    let (Some(data), Ok(name)) = (
+        std::env::var_os("JKA_GAME_DATA").map(std::path::PathBuf::from),
+        std::env::var("SJK_TEST_RIG"),
+    ) else {
+        println!("JKA_GAME_DATA or SJK_TEST_RIG is not set: skipped");
+        return;
+    };
+    let mut vfs = VirtualFileSystem::new();
+    let base = data.join("base");
+    for entry in std::fs::read_dir(&base).unwrap().flatten() {
+        let path = entry.path();
+        let file = path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_ascii_lowercase();
+        if file.starts_with("assets") && file.ends_with(".pk3") || file == format!("rig_{name}.pk3")
+        {
+            vfs.mount_pk3(&path).unwrap();
+        }
+    }
+    let read = |path: &str| vfs.read(path).unwrap().unwrap().bytes;
+    let gla = Gla::parse(&read("models/players/_humanoid/_humanoid.gla")).unwrap();
+    let glm = sjk_model::Glm::parse(&read("models/players/kyle/model.glm")).unwrap();
+    let kyle_skin = sjk_model::Skin::parse(&read("models/players/kyle/model_default.skin"));
+    let config =
+        sjk_model::AnimationConfig::parse(&read("models/players/_humanoid/animation.cfg")).unwrap();
+    let directory = format!("models/players/{name}");
+    let variant = std::env::var("SJK_TEST_VARIANT").unwrap_or_else(|_| "default".to_owned());
+    let manifest = super::manifest(&vfs, &directory, &variant)
+        .unwrap()
+        .expect("a rig model");
+    let rig = RigModel::load(&vfs, &directory, &manifest, &gla, &glm).unwrap();
+    let pelvis_joint = rig
+        .driven
+        .iter()
+        .position(|d| d.is_some_and(|d| d.translate.is_some()))
+        .unwrap();
+    let (pelvis_bone, pelvis_base) = rig.pelvis.unwrap();
+    let mut scratch = Scratch::default();
+    for animation in ["BOTH_WALK1", "BOTH_RUN1"] {
+        let sequence = config.get(animation).unwrap();
+        let mut bobs = Vec::new();
+        let mut feet = Vec::new();
+        // Two cycles, the second measured, each frame in four steps of bones blended
+        // between frames as the game draws them (the planting eases over time).
+        let substeps = 4;
+        let step = 1.0 / (sequence.frames_per_second.max(1.0) * substeps as f32);
+        let mut first = true;
+        for frame in 0..sequence.frame_count * 2 {
+            let measured = frame >= sequence.frame_count;
+            let frame = sequence.first_frame + frame % sequence.frame_count;
+            let next =
+                sequence.first_frame + (frame - sequence.first_frame + 1) % sequence.frame_count;
+            let (from, to) = (
+                gla.frame_matrices(frame).unwrap(),
+                gla.frame_matrices(next).unwrap(),
+            );
+            for sub in 0..substeps {
+                let t = sub as f32 / substeps as f32;
+                let blended: Vec<[[f32; 4]; 3]> = from
+                    .iter()
+                    .zip(&to)
+                    .map(|(a, b)| {
+                        let mut m = *a;
+                        for (row, (ra, rb)) in m.iter_mut().zip(a.iter().zip(b)) {
+                            for (value, (va, vb)) in row.iter_mut().zip(ra.iter().zip(rb)) {
+                                *value = va + (vb - va) * t;
+                            }
+                        }
+                        m
+                    })
+                    .collect();
+                rig.pose_after(&blended, None, &mut scratch, (!first).then_some(step));
+                first = false;
+            }
+            if !measured {
+                continue;
+            }
+            let matrices = from;
+            let kyle = glm
+                .skin(&gla, &kyle_skin, frame, 0)
+                .unwrap()
+                .into_iter()
+                .filter(|s| {
+                    s.shader.is_some() && !s.name.contains("_cap_") && !s.name.starts_with('*')
+                })
+                .flat_map(|s| s.vertices)
+                .map(|v| v.position[2])
+                .fold(f32::MAX, f32::min);
+            rig.pose_after(&matrices, None, &mut scratch, Some(step));
+            let lowest = rig
+                .surfaces
+                .iter()
+                .flat_map(|s| &s.vertices)
+                .map(|v| skin(v, &scratch.palette).0[2])
+                .fold(f32::MAX, f32::min);
+            let kyle_pelvis = affine(&matrices[pelvis_bone])
+                .transform_point3a(pelvis_base)
+                .z;
+            let bob = scratch.pose[pelvis_joint].translation.z - kyle_pelvis;
+            // Each foot's lowest sole point, the driver's and the rig's.
+            let soles = rig.feet.as_ref().and_then(|feet| feet.soles.as_ref());
+            let per_foot: Vec<String> = soles
+                .map(|soles| {
+                    soles
+                        .driver
+                        .iter()
+                        .zip(&soles.rig)
+                        .map(|(driver, own)| {
+                            let k = driver
+                                .iter()
+                                .map(|(bone, at)| affine(&matrices[*bone]).transform_point3a(*at).z)
+                                .fold(f32::MAX, f32::min);
+                            let r = own
+                                .iter()
+                                .map(|(joint, at)| {
+                                    (scratch.pose[*joint] * rig.joints[*joint].inverse_bind)
+                                        .transform_point3a(*at)
+                                        .z
+                                })
+                                .fold(f32::MAX, f32::min);
+                            format!("{k:7.2}/{r:7.2}")
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            println!(
+                "{animation} {frame}: pelvis {:+.2} vs Kyle's, lowest {:+.2} vs Kyle's, feet (Kyle/rig) {}",
+                bob,
+                lowest - kyle,
+                per_foot.join(" ")
+            );
+            bobs.push(bob);
+            feet.push(lowest - kyle);
+        }
+        let span = |v: &[f32]| {
+            v.iter().copied().fold(f32::MIN, f32::max) - v.iter().copied().fold(f32::MAX, f32::min)
+        };
+        let jump = bobs
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).abs())
+            .fold(0.0, f32::max);
+        println!(
+            "{animation}: pelvis offset spans {:.2} (most in a frame {jump:.2}), lowest point vs Kyle's {:+.2}..{:+.2}",
+            span(&bobs),
+            feet.iter().copied().fold(f32::MAX, f32::min),
+            feet.iter().copied().fold(f32::MIN, f32::max)
+        );
+    }
 }

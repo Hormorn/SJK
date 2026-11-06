@@ -14,6 +14,8 @@ fn settings(map: String) -> HostSettings {
         capturelimit: 0,
         allow_lan: false,
         cheats: true,
+        // devmap is a development map of the base game, whatever Create game chose.
+        server_mod: local_server::BASE_SERVER_MOD,
     }
 }
 

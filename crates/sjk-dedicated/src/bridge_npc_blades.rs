@@ -141,6 +141,7 @@ impl ServerHost<'_> {
                 length,
             ),
             player_team: self.player_team(peer),
+            saber_in_hand: state.weapon() == WP_SABER,
         })
     }
 
@@ -184,3 +185,6 @@ impl ServerHost<'_> {
         }
     }
 }
+
+/// `WP_SABER`: a victim holding a saber, whose blows JA+ may halve.
+const WP_SABER: u8 = 3;

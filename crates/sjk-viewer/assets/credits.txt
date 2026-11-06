@@ -208,6 +208,8 @@ did: Weather in map edits: rain, storms, snow, fog and wind kept for a map, sync
 did: Rain and wind sounds: the game's own loops, as strong as the weather, quieter under a roof
 did: Puddles that mirror the world at ultra weather quality (after VisionJK)
 did: Lighter rain and fog: the fog at half size, about three times cheaper, glowing towards the sun
+did: Lightning in storms with thunder and gusts, and rain running down walls and slopes
+did: JA+ server mode: SJK's server runs as a JA+ 2.4 B7 server with g_mod japlus (after VisionJK)
 link: https://github.com/Sol-Vulpes/SJK
 link: https://sol-vulpes.github.io/SJK/
 
@@ -510,6 +512,7 @@ did: Inspiration: VisionJK's boombox, standing on the floor, gave SJK's boombox 
 did: VisionJK's 3D sound (v_spatial), the idea behind SJK's 3D sound (s_spatial)
 did: VisionJK's puddle mirror (wet.frag), the march SJK's puddles mirror the world with
 did: VisionJK's web admin page (GPL-2.0, with his approval) draws the map in SJK's browser map editor (mapedit_web)
+did: VisionJK's rebuild of the JA+ 2.4 B7 server module, the reference for SJK's JA+ server mode (g_mod japlus)
 link: Blackwolf1337's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ABlackwolf1337
 
 == Art

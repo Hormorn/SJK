@@ -321,6 +321,7 @@ impl NativeGame {
             .force
             .as_ref()
             .map_or(0, |force| force.levels[FP_SABERTHROW]);
+        let ja_plus = self.mod_combat.saber;
         let mut hits = SaberHits::default();
         for saber in first_saber..2 {
             let Some(peer) = self.peer(client) else {
@@ -383,6 +384,11 @@ impl NativeGame {
                     more_saber_damage,
                     // A player's `saberEventFlags` are read by nothing on this server.
                     enemy: None,
+                    weapon: state.weapon(),
+                    broken_limbs: state.broken_limbs(),
+                    hilt_speed_scales: peer.sabers.speed_scales().0,
+                    talking: state.entity_flags() & sjk_game_jka::pmove_talk::EF_TALK != 0,
+                    ja_plus,
                 };
                 let trail = peer.saber_cut.trails[saber][blade];
                 self.gather_obstacles(client);
@@ -481,8 +487,11 @@ impl NativeGame {
     }
 
     /// The other players' saber entities, to the obstacles a blade's traces meet: every
-    /// solid one not the swinger's; and every NPC's lit saber entity.
+    /// solid one not the swinger's; and every NPC's lit saber entity. Under JA+'s duel
+    /// isolation, not the sabers of players the swinger may not touch (a missile flies
+    /// through them, VisionJK `g_missile.c:908-924`).
     pub(super) fn gather_saber_entities(&mut self, swinger: usize) {
+        let mine = self.duel_isolation(swinger);
         let Self {
             server,
             world,
@@ -497,7 +506,14 @@ impl NativeGame {
         for (number, handle) in players.holders().enumerate() {
             let peer = handle
                 .and_then(|handle| world.entity(handle))
-                .filter(|peer| number != swinger && peer.begun && peer.body_active());
+                .filter(|peer| {
+                    number != swinger
+                        && peer.begun
+                        && peer.body_active()
+                        && !super::bridge_collision_gather::isolated_from(
+                            mine, swinger, number, peer,
+                        )
+                });
             let Some(peer) = peer else { continue };
             let (origin, mins, maxs, _) = peer.saber_cut.entity;
             let entity = peer.state.saber_entity_num();
@@ -831,6 +847,7 @@ impl SaberTargets for BladeTargets<'_> {
             ),
             // Read only for an NPC's blade.
             player_team: 2,
+            saber_in_hand: state.weapon() == WP_SABER,
         })
     }
 

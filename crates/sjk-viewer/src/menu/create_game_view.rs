@@ -1,6 +1,7 @@
 //! Create game in the SJK UI's look, in every menu style (it has no classic+
 //! version): the top bar's way back and title, the match's rows under "Match"
-//! and "Server" (cyclers, the server name's field, the LAN switch), the gold
+//! and "Server" (cyclers, the server mod's cycler, the server name's field, the
+//! LAN switch), the gold
 //! Start button, the chosen map's levelshot with its names on the right, how
 //! the start stands at the bottom left and the keys at the bottom right. Every
 //! position is in frame pixels ([`Frame`]). Design: `docs/sjk-ui.md`.
@@ -9,6 +10,7 @@ use super::create_game::{BACK_TOKEN, CreateGameMenu, ROWS, Row};
 use super::create_game_catalog::{MODES, ScoreLimit};
 use super::levelshot::{Preview, cover_uv};
 use super::sjk::{Frame, TextTarget, color, key_hint, key_hint_width, kit, text, top_bar};
+use crate::connection::local_server::SERVER_MODS;
 use crate::menu_widgets::{MenuCanvas, TextFamily};
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign};
 
@@ -28,7 +30,7 @@ const MATCH_TOP: f32 = 216.0;
 const SERVER_Y: f32 = 594.0;
 const SERVER_TOP: f32 = 614.0;
 /// Start, under the rows.
-const START: [f32; 4] = [ROWS_X, 768.0, 320.0, 52.0];
+const START: [f32; 4] = [ROWS_X, 806.0, 320.0, 52.0];
 /// The chosen map's column: its levelshot (2:1, as the HD packs' are; a
 /// retail one is cut at its top and bottom), its name, the match's figures
 /// in two columns and the line saying who it is for.
@@ -45,7 +47,8 @@ pub(super) const KEYS_Y: f32 = 992.0;
 /// The stock game's names for bot skills 1 to 5.
 const SKILL_NAMES: [&str; 5] = ["Initiate", "Padawan", "Jedi", "Jedi Knight", "Jedi Master"];
 
-/// How many of [`ROWS`] sit under "Match"; the rest but Start under "Server".
+/// How many of [`ROWS`] sit under "Match"; the rest but Start (Server mod, Server
+/// name, Allow LAN players) under "Server".
 const MATCH_ROWS: usize = 6;
 
 impl CreateGameMenu {
@@ -239,6 +242,14 @@ impl CreateGameMenu {
                 None,
                 focused,
             ),
+            Row::ServerMod => kit::cycler(
+                ui,
+                frame,
+                control,
+                format_args!("{}", SERVER_MODS[draft.server_mod].name),
+                None,
+                focused,
+            ),
             Row::Hostname => match &self.editing {
                 Some(buffer) => {
                     kit::field(ui, frame, control, format_args!("{buffer}_"), true, false);
@@ -337,8 +348,13 @@ impl CreateGameMenu {
             (false, 0) => score,
             (false, minutes) => format!("{score}, {minutes} min"),
         };
+        // A mod's name follows the game type ("Duel, JA+"); the base game says none.
+        let game_type = match draft.server_mod {
+            0 => mode.label.to_owned(),
+            index => format!("{}, {}", mode.label, SERVER_MODS[index].name),
+        };
         let stats = [
-            ("Game type", mode.label.to_owned()),
+            ("Game type", game_type),
             ("Bots", bots),
             ("Limits", limits),
             (
@@ -513,16 +529,17 @@ fn label(kind: Row) -> &'static str {
         Row::BotSkill => "Bot skill",
         Row::ScoreLimit => "Score limit",
         Row::TimeLimit => "Time limit",
+        Row::ServerMod => "Server mod",
         Row::Hostname => "Server name",
         Row::Lan => "Allow LAN players",
         Row::Start => "Start",
     }
 }
 
-const _: () = assert!(ROWS.len() == MATCH_ROWS + 3);
+const _: () = assert!(ROWS.len() == MATCH_ROWS + 4);
 const _: () = assert!(LABEL_X + 200.0 < CONTROL_LEFT);
 const _: () = assert!(MATCH_TOP + MATCH_ROWS as f32 * LINE + 24.0 < SERVER_Y);
-const _: () = assert!(SERVER_TOP + 2.0 * LINE + 20.0 < START[1]);
+const _: () = assert!(SERVER_TOP + 3.0 * LINE + 20.0 < START[1]);
 const _: () = assert!(START[1] + START[3] < KEYS_Y - 20.0);
 const _: () = assert!(ROWS_X + ROWS_WIDTH + 60.0 < DETAIL_X);
 const _: () = assert!(DETAIL_X + DETAIL_WIDTH <= 1824.0);
@@ -548,7 +565,8 @@ mod tests {
             let control = menu.ui.rect_for(0).expect("the game type's cycler");
             let left = frame.point(CONTROL_LEFT, 0.0)[0];
             assert!((control.x - left).abs() < 0.5);
-            assert!(menu.ui.rect_for(8).is_some(), "Start");
+            let start = ROWS.iter().position(|row| *row == Row::Start).unwrap();
+            assert!(menu.ui.rect_for(start as u16).is_some(), "Start");
             assert!(menu.ui.rect_for(BACK_TOKEN).is_some(), "the way back");
             menu.for_shot(1, Some(""));
             menu.build(viewport, 1.0);

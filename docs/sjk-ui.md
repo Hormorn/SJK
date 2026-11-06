@@ -1161,12 +1161,16 @@ darkened as Settings is, on the main page's 16:9 frame.
 - **Left:** under "Match", banded rows of 56 with a cycler each: Game type, Map, Bots,
   Bot skill (Initiate to Jedi Master), the mode's limit (Frag limit, Capture limit, or
   Objectives for Siege, which cannot be changed) and Time limit; under "Server", Server
-  name as a field (typing shows a cursor) and Allow LAN players as a switch with what it
-  means ("This PC only"); then Start the game, the gold button ("Starting..." and dimmed
-  while the server starts).
+  mod as a cycler (Base game, the default, or JA+: the mod `sjk-server` runs,
+  [JA+ mode](server.md#ja-mode)), Server name as a field (typing shows a cursor) and
+  Allow LAN players as a switch with what it means ("This PC only"); then Start the
+  game, the gold button ("Starting..." and dimmed while the server starts). Every
+  choice is kept in an archived `ui_host*` cvar (`ui_hostServerMod` for the mod, by
+  its id).
 - **Right:** the chosen map's levelshot (2:1, cropped, never stretched) with its file
   name over its foot (a click opens the map list); its long name; four figures in two
-  columns (Game type, Bots with their skill, Limits in words, Who can join); a line
+  columns (Game type, with the mod after it when it is not the base game, "Duel, JA+";
+  Bots with their skill, Limits in words, Who can join); a line
   saying who the match is for.
 - **Bottom:** how the start stands at the left (starting, or why it failed); the
   chosen row's keys at the right.

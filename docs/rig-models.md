@@ -64,6 +64,23 @@ in those poses (a clip within a third standing), the rest being how each foot's 
 and heel tilt. The manifest's `lift <units>` raises (or lowers) the result by hand;
 a rig without mapped ankles keeps the pelvis placement alone.
 
+Since 05/11/2026 the soles plant instead of the ankles when both models have them
+(`Soles`, `RigModel::with_soles`): each foot's lowest vertices (all within 1.5 units
+of its bottom, heel to toes, at most 64), carried by their strongest bone or joint,
+and every frame the rig's lowest sole point goes onto the driver's. Ankles alone let
+a foot built otherwise float or sink as it tipped: solfox5's digitigrade foot turned
+about a heel 10 units up and rose 1.5 units twice a step, its body bobbing 2 units
+in a walk and 3 in a run. The rise is eased over 50 ms (`PLANT_EASE`, per actor in
+`Scratch`; a first pose or a gap over 0.1 s plants at once): legs that reach otherwise
+than the driver's land a step at another moment (solfox5's, 5 % longer, touched the
+ground 2.5 units under Kyle's foot at the end of a run's swing), and planting each
+frame exactly jolted the body that much in a frame. Eased, the walk moves at most 0.4
+in a frame with the paws within 0.25 of Kyle's soles, the run 0.85 with them within
+0.9 for a moment. The ignored test `walk_against_the_driver` prints both, frame by
+frame. A digitigrade rig also wants its paw (`ball`) on JKA's foot and its long foot
+riding with the shin (`map foot_l ltibia as thigh_l`, `map ball_l ltalus as thigh_l`):
+JKA's ankle turns about a point near the ground, as the paw does.
+
 ### Dynamic joints (tails, capes)
 
 A manifest's `dynamic <joint>` lines make the joints under each named one move on
@@ -170,12 +187,13 @@ traces and hit boxes stay the driver's.
 | Step | Where |
 | --- | --- |
 | Folder with `sjk_rig.cfg` found, driver loaded instead of the folder's GLM | `load_player_appearance` in [player_assets.rs](../crates/sjk-viewer/src/player_assets.rs) |
+| Variant manifests (`sjk_rig_<variant>.cfg`) | `manifest` and `variant_manifest` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), `rig_variants` in [character_catalog.rs](../crates/sjk-client/src/character_catalog.rs) |
 | glTF read (skin, joints, primitives, images) | [gltf.rs](../crates/sjk-model/src/gltf.rs) |
 | Manifest, presets, fit (axes, scale, alignments, anchors), pose, CPU skin | [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), tests in `rig_model_tests.rs` |
 | Rig surfaces put in the shared vertex buffer | `append_rig_mesh` in [actor_load.rs](../crates/sjk-viewer/src/actor_load.rs) |
 | Per-frame pose and palette upload (GPU and CPU paths) | [actor_pose_steps.rs](../crates/sjk-viewer/src/actor_pose_steps.rs), `rig_skin_records` in [gpu_skinning.rs](../crates/sjk-viewer/src/gpu_skinning.rs) |
 | Dynamic joints (tails, capes), their settings and body capsules | `Settings`, `Capsule`, `Chains` and `simulate` in [rig_dynamics.rs](../crates/sjk-viewer/src/rig_dynamics.rs), `dynamic_settings` and `body_capsules` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), `RigModel::pose_after` |
-| Feet planted on the driver's ground | `Feet`, `sole` and `RigModel::with_feet` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), the ignored test `feet_against_the_driver` |
+| Feet planted on the driver's ground | `Feet`, `Soles`, `sole`, `RigModel::with_feet`, `with_soles` and `planted` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), the ignored tests `feet_against_the_driver` and `walk_against_the_driver` |
 | Bolts and Force points moved onto the rig | `PlayerPreview::bolt`, `RigModel::retarget_bolt` and `retarget_point`, [force_bones.rs](../crates/sjk-viewer/src/force_bones.rs) |
 | Dismemberment skipped, JoF first-person body off | [dismember.rs](../crates/sjk-viewer/src/dismember.rs), [actor_world_submission.rs](../crates/sjk-viewer/src/actor_world_submission.rs) |
 | Clips (emotes): read, converted, sampled, blended | [rig_clips.rs](../crates/sjk-viewer/src/rig_clips.rs), `RigModel::pose` and `play`, `emotes::playing` in [emotes.rs](../crates/sjk-viewer/src/emotes.rs) |
@@ -206,6 +224,19 @@ A model folder (`models/players/<name>/`) with `sjk_rig.cfg` is a rig model; `/m
 | `map <joint> <bone> as <other joint>` | ... with another joint's alignment (finger chains) | |
 
 `map` lines replace the preset's entry for that joint or add one.
+
+### Variants
+
+A rig model can have other looks, as a stock model has skins (05/11/2026): beside
+`sjk_rig.cfg`, each `sjk_rig_<variant>.cfg` is a whole manifest of its own (usually
+naming its own glTF, `model model_<variant>.gltf`, and its own `dynamic` lines), worn
+as `/model <name>/<variant>`. `sjk_rig.cfg` is the `default` variant and still what
+makes the folder a rig model; a variant without a manifest of its own looks like the
+default, as an unknown skin of a stock model does. The character grid lists each
+variant with an `icon_<variant>` picture (`rig_variants` in
+[character_catalog.rs](../crates/sjk-client/src/character_catalog.rs)). First use:
+`solfox5/cloth`, the OG Solfox's hood, cape and loincloth on chains over the default
+body.
 
 ### Presets
 
@@ -279,6 +310,11 @@ in one click.
   The panel counts them.
 - **Height adjustment:** written as the manifest's `lift` line (0 removes it), the
   one manifest line the add-on changes in a kept manifest.
+- **Variant** (add-on 1.12.0): empty for the model's main look; a name exports a
+  [variant](#variants) of the same model instead, as `model_<variant>.gltf` (and
+  `.bin`), `icon_<variant>` and `sjk_rig_<variant>.cfg`. An export of a variant
+  replaces only those files (and the emote files of its glTF's animations); an export
+  of the default leaves every variant's files and the pictures their glTFs use.
 - **Emote settings:** each ticked action takes a sound (`.wav` or `.mp3`, packed as
   `sound/emotes/<id>.<ext>`); "Animation frame rate" (0 is the scene's; 30 for
   animations from Unreal games) sets the clip's speed; "Keep playing while moving"
@@ -435,6 +471,8 @@ JKA_GAME_DATA=<GameData> SJK_TEST_DEMO=<demo.dm_26> SJK_TEST_RIG=<model folder n
 # rig_reload on a demo (the pack replaced by a half-scale copy; before/after in
 # target/world-shots/rig_reload.png):
 #   cargo test -p sjk-viewer --bins rig_reload_reads -- --ignored --nocapture
+# SJK_TEST_VARIANT=<variant> wears one of the model's variants (sjk_rig_<variant>.cfg)
+# in this render, the lineup and the feet test.
 # The same with an emote of the installed catalogue playing (a rig clip); 12 shots
 # about a third of a second apart in target/world-shots/rig_model_emote.png:
 #   add SJK_TEST_EMOTE=<emote id>

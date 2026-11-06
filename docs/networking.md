@@ -303,11 +303,19 @@ view/duck details still require the corresponding vehicle context.
 JA+ and TaystJK/jaPRO isolate private duels: the two duellers and everyone else
 pass through each other. A JA+ 2.4 server leaves part of that to client-plugin
 users, sending them a dueller as a solid player box flagged with `bolt1`, so on
-those profiles prediction skips duelling players for a bystander and every player
-or NPC but the opponent for a dueller
+those profiles prediction skips duelling players for a bystander and, for a dueller,
+every player but the opponent, and on jaPRO every NPC too
 ([duel_isolation.rs](../crates/sjk-client/src/duel_isolation.rs), applied where
 [prediction_movers.rs](../crates/sjk-viewer/src/prediction_movers.rs) builds the
-entity solids). Stock and unknown servers keep duellers solid.
+entity solids). On a JA+ server it does so only while the server info's `jp_DuelAlpha`
+is 0 or more (`atoi`, so a server without the key isolates) and in a free-for-all or
+team deathmatch, as VisionJK's rebuild of the JA+ module isolates
+(`g_japlus_dim.c:130-164`) and its port of the plugin predicts from `jp_DuelAlpha`
+(`cg_predict.c:465-497`); NPCs stay solid there, as the module leaves out players only.
+SJK's own server in [JA+ mode](server.md#ja-mode) runs the same rule
+(`sjk_game_jka::duel::isolated`). EternalJK ignores `jp_DuelAlpha` and the game type,
+so it mispredicts with `jp_DuelAlpha -1`, and the plugin isolates in Holocron and Jedi
+Master too. Stock and unknown servers keep duellers solid.
 
 ## JA+ grapple hook
 
@@ -343,7 +351,7 @@ Stock and other servers, SJK's dedicated server included, keep the stock rules.
 | Head slide | `jp_cinfo` head slide (`jp_slideOnPlayer`, default off) | Without it, standing on a player has ground friction instead of stock's frictionless slide |
 | Yellow DFA | `jp_cinfo` yellow DFA (`jp_improveYellowDFA`, default on) | The medium flip over leaps 60 forward (stock 150) and neither turns nor locks the view |
 | Wall run from flips | Every JA+ server | A run up a wall may start from the Force jump's forward, left and right flips, not only from a plain jump |
-| Grip speed | Every JA+ server | Gripping keeps 0.8 of the run speed (stock 0.4; `jp_gripSpeedScale` default) |
+| Grip speed | Every JA+ server | Gripping keeps the server's `jp_gripSpeedScale` of the run speed, read from `CS_SERVERINFO` as VisionJK's cgame reads it (`atof`, held within 0.4 and 1.01; 0.8, JA+'s default, if the key is missing); stock 0.4 |
 | Melee buttons | Every JA+ server | With melee, an attack pressed with the holdable button is not cancelled |
 | Taunts | Every JA+ server | Meditation keeps the player in place but the view free; other taunts leave movement and view free |
 | Staff kick | Every JA+ server | A staff's alternate attack standing still is a front kick |

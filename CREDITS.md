@@ -441,9 +441,15 @@ includes:
 - puddles that mirror the world (05/11/2026, after VisionJK's `wet.frag`, Blackwolf's
   work): at ultra weather quality the puddles reflect the streets, walls and drawn sky
   round them, rippled by the rain rings;
+- JA+ server mode (06/11/2026, after VisionJK's port of the JA+ 2.4 B7 server module,
+  Blackwolf's work): `g_mod japlus` starts SJK's server as a JA+ server, with JA+'s
+  settings and the JA+ movement rules it announces to clients;
 - lighter rain and fog (05/11/2026): the fog worked out at half size and blended back by
   depth, about three times cheaper at the default quality, glowing towards the sun with the
   rain;
+- storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
+  the game's own thunder after it, single gusts of wind heard as they rise, and rain
+  running down walls and slopes in rivulets with drops along each slope's fall;
 - SJK Alpha (19/10/2026), the first collection of cards: the Mythical rarity, the
   Credits and Meme kinds, and card 1, "Bishop", honouring the author of JKR (art by
   Sol, AI-assisted: a rusted helmet portrait).
@@ -1004,6 +1010,11 @@ the map in SJK's browser map editor (`mapedit_web`): its WebGL drawing of a map 
 shader scripts, props and flares is copied into
 `crates/sjk-viewer/src/map_edits/web/page/vjk`, each file headed with what SJK changed.
 VisionJK credits that panel's origin to JKAdmin's web admin panel by Lixsl.
+
+Blackwolf's VisionJK rebuild of the JA+ 2.4 B7 server module from its Linux binary
+(GPL-2.0, approved for reuse) is the reference for SJK's JA+ server mode (06/11/2026,
+`g_mod japlus`): JA+'s settings and their defaults and the `jp_cinfo` bits come from it,
+and its behaviour is ported into SJK's own code, not its source.
 
 ## Art
 

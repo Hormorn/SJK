@@ -2371,4 +2371,9 @@ pub(super) const RENDER_WEATHER: &[Setting] = &[
         cvar: crate::weather::CLOUDS_CVAR,
         kind: ValueKind::Bool,
     },
+    Setting {
+        label: "Lightning in storms",
+        cvar: crate::weather::LIGHTNING_CVAR,
+        kind: ValueKind::Bool,
+    },
 ];

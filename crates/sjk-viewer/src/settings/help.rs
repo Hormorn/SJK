@@ -1635,6 +1635,10 @@ const HELP: &[(&str, &str)] = &[
         "Drifting 3D clouds over open sky, lit by the map's sun; darker and thicker in a storm.",
     ),
     (
+        crate::weather::LIGHTNING_CVAR,
+        "Storms flash now and then, lighting the rain, fog and wet ground; thunder follows with Rain and wind sounds on.",
+    ),
+    (
         "r_modelPixelLight",
         "Lights models at every pixel rather than once each, so they match the light around them.",
     ),

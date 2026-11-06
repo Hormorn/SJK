@@ -49,6 +49,42 @@ const MASTER_CVARS: [&str; 5] = [
     "sv_master5",
 ];
 
+/// The setting that names the server's mod (`sjk-dedicated`'s `server_mods::MOD_CVAR`).
+pub(crate) const SERVER_MOD_CVAR: &str = "g_mod";
+/// Its value for the base game (`server_mods::BASE`).
+pub(crate) const BASE_SERVER_MOD: &str = "base";
+
+/// One server mod a hosted game can run: `g_mod`'s value and its name on screen.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ServerModChoice {
+    /// `g_mod`'s value, the server mod's id (`japlus`).
+    pub(crate) id: &'static str,
+    /// What Create game calls it.
+    pub(crate) name: &'static str,
+}
+
+/// The server mods Create game offers, the base game first (the default): the base
+/// game and `sjk-dedicated`'s `server_mods::SERVER_MODS`, by the same ids and names
+/// (a test compares them). Offering another is an entry here.
+pub(crate) const SERVER_MODS: [ServerModChoice; 2] = [
+    ServerModChoice {
+        id: BASE_SERVER_MOD,
+        name: "Base game",
+    },
+    // JA+ 2.4 Build 7 (`sjk_server_mod_japlus::JaPlus`, docs/server.md "JA+ mode").
+    ServerModChoice {
+        id: "japlus",
+        name: "JA+",
+    },
+];
+
+/// The entry of [`SERVER_MODS`] with `id`, any letter case.
+pub(crate) fn server_mod_index(id: &str) -> Option<usize> {
+    SERVER_MODS
+        .iter()
+        .position(|choice| choice.id.eq_ignore_ascii_case(id))
+}
+
 /// What the player chose on the Create game screen, independent of where
 /// the server binary and the game data are.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,6 +109,8 @@ pub(crate) struct HostSettings {
     pub(crate) allow_lan: bool,
     /// Enable server-authorized development commands for a devmap launch.
     pub(crate) cheats: bool,
+    /// `g_mod`: an id of [`SERVER_MODS`], [`BASE_SERVER_MOD`] for the base game.
+    pub(crate) server_mod: &'static str,
 }
 
 impl HostSettings {
@@ -103,8 +141,9 @@ impl HostSettings {
         pair("--capturelimit", self.capturelimit.to_string());
         arguments.push("--game-data".into());
         arguments.push(game_data.as_os_str().to_owned());
-        // A LAN server: `dedicated 2` is the only value that heartbeats.
-        for (name, value) in [("dedicated", "1")]
+        // A LAN server: `dedicated 2` is the only value that heartbeats. `g_mod` is
+        // always given, so a value the server archived earlier never picks the mod.
+        for (name, value) in [("dedicated", "1"), (SERVER_MOD_CVAR, self.server_mod)]
             .into_iter()
             .chain(MASTER_CVARS.map(|name| (name, "")))
         {
@@ -464,4 +503,76 @@ fn probe(address: SocketAddr, events: &Sender<Event>) {
         std::thread::sleep(Duration::from_millis(100));
     }
     let _ = events.send(Event::Silent);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(server_mod: &'static str) -> HostSettings {
+        HostSettings {
+            map: "mp/ffa3".into(),
+            gametype: "ffa",
+            hostname: "SJK local game".into(),
+            bots: Vec::new(),
+            bot_skill: 3,
+            fraglimit: 20,
+            timelimit: 0,
+            capturelimit: 0,
+            allow_lan: false,
+            cheats: false,
+            server_mod,
+        }
+    }
+
+    /// The value after each `--set g_mod` on the command line.
+    fn server_mods_set(arguments: &[OsString]) -> Vec<&str> {
+        arguments
+            .windows(3)
+            .filter(|window| window[0] == "--set" && window[1] == SERVER_MOD_CVAR)
+            .filter_map(|window| window[2].to_str())
+            .collect()
+    }
+
+    #[test]
+    fn the_server_mod_reaches_the_command_line_once() {
+        let game_data = Path::new("GameData");
+        let japlus = settings("japlus").arguments(game_data, 0);
+        assert_eq!(server_mods_set(&japlus), ["japlus"]);
+        let base = settings(BASE_SERVER_MOD).arguments(game_data, 0);
+        assert_eq!(server_mods_set(&base), ["base"]);
+        // Nothing else moves: the two lines differ by the mod's value only.
+        let differing = japlus
+            .iter()
+            .zip(&base)
+            .filter(|(left, right)| left != right)
+            .count();
+        assert_eq!((japlus.len(), differing), (base.len(), 1));
+    }
+
+    #[test]
+    fn server_mod_choices_are_the_servers() {
+        assert_eq!(SERVER_MODS[0].id, BASE_SERVER_MOD, "the base game first");
+        assert_eq!(server_mod_index("JAPLUS"), Some(1));
+        assert_eq!(server_mod_index("base"), Some(0));
+        assert_eq!(server_mod_index("lugormod"), None);
+        for (index, choice) in SERVER_MODS.iter().enumerate() {
+            assert_eq!(
+                server_mod_index(choice.id),
+                Some(index),
+                "{} is unique",
+                choice.id
+            );
+        }
+        // The server's own names and table: the base game, then its mods by id and name.
+        use sjk_dedicated::server_mods;
+        assert_eq!(SERVER_MOD_CVAR.as_bytes(), server_mods::MOD_CVAR);
+        assert_eq!(BASE_SERVER_MOD, server_mods::BASE);
+        let ours: Vec<_> = SERVER_MODS[1..].iter().map(|c| (c.id, c.name)).collect();
+        let theirs: Vec<_> = server_mods::SERVER_MODS
+            .iter()
+            .map(|server_mod| (server_mod.id(), server_mod.name()))
+            .collect();
+        assert_eq!(ours, theirs);
+    }
 }

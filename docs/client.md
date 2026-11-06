@@ -150,7 +150,12 @@ Presence here describes implemented surfaces; validation limits are in
 Create game starts a child `sjk-server`, normally found beside the client.
 Set `JKA_DEDICATED` to its executable path if installed elsewhere. The child
 lifetime is managed by the client and defaults to local access; see
-[local_server.rs](../crates/sjk-viewer/src/local_server.rs).
+[local_server.rs](../crates/sjk-viewer/src/local_server.rs). The server mod
+chosen on the screen (`ui_hostServerMod`, Base game by default, or JA+) is
+handed over as `--set g_mod <id>`, every time, so a `g_mod` the server
+archived never picks it; the choices are `local_server::SERVER_MODS` (id and
+name), checked by a test against the server's own `server_mods::SERVER_MODS`
+([JA+ mode](server.md#ja-mode)). `devmap` always runs the base game.
 
 Map previews (`levelshots/<map>.jpg`, `.tga` or `.png`) keep the resolution they
 ship in, so an HD levelshot pack stays sharp in a large preview and on the
@@ -1788,8 +1793,15 @@ loops, registered the first time they are heard.
   is the camera's position, so a free camera hears the weather where it flies.
 
 The loops are not positioned, so `s_spatial`'s muffling does not apply to them: shelter
-lowers them instead. Not done: thunder (the game has `sound/ambience/thunder*`, but the
-multiplayer weather has no lightning to go with it) and single gusts (`windy_a` to `_d`).
+lowers them instead.
+
+With them (05/11/2026): **thunder** after each lightning strike (`r_weatherLightning`,
+[rendering.md](rendering.md#weather)), the game's `thunder_close1`/`2` for a near strike,
+`thunder1` to `4` for a far one, 0.45 to 0.9 loud and at least half of it under a roof (it
+carries indoors better than rain), and **single gusts**: when the wind rises past 55% of a
+gale one of the game's `windy_a` to `_d` plays, 0.35 to 0.8 loud by the gust's strength
+and the shelter, at most every 4 seconds and only once the wind has fallen below 40% again.
+They play in both ears on their own source, after the loops are registered.
 
 ## Muted sounds
 
@@ -2290,7 +2302,7 @@ of VIDEO is gone (10/10/2026). The groups are:
 | IMAGE | HDR scene and exposure, eye adaptation (`r_autoExposure`) and its range in EV, filmic tone curve, bloom, dynamic glow (`r_DynamicGlow` 0-3), No glow on sabers (`r_dynamicGlowNoSabers`) and the glow's blur style (`r_dynamicGlowStyle`), FXAA, supersampling (`r_superSample`), render scale (`r_renderScale`, also in the SJK UI's Simple Display; see [Render scale](rendering.md#render-scale-and-supersampling)), soft particles, ambient occlusion (`r_ssao`), sunbeam dust (`r_dustMotes`), per-pixel model lighting, toon models (`r_toonModels`, see [Toon models](rendering.md#toon-models)), reflection probes (`r_cubeMapping`), floor mirrors (`r_floorReflections`), normal and specular maps (`r_normalMapping`, `r_specularMapping`), parallax mapping (`r_parallaxMapping`) and its depth (`r_parallaxStrength`), emission maps (`r_emissiveMaps`), their strength (`r_emissionStrength`) and glow halo (`r_emissiveGlow`) |
 | LIGHTING | Sun and sky (`r_dayNight`), live lighting tier, time of day, time of day from the PC's clock (`r_dayClock`), day length, sunlight brightness, ambient fill and its corner shading, indirect boost, emission-map lights (`r_emissiveLights`), light shafts (`r_volumetrics`) and their clarity |
 | SHADOWS | World and character sun shadows, shadow resolution, sharp and close cascade distances, filter taps, slit closing, contact shadows |
-| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`) and volumetric clouds (`r_clouds`); see [Weather](rendering.md#weather) |
+| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`), volumetric clouds (`r_clouds`) and lightning in storms (`r_weatherLightning`); see [Weather](rendering.md#weather) |
 
 Rows marked "(reload)" are read only when the graphics start and apply after a
 [graphics reload](#graphics-reload); "(next map)" applies when a map loads; the
@@ -2331,6 +2343,12 @@ Vanilla or SJK (alpha), and an SJK quality row of four levels, from 12/10/2026):
   shafts, the richest weather), still in alpha. Its values are the renderer cvars'
   registered defaults, the [default visual profile](rendering.md#default-visual-profile)
   the renderer was tuned for (the former High).
+
+The volumetric clouds (`r_clouds`, Settings > Graphics > WEATHER, "Volumetric clouds") are
+no preset's (Sol, 05/11/2026): off by default and left as the player sets them under every
+preset, so choosing a preset never turns them on or off. Until then Experimental turned them
+on; the release that changed it asks players once on its what's-new card (`= r_clouds
+reset`), starting from off.
 
 While the settings are not Vanilla style's, the detail column of every renderer
 setting carries the alpha warning in gold ([sjk-ui.md](sjk-ui.md#settings)).
@@ -2380,7 +2398,7 @@ surveyed on 26/10/2026 (Sol's request) from JoF EJK's `rd-vanilla/tr_init.cpp`,
 | `r_flares 0` | Off (the preset; SJK's own default is 1) |
 | No HDR, bloom, FXAA (`r_ext_multisample 0`), SSAO, soft particles, material or emission maps, sun, shadows or light shafts | All off (the preset); emission maps are SJK's own `_e` textures |
 | Lighting per vertex on models | `r_modelPixelLight 0` (the preset) |
-| The map's weather at the original density | Density 1, quality 0, no clouds (the preset) |
+| The map's weather at the original density | Density 1, quality 0 (the preset); no clouds (`r_clouds` 0, every preset's default) |
 | `r_picmip 0`, `r_textureMode GL_LINEAR_MIPMAP_LINEAR`, 16x anisotropy, no texture compression | SJK's defaults already |
 | `r_dynamiclight 1`, `r_drawfog 2`, `r_surfaceSprites 1`, `r_gamma 1` | SJK's defaults already |
 | `cg_shadows 1`, `cg_marks 1`, `cg_saberTrail 1`, `cg_fov 90` | SJK's defaults already (not graphics settings) |

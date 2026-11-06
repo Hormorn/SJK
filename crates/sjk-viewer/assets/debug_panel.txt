@@ -3962,6 +3962,26 @@ change: Writes both as OBJ per pose and prints sizes, to compare proportions.
 test: Nothing in game. solfox5 was resized with it: same height as solfox now.
 note: Recipe in docs/rig-models.md (Rerun the checks).
 
+[rig-variants]
+area: Rendering & effects
+title: Rig models: variants (solfox5/cloth)
+change: A rig model can have variants: sjk_rig_<variant>.cfg, worn as /model <name>/<variant>.
+change: The character grid lists each variant with its icon_<variant> picture.
+change: Blender add-on 1.12: a Variant field exports one without touching the default.
+test: /model solfox5/cloth: the OG Solfox's hood, cape and loincloth on solfox5.
+test: Run, crouch, jump: the cape and loincloth swing on their own, the hood stays on the head.
+test: /model solfox5: the plain fox again. Both show in the character grid.
+note: The raised tail comes out through the cape (cloth does not collide with the tail).
+
+[rig-plant]
+area: Rendering & effects
+title: Rig models: feet planted by their soles, eased (no bobbing walk)
+change: The rig's lowest sole point goes onto the driver's each frame, not its ankle.
+change: The rise eases over 50 ms, so a step lands without a jolt.
+test: /model solfox5, walk (and run): the body no longer bobs up and down twice a step.
+test: Paws stay on the ground walking, running and crouching; other rig models stand as before.
+note: solfox5's paw now follows JKA's foot (manifest map ball_l ltalus), lift 0.
+
 [rig-cloth]
 area: Rendering & effects
 title: Rig models: capes and tails swing, kept out of the legs (SolFox2)
@@ -8902,3 +8922,82 @@ test: Look past a pole or a player into the fog: its edge stays sharp, no bright
 test: Face the sun on a map with sun, light rain: the fog brightens that way, rain streaks shine.
 test: r_weatherQuality 3: puddles show the buildings and sky round them, upside down, rippling.
 test: Compare FPS in a storm with the last release: higher, most at Ultra.
+
+[weather-atmosphere]
+area: Rendering & effects
+title: Lightning in storms, thunder and gusts; clouds off in every preset; new running water
+change: r_weatherLightning (off): strikes light storm air; thunder and gusts with s_weatherSounds.
+change: r_clouds off by default and in no preset; what's-new card asks once.
+change: Running water: film on slopes, rivulets with drops on walls, along each slope's fall.
+test: Settings > Graphics > WEATHER: Lightning in storms on; r_weatherForce 3: flashes come.
+test: s_weatherSounds 1: thunder follows each flash, sooner for bright near ones; gusts heard.
+test: cg_reduceFlashes 1: flashes are soft and slow, no flicker.
+test: Switch presets: Volumetric clouds stays as you set it; a new profile has it off.
+test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
+test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
+
+[japlus-mode]
+area: Gameplay
+title: SJK's server as a JA+ server (g_mod japlus), step 1: identity, settings, movement
+change: +set g_mod japlus: gamename JA+ Mod v2.4 B7, V 2.4B7, jp_cinfo, the 187 jp_* settings.
+change: Players move by the JA+ rules it announces (flip kick, roll fix, yellow DFA).
+change: Duels, saber damage, emotes and admin commands are not built yet (later steps).
+test: In a terminal: target\release\sjk-server.exe --game-data <GameData> --map mp/ffa3
+test: ... --bind 127.0.0.1:29071 +set dedicated 1 +set g_mod japlus; then connect 127.0.0.1:29071
+test: serverinfo: gamename JA+ Mod v2.4 B7 and jp_cinfo 19. JA+ tools mod loads (japlus.* cmds).
+test: Wall flip off another player (bot), roll, yellow DFA: no pulling back, as on JA+ servers.
+test: rcon jp_allowflipkick 0: the flip off a player stops, still no pulling back.
+note: Not run with a client yet. Or host it from Create game > Server mod JA+.
+
+[japlus-saber-damage]
+area: Gameplay
+title: JA+ server mode: saber damage (jp_alterDMG, move table) and the /kill frag
+change: g_mod japlus: jp_alterDMG 1/2 deals JA+'s per-move saber damage (jp_*Attack Min/Max).
+change: jp_SaberThrowScaleDMG, jp_reduceSaberBlock, jp_allowSaberTouchDMG; no cuts while chatting.
+change: /kill right after a push or hit gives the frag to that player; no /kill in duels.
+test: Start sjk-server as for japlus-mode with +set jp_alterDMG 1 and bot_minplayers 2.
+test: Strong swings hit far harder than base (each trace adds up to 110, x1.5 on players).
+test: rcon jp_SingleStrongNormalAttackMax 50: strong hits weaker at once; jp_alterDMG 0: as base.
+test: Get Force-pushed by a bot, /kill within 5 s: the bot scores the frag.
+test: Team game: /kill does nothing; rcon jp_allowTeamKill 1: it works.
+note: Server only; base servers (no g_mod) deal damage exactly as before.
+
+[create-game-server-mod]
+area: Menus & settings
+title: Create game: Server mod row, Base game (default) or JA+ (g_mod)
+change: Create game > Server: Server mod cycles Base game / JA+, kept in ui_hostServerMod.
+change: The hosted sjk-server gets --set g_mod <id>; the figure reads "Free for all, JA+".
+change: Same screen in the SJK and classic menu styles; devmap always runs the base game.
+test: Create game: the new row under Server shows Base game; Left/Right and clicks cycle it.
+test: Pick JA+, Start: the client log's "local server:" line has --set g_mod japlus.
+test: In the match: serverinfo shows gamename JA+ Mod v2.4 B7; japlus.* commands load.
+test: Back to Create game: JA+ is still chosen, also after a restart; Base game: plain JKA.
+test: ui_menuStyle classic, Play > Create Server: the same Server mod row is there.
+note: The rows moved: Start sits a little lower to make room for the row.
+
+[japlus-force]
+area: Gameplay
+title: JA+ server mode: JA+'s Force rules (push, absorb, grip, cloak, items)
+change: g_mod japlus: push/pull reach players on the ground, teammates with g_friendlyFire 1.
+change: Items fly when pushed (jp_pushAll), absorb gains more (jp_fixAbsorb), grip while rolling.
+change: jp_gripSpeedScale is read from server info by SJK's prediction on every JA+ server.
+test: Local sjk-server +set g_mod japlus with a bot: push the bot while it lies knocked down.
+test: Push a medpack or ammo: it flies, and is back at its place 30 seconds later.
+test: rcon jp_gripSpeedScale 1: grip and run, no pulling back; same on a real JA+ server.
+test: rcon jp_gripOpenSaber 2, get gripped with little Force: your saber drops from the hand.
+test: rcon jp_cloakFuel 0: the cloak stays on, its bar does not drain.
+note: Not run with a client yet. Base servers (no g_mod) must play as before.
+
+[japlus-duels]
+area: Gameplay
+title: JA+ duels on SJK's server (g_mod japlus): isolation, JA+ challenge, full force
+change: Duellists and the others pass through each other (jp_DuelAlpha 0+), SJK predicts it.
+change: Any weapon challenges; start at 100 health, full Force, 100 armour; bow; sabers unlit.
+change: engage_FullForceDuel: Force works between the two. Winner's health/armour told.
+test: Start sjk-server with +set g_mod japlus (as in japlus-mode), join with a bot (addbot).
+test: Duel the bot (duel key on it, then its acceptance) or a second client: both bow.
+test: Walk through a third player while duelling, and as the third through the duellists.
+test: rcon jp_DuelAlpha -1: duellists collide again, still no pulling back.
+test: /engage_FullForceDuel on a second client, accept: push and lightning work in the duel.
+test: Win: centre print with health and armour; console line for everyone.
+note: Not run with a client yet. No 3 s pass-through after a duel (no JA+ client predicts it).

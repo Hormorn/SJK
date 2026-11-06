@@ -46,6 +46,8 @@ pub(crate) mod cover_map;
 pub(crate) mod effects;
 #[path = "weather_gpu.rs"]
 pub(crate) mod gpu;
+#[path = "weather_lightning.rs"]
+pub(crate) mod lightning;
 #[path = "weather_mirror.rs"]
 pub(crate) mod mirror;
 #[path = "weather_noise.rs"]
@@ -61,7 +63,7 @@ use bytemuck::Zeroable;
 use effects::{Cloud, Effects, Image, Look, MAX_CLOUDS, Mist};
 use gpu::{BUCKETS, Batch, GpuCloud, GpuWeather, Kind};
 pub(crate) use settings::{
-    CLOUDS_CVAR, CVAR, DENSITY_CVAR, FOG_CVAR, FORCE_CVAR, QUALITY_CVAR, Settings,
+    CLOUDS_CVAR, CVAR, DENSITY_CVAR, FOG_CVAR, FORCE_CVAR, LIGHTNING_CVAR, QUALITY_CVAR, Settings,
 };
 use std::sync::Arc;
 
@@ -105,6 +107,13 @@ const STREAK_LENGTH: f64 = 520.0;
 const STREAK_CHANGE: f64 = 0.04;
 /// Rain haze and ground fog colour before light (display values): a cool grey.
 const FOG_GREY: [f32; 3] = [0.64, 0.68, 0.74];
+/// How much a full lightning flash brightens the fog and haze, the falling rain and what
+/// wet surfaces mirror (1 + this times the flash).
+const FLASH_FOG: f32 = 2.5;
+const FLASH_RAIN: f32 = 1.5;
+const FLASH_WET: f32 = 4.0;
+/// Sounds kept for the audio at most (it takes them every frame it plays).
+const MAX_CUES: usize = 4;
 /// How much the fog and the rain glow towards the sun at its full strength (forward
 /// scattering, `sun_glow` in weather.wgsl); a storm hides most of it.
 const SUN_SCATTER: f32 = 0.5;
@@ -154,8 +163,15 @@ pub(crate) struct Runtime {
     /// World shots compare the puddles with their mirror and without.
     #[cfg(test)]
     mirror_allowed: bool,
-    /// How loud the rain and wind are heard, eased ([`sound`]).
+    /// How loud the rain and wind are heard, eased ([`sound`]), and the shelter they are
+    /// heard under (1 open sky, [`sound::SHELTERED`] under a roof).
     heard: sound::Levels,
+    shelter: f32,
+    /// The storm's lightning and the wind's single gusts ([`lightning`]), and the sounds
+    /// they ask for, until the audio takes them.
+    lightning: lightning::Lightning,
+    gusts: lightning::Gusts,
+    cues: Vec<lightning::Cue>,
     uniform: GpuWeather,
     batches: Vec<Batch>,
 }
@@ -242,6 +258,10 @@ impl Runtime {
             #[cfg(test)]
             mirror_allowed: true,
             heard: sound::Levels::default(),
+            shelter: 1.0,
+            lightning: lightning::Lightning::default(),
+            gusts: lightning::Gusts::default(),
+            cues: Vec::with_capacity(MAX_CUES),
             uniform: GpuWeather::zeroed(),
             batches: Vec::with_capacity(2 * MAX_CLOUDS + 2),
         };
@@ -341,6 +361,32 @@ impl Runtime {
         true
     }
 
+    /// The lightning's flash now, 0..1 (world shots).
+    #[cfg(test)]
+    pub(crate) fn flash(&self) -> f32 {
+        self.lightning.flash()
+    }
+
+    /// What lightning depends on, for a world shot to print: the storm, whether the
+    /// weather is hidden, in space, and the lightning's own state.
+    #[cfg(test)]
+    pub(crate) fn lightning_state(&self) -> String {
+        format!(
+            "storm {:.2} hidden {} space {} force {} lightning {:?}",
+            self.storm(),
+            self.hidden(),
+            self.space,
+            self.force,
+            self.lightning
+        )
+    }
+
+    /// Strike lightning in `seconds`, 0 at the next frame (world shots).
+    #[cfg(test)]
+    pub(crate) fn strike_in(&mut self, seconds: f32) {
+        self.lightning.strike_in(seconds);
+    }
+
     /// Let the puddles mirror the scene, or keep them to the sky (world shots).
     #[cfg(test)]
     pub(crate) fn set_mirror_allowed(&mut self, allowed: bool) {
@@ -355,20 +401,49 @@ impl Runtime {
     /// The rain and wind to hear this frame: none with weather off, frozen, or chosen
     /// for a map without sky (where it is not drawn); else as strong as they are and as
     /// open the sky is round `camera`.
-    fn sound_target(&self, enabled: bool, wind: [f32; 3], camera: [f32; 3]) -> sound::Levels {
-        if !enabled || self.effects.frozen {
-            return sound::Levels::default();
+    fn sound_target(
+        &self,
+        enabled: bool,
+        wind: [f32; 3],
+        camera: [f32; 3],
+    ) -> (sound::Levels, f32) {
+        if !enabled || self.effects.frozen || self.hidden() {
+            return (sound::Levels::default(), 1.0);
         }
-        let exposure = match &self.cover {
-            Some(cover) if cover.window().enabled => {
-                sound::exposure(camera, |x, y| cover.column_at(x, y))
-            }
-            // A map without sky: chosen weather is not drawn there, the map's own falls
-            // everywhere as in the reference.
-            Some(_) if self.chosen() => return sound::Levels::default(),
-            _ => None,
-        };
-        sound::target(&self.effects.clouds, wind, exposure)
+        let exposure = self.cover.as_ref().and_then(|cover| {
+            cover
+                .window()
+                .enabled
+                .then(|| sound::exposure(camera, |x, y| cover.column_at(x, y)))
+                .flatten()
+        });
+        let shelter = sound::SHELTERED + (1.0 - sound::SHELTERED) * exposure.unwrap_or(1.0);
+        (sound::target(&self.effects.clouds, wind, exposure), shelter)
+    }
+
+    /// Weather chosen for a map without sky (forced, or a map edit's): not drawn, so
+    /// neither heard nor lit.
+    fn hidden(&self) -> bool {
+        self.chosen()
+            && self
+                .cover
+                .as_ref()
+                .is_some_and(|cover| !cover.window().enabled)
+    }
+
+    /// The sounds the weather asks for (thunder, gusts) since the audio last took them.
+    pub(crate) fn take_cues(&mut self) -> std::vec::Drain<'_, lightning::Cue> {
+        self.cues.drain(..)
+    }
+
+    /// Keep `cue` for the audio, at `shelter` (thunder carries indoors better than
+    /// rain: half of it at least).
+    fn cue(&mut self, mut cue: lightning::Cue, shelter: f32) {
+        cue.volume *= shelter;
+        if self.cues.len() >= MAX_CUES {
+            self.cues.remove(0);
+        }
+        self.cues.push(cue);
     }
 
     /// Rain to wet the world with this frame ([`Runtime::draw_wet`]).
@@ -443,10 +518,29 @@ impl Runtime {
             *light += (target - *light) * if seconds == 0.0 { 1.0 } else { ease };
         }
         let weather = settings.enabled();
-        let heard = self.sound_target(weather, wind, input.camera);
+        let (heard, shelter) = self.sound_target(weather, wind, input.camera);
         self.heard.ease(heard, seconds);
+        self.shelter = shelter;
         let storm = if weather { self.storm() } else { 0.0 };
-        self.prepare_clouds(&input, quality.cloud_steps, wind, storm, seconds);
+        // Lightning in a storm under open sky, and the wind's gusts heard on their own.
+        let lit = settings.lightning() && weather && !self.space && !self.hidden();
+        let frozen = self.effects.frozen;
+        if let Some(thunder) = self.lightning.advance(
+            if frozen { 0.0 } else { seconds },
+            storm,
+            lit,
+            crate::effect_flash::reduced(),
+        ) {
+            self.cue(thunder, 0.5 + 0.5 * shelter);
+        }
+        let flash = self.lightning.flash();
+        if let Some(gust) = self
+            .gusts
+            .advance(self.heard.wind / shelter.max(0.2), seconds)
+        {
+            self.cue(gust, shelter);
+        }
+        self.prepare_clouds(&input, quality.cloud_steps, wind, storm, flash, seconds);
         if !weather {
             return;
         }
@@ -596,7 +690,10 @@ impl Runtime {
             input.fog,
             0.0,
         ];
-        self.uniform.light[..3].copy_from_slice(&self.light);
+        let flash = self.lightning.flash();
+        for (channel, light) in self.light.iter().enumerate() {
+            self.uniform.light[channel] = light * (1.0 + FLASH_RAIN * flash);
+        }
         let inverse = glam::Mat4::from_cols_array_2d(&input.view_projection).inverse();
         self.uniform.inverse_view_projection = inverse.to_cols_array_2d();
         let (ground, tint) = mist.map_or((None, [0.5; 4]), |(mist, color)| (Some(mist), color));
@@ -619,13 +716,14 @@ impl Runtime {
             self.streak_flow as f32,
             self.streak_change as f32,
         ];
-        let sky = wet_sky(input.sky, storm);
+        let sky = wet_sky(input.sky, storm).map(|channel| channel * (1.0 + FLASH_WET * flash));
         self.uniform.wet_sky = [sky[0], sky[1], sky[2], 0.0];
-        self.uniform.rain = [rain[0], rain[1], rain[2], 0.0];
+        self.uniform.rain = [rain[0], rain[1], rain[2], flash];
         let scatter = SUN_SCATTER * input.sky.strength.clamp(0.0, 1.0) * (1.0 - 0.7 * storm);
         let sun = input.sky.direction;
         self.uniform.sun = [sun[0], sun[1], sun[2], scatter];
-        let color = fog_color(tint, self.light, storm);
+        let color =
+            fog_color(tint, self.light, storm).map(|channel| channel * (1.0 + FLASH_FOG * flash));
         self.uniform.fog_color = [
             color[0],
             color[1],
@@ -663,6 +761,7 @@ impl Runtime {
         steps: u32,
         wind: [f32; 3],
         storm: f32,
+        flash: f32,
         seconds: f32,
     ) {
         self.clouds_visible = false;
@@ -679,7 +778,7 @@ impl Runtime {
         if !self.effects.frozen {
             clouds::drift(&mut self.cloud_flow, wind, seconds);
         }
-        let sky = clouds::Sky { storm, wind };
+        let sky = clouds::Sky { storm, wind, flash };
         gpu.write(
             input.queue,
             &clouds::uniform(input.sky, sky, self.cloud_flow, steps, ready),

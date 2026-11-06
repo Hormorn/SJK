@@ -2892,6 +2892,7 @@ impl GpuState {
                 audio.set_box_music(self.cardboard_box.music());
                 audio.set_hax_loop(self.hax_loop(presentation_time));
                 audio.set_weather(self.vfs.as_deref(), self.weather.heard());
+                audio.play_weather_cues(self.weather.take_cues());
                 audio.update_frame_loops(
                     snapshot,
                     presentation_time as i32,

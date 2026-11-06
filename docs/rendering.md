@@ -557,7 +557,8 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 | `r_weatherQuality` | Weather quality, 0 low to 3 ultra, default 2; live; renderer WEATHER tab. See [Weather](#weather) |
 | `r_weatherForce` | Weather on every map with sky instead of the map's: 0 (default) the map's, 1 drizzle, 2 rain, 3 storm, 4 snow; live |
 | `r_weatherFog` | Ground fog: 0 none, 1 the map's (default), 2 on every map with sky; live |
-| `r_clouds` | Volumetric clouds over open sky, 1 (default) or 0; live |
+| `r_clouds` | Volumetric clouds over open sky, 0 (default, under every graphics preset) or 1; live |
+| `r_weatherLightning` | Lightning in storms, 0 (default) or 1; live; renderer WEATHER tab. See [Weather](#weather) |
 | `r_normalMapping` | Normal maps on lightmapped world surfaces (rend2 convention) and on models whose shader names one (`normalMap`); default 1 (rend2: 0), applies after a graphics reload |
 | `r_specularMapping` | Specular, roughness and metalness maps on the same surfaces; default 1 (rend2: 0), applies after a graphics reload |
 | `r_parallaxMapping` | Parallax from the height in `_nh`/`normalHeightMap` images; needs `r_normalMapping`; default 1 (at `r_parallaxStrength` 0.1; rend2: 0), applies after a graphics reload |
@@ -4410,18 +4411,31 @@ Drizzle wets about half as much as a downpour (`SOAKING_HAZE`), snow not at all,
 a map without sky (no cover) is never wet. Wet surfaces darken by up to 36% as water
 fills their pores, and a film mirrors the overcast sky (the clouds' skylight, dimmer at
 night and in a storm) with water's Fresnel term, strongest at grazing angles and only
-where the mirrored ray points above the horizon. Level 2 adds running water on walls
-and steep slopes: thin noise streaks, 40 units to a noise tile across and 520 along,
-darker and glossier, running down at 110 units a second while their pattern slowly
-changes. They are laid on each wall's plane in world coordinates (across y and up z for
-a wall facing x, across x for one facing y, blended between the two on a slanted wall;
-on a slope the height runs downhill), and the scroll and change are kept wrapped to
-one noise tile on the CPU, so the streaks stay put on the wall. The first version took
-its coordinates from the face's normal, which the depth gives a little unsteadily, times
-world positions in the thousands, and its scroll from the time since the map loaded
-times a slope-dependent speed: the streaks flickered and slid as the camera moved
-(Sol, 08/10/2026). They fade out between 500 and 1400 units and at grazing views, where
-they would shimmer. Level 3 adds puddles on
+where the mirrored ray points above the horizon. Level 2 adds running water
+(`running` in weather.wgsl, reworked 05/11/2026, Sol: "the rain flowing on angled planes,
+it's not good enough"): on every slope from about 10 degrees a thin film, glossier in
+bands that run down and broken up by the noise; on walls and slopes past about 30 degrees
+rivulets, in lanes 14 units wide across the way down, two lanes in five carrying one along
+a line that wanders across its lane as it goes down (fixed on the surface: the water
+keeps to its paths), in stretches of 240 to 460 units with dry gaps, at least about a
+pixel wide (fainter instead); along each rivulet three to seven drops a scroll's wrap run
+down, a bright head with a short tail, catching the overcast light, until they are too
+small to see. Everything runs down at 110 units a second of height, the scroll and the
+film's change kept wrapped on the CPU (520 units, one noise tile; the drops' spacing
+divides it), so nothing jumps when it wraps.
+
+The way down is laid in one of 16 headings round the vertical: across it runs level
+along the surface, down it runs the height, so a lane follows the slope's fall line on a
+ramp facing any way, not only on walls facing x or y. The face's normal, which the depth
+gives a little unsteadily, only chooses the heading nearest its own (and blends the two
+nearest within a twentieth of a turn of half way); a flat face's heading never changes,
+so the water stays put however the camera moves. Until 05/11/2026 the streaks were one
+noise stretched 40 by 520 units, laid across y or x and blended between the two by the
+normal, so a ramp facing a diagonal showed two crossed patterns and gentle slopes none
+at all. (The version before 08/10/2026 took its coordinates from the normal times world
+positions in the thousands and its scroll from the time since the map loaded times a
+slope-dependent speed: it flickered and slid as the camera moved.) Running water fades out
+between 600 and 1600 units and at grazing views, where it would shimmer. Level 3 adds puddles on
 flat ground (about a third of it, in noise patches 1100 units across), darker and an
 almost full mirror, with thin rain rings within 700 units. The pass blends
 `scene × alpha + colour`; the price is that light painted into a wet wall's texture
@@ -4469,7 +4483,8 @@ map's weather; `r_we` commands still add to it. Forced weather is drawn only on 
 with sky, so it never falls indoors on a map without one; so is a map edit's weather.
 
 **Clouds** ([weather_clouds.rs](../crates/sjk-viewer/src/weather_clouds.rs),
-[clouds.wgsl](../crates/sjk-viewer/src/clouds.wgsl), `r_clouds`, on by default).
+[clouds.wgsl](../crates/sjk-viewer/src/clouds.wgsl), `r_clouds`, off by default and no
+graphics preset's since 05/11/2026: a player's own choice).
 A layer of cloud 6000 units above the camera and 3200 deep covers every map with sky
 faces, except maps whose weather is space dust. It is drawn on the visible sky faces
 right after the sky, with the sky faces' own geometry and depth test, half as far
@@ -4491,6 +4506,27 @@ run on a worker thread, and the clouds and the fog's billows appear when it is r
 
 Rain and wind can be heard with `s_weatherSounds` ([client.md](client.md#weather-sounds)),
 quieter under a roof by the same cover.
+
+**Lightning** (`r_weatherLightning`, off by default; 05/11/2026, Sol: "add more
+atmospheric stuff"; [weather_lightning.rs](../crates/sjk-viewer/src/weather_lightning.rs)).
+In a storm (a haze at least three quarters of a downpour's: `heavyrain`, the map editor's
+Storm, `r_weatherForce 3`) a strike comes every 7 to 22 seconds (a fiercer storm more
+often; the first 4 seconds in): two or three pulses 70 to 230 ms apart, each falling to a
+third in 70 ms, brighter when it falls near, over within 0.9 s. Its light is not a light
+in the world: it lights what the storm puts in the air and on the ground, the fog and haze
+(3.5 times as bright at a full flash), the falling rain (2.5 times), what wet surfaces and
+puddles mirror (5 times) and the volumetric clouds from within. The world's own lighting
+and the skybox stay as they are; instead the fog pass lays a cool white veil of the flash's
+light over the view, up to 12% of it over a wall near the eye and 55% where the ray runs
+6000 units or more into the open sky (`fragment_volume`, the flash in `rain.w`), so the
+storm's air lights up as it does seen through rain. Its thunder follows after the time the sound takes to come (0.25
+to 4 s: the game's `thunder_close` for a strike within a quarter of the range, else
+`thunder1` to `4`, quieter the farther), with `s_weatherSounds`
+([client.md](client.md#weather-sounds)). `cg_reduceFlashes` keeps a flash to a third of
+its light, easing in and out over 0.15 s instead of flickering. Frozen weather holds the
+strike; weather chosen for a map without sky (forced, or a map edit's) never flashes; the
+multiplayer game has no lightning of its own to follow (single player's `fx_rain` flag is
+ignored there), so nothing on a server asks for it.
 
 `r_weather 0` turns weather off (the clouds stay with `r_clouds`);
 `r_weatherDensity` scales the counts (1 is the original's, SJK's default 2).
@@ -4515,10 +4551,9 @@ alone cannot. `r_weather 0` suppresses it. `clear` removes rain while preserving
 freeze; `die` also clears freeze. This affects presentation only.
 
 Secondary views (portals, mirrors, sky portals) show no weather or clouds. Not
-implemented: the outside camera shake (`outsideshake`), acid rain's pain hint, the
-lightning flashes (a single-player `fx_rain` flag the
-multiplayer game ignores), wind zones with bounds, and clouds casting shadows on the
-world. A map's skybox may already paint clouds; the volumetric ones go over them.
+implemented: the outside camera shake (`outsideshake`), acid rain's pain hint, lightning
+lighting the world itself (see Lightning above), wind zones with bounds, and clouds
+casting shadows on the world. A map's skybox may already paint clouds; the volumetric ones go over them.
 Full visual and cost verification of the weather remains incomplete. The cover,
 commands, wind, settings,
 noise, cloud and fog parameters and the translation of both shaders have unit
