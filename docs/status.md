@@ -1,3 +1,21 @@
+## Rig chains feel the player's movement, and can keep out of the arms
+
+06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only
+the animation, so hair and capes did not trail behind a running player, and arms passed
+through hair. New `dynamic` options: `drag <n>`, air on the chain from the player's velocity
+and turn through the world, and `arms`, which keeps the chain out of the upper arms and
+forearms, measured only for a rig with a chain that asks
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Without them nothing changes.
+Verified on Windows 10: unit tests (trailing, every facing, teleports, a paused clock, the
+yaw's wrap, arm exemption), fmt, build, clippy, workspace tests. Measured in release on local
+rigs, a whole pose per actor while running: 19.5 to 22.1 us (55 chain joints, drag and arms),
+37.8 to 39.8 us (120), 22.4 to 22.4 us (63, drag only); no allocation per frame. Hair vertices
+in the arms' capsules on one rig: 46 to 0 on the empty-handed run, 27 to 5 on a saber swing.
+A cost: arms pushing hair move it faster on the empty-handed run, its largest step in 8 ms
+going from 1.3 units to 2.2 with drag and 4.1 without, so the two go together; saber swings
+and the saber run did not jump more. Not verified: in a game on Linux and macOS, other machines
+or other rigs.
+
 ## Rig cloth: limits, clearance, layers, levers and eased tilts
 
 06/11/2026, `feat/rig-dynamics-cloth` from `fix/rig-dynamics-forked-chains`. Hair, capes

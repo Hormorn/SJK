@@ -172,7 +172,9 @@ longer cuts through a leg its two ends miss; the cloth between two chains and th
 itself are not checked, so a sharp pose can still show some through. The head is not a
 capsule, and the arms are only for a chain whose line says `arms`: then the rig also measures
 the upper arms and forearms (`ARM_BONES`) the same way, and a chain without the word ignores them. A rig
-with no such chain has no arm capsules at all. The capsules are only measured for a rig with dynamic chains, at most 64 of
+with no such chain has no arm capsules at all. An arm moves fast, so hair it pushes moves fast
+too (measured on the empty-handed run: the largest step in 8 ms went from 1.3 units to 4.1;
+to 2.2 with `drag` holding the hair behind the arms). The capsules are only measured for a rig with dynamic chains, at most 64 of
 them, and the check is a few vector operations per point and capsule.
 
 A `layer <outer> over <inner>` line keeps the chain under the first joint on its own side
