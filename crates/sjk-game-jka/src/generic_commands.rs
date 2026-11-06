@@ -297,10 +297,15 @@ pub fn taunt(
         *hand_extend_time = level_time + lengths.length_ms(animation).unwrap_or(0);
     }
     if taunt != 1 && taunt != 2 {
-        // `G_AddEvent(ent, EV_TAUNT, taunt)`: the player's external event.
-        let bits =
-            (field(state, PS_EXTERNAL_EVENT) & EVENT_BITS).wrapping_add(EVENT_BIT1) & EVENT_BITS;
-        state.set_raw_field(PS_EXTERNAL_EVENT, EV_TAUNT | bits);
-        state.set_raw_field(PS_EXTERNAL_EVENT_PARM, taunt);
+        taunt_event(state, taunt);
     }
+}
+
+/// `G_AddEvent(ent, EV_TAUNT, taunt)`: the player's external event, `TAUNT_*` its
+/// parameter. The caller marks the event's time (`eventTime`).
+pub fn taunt_event(state: &mut PlayerState, taunt: u32) {
+    let field = |state: &PlayerState, index: usize| state.raw_field(index).unwrap_or(0);
+    let bits = (field(state, PS_EXTERNAL_EVENT) & EVENT_BITS).wrapping_add(EVENT_BIT1) & EVENT_BITS;
+    state.set_raw_field(PS_EXTERNAL_EVENT, EV_TAUNT | bits);
+    state.set_raw_field(PS_EXTERNAL_EVENT_PARM, taunt);
 }

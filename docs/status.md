@@ -1,3 +1,30 @@
+## SJK's server as a JA+ server, step 3: emotes and player commands
+
+06/11/2026, `personal/japlus-emotes` from `main` `403b06e0`. Under `g_mod japlus` the
+server runs JA+ 2.4 B7's emotes and player commands, after VisionJK's rebuild of its
+module (`japlus/g_japlus_cmds.c`, `g_japlus_info.c`, `g_japlus_tele.c`, `bg_pmove.c`):
+the 27 emotes with `jp_emotDisallow`, `amhug`, `amflip`, `amknockmedown`, `amdropsaber`,
+`jetpack`, `amcolor`, `sabercolor`, `saber`, `ammove`, `amDMGs`, `duelWhois`,
+`refuseTele`, and the console's `serverTime` and `modVersion`, each answering with JA+'s
+texts ([server.md](server.md#ja-mode) lists them). The held emotes are shared movement
+(`sjk_game_jka::pmove_japlus_emotes`): SJK's client now predicts them on every JA+ server,
+and the server freezes them (`PM_FREEZE`) for clients without the plugin as `jp_fixEmot`
+says ([networking.md](networking.md)). The `ServerMod` trait gains default hooks
+(`player_commands`, `command_prints`, `client_has_plugin`, `console_command`) and
+`ModCommand` its variants. Verified on Windows 11 by unit tests: the hold, its end
+animation, the hook's button and the freeze at 8/7/4/3 ms commands
+(`a_ja_plus_emote_holds_the_body_until_a_button`, `only_the_server_holds_and_freezes_at_ease`),
+the table of 27 retail poses, the settings and texts, the plugin version read, and on a
+mapless server the commands themselves (`bridge_mod_commands::tests`: poses, refusals,
+hug, flip, knock-down, jetpack, colours, lists, the freeze's choice, the intermission),
+the base game answering Unknown command to every one; and a headless `sjk-server` on
+loopback (`g_mod japlus`, `mp/ffa3`, four bots) for 52 seconds, its console answering
+`modVersion` and `serverTime`, no panic. Not verified: in a game with a
+client (no emote was played on screen), against a JA+ or VisionJK server, the hold on a
+real map (the tests filter one command), `/saber` with real saber files. Left out:
+`amkiss` (JA+'s own animations, answered as JA+ answers without them), JA+'s own
+animations for `amflip`, `amAltDim`, `immortal`, `toggleFlame`, the hook.
+
 ## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
 
 06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`

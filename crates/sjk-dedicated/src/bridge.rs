@@ -2615,6 +2615,8 @@ impl NativeGame {
         // `SV_BotFrame` before the frame: the queued bots whose time has come begin, and
         // every bot thinks.
         self.check_bot_spawn(self.last_frame_time);
+        // Which held emotes the moves of this frame freeze, from who plays now.
+        self.update_emote_freeze();
         self.bot_frame(server_time);
         self.previous_frame_time = self.last_frame_time;
         self.last_frame_time = server_time;
@@ -3407,6 +3409,8 @@ mod bridge_lock;
 mod bridge_maps;
 #[path = "bridge_missile_models.rs"]
 mod bridge_missile_models;
+#[path = "bridge_mod_commands.rs"]
+mod bridge_mod_commands;
 #[path = "bridge_multiples.rs"]
 mod bridge_multiples;
 #[path = "bridge_power_duel.rs"]

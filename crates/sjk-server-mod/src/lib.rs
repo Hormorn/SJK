@@ -143,13 +143,151 @@ impl KillRules {
 }
 
 /// A player command a mod adds to the game's own (`ClientCommand`'s table), which the
-/// server carries out with its shared code.
+/// server carries out with its shared code. A mod's commands come before the game's
+/// table (JA+'s `JP_ClientCommand`), so a name both have is the mod's; at the
+/// intermission every one is refused ([`CommandTexts::intermission`]).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModCommand {
     /// The duel key for a full-force duel, where the Force works between the two
-    /// (JA+'s `engage_FullForceDuel`, [`sjk_game_jka::duel::Duellist::full_force`]); not
-    /// at the intermission (`CMD_NOINTERMISSION`).
+    /// (JA+'s `engage_FullForceDuel`, [`sjk_game_jka::duel::Duellist::full_force`]).
     FullForceDuel,
+    /// An emote: a pose played as a taunt (`HANDEXTEND_TAUNT`), held by the movement
+    /// where the mod's rules hold it ([`sjk_game_jka::pmove_japlus_emotes`]).
+    Emote(ModEmote),
+    /// Two players' emote with the one right in front (JA+'s `amhug`).
+    Hug,
+    /// The kiss (JA+'s `amkiss`), which plays animations SJK does not ship: refused as
+    /// the mod refuses it without them ([`CommandTexts::kiss_refused`]).
+    Kiss,
+    /// The saber turned on or off with a show-off move of its style (JA+'s `amflip`).
+    Flip,
+    /// The player knocks itself down (JA+'s `amknockmedown`), where allowed.
+    KnockMeDown,
+    /// The player's saber knocked out of its hand (JA+'s `amdropsaber`), where allowed.
+    DropSaber,
+    /// The jetpack taken or given (JA+'s `jetpack`), where allowed.
+    Jetpack,
+    /// The model's tint set in the userinfo (`char_color_*`, JA+'s `amcolor`).
+    SkinColor,
+    /// A saber's RGB colour set in the userinfo (JA+'s `sabercolor`), for the clients
+    /// with the mod's plugin ([`ServerMod::client_has_plugin`]).
+    SaberColor,
+    /// The sabers changed while playing (JA+'s `saber`), where allowed.
+    SaberSwitch,
+    /// JA+'s `ammove`: the moves list ([`ServerMod::command_prints`]).
+    MoveList,
+    /// JA+'s `amDMGs`: the saber damage settings ([`ServerMod::command_prints`]).
+    DamageList,
+    /// Every private duel being fought (JA+'s `duelWhois`).
+    DuelList,
+    /// Whether admins may teleport the player, toggled (JA+'s `refuseTele`).
+    RefuseTeleport,
+}
+
+/// One of a mod's emotes ([`ModCommand::Emote`]).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ModEmote {
+    /// The pose, its name in the retail `_humanoid` animations (`BOTH_SIT6`).
+    pub animation: &'static str,
+    /// Its bit in the mod's emote mask ([`PlayerCommandRules::emotes_refused`]).
+    pub bit: u8,
+    /// Refused in the team games (`GT_TEAM` and after): the poses held on the ground.
+    pub free_for_all_pose: bool,
+    pub kind: EmoteKind,
+}
+
+/// What an emote does besides its pose.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EmoteKind {
+    /// Only the pose.
+    Plain,
+    /// Only in a free-for-all and outside a duel; nothing said otherwise (`amdie`).
+    FreeForAllOnly,
+    /// A holstered saber in hand is lit first (`amfinishinghim`).
+    LightsSaber,
+    /// Only with the saber out: lit, then the pose and the gloat's taunt event
+    /// (`amvictory`).
+    Victory,
+}
+
+/// The texts a mod's player commands answer with, each a whole server command
+/// (`print "..."`, or as the mod sends it). Empty texts are not sent.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CommandTexts {
+    /// Around the command's name at the intermission: before and after it.
+    pub intermission: (&'static str, &'static str),
+    pub emote_refused: &'static str,
+    pub emote_gametype: &'static str,
+    pub gametype_refused: &'static str,
+    pub kiss_refused: &'static str,
+    pub knock_me_down_refused: &'static str,
+    pub drop_saber_refused: &'static str,
+    pub jetpack_refused: &'static str,
+    /// The jetpack refused to a Jedi in Jedi against mercenaries.
+    pub jetpack_jedi: &'static str,
+    /// The jetpack refused in team deathmatch.
+    pub jetpack_team: &'static str,
+    pub saber_switch_refused: &'static str,
+    pub saber_color_plugin: &'static str,
+    pub saber_color_usage: &'static str,
+    pub skin_color_usage: &'static str,
+    /// The duel list's heading, and around each pair's names: before, between, after.
+    pub duel_list: &'static str,
+    pub duel_pair: (&'static str, &'static str, &'static str),
+    pub refuse_teleport_on: &'static str,
+    pub refuse_teleport_off: &'static str,
+}
+
+impl CommandTexts {
+    /// No answers.
+    pub const NONE: Self = Self {
+        intermission: ("", ""),
+        emote_refused: "",
+        emote_gametype: "",
+        gametype_refused: "",
+        kiss_refused: "",
+        knock_me_down_refused: "",
+        drop_saber_refused: "",
+        jetpack_refused: "",
+        jetpack_jedi: "",
+        jetpack_team: "",
+        saber_switch_refused: "",
+        saber_color_plugin: "",
+        saber_color_usage: "",
+        skin_color_usage: "",
+        duel_list: "",
+        duel_pair: ("", "", ""),
+        refuse_teleport_on: "",
+        refuse_teleport_off: "",
+    };
+}
+
+/// What a mod's player commands allow, from its settings. [`Default`] allows nothing and
+/// answers nothing: the base game has none of them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PlayerCommandRules {
+    /// The emotes refused, a bit each ([`ModEmote::bit`]).
+    pub emotes_refused: u32,
+    pub knock_me_down: bool,
+    pub drop_saber: bool,
+    pub jetpack: bool,
+    /// Milliseconds between two saber changes ([`ModCommand::SaberSwitch`]); 0 refuses
+    /// them.
+    pub saber_switch_interval: i32,
+    pub texts: &'static CommandTexts,
+}
+
+impl Default for PlayerCommandRules {
+    fn default() -> Self {
+        Self {
+            emotes_refused: 0,
+            knock_me_down: false,
+            drop_saber: false,
+            jetpack: false,
+            saber_switch_interval: 0,
+            texts: &CommandTexts::NONE,
+        }
+    }
 }
 
 /// A rule set the server can run in place of the base game.
@@ -198,6 +336,31 @@ pub trait ServerMod: Sync {
     fn command(&self, _name: &[u8]) -> Option<ModCommand> {
         None
     }
+
+    /// What its player commands allow and how they answer, from its settings; nothing by
+    /// default.
+    fn player_commands(&self, _settings: &dyn Settings) -> PlayerCommandRules {
+        PlayerCommandRules::default()
+    }
+
+    /// The server commands (`print "..."`) a printed list sends (`ammove`, `amDMGs`), in
+    /// order; none by default.
+    fn command_prints(&self, _command: ModCommand, _settings: &dyn Settings) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Whether a player's client, by its userinfo, runs the mod's client plugin (JA+'s
+    /// `cjp_client`), which predicts what the mod's server holds (its emotes) and draws
+    /// its extras. None by default.
+    fn client_has_plugin(&self, _userinfo: &[u8]) -> bool {
+        false
+    }
+
+    /// A server console command the mod adds (JA+'s `serverTime`, `modVersion`): the text
+    /// it prints at level time `level_time`, if `name` is one; none by default.
+    fn console_command(&self, _name: &[u8], _level_time: i32) -> Option<String> {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -244,6 +407,21 @@ mod tests {
     #[test]
     fn a_mod_without_force_rules_plays_the_base_games() {
         assert_eq!(Plain.force(&NoSettings), ForceRules::default());
+    }
+
+    #[test]
+    fn a_mod_without_commands_adds_none() {
+        assert_eq!(Plain.command(b"amsit"), None);
+        let rules = Plain.player_commands(&NoSettings);
+        assert_eq!(rules, PlayerCommandRules::default());
+        assert!(!rules.jetpack && rules.saber_switch_interval == 0);
+        assert!(
+            Plain
+                .command_prints(ModCommand::MoveList, &NoSettings)
+                .is_empty()
+        );
+        assert!(!Plain.client_has_plugin(b"\\cjp_client\\1.4JAPRO"));
+        assert_eq!(Plain.console_command(b"modVersion", 0), None);
     }
 
     #[test]

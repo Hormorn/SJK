@@ -17,6 +17,8 @@ impl NativeGame {
     ) {
         // `ClientThink_real`'s duel: a duel begun, ended or held still (`g_active.c:2405`).
         self.duel_think(client, &mut command, self.last_frame_time);
+        // A mod's held emote froze the last move only.
+        self.thaw_frozen_emote(client);
         // The fall to death a pit's brush began ends here, three seconds on; then who
         // gets the credit for one is kept or forgotten (`g_active.c:2789-2803`).
         let level_time = self.last_frame_time;

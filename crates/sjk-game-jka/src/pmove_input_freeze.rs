@@ -32,6 +32,9 @@ const FORCE_INPUTS: u16 =
 const HAND_EXTEND_NONE: u8 = 0;
 const HAND_EXTEND_TAUNT: u8 = 10;
 const BOTH_MEDITATE_END: u16 = 1_190;
+/// `BUTTON_HOOK` (JA+'s `+button12`, VisionJK `codemp/qcommon/q_shared.h:1373`).
+const BUTTON_HOOK: u16 = 4_096;
+const MAX_CLIENTS: u16 = 32;
 
 #[cfg(test)]
 mod held_tests {
@@ -162,8 +165,10 @@ pub(crate) fn apply(
         stiffened = true;
     } else if !stiffened && in_kata(state) {
         move_for_kata(state, command);
+    } else if !stiffened && ja_plus.enabled && japlus_taunt(state) {
+        filter_japlus_taunt(state, command, &mut stiffened, animation_lengths, ja_plus);
     } else if !stiffened && full_body_taunt(state.legs_anim) && full_body_taunt(state.torso_anim) {
-        lock_view = filter_taunt(state, command, &mut stiffened, animation_lengths, ja_plus);
+        lock_view = filter_taunt(state, command, &mut stiffened, animation_lengths);
     } else if !stiffened && animation_is(state.legs_anim, "BOTH_MEDITATE_END") {
         if state.legs_timer > 0 {
             command.buttons = 0;
@@ -211,7 +216,6 @@ fn filter_taunt(
     command: &mut UserCommand,
     stiffened: &mut bool,
     animation_lengths: Option<&dyn AnimationLengths>,
-    ja_plus: JaPlusRules,
 ) -> bool {
     let cancel = command.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK | FORCE_INPUTS) != 0
         || command.up_move != 0;
@@ -250,16 +254,6 @@ fn filter_taunt(
         }
         state.force_hand_extend = HAND_EXTEND_TAUNT;
         state.force_hand_extend_time = command.server_time.wrapping_add(100);
-        if ja_plus.free_taunts() {
-            // A JA+ client keeps meditating in place but looks around freely, its
-            // buttons kept (`bg_pmove.c:12228-12248` in EternalJK).
-            *stiffened = true;
-            return false;
-        }
-    }
-    if ja_plus.free_taunts() {
-        // Other taunts leave a JA+ client free to move and look (`bg_pmove.c:12249-12266`).
-        return false;
     }
     if state.legs_timer > 0 || state.torso_timer > 0 {
         command.buttons = 0;
@@ -267,6 +261,80 @@ fn filter_taunt(
         return true;
     }
     false
+}
+
+/// `BG_FullBodyTauntAnim` of both legs and torso on a JA+ server, with the poses of JA+'s
+/// emotes ([`crate::pmove_japlus_emotes::full_body_pose`]).
+fn japlus_taunt(state: &MovementState) -> bool {
+    let pose = |animation: u16| {
+        full_body_taunt(animation)
+            || animation_name(animation).is_some_and(crate::pmove_japlus_emotes::full_body_pose)
+    };
+    pose(state.legs_anim) && pose(state.torso_anim)
+}
+
+/// A JA+ server's full-body taunts (VisionJK `codemp/game/bg/bg_pmove.c:11125-11196`): an
+/// attack, a Force button, the hook's or a jump ends one, the pose's own end animation
+/// playing where legs and torso hold the same; a held emote (and meditation) keeps the
+/// body still, its timers topped up to a second, the view and the buttons free, and is
+/// frozen (`PM_FREEZE`) where the server's [`EmoteFreeze`](crate::pmove_japlus_emotes::EmoteFreeze)
+/// says; the other taunts leave the player free to move and look.
+fn filter_japlus_taunt(
+    state: &mut MovementState,
+    command: &mut UserCommand,
+    stiffened: &mut bool,
+    animation_lengths: Option<&dyn AnimationLengths>,
+    ja_plus: JaPlusRules,
+) {
+    use crate::pmove_japlus_emotes::{end_animation, freezes, held};
+    let legs = animation_name(state.legs_anim).unwrap_or_default();
+    let torso = animation_name(state.torso_anim).unwrap_or_default();
+    let cancel = command.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK | FORCE_INPUTS | BUTTON_HOOK)
+        != 0
+        || command.up_move != 0;
+    if cancel {
+        let end = end_animation(legs)
+            .filter(|_| state.torso_anim == state.legs_anim)
+            .and_then(crate::legacy_animation_index);
+        match (end, animation_lengths) {
+            (Some(end), Some(lengths)) => set_animation(
+                state,
+                SETANIM_BOTH,
+                end as u16,
+                SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD,
+                lengths,
+            ),
+            _ => {
+                state.legs_timer = 0;
+                state.torso_timer = 0;
+            }
+        }
+        if state.force_hand_extend == HAND_EXTEND_TAUNT {
+            state.force_hand_extend = HAND_EXTEND_NONE;
+        }
+        return;
+    }
+    let freeze = ja_plus.emote_freeze;
+    let mut holding = false;
+    if held(legs, freeze) {
+        holding = true;
+        state.legs_timer = state.legs_timer.max(1_000);
+    }
+    if held(torso, freeze) {
+        holding = true;
+        if state.torso_timer < 1_000 {
+            // As the module has it: the legs' timer.
+            state.legs_timer = 1_000;
+        }
+        state.force_hand_extend = HAND_EXTEND_TAUNT;
+        state.force_hand_extend_time = command.server_time.wrapping_add(1_000);
+    }
+    if (state.legs_timer > 0 || state.torso_timer > 0) && (torso == "BOTH_MEDITATE" || holding) {
+        *stiffened = true;
+        if state.client_num < MAX_CLIENTS && freezes(torso, freeze) {
+            state.movement_type = PM_FREEZE;
+        }
+    }
 }
 
 /// Mirrors `PM_SetPMViewAngle(ps, ps->viewangles, ucmd)` (`bg_pmove.c:1311-1322`) so the
