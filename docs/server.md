@@ -159,6 +159,57 @@ What the mode does so far:
   - *The end.* The winner's health and armour before it is healed are told as
     `jp_endDuelBroadcastMSG` says; it is healed and protected as before, and keeps 25
     armour.
+- **JA+'s emotes and player commands** (the `ServerMod::command` table,
+  [commands.rs](../crates/sjk-server-mod-japlus/src/commands.rs); carried out in
+  [bridge_mod_commands.rs](../crates/sjk-dedicated/src/bridge_mod_commands.rs), from
+  VisionJK's `japlus/g_japlus_cmds.c`, `g_japlus_info.c` and `g_japlus_tele.c`). They come
+  before the game's own commands, as JA+'s do, so `jetpack` is JA+'s and not the cheat;
+  at the intermission each is refused (`@@@CANNOT_TASK_INTERMISSION (name) `). Every
+  answer is JA+'s, word for word, its typos too.
+  - *The 27 emotes*: `amkneel`, `amdie`, `amdie2`, `amfinishinghim`, `ampower`, `amnod`,
+    `amshake`, `amhiltThrow1`, `amhiltThrow2`, `amcomeon`, `amwon`, `amhello`, `sleep`,
+    `amatease`, `amsurrender`, `amsit` to `amsit4`, `ambeg`, `amwait`, `amhips`,
+    `amvictory`, `amneo`, `ambreakdance`, `ambreakdance2`, `amnoisy`. Each plays a retail
+    `_humanoid` pose as a taunt (`HANDEXTEND_TAUNT`) for a living player with free hands,
+    not lying, getting up, swinging or on the jetpack; `amdie` and `amdie2` only in a
+    free-for-all outside a duel, `amfinishinghim` lights a holstered saber first,
+    `amvictory` needs the saber, lights it and plays the gloat's taunt event. The sitting,
+    kneeling and lying poses are refused in team games ("this Emot is not compatible with
+    this gametype!.").
+  - *Held until a button*: those poses, and meditation, keep the player still with the
+    view free until an attack, a Force button, the hook's (`+button12`) or a jump, which
+    plays the pose's own get-up (`sjk_game_jka::pmove_japlus_emotes`, VisionJK
+    `bg_pmove.c:10789-10823,11125-11196`). SJK's client predicts this on every JA+ server
+    ([networking.md](networking.md)). The JA+ plugin does too; for the clients that do not,
+    the server freezes the body (`PM_FREEZE`) as `jp_fixEmot` says: `amatease`, which no
+    client holds, always.
+  - *`amhug`*: with the player 40 units ahead along the view (not duelling, not in a
+    grapple), both sabers put away, the two turn to each other and play the retail hug
+    (`BOTH_HUGGER1`, `BOTH_HUGGEE1`). Not in team games.
+  - *`amkiss`*: JA+ kisses with its own animations (`jp_newGLAAnims`), which SJK does not
+    ship, so it answers as JA+ does without them ("the new GLA animations are not loaded
+    on this server or the admin disallowed them!.").
+  - *`amflip`*: on the ground, the saber in hand turns on or off with its style's
+    show-off (the draw, the holster, the staff's and the duals' show-offs), JA+'s on-sound
+    both ways.
+  - *`amknockmedown`*, *`amdropsaber`*: in a free-for-all only, the player falls (700 ms,
+    a hop and the Force jump's sound) or its saber flies out of its hand; refused in a
+    duel, and as JA+ sends it (a command of its own, not a print) where the setting is off.
+  - *`jetpack`*: takes the jetpack item (when it is off) or gives it on the ground; never
+    in siege, the duels and capture the flag, nor in team deathmatch, nor to a Jedi of
+    Jedi against mercenaries.
+  - *`amcolor R G B`*, *`sabercolor N R G B`*: the model's tint (`char_color_*`, 768
+    keeps the model's) or a saber's RGB colour (`cp_sbRGB<N>`, `color<N>` 6) written into
+    the player's userinfo and published; `sabercolor` only for a client naming the JA+
+    plugin 1.1 or later in `cjp_client` (SJK sends `1.4 SJK`).
+  - *`saber [saber1 [saber2]]`*: the sabers changed while playing, the second `none` when
+    not named, with the stance they bring (`G_UpdateSaberFromUserinfo`,
+    `G_ClampSaberLevel`); not in a duel, nor in siege and the duels, nor swinging, and no
+    more often than `jp_allowSaberSwitch` milliseconds.
+  - *`ammove`*, *`amDMGs`*, *`duelWhois`*: JA+'s moves list (JA+'s own, moves SJK does not
+    play included), its damage settings, the duels being fought.
+  - *`refuseTele`*: toggled and said; no admin teleport reads it yet.
+  - The server console's `serverTime` and `modVersion` (`ServerMod::console_command`).
 
 | Setting | `jp_cinfo` bit | Effect |
 | --- | --- | --- |
@@ -188,6 +239,12 @@ What the mode does so far:
 | `jp_duelStartArmor` 100 (default) | | The armour both duellists start with |
 | `jp_endDuelBroadcastMSG` 1 (default), 2, 0 | | The winner's health and armour: everyone, the two, nobody |
 | `jp_privateDuelForceRegen` 200 (default) | | Milliseconds a Force point takes to come back in a private duel |
+| `jp_emotDisallow` 0 (default) | | The emotes refused, a bit each (`amkneel` 1 ... `amnoisy` 28, `amhug` 13) |
+| `jp_fixEmot` 1 (default), 0 | | 1 freezes the held emotes only while a player's client has no JA+ plugin (bots count as having it); 0 always |
+| `jp_allowAmKnockmedown` 1 (default) | | `amknockmedown` works |
+| `jp_allowAmDropSaber` 1 | | `amdropsaber` works (0 by default) |
+| `jp_allowSaberSwitch` 1500 (default) | | Milliseconds between two `/saber` changes; 0 refuses them |
+| `jp_allowJetpack` 1 | | The `jetpack` command gives the jetpack (0 by default). Latched: waits for the next map |
 
 A `jp_cinfo` bit is only announced for a rule the server plays, whatever its setting
 says ([cinfo.rs](../crates/sjk-server-mod-japlus/src/cinfo.rs) is the table): single
@@ -198,7 +255,7 @@ animation files, which SJK does not ship.
 
 Not built yet, in the order planned: the rest of the Force changes (`jp_forceCombo`'s
 push and pull grabs and its rage with speed, the flamethrower `jp_allowFlameThrower`);
-then the emotes and player commands (`amkiss`, `amflip`, the hook, `/saber`...); then
+then the grappling hook and `amAltDim`, `immortal`, `toggleFlame`; then
 the admin system, logged in with SJK identity keys, with JA+'s rank passwords only if
 the owner allows them; then chat, highlander, blocking walls and model scale. Until then:
 
@@ -213,6 +270,11 @@ the owner allows them; then chat, highlander, blocking walls and model scale. Un
   disruptor shot also goes through a duellist rather than being spent on it.
 - `jp_highlander`, `jp_forceCombo` and the other announced settings change nothing on
   the server.
+- What the emotes and player commands leave out: `amkiss` (JA+'s own animations, see
+  above) and JA+'s own draw and holster animations for `amflip`; the sleeping, ghosted and alternate-dimension states JA+'s checks read (none is
+  built, so they never refuse); the JA+ hook's button ends an emote but there is no hook
+  yet. `amcolor`, `sabercolor` and `saber` change the server's copy of the userinfo, not
+  the endpoint's (`trap->SetUserinfo`), so a `dumpuser` shows the client's own.
 - `jp_saberNoForceDrain` stays off: it changes the Force the special attacks cost, which
   clients predict (VisionJK's own client predicts the cost whatever the setting, SJK's
   shared movement too), so it waits until clients can be told of it.

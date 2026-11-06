@@ -15,24 +15,22 @@ fn command_words(text: &[u8]) -> Option<(&[u8], Vec<&[u8]>)> {
 }
 
 impl NativeGame {
-    /// A command the running server mod adds, `command` as the player typed it.
-    fn mod_command(&mut self, client: usize, command: &[u8], added: sjk_server_mod::ModCommand) {
-        match added {
-            sjk_server_mod::ModCommand::FullForceDuel => {
-                // `CMD_NOINTERMISSION` (VisionJK `g_cmds.c:3756`).
-                if !self.refused_at_intermission(client, command) {
-                    self.duel_key(client, self.last_frame_time, true);
-                }
-            }
-        }
-    }
-
     /// `ClientCommand`: a reliable command from the player at `client`'s place, at the
     /// server's clock `server_time`.
     pub(super) fn player_command(&mut self, client: usize, text: &[u8], server_time: i32) {
         let Some((command, words)) = command_words(text) else {
             return;
         };
+        // The running server mod's own commands come first (VisionJK `g_cmds.c:3862`,
+        // `JP_ClientCommand`), so a name the game's table also has (`jetpack`) is the
+        // mod's (`sjk_server_mod::ModCommand`).
+        if let Some(added) = self
+            .server_mod
+            .and_then(|server_mod| server_mod.command(command))
+        {
+            self.mod_command(client, command, &words, added);
+            return;
+        }
         let mut words = words.into_iter();
         if [
             b"kill".as_slice(),
@@ -118,14 +116,6 @@ impl NativeGame {
         }
         let arguments: Vec<&[u8]> = words.collect();
         if self.table_command(client, command, &arguments, server_time) {
-            return;
-        }
-        // A command the running server mod adds to the table (`sjk_server_mod::ModCommand`).
-        if let Some(added) = self
-            .server_mod
-            .and_then(|server_mod| server_mod.command(command))
-        {
-            self.mod_command(client, command, added);
             return;
         }
         // `Cmd_ForceChanged_f` goes on as `Cmd_Team_f` when the menu sent a team with it.

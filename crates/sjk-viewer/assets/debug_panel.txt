@@ -8986,6 +8986,19 @@ test: Back to Create game: JA+ is still chosen, also after a restart; Base game:
 test: ui_menuStyle classic, Play > Create Server: the same Server mod row is there.
 note: The rows moved: Start sits a little lower to make room for the row.
 
+[japlus-emotes]
+area: Gameplay
+title: JA+ server mode: the 27 emotes, amhug, amflip, jetpack, /saber and the info commands
+change: g_mod japlus: amsit, sleep, amkneel... play and hold until you attack, jump or use Force.
+change: amhug, amflip, amknockmedown, amdropsaber, jetpack, amcolor, sabercolor, saber, ammove.
+change: SJK predicts JA+'s held emotes on every JA+ server: no more sliding back while sitting.
+test: Local sjk-server +set g_mod japlus with a bot: amsit3, try to walk: you stay; jump: you stand.
+test: amhug facing the bot up close: both put sabers away and hug. amkiss: JA+'s GLA refusal text.
+test: amflip turns your saber on and off; amknockmedown drops you; jetpack: not allowed (default).
+test: rcon jp_allowJetpack 1, next map: jetpack gives it. saber dual_1 dual_1: duals at once.
+test: On a real JA+ server: amsit, amkneel, sleep: no pulling back while held, none on get-up.
+note: Base servers (no g_mod) answer Unknown command to all of them, as before.
+
 [japlus-force]
 area: Gameplay
 title: JA+ server mode: JA+'s Force rules (push, absorb, grip, cloak, items)

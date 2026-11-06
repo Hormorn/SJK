@@ -89,6 +89,12 @@ pub struct Peer {
     /// No JA+ challenge before this time (`fd.privateDuelTime`); never set on the base
     /// game.
     pub(crate) duel_rest_until: i32,
+    /// A mod's `refuseTele` is on: admins may not teleport the player
+    /// (`pers.jp.refuseTele`); never set on the base game, and no admin teleport reads it
+    /// yet.
+    pub(crate) refuse_teleport: bool,
+    /// No mod saber change before this time (JA+'s `/saber`, `pers.jp.saberSwitchTime`).
+    pub(crate) saber_switch_time: i32,
     /// What the other clients are shown of the player, and whether they are: a
     /// spectator's entity is not linked into the world, so no snapshot lists it.
     pub(crate) entity: PlayerEntity,
@@ -252,6 +258,8 @@ impl Peer {
             state,
             invulnerable_until: 0,
             full_force_duel: false,
+            refuse_teleport: false,
+            saber_switch_time: 0,
             duel_rest_until: 0,
             entity: PlayerEntity::new(client as u16),
             link: ClusterLink::default(),

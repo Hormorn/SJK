@@ -16,17 +16,20 @@
 //! - [`JaPlus::force`]: JA+'s Force rules (`sjk_game_jka::force_rules`).
 //! - [`JaPlus::duels`]: JA+'s private duels (`sjk_game_jka::duel::DuelRules`), and its
 //!   `engage_FullForceDuel` ([`JaPlus::command`]).
+//! - [`commands`]: its emotes and player commands, and the server console's own.
 
 pub mod cinfo;
 pub mod combat;
+pub mod commands;
 pub mod cvars;
 
 use sjk_game_jka::RollRules;
 use sjk_game_jka::duel::{DuelRules, WinnerReport};
 use sjk_game_jka::force_rules::{ForceRules, GripOpenSaber};
 use sjk_game_jka::pmove_japlus::JaPlusRules;
+use sjk_game_jka::pmove_japlus_emotes::EmoteFreeze;
 use sjk_protocol::{JaPlusCapabilities, ServerDialect};
-use sjk_server_mod::{ModCombat, ModCommand, ModMovement, ServerMod, Settings};
+use sjk_server_mod::{ModCombat, ModCommand, ModMovement, PlayerCommandRules, ServerMod, Settings};
 
 /// `gamename` of JA+ 2.4 B7 (VisionJK `g_japlus.h` `JP_GAMENAME`): clients and server
 /// browsers tell a JA+ server by it (`sjk_protocol::is_ja_plus_game_name`).
@@ -81,6 +84,14 @@ impl ServerMod for JaPlus {
                 // A serverinfo setting (`CVAR_SERVERINFO`), which the clients read from
                 // there (`JaPlusRules::from_game_state`).
                 grip_speed: settings.value("jp_gripSpeedScale"),
+                // VisionJK `bg_pmove.c:11186-11193`: `jp_fixEmot` freezes the held
+                // emotes only while a player has no plugin (the server then freezes them
+                // all, [`ServerMod::client_has_plugin`]); `amatease` always.
+                emote_freeze: if settings.integer("jp_fixEmot") != 0 {
+                    EmoteFreeze::AtEase
+                } else {
+                    EmoteFreeze::Held
+                },
                 ..JaPlusRules::from_dialect(&dialect)
             },
             fix_roll: RollRules::from_dialect(&dialect).fix_roll,
@@ -141,9 +152,23 @@ impl ServerMod for JaPlus {
     }
 
     fn command(&self, name: &[u8]) -> Option<ModCommand> {
-        // VisionJK `g_cmds.c:3455-3462,3756`.
-        name.eq_ignore_ascii_case(b"engage_FullForceDuel")
-            .then_some(ModCommand::FullForceDuel)
+        commands::command(name)
+    }
+
+    fn player_commands(&self, settings: &dyn Settings) -> PlayerCommandRules {
+        commands::rules(settings)
+    }
+
+    fn command_prints(&self, command: ModCommand, settings: &dyn Settings) -> Vec<String> {
+        commands::prints(command, settings)
+    }
+
+    fn client_has_plugin(&self, userinfo: &[u8]) -> bool {
+        commands::has_plugin(userinfo)
+    }
+
+    fn console_command(&self, name: &[u8], level_time: i32) -> Option<String> {
+        commands::console(name, level_time)
     }
 }
 
@@ -197,8 +222,12 @@ mod tests {
         );
         let profile = ServerProfile::from_server_info(&InfoString::parse(&info).unwrap());
         let movement = JaPlus.movement(&settings);
+        // The emotes' freeze is the server's own, for the clients that do not predict.
         assert_eq!(
-            movement.ja_plus,
+            JaPlusRules {
+                emote_freeze: EmoteFreeze::Off,
+                ..movement.ja_plus
+            },
             JaPlusRules::from_dialect(&profile.dialect)
         );
         assert_eq!(
@@ -209,6 +238,20 @@ mod tests {
         assert!(movement.ja_plus.yellow_dfa && !movement.ja_plus.head_slide);
         assert_eq!(movement.fix_roll, 1);
         assert_eq!(movement.legacy_fixes, 0);
+    }
+
+    #[test]
+    fn jp_fix_emot_picks_what_the_server_freezes() {
+        let mut settings = Table(HashMap::new());
+        assert_eq!(
+            JaPlus.movement(&settings).ja_plus.emote_freeze,
+            EmoteFreeze::AtEase
+        );
+        settings.0.insert("jp_fixEmot", 0);
+        assert_eq!(
+            JaPlus.movement(&settings).ja_plus.emote_freeze,
+            EmoteFreeze::Held
+        );
     }
 
     #[test]

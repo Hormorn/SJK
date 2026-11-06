@@ -47,6 +47,10 @@ pub struct JaPlusRules {
     /// run speed kept while gripping, within 0.4 and 1.01 ([`Self::grip_speed_scale`]).
     /// Only read on JA+.
     pub grip_speed: f32,
+    /// The held emotes a JA+ server freezes (`PM_FREEZE`) for the clients that do not
+    /// predict them ([`crate::pmove_japlus_emotes`]); a client's own movement holds them
+    /// itself and leaves this off.
+    pub emote_freeze: crate::pmove_japlus_emotes::EmoteFreeze,
 }
 
 impl Default for JaPlusRules {
@@ -59,6 +63,7 @@ impl Default for JaPlusRules {
             free_knockdown_view: false,
             old_collision: false,
             grip_speed: JP_GRIP_SPEED_SCALE,
+            emote_freeze: crate::pmove_japlus_emotes::EmoteFreeze::Off,
         }
     }
 }
@@ -82,6 +87,7 @@ impl JaPlusRules {
             free_knockdown_view: false,
             old_collision: false,
             grip_speed: JP_GRIP_SPEED_SCALE,
+            emote_freeze: crate::pmove_japlus_emotes::EmoteFreeze::Off,
         }
     }
 
@@ -145,12 +151,6 @@ impl JaPlusRules {
     /// Whether a staff's alternate attack standing still is a front kick
     /// (`bg_saber.c:2857-2866`).
     pub(crate) fn standing_front_kick(self) -> bool {
-        self.enabled
-    }
-
-    /// Whether a full-body taunt leaves the view (and, past meditation, the controls)
-    /// free (`bg_pmove.c:12228-12270`).
-    pub(crate) fn free_taunts(self) -> bool {
         self.enabled
     }
 
@@ -227,7 +227,7 @@ mod tests {
         assert!(stock.cancels_attack_with_holdable(2));
         assert_eq!(stock.flip_over_forward_speed(), 150.0);
         assert!(stock.flip_over_spins());
-        assert!(!stock.standing_front_kick() && !stock.free_taunts());
+        assert!(!stock.standing_front_kick());
         assert!(!stock.flip_kick());
     }
 
@@ -244,7 +244,7 @@ mod tests {
         assert!(japlus.cancels_attack_with_holdable(3));
         assert_eq!(japlus.flip_over_forward_speed(), 60.0);
         assert!(!japlus.flip_over_spins());
-        assert!(japlus.standing_front_kick() && japlus.free_taunts() && japlus.flip_kick());
+        assert!(japlus.standing_front_kick() && japlus.flip_kick());
     }
 
     #[test]
@@ -373,6 +373,116 @@ mod tests {
         let (japlus_state, japlus) = filtered(state.clone(), ja_plus());
         assert_eq!(japlus.forward_move, 0);
         assert_eq!(japlus_state.delta_angles, state.delta_angles);
+    }
+
+    /// The command filter for one command of `step` ms with `buttons` and `up_move`, the
+    /// pose's lengths known when `lengths` (every animation 10 frames of 50 ms).
+    fn emote_filtered(
+        mut state: crate::pmove::MovementState,
+        rules: JaPlusRules,
+        step: i32,
+        buttons: u16,
+        up_move: i8,
+        lengths: bool,
+    ) -> (crate::pmove::MovementState, sjk_protocol::UserCommand) {
+        let table = crate::AnimationLengthTable::new(vec![
+            crate::pmove_anim::AnimationTiming {
+                frame_count: 10,
+                frame_lerp_ms: 50,
+            };
+            crate::legacy_animation_count()
+        ]);
+        let mut command = sjk_protocol::UserCommand {
+            server_time: 1_000 + step,
+            forward_move: 127,
+            up_move,
+            buttons,
+            angles: [0, 16_384, 0],
+            ..Default::default()
+        };
+        state.ground_entity_number = 1_022;
+        let lengths: Option<&dyn crate::AnimationLengths> = lengths.then_some(&table);
+        crate::pmove_input_freeze::apply(&mut state, &mut command, step, &Open, lengths, rules);
+        (state, command)
+    }
+
+    fn posed(name: &str, timer: i32) -> crate::pmove::MovementState {
+        crate::pmove::MovementState {
+            legs_anim: animation(name),
+            torso_anim: animation(name),
+            legs_timer: timer,
+            torso_timer: timer,
+            force_hand_extend: 10,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_ja_plus_emote_holds_the_body_until_a_button() {
+        use crate::pmove_japlus_emotes::EmoteFreeze;
+        for step in [8, 7, 4, 3] {
+            // `amsit3`: held still with the view free, the timers topped up to a second.
+            let (held, command) =
+                emote_filtered(posed("BOTH_SIT6", 20), ja_plus(), step, 0, 0, false);
+            assert_eq!(command.forward_move, 0, "{step} ms");
+            assert_eq!(held.delta_angles, [0; 3]);
+            assert_eq!(held.legs_timer, 1_000);
+            assert_eq!(
+                (held.force_hand_extend, held.force_hand_extend_time),
+                (10, 2_000 + step)
+            );
+            assert_eq!(held.movement_type, 0, "a client predicts it, unfrozen");
+            // A stock server knows no such taunt.
+            let (_, stock) = emote_filtered(
+                posed("BOTH_SIT6", 20),
+                JaPlusRules::default(),
+                step,
+                0,
+                0,
+                false,
+            );
+            assert_eq!(stock.forward_move, 127);
+            // An attack ends it with the pose's own end.
+            let (ended, _) = emote_filtered(posed("BOTH_SIT6", 20), ja_plus(), step, 1, 0, true);
+            assert_eq!(ended.legs_anim, animation("BOTH_SIT2TOSTAND5"));
+            assert_eq!(ended.torso_anim, animation("BOTH_SIT2TOSTAND5"));
+            assert_eq!(ended.force_hand_extend, 0);
+            // The hook's button and a jump too; without the lengths, the timers end.
+            let (hooked, _) =
+                emote_filtered(posed("BOTH_SIT6", 20), ja_plus(), step, 4_096, 0, false);
+            assert_eq!((hooked.legs_timer, hooked.torso_timer), (0, 0));
+            let (jumped, _) = emote_filtered(posed("BOTH_SIT6", 20), ja_plus(), step, 0, 127, true);
+            assert_eq!(jumped.legs_anim, animation("BOTH_SIT2TOSTAND5"));
+            // A server that freezes the held emotes.
+            let server = JaPlusRules {
+                emote_freeze: EmoteFreeze::Held,
+                ..ja_plus()
+            };
+            let (frozen, _) = emote_filtered(posed("BOTH_SIT6", 20), server, step, 0, 0, false);
+            assert_eq!(frozen.movement_type, 6);
+        }
+    }
+
+    #[test]
+    fn only_the_server_holds_and_freezes_at_ease() {
+        use crate::pmove_japlus_emotes::EmoteFreeze;
+        // `amatease`: a client lets it go, the server holds and freezes it, `jp_fixEmot`
+        // or not; meditation is never frozen.
+        let (client, command) = emote_filtered(posed("BOTH_STAND4", 50), ja_plus(), 8, 0, 0, false);
+        assert_eq!((command.forward_move, client.legs_timer), (127, 50));
+        for freeze in [EmoteFreeze::AtEase, EmoteFreeze::Held] {
+            let server = JaPlusRules {
+                emote_freeze: freeze,
+                ..ja_plus()
+            };
+            let (held, command) = emote_filtered(posed("BOTH_STAND4", 50), server, 8, 0, 0, false);
+            assert_eq!((command.forward_move, held.movement_type), (0, 6));
+            let (meditating, command) =
+                emote_filtered(posed("BOTH_MEDITATE", 50), server, 8, 0, 0, false);
+            assert_eq!((command.forward_move, meditating.movement_type), (0, 0));
+            let (sitting, _) = emote_filtered(posed("BOTH_SIT6", 50), server, 8, 0, 0, false);
+            assert_eq!(sitting.movement_type == 6, freeze == EmoteFreeze::Held);
+        }
     }
 
     #[test]
