@@ -46,6 +46,7 @@ impl NativeGame {
             self.update_mod_movement();
             self.mod_combat = crate::server_mods::combat(self.server_mod, &self.cvars);
             self.mod_force = crate::server_mods::force(self.server_mod, &self.cvars);
+            self.mod_hook = crate::server_mods::hook(self.server_mod, &self.cvars);
         }
         for name in changed {
             let Some(var) = self.cvars.var(&name) else {

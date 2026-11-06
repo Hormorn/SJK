@@ -10,8 +10,9 @@
 //! The JA+ game fires the hook, stores the anchor in `lastHitLoc` and flags a player it
 //! pulls with `PMF_GRAPPLE`. A client-plugin user who lets go of the hook key stays on
 //! the rope instead: the game clears the flag and sets entity flag bit 16
-//! ([`EF_ROPE_HANG`]) until use is pressed. Each move then runs, after the water-jump
-//! check and before the water, walk and air moves:
+//! ([`EF_ROPE_HANG`]) until use is pressed. SJK's own server does the same
+//! ([`crate::japlus_hook`]) and moves its players with this code. Each move then runs,
+//! after the water-jump check and before the water, walk and air moves:
 //!
 //! - pulled: [`pull_velocity`] replaces the velocity, then an air move carries it;
 //! - hanging: an air move, then [`rope_velocity`] swings the player on the rope.
@@ -27,8 +28,6 @@ pub const PMF_GRAPPLE: u16 = 32_768;
 /// JA+'s entity flag for a player hanging on the hook's rope (`EF_NOT_USED_2` in
 /// stock codemp).
 pub const EF_ROPE_HANG: u32 = 1 << 16;
-/// `BUTTON_USE`: on JA+ it lets go of the hook.
-const BUTTON_USE: u16 = 32;
 /// How far short of the anchor the pull aims, along the view (`bg_pmove.c:4162`).
 const ANCHOR_STANDOFF: f32 = 16.0;
 /// Inside this distance the pull slows in proportion (`bg_pmove.c:4175-4178`).
@@ -150,14 +149,14 @@ pub(crate) fn pull_animation(yaw: f32, velocity: [f32; 3]) -> Option<u16> {
 }
 
 impl Predictor {
-    /// The hook movement this move runs, if any. Use lets go of the hook in the JA+
-    /// game before the move, so a pull with use held is predicted as no pull, as
-    /// EternalJK does (`bg_pmove.c:4157-4159`), and likewise a hang.
-    pub(super) fn hook_move(&self, command: &UserCommand) -> Option<HookMove> {
+    /// The hook movement this move runs, if any. Use lets go of the hook only after the
+    /// move: the JA+ game's hook think follows `Pmove` (VisionJK `g_active.c:3403-3405`,
+    /// `japlus/g_japlus_hook.c:347-351`) and its `PmoveSingle` pulls on the flag alone
+    /// (`bg/bg_pmove.c:11923-11930`), so a move with use held is still pulled or hung.
+    /// (EternalJK predicts no pull with use held, `bg_pmove.c:4157-4159`.)
+    pub(super) fn hook_move(&self) -> Option<HookMove> {
         self.config.grapple?;
-        if command.buttons & BUTTON_USE != 0 {
-            None
-        } else if self.state.movement_flags & PMF_GRAPPLE != 0 {
+        if self.state.movement_flags & PMF_GRAPPLE != 0 {
             Some(HookMove::Pull)
         } else if self.state.entity_flags & EF_ROPE_HANG != 0 {
             Some(HookMove::Hang)
@@ -303,6 +302,88 @@ mod tests {
             Some(BOTH_FORCEJUMPLEFT1)
         );
         assert_eq!(pull_animation(90.0, [0.0, 100.0, 0.0]), None);
+    }
+
+    struct Empty;
+    impl MovementCollision for Empty {
+        fn trace(
+            &self,
+            _: [f32; 3],
+            _: [f32; 3],
+            _: [f32; 3],
+            end: [f32; 3],
+            _: u32,
+        ) -> MovementTrace {
+            MovementTrace::miss(end)
+        }
+    }
+
+    fn hooked(grapple: Option<GrappleRules>, flags: u16, entity_flags: u32) -> Predictor {
+        let state = MovementState {
+            health: 100,
+            gravity: 800.0,
+            speed: 250.0,
+            origin: [0.0, 0.0, 0.0],
+            movement_flags: flags,
+            entity_flags,
+            ground_entity_number: crate::pmove::ENTITY_NUMBER_NONE,
+            standing_height: 40.0,
+            crouching_height: 16.0,
+            last_hit_location: [1_000.0, 0.0, 0.0],
+            ..Default::default()
+        };
+        let config = MovementConfig {
+            grapple,
+            ..MovementConfig::default()
+        };
+        Predictor::from_state(state, config)
+    }
+
+    #[test]
+    fn use_held_is_still_pulled_and_hung_as_the_server_moves_it() {
+        // The JA+ game lets go of the hook after the move (VisionJK `g_active.c:3405`):
+        // the move with use held is pulled, at every command step.
+        for step in [8, 7, 4, 3] {
+            for buttons in [0, 32] {
+                let mut pulled = hooked(Some(JA_PLUS), PMF_GRAPPLE, 0);
+                pulled.predict_command(
+                    UserCommand {
+                        server_time: step,
+                        buttons,
+                        ..Default::default()
+                    },
+                    &Empty,
+                );
+                let velocity = pulled.state().velocity;
+                assert!(
+                    (velocity[0] - 800.0).abs() < 1e-3,
+                    "{step} {buttons} {velocity:?}"
+                );
+                assert!(pulled.state().origin[0] > 0.0);
+                // Hanging straight across from the anchor: the rope keeps no radial speed.
+                let mut hanging = hooked(Some(JA_PLUS), 0, EF_ROPE_HANG);
+                hanging.state_mut().velocity = [-100.0, 0.0, 0.0];
+                hanging.predict_command(
+                    UserCommand {
+                        server_time: step,
+                        buttons,
+                        ..Default::default()
+                    },
+                    &Empty,
+                );
+                assert!(hanging.state().velocity[0].abs() < 1.0, "{step} {buttons}");
+            }
+        }
+        // Without the server's hook rules, the flags move nobody: a plain fall.
+        let mut plain = hooked(None, PMF_GRAPPLE, EF_ROPE_HANG);
+        plain.predict_command(
+            UserCommand {
+                server_time: 8,
+                ..Default::default()
+            },
+            &Empty,
+        );
+        assert_eq!(plain.state().velocity[0], 0.0);
     }
 
     #[test]

@@ -17,6 +17,8 @@ impl NativeGame {
         spectating: bool,
         level_time: i32,
     ) {
+        // JA+'s `TeleportPlayer` lets go of the hook (VisionJK `g_misc.c:228`).
+        self.free_hook(client, level_time);
         let Some(peer) = self.peer_mut(client) else {
             return;
         };

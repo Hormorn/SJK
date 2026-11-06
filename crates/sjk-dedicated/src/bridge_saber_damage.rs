@@ -322,6 +322,15 @@ impl NativeGame {
             .as_ref()
             .map_or(0, |force| force.levels[FP_SABERTHROW]);
         let ja_plus = self.mod_combat.saber;
+        // JA+: a swinging blade cuts the other players' hook ropes (VisionJK
+        // `w_saber.c:4013-4016`, `CheckSaberDamage` for every blade); only while one is out.
+        let cuts_ropes = self.mod_hook.ropes_cut()
+            && self.any_hook_out()
+            && sjk_game_jka::saber_rules::attacking(
+                peer.state.saber_move(),
+                peer.state.weapon_state(),
+                u32::from(peer.state.saber_blocked()),
+            );
         let mut hits = SaberHits::default();
         for saber in first_saber..2 {
             let Some(peer) = self.peer(client) else {
@@ -390,7 +399,21 @@ impl NativeGame {
                     talking: state.entity_flags() & sjk_game_jka::pmove_talk::EF_TALK != 0,
                     ja_plus,
                 };
+                let blade_length = fighter.blade.length;
                 let trail = peer.saber_cut.trails[saber][blade];
+                if cuts_ropes {
+                    let tip = std::array::from_fn(|axis| {
+                        reading.base[axis] + blade_length * reading.direction[axis]
+                    });
+                    self.cut_ropes(
+                        client as u16,
+                        reading.base,
+                        tip,
+                        sjk_game_jka::japlus_hook::SABER_CUT_RADIUS,
+                        false,
+                        level_time,
+                    );
+                }
                 self.gather_obstacles(client);
                 self.gather_saber_entities(client);
                 let mut rng = self.deaths.rng;

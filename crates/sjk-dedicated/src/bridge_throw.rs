@@ -428,15 +428,31 @@ impl NativeGame {
             let Some(peer) = self.peer(client).filter(|peer| peer.saber_entity.is_some()) else {
                 continue;
             };
+            let (think, from) = (peer.flight.think, peer.flight.current);
             // In hand the think only flags a throw: the world is gathered for a flight.
-            if peer.flight.think != SaberThink::InHand {
+            if think != SaberThink::InHand {
                 self.gather_obstacles(client);
                 self.gather_saber_entities(client);
             }
             let previous_time = self.previous_frame_time;
+            // JA+: a flying saber cuts hook ropes, its owner's too (VisionJK
+            // `w_saber.c:6299-6300`, `saberMoveBack`), 25 units about it going out, 10
+            // coming back.
+            let flying = match think {
+                SaberThink::Thrown => Some(sjk_game_jka::japlus_hook::THROWN_CUT_RADIUS),
+                SaberThink::Back => Some(sjk_game_jka::japlus_hook::RETURNING_CUT_RADIUS),
+                _ => None,
+            };
             let flown = self.with_saber(client, |saber, world| {
                 sjk_game_jka::saber_throw::run_think(saber, world, level_time, previous_time)
             });
+            if let Some(radius) = flying
+                && self.mod_hook.ropes_cut()
+                && self.any_hook_out()
+                && let Some(to) = self.peer(client).map(|peer| peer.flight.current)
+            {
+                self.cut_ropes(client as u16, from, to, radius, true, level_time);
+            }
             match flown.unwrap_or_default() {
                 Flown::Nothing => {}
                 Flown::Freed => {

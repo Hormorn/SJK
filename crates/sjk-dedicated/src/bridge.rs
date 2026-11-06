@@ -293,6 +293,13 @@ pub struct NativeGame {
     mod_force: sjk_game_jka::force_rules::ForceRules,
     /// The private-duel rules it selects from its settings (`bridge_duel`).
     duel_rules: sjk_game_jka::duel::DuelRules,
+    /// The grappling hook it selects from its settings (`bridge_hook`); none on the base
+    /// game.
+    mod_hook: sjk_game_jka::japlus_hook::HookRules,
+    /// Hooks freed while the missiles run, which the run leaves out (`bridge_hook`).
+    hooks_freed: Vec<EntityId>,
+    /// The frame's shots that may cut a hook's rope: shooter, from, to (`bridge_hook`).
+    rope_cutters: Vec<(u16, [f32; 3], [f32; 3])>,
 }
 
 /// The serverId a world starts on. `SV_SpawnServer` uses `com_frameTime`, which is only
@@ -380,6 +387,7 @@ impl NativeGame {
         let mod_combat = crate::server_mods::combat(server_mod, &cvars);
         let mod_force = crate::server_mods::force(server_mod, &cvars);
         let duel_rules = crate::server_mods::duels(server_mod, &cvars);
+        let mod_hook = crate::server_mods::hook(server_mod, &cvars);
         let (config_strings, sounds) = world_config_strings(
             &status_info,
             map.as_ref(),
@@ -493,6 +501,9 @@ impl NativeGame {
             mod_combat,
             mod_force,
             duel_rules,
+            mod_hook,
+            hooks_freed: Vec::new(),
+            rope_cutters: Vec::new(),
         };
         game.pool = EntityPool::with_budget(0, game.entity_budget());
         game.spawn_items();
@@ -1705,6 +1716,8 @@ impl NativeGame {
     /// (a suicide: `DeathRequest::suicide`).
     fn die(&mut self, client: usize, mut request: DeathRequest) {
         let server_time = request.level_time;
+        // JA+'s `player_die` lets go of the hook first (VisionJK `g_combat.c:2111`).
+        self.free_hook(client, server_time);
         // Nobody dies at the intermission (a respawn's telefrag there decides nothing).
         if self.match_end.intermission_time != 0 {
             return;
@@ -2642,6 +2655,7 @@ impl NativeGame {
         self.saber_thinks(server_time);
         self.run_emplaced(server_time);
         self.run_missiles(server_time);
+        self.run_hooks(server_time);
         self.run_spheres(server_time);
         self.run_charges(server_time);
         self.run_items(server_time);
@@ -2813,9 +2827,29 @@ impl NativeGame {
     fn run_missiles(&mut self, server_time: i32) {
         let previous_time = self.previous_frame_time;
         self.gather_homing_targets();
+        // JA+'s hooks (`bridge_hook`): only while one is out are the missiles looked at for
+        // them, and for the shots that cut their ropes.
+        let hooks_out = self.any_hook_out();
+        let ropes = hooks_out && self.mod_hook.ropes_cut();
         let mut missiles = std::mem::take(&mut self.missiles);
         missiles.retain_mut(|(number, missile)| {
+            // A hook let go while the missiles ran (its owner killed by one) flies no more.
+            if self.hooks_freed.contains(number) {
+                return false;
+            }
+            let hook = hooks_out.then(|| self.hook_missile(*number)).flatten();
+            let before = hook.map(|_| missile.state.clone());
+            let from = missile.current;
             let run = self.run_one_missile(missile, server_time, previous_time);
+            if ropes && hook.is_none() {
+                self.rope_cutters
+                    .push((missile.owner, from, missile.current));
+            }
+            if let (Some(hook), Some(before)) = (hook, before)
+                && let Some(keep) = self.hook_run(*number, missile, hook, &run, before, server_time)
+            {
+                return keep;
+            }
             match run {
                 MissileRun::Blown { effect } => {
                     self.pool.set_state(*number, &missile.state);
@@ -2937,9 +2971,16 @@ impl NativeGame {
                 }
             }
         });
+        if !self.hooks_freed.is_empty() {
+            let freed = std::mem::take(&mut self.hooks_freed);
+            missiles.retain(|(number, _)| !freed.contains(number));
+            self.hooks_freed = freed;
+            self.hooks_freed.clear();
+        }
         self.missiles = missiles;
         let waiting = std::mem::take(&mut self.dead_sabers_waiting);
         self.missiles.extend(waiting);
+        self.cut_ropes_with_shots(server_time);
     }
 
     /// `g_gravity` as worldspawn set it, read the way a cvar's value is; 800 without a map.
@@ -3397,6 +3438,8 @@ mod bridge_force;
 mod bridge_generic;
 #[path = "bridge_holocron.rs"]
 mod bridge_holocron;
+#[path = "bridge_hook.rs"]
+mod bridge_hook;
 #[path = "bridge_icarus.rs"]
 mod bridge_icarus;
 #[path = "bridge_jedimaster.rs"]

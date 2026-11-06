@@ -16,6 +16,8 @@
 //! - [`JaPlus::force`]: JA+'s Force rules (`sjk_game_jka::force_rules`).
 //! - [`JaPlus::duels`]: JA+'s private duels (`sjk_game_jka::duel::DuelRules`), and its
 //!   `engage_FullForceDuel` ([`JaPlus::command`]).
+//! - [`JaPlus::hook`]: JA+'s grappling hook (`sjk_game_jka::japlus_hook`), whose pull every
+//!   JA+ client predicts ([`ModMovement::grapple`]).
 
 pub mod cinfo;
 pub mod combat;
@@ -24,6 +26,8 @@ pub mod cvars;
 use sjk_game_jka::RollRules;
 use sjk_game_jka::duel::{DuelRules, WinnerReport};
 use sjk_game_jka::force_rules::{ForceRules, GripOpenSaber};
+use sjk_game_jka::japlus_hook::{DF_NO_HOOK_FUEL, HookRules};
+use sjk_game_jka::pmove::grapple::GrappleRules;
 use sjk_game_jka::pmove_japlus::JaPlusRules;
 use sjk_protocol::{JaPlusCapabilities, ServerDialect};
 use sjk_server_mod::{ModCombat, ModCommand, ModMovement, ServerMod, Settings};
@@ -88,6 +92,21 @@ impl ServerMod for JaPlus {
             // fixes (VisionJK `docs/japlus/differences.md`: `g_fixRunWalkAnims`,
             // `g_fixWeaponAttackAnim` and `g_fixSaberMoveData` are 0 there).
             legacy_fixes: 0,
+            // The hook's pull, as every JA+ client predicts it on any JA+ server
+            // (`GrappleRules::from_dialect`); without `jp_allowHook` no player is ever
+            // flagged for it.
+            grapple: GrappleRules::from_dialect(&dialect),
+        }
+    }
+
+    fn hook(&self, settings: &dyn Settings) -> HookRules {
+        // VisionJK `japlus/g_japlus_hook.c`: `jp_allowHook` (latched), `jp_hookSpeed`,
+        // `jp_hookFloodProtect`, and `dmflags` 512 for a hook without fuel.
+        HookRules {
+            allow: settings.integer("jp_allowHook"),
+            speed: settings.integer("jp_hookSpeed"),
+            flood_protect: settings.integer("jp_hookFloodProtect"),
+            fuel_free: settings.integer("dmflags") & DF_NO_HOOK_FUEL != 0,
         }
     }
 
@@ -244,6 +263,31 @@ mod tests {
         let rules = JaPlus.duels(&settings);
         assert!(rules.isolation);
         assert_eq!(rules.winner_report, WinnerReport::Silent);
+    }
+
+    #[test]
+    fn the_hook_follows_its_settings_and_is_predicted() {
+        let mut settings = Table(HashMap::new());
+        let hook = JaPlus.hook(&settings);
+        assert_eq!(
+            hook,
+            HookRules {
+                allow: 1,
+                speed: 800,
+                flood_protect: 750,
+                fuel_free: false
+            }
+        );
+        assert_eq!(
+            JaPlus.movement(&settings).grapple,
+            Some(GrappleRules { pull_speed: 800.0 })
+        );
+        settings.0.insert("jp_allowHook", 0);
+        settings.0.insert("dmflags", 512);
+        settings.0.insert("jp_hookSpeed", 1_600);
+        let hook = JaPlus.hook(&settings);
+        assert!(!hook.enabled() && hook.fuel_free);
+        assert_eq!(hook.speed, 1_600);
     }
 
     #[test]

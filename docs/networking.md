@@ -321,7 +321,8 @@ Master too. Stock and unknown servers keep duellers solid.
 
 On JA+ servers the client predicts the grapple hook (`+button12`) with the rules
 in [pmove_grapple.rs](../crates/sjk-game-jka/src/pmove_grapple.rs); other
-servers, SJK's dedicated server included, get no hook movement. The JA+ game fires the hook,
+servers get no hook movement. SJK's dedicated server in JA+ mode moves its players with
+the same code and sets the same fields ([server.md](server.md#ja-mode)). The JA+ game fires the hook,
 stores its anchor in `lastHitLoc` and flags the pulled player with `PMF_GRAPPLE`
 (pm_flags bit 15). Each move then aims 16 units short of the anchor along the
 view and replaces the velocity with a pull of 800 units/s (10 units/s per unit
@@ -330,8 +331,10 @@ by an air move whatever the ground or water below. A client-plugin user
 who lets go of the key stays on the rope: the game clears the flag and
 sets entity flag bit 16, and each move runs an air move and then swings the
 player on a rope as long as the distance from the anchor to where the move began.
-Use lets go of the hook in the game before the move, so a pull or hang with use
-held is predicted as neither. Where EternalJK and the JA+ module differ (the pose
+Use lets go of the hook only after the move: the JA+ game's hook think follows `Pmove`
+(VisionJK `g_active.c:3403-3405`) and its movement pulls on the flag alone, so a pull or
+hang with use held is still predicted (EternalJK predicts neither; SJK did too before
+06/11/2026). Where EternalJK and the JA+ module differ (the pose
 sets the legs only; a crouched player is pulled too; the pull always ends in an
 air move), prediction follows the module. The game-side edges, the hook firing,
 taking hold and letting go, arrive with the next snapshot and cannot be predicted.
