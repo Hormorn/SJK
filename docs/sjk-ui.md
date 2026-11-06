@@ -304,7 +304,14 @@ on the 16:9 frame, dark behind the form on the left and clear over the model.
   (None first); the one chosen is ringed gold, the pointer or the keys' tile white,
   the wheel scrolls. A title line names the category and counts what is listed (and
   "found" under a search); the models' line holds the team (Default, Red, Blue)
-  as segments. **Jedi Academy first:** the models list the retail game's own under a
+  as segments. **Customizable first** (Blep's idea, 06/11/2026: players did not find
+  the species among the other models): the retail game's species (models built from a
+  head, torso, legs and skin colour, as single player's character) come first under a
+  "Customizable" heading with its count and "Choose the head, torso, legs and skin
+  colour" beside it, and every species' tile, the community's too, carries a gold
+  badge with three sliders in its top right corner (the classic menus' grid keeps
+  retail's order, species after the characters). **Jedi Academy first:** the
+  retail game's other models follow under a
   "Jedi Academy" heading with a count, then the high quality models (SJK rig models,
   [rig-models.md](rig-models.md)) under "High quality" when one is installed, then the
   rest of the community's under "Community" (the rule in [AGENTS.md](../AGENTS.md);

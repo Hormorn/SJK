@@ -9023,3 +9023,12 @@ test: rcon jp_DuelAlpha -1: duellists collide again, still no pulling back.
 test: /engage_FullForceDuel on a second client, accept: push and lightning work in the duel.
 test: Win: centre print with health and armour; console line for everyone.
 note: Not run with a client yet. No 3 s pass-through after a duel (no JA+ client predicts it).
+[character-customizable]
+area: Menus & settings
+title: Character: species first under Customizable, their tiles marked (Blep idea)
+change: SJK UI Profile > Character > Model lists the game species first, "Customizable".
+change: Species tiles (community ones too) carry a gold badge with three sliders.
+test: Profile > Character in the SJK UI: Customizable heading with the jedi_* species first.
+test: Click one: Head, Torso, Legs and Skin appear in the strip; Apply wears it.
+test: Type "jedi" in Search: the species stay under Customizable; arrows walk the grid.
+test: Classic menu style: the model grid keeps the old order (species after the models).

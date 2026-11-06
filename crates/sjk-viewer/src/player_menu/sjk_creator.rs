@@ -4,9 +4,11 @@
 //! One strip of categories, Model, then a species' Head, Torso, Legs and Skin, and Hat
 //! and Cape, over one grid of tiles for the category on show: the models' icons, a
 //! species' part pictures, the skin colours as swatches, the hats and capes as tiles
-//! of their own. The models list the retail game's own under a "Jedi Academy" heading
-//! and the community's after them under "Community" (the rule in `AGENTS.md`); the
-//! search filters whatever is on show. A model, part or colour chosen shows on the
+//! of their own. The models list the retail game's species first under "Customizable"
+//! (a model built from a head, torso, legs and skin colour, as single player's
+//! character; Blep's idea, 06/11/2026), each species' tile marked, then the retail
+//! game's other models under a "Jedi Academy" heading and the community's after them
+//! under "Community" (the rule in `AGENTS.md`); the search filters whatever is on show. A model, part or colour chosen shows on the
 //! stage and waits for Apply ([`PlayerMenu::apply_look`]); a hat or cape is worn at
 //! once, as before.
 
@@ -31,6 +33,9 @@ const GAP: f32 = 8.0;
 /// A hat's or cape's tile: four to a line, this high.
 const PIECE_COLUMNS: usize = 4;
 const PIECE_HEIGHT: f32 = 84.0;
+/// The models' section of the retail species, and what its heading says beside it.
+const CUSTOMIZABLE: &str = "Customizable";
+const CUSTOMIZABLE_HINT: &str = "Choose the head, torso, legs and skin colour";
 
 /// What the grid lists.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -135,7 +140,10 @@ pub(super) struct Creator {
     /// or colour indices for the rest, `0` None then piece `i` as `i + 1` for hats and
     /// capes.
     items: Vec<usize>,
-    /// How many of `items`, from the first, are the retail game's (models only).
+    /// How many of `items`, from the first, are the retail game's species, which open
+    /// Head, Torso, Legs and Skin (models only).
+    custom: usize,
+    /// How many after those are the retail game's other models (models only).
     retail: usize,
     /// How many after those are high quality (rig) models.
     rig: usize,
@@ -248,6 +256,7 @@ impl PlayerMenu {
         let category = self.category();
         let mut items = std::mem::take(&mut self.creator.items);
         items.clear();
+        let mut custom = 0;
         let mut retail = 0;
         let mut rig = 0;
         let search = self.search.as_str();
@@ -259,8 +268,15 @@ impl PlayerMenu {
         };
         match category {
             Category::Model => {
-                items.extend_from_slice(&self.tiles);
-                retail = self.retail_tiles;
+                // The retail species first (Customizable), then the retail game's other
+                // models, each in the tiles' order; the rest as the tiles list them.
+                let characters = catalog_of(&self.loader).map_or(0, |c| c.characters.len());
+                let (games, rest) = self.tiles.split_at(self.retail_tiles.min(self.tiles.len()));
+                items.extend(games.iter().filter(|absolute| **absolute >= characters));
+                custom = items.len();
+                items.extend(games.iter().filter(|absolute| **absolute < characters));
+                retail = games.len() - custom;
+                items.extend_from_slice(rest);
                 rig = self.rig_tiles;
             }
             Category::Head | Category::Torso | Category::Legs => {
@@ -299,6 +315,7 @@ impl PlayerMenu {
             }
         }
         self.creator.items = items;
+        self.creator.custom = custom;
         self.creator.retail = retail;
         self.creator.rig = rig;
     }
@@ -585,6 +602,7 @@ impl PlayerMenu {
             && (rig > 0
                 || catalog_of(&self.loader)
                     .is_some_and(|catalog| catalog.retail_characters + catalog.retail_species > 0));
+        let custom = self.creator.custom;
         let retail = self.creator.retail;
         let mut lines = std::mem::take(&mut self.creator.lines);
         lines.clear();
@@ -597,18 +615,23 @@ impl PlayerMenu {
             }
         };
         if sections {
+            if custom > 0 {
+                lines.push(Line::Heading(CUSTOMIZABLE, custom));
+                rows_of(&mut lines, 0, custom);
+            }
+            let games = custom + retail;
             if retail > 0 {
                 lines.push(Line::Heading("Jedi Academy", retail));
-                rows_of(&mut lines, 0, retail);
+                rows_of(&mut lines, custom, games);
             }
             // High quality models (SJK rig models) only when one is installed.
             if rig > 0 {
                 lines.push(Line::Heading("High quality", rig));
-                rows_of(&mut lines, retail, retail + rig);
+                rows_of(&mut lines, games, games + rig);
             }
-            if retail + rig < count {
-                lines.push(Line::Heading("Community", count - retail - rig));
-                rows_of(&mut lines, retail + rig, count);
+            if games + rig < count {
+                lines.push(Line::Heading("Community", count - games - rig));
+                rows_of(&mut lines, games + rig, count);
             }
         } else {
             rows_of(&mut lines, 0, count);
@@ -701,10 +724,24 @@ impl PlayerMenu {
                         FontWeight::Regular,
                         TextAlign::Start,
                     );
-                    let _ = self.canvas.draw_list_mut().push(DrawCommand::SolidRect {
-                        rect: frame.rect(x + 210.0, y + 16.0, width - 210.0, 1.0),
-                        color: color::alpha(color::GOLD, 0.35),
-                    });
+                    if name == CUSTOMIZABLE {
+                        // What a species is, where the others draw their rule.
+                        text(
+                            &mut self.canvas,
+                            TextFamily::Body,
+                            format_args!("{CUSTOMIZABLE_HINT}"),
+                            frame.rect(x + 210.0, y + 6.0, width - 210.0, 22.0),
+                            15.0 * s,
+                            color::MUTED,
+                            FontWeight::Regular,
+                            TextAlign::End,
+                        );
+                    } else {
+                        let _ = self.canvas.draw_list_mut().push(DrawCommand::SolidRect {
+                            rect: frame.rect(x + 210.0, y + 16.0, width - 210.0, 1.0),
+                            color: color::alpha(color::GOLD, 0.35),
+                        });
+                    }
                     y += HEADING;
                 }
                 Line::Tiles { first: from, count } => {
@@ -863,6 +900,9 @@ impl PlayerMenu {
                 );
             }
         }
+        if category == Category::Model && self.is_species_entry(item) {
+            self.customizable_badge(rect, s);
+        }
         if chosen || lit {
             let _ = self.canvas.draw_list_mut().push(DrawCommand::Border {
                 rect,
@@ -873,6 +913,56 @@ impl PlayerMenu {
                 } else {
                     Color::new(1.0, 1.0, 1.0, 0.6)
                 },
+            });
+        }
+    }
+
+    /// Whether catalogue entry `absolute` is a species (its head, torso, legs and skin
+    /// colour are chosen), not a model with a fixed skin.
+    fn is_species_entry(&self, absolute: usize) -> bool {
+        catalog_of(&self.loader).is_some_and(|catalog| absolute >= catalog.characters.len())
+    }
+
+    /// The mark of a species' tile, in its top right corner: a dark disc ringed gold
+    /// holding three slider lines, for the parts that are chosen.
+    fn customizable_badge(&mut self, tile: sjk_ui::Rect, s: f32) {
+        let size = 22.0 * s;
+        let inset = 5.0 * s;
+        let badge = sjk_ui::Rect::new(
+            tile.x + tile.width - size - inset,
+            tile.y + inset,
+            size,
+            size,
+        );
+        let draw = self.canvas.draw_list_mut();
+        let _ = draw.push(DrawCommand::RoundedRect {
+            rect: badge,
+            radius: size * 0.5,
+            color: color::alpha(color::SPACE, 0.85),
+        });
+        let _ = draw.push(DrawCommand::Border {
+            rect: badge,
+            radius: size * 0.5,
+            width: 1.5 * s,
+            color: color::GOLD_BRIGHT,
+        });
+        // Three sliders, each with its knob somewhere else along it.
+        for (line, knob) in [0.25_f32, 0.7, 0.45].into_iter().enumerate() {
+            let y = badge.y + size * (0.32 + 0.18 * line as f32);
+            let from = badge.x + size * 0.26;
+            let length = size * 0.48;
+            let _ = draw.push(DrawCommand::SolidRect {
+                rect: sjk_ui::Rect::new(from, y - 0.6 * s, length, 1.2 * s),
+                color: color::GOLD_BRIGHT,
+            });
+            let _ = draw.push(DrawCommand::SolidRect {
+                rect: sjk_ui::Rect::new(
+                    from + length * knob - 1.5 * s,
+                    y - 2.0 * s,
+                    3.0 * s,
+                    4.0 * s,
+                ),
+                color: color::GOLD_BRIGHT,
             });
         }
     }
@@ -1074,6 +1164,113 @@ mod tests {
         let at = centre(&menu, 0);
         click(&mut menu, &mut console, at);
         assert!(menu.name_editing);
+    }
+
+    /// The Character page with a catalogue: the retail game's kyle and jedi_hm (a
+    /// species), and a community model and species.
+    fn with_species() -> (PlayerMenu, ViewerConsole, tempfile::TempDir) {
+        let directory = tempfile::tempdir().unwrap();
+        let console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        let model = |name: &str| {
+            ["model.glm", "model_default.skin", "icon_default.jpg"]
+                .map(|file| (format!("models/players/{name}/{file}"), b"x".to_vec()))
+                .to_vec()
+        };
+        let species = |name: &str| {
+            let mut files = vec![
+                (format!("models/players/{name}/model.glm"), b"x".to_vec()),
+                (
+                    format!("models/players/{name}/playerchoice.txt"),
+                    b"x".to_vec(),
+                ),
+            ];
+            for part in ["head", "torso", "lower"] {
+                files.push((
+                    format!("models/players/{name}/{part}_a1.skin"),
+                    b"x".to_vec(),
+                ));
+                files.push((
+                    format!("models/players/{name}/icon_{part}_a1.jpg"),
+                    b"x".to_vec(),
+                ));
+            }
+            files
+        };
+        let mut vfs = sjk_vfs::VirtualFileSystem::new();
+        let mut retail = model("kyle");
+        retail.extend(species("jedi_hm"));
+        vfs.mount_memory("fixture/base/assets1.pk3", retail)
+            .unwrap();
+        let mut community = model("reborn2");
+        community.extend(species("zspecies"));
+        vfs.mount_memory("community", community).unwrap();
+        let mut menu = PlayerMenu::new();
+        menu.set_sjk(true);
+        menu.attach_catalogue(std::sync::Arc::new(vfs));
+        let loader = menu.loader.as_mut().unwrap();
+        loader.request();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while loader.catalog().is_none() && std::time::Instant::now() < deadline {
+            loader.poll();
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        menu.rebuild_tiles();
+        menu.return_target = ReturnTarget::InGame;
+        menu.set_page(ProfilePage::Character);
+        draw(&mut menu);
+        (menu, console, directory)
+    }
+
+    fn names(menu: &PlayerMenu) -> Vec<&str> {
+        let catalog = catalog_of(&menu.loader).unwrap();
+        menu.creator
+            .items
+            .iter()
+            .map(|&absolute| super::super::grid::entry_name(catalog, absolute).unwrap())
+            .collect()
+    }
+
+    /// Blep's idea: the retail species come first, under Customizable, before the
+    /// retail game's other models; the community's species stays with the community's
+    /// models; a click on a species' tile opens its Head, Torso, Legs and Skin.
+    #[test]
+    fn the_retail_species_come_first_as_customizable() {
+        let (mut menu, mut console, _directory) = with_species();
+        let catalog = catalog_of(&menu.loader).unwrap();
+        assert_eq!(catalog.retail_species, 1, "{:?}", catalog.species);
+        let listed = names(&menu);
+        assert_eq!(listed.len(), 4, "{listed:?}");
+        assert!(listed[0].starts_with("jedi_hm"), "{listed:?}");
+        assert_eq!(listed[1], "kyle/default");
+        assert!(listed[3].starts_with("zspecies"), "{listed:?}");
+        assert_eq!((menu.creator.custom, menu.creator.retail), (1, 1));
+        assert!(matches!(
+            menu.creator.lines[..],
+            [
+                Line::Heading(CUSTOMIZABLE, 1),
+                Line::Tiles { first: 0, count: 1 },
+                Line::Heading("Jedi Academy", 1),
+                Line::Tiles { first: 1, count: 1 },
+                Line::Heading("Community", 2),
+                Line::Tiles { first: 2, count: 2 },
+            ]
+        ));
+        // The classic grid keeps retail's order: the characters, then the species.
+        assert!(menu.tiles[0] < catalog.characters.len());
+        // The search keeps the sections.
+        menu.set_search("jedi");
+        draw(&mut menu);
+        assert_eq!(names(&menu).len(), 1);
+        assert_eq!(menu.creator.custom, 1);
+        menu.set_search("");
+        draw(&mut menu);
+        let at = centre(&menu, TILE_BASE);
+        click(&mut menu, &mut console, at);
+        assert!(matches!(menu.choice, Some(Choice::Species(_))));
+        assert_eq!(menu.categories(), &Category::ALL);
+        draw(&mut menu);
+        assert_eq!(menu.chosen_position(), Some(0));
+        assert!(!menu.canvas.overflowed());
     }
 
     // The tokens stay apart from the tiles' and the screen's others.

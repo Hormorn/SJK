@@ -262,7 +262,9 @@ Settings and SJK in place of retail's Controls and Setup:
     in-game APPLY on the bottom band it sits on.
   - Character creation: species, skin tint swatches, the Head, Torso and Legs
     lists, Back and APPLY. Entering it from an ordinary character puts on the
-    first species, as retail's Custom did.
+    first species, as retail's Custom did. (The SJK UI's Character page lists
+    the species first under "Customizable" instead, each tile marked:
+    [sjk-ui.md](sjk-ui.md), Character.)
   - Lightsaber creation: saber type, the hilt list (two for Dual Sabers; in
     every menu style the hilts come in the game's load order, as EternalJK and
     JoF EJK list them: the highest-priority pk3 first, each file's hilts in
