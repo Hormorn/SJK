@@ -293,6 +293,8 @@ pub struct NativeGame {
     mod_force: sjk_game_jka::force_rules::ForceRules,
     /// The private-duel rules it selects from its settings (`bridge_duel`).
     duel_rules: sjk_game_jka::duel::DuelRules,
+    /// Its admin system's own state beside the players' (`bridge_admin`).
+    admin: bridge_admin::AdminServer,
 }
 
 /// The serverId a world starts on. `SV_SpawnServer` uses `com_frameTime`, which is only
@@ -493,6 +495,7 @@ impl NativeGame {
             mod_combat,
             mod_force,
             duel_rules,
+            admin: Default::default(),
         };
         game.pool = EntityPool::with_budget(0, game.entity_budget());
         game.spawn_items();
@@ -531,6 +534,7 @@ impl NativeGame {
         }
         game.apply_cvars();
         game.process_ip_bans();
+        game.process_admin_bans();
         Ok(game)
     }
 
@@ -1448,6 +1452,8 @@ impl NativeGame {
         if self.power_duel_begin(client, server_time) {
             return;
         }
+        // `JP_ClientBegin`: the JA+ plugin's own login, where the mod has admins.
+        self.admin_userinfo_login(client);
         if !std::mem::replace(&mut self.begun_once, true) {
             let (sounds, told) = (&mut self.sounds, &mut self.told);
             first_begin_sounds(sounds, &mut |index, value| {
@@ -3448,6 +3454,8 @@ mod bridge_intermission;
 use bridge_cvars::{SERVERINFO_DEFAULTS, server_info_with};
 use bridge_spawn::spawn_place;
 
+#[path = "bridge_admin.rs"]
+mod bridge_admin;
 #[path = "bridge_bots.rs"]
 mod bridge_bots;
 #[path = "bridge_commands.rs"]
@@ -3500,6 +3508,7 @@ mod bridge_teleport;
 mod bridge_use;
 #[path = "bridge_world_effects.rs"]
 mod bridge_world_effects;
+pub(crate) use bridge_admin::AdminState;
 pub(crate) use bridge_saber::PlayerSkeleton;
 pub(crate) use bridge_saber_damage::SaberCut;
 pub use bridge_votes::SUPPORTED_VOTES;

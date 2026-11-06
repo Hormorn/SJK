@@ -69,6 +69,7 @@ impl NativeGame {
         ) {
         } else if self.cvar_line(line, print) {
         } else if !self.stopped && self.bot_command(&words, server_time, bots, print).is_some() {
+        } else if !self.stopped && self.admin_console_command(&words, server_time, print) {
         } else if !self.stopped && self.game_console_command(&words, server_time, print) {
         } else if is(b"say") {
             self.console_say(&words[1..]);

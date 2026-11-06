@@ -178,6 +178,7 @@ impl NativeGame {
         // `G_InitGame` reads `g_banIPs` again into the filter it kept: every filter is
         // added a second time, as in the reference.
         self.process_ip_bans();
+        self.process_admin_bans();
         let (fresh, _) = super::world_config_strings(
             &self.status_info,
             self.map.as_ref(),
@@ -247,6 +248,8 @@ impl NativeGame {
         // ClientConnect(..., isBot) preserves bot ownership across restarts.
         peer.bot = old.bot;
         peer.personality = old.personality;
+        // `sess.jpAdminLevel`: an admin stays one over a new level.
+        peer.admin = old.admin.kept();
         in_world
     }
 

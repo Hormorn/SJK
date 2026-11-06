@@ -134,6 +134,7 @@ impl NativeGame {
         // `G_InitGame` reads `g_banIPs` into it.
         self.ip_filter = Default::default();
         self.process_ip_bans();
+        self.process_admin_bans();
         self.spawn_level_entities();
         self.start_level(server_time);
         // `G_InitGame` for the new one.

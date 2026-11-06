@@ -7,6 +7,9 @@
 //! `server.cfg` loads as it is, but only those listed in `docs/server.md` (JA+ mode)
 //! do something yet. The defaults are JA+'s, not the base game's: an operator who runs
 //! this mod has chosen JA+.
+//!
+//! SJK's own settings for JA+ servers follow them, named `japlus.<name>` as everything
+//! SJK adds for one server family ([`SJK_SETTINGS`]).
 
 use sjk_server_mod::ModCvar;
 use sjk_server_mod::flags::{ARCHIVE, INTERNAL, LATCH, ROM, SERVERINFO, SYSTEMINFO};
@@ -20,7 +23,19 @@ const fn cvar(name: &'static str, default: &'static str, flags: u32, announced: 
     }
 }
 
-/// Every `jp_` setting, in JA+'s order, one line each.
+/// `japlus.adminPasswords`: 1 lets JA+'s three rank passwords log admins in; 0 (the
+/// default) leaves the key login and the one-time codes only (Sol, 06/11/2026; VisionJK
+/// has the same switch, `vs_adminPasswords`).
+pub const ADMIN_PASSWORDS: &str = "japlus.adminPasswords";
+/// `japlus.adminHosts`: the addresses this server is reached by
+/// (`"1.2.3.4:29070 192.168.0.5:29070"`); when set, a key login signed for another
+/// address is refused (VisionJK's `vs_authHosts`).
+pub const ADMIN_HOSTS: &str = "japlus.adminHosts";
+
+/// How many of [`CVARS`] are SJK's, at its end.
+pub const SJK_SETTINGS: usize = 2;
+
+/// Every `jp_` setting, in JA+'s order, one line each, then SJK's own.
 #[rustfmt::skip]
 pub const CVARS: &[ModCvar] = &[
     cvar("jp_admLoginEffect", "1", ARCHIVE, true),
@@ -210,6 +225,9 @@ pub const CVARS: &[ModCvar] = &[
     cvar("jp_wordFilter", "0", ARCHIVE, true),
     cvar("jp_wordFilterBan", "", ARCHIVE, true),
     cvar("jp_wordFilterNumberB4punish", "0", ARCHIVE, true),
+    // SJK's.
+    cvar(ADMIN_PASSWORDS, "0", ARCHIVE, true),
+    cvar(ADMIN_HOSTS, "", ARCHIVE, false),
 ];
 
 #[cfg(test)]
@@ -218,9 +236,10 @@ mod tests {
 
     #[test]
     fn every_setting_is_jas_and_named_once() {
-        assert_eq!(CVARS.len(), 187);
+        assert_eq!(CVARS.len(), 187 + SJK_SETTINGS);
         for (index, cvar) in CVARS.iter().enumerate() {
-            assert!(cvar.name.starts_with("jp_"), "{}", cvar.name);
+            let prefix = if index < 187 { "jp_" } else { "japlus." };
+            assert!(cvar.name.starts_with(prefix), "{}", cvar.name);
             assert!(
                 CVARS[..index]
                     .iter()

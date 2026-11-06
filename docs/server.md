@@ -159,6 +159,7 @@ What the mode does so far:
   - *The end.* The winner's health and armour before it is healed are told as
     `jp_endDuelBroadcastMSG` says; it is healed and protected as before, and keeps 25
     armour.
+- **JA+'s admin system** ([Admins](#ja-admins) below).
 
 | Setting | `jp_cinfo` bit | Effect |
 | --- | --- | --- |
@@ -196,11 +197,66 @@ player attacks, the new DFA, ledge grab, the alternate dimension, model scale,
 several of them on by default. JA+'s extra animations (`jp_newGLAAnims`) need its own
 animation files, which SJK does not ship.
 
+### JA+ admins
+
+JA+'s admin system, from VisionJK's `codemp/game/japlus/g_japlus_admin.c`: the generic
+part (ranks, rights, the "usable on" rule, the abuse counter) is
+[sjk-server-mod's admin.rs](../crates/sjk-server-mod/src/admin.rs), JA+'s table, settings
+and texts are [its admin.rs](../crates/sjk-server-mod-japlus/src/admin.rs), and the
+server runs them in [bridge_admin.rs](../crates/sjk-dedicated/src/bridge_admin.rs). The
+base game has no admin system: its players are never admins and these commands are
+unknown there.
+
+- **Ranks.** Council, knight and instructor, each with the mask of commands it may use
+  (`jp_councilAllowedCMD`, `jp_knightAllowedCMD`, `jp_instructorAllowedCMD`); and the
+  rcon rank, every right, which only a key or a one-time code gives. A command's bit is
+  its place in JA+'s list, from 1: amkick, amban, amShowMotd, amorigin, amslap, amsleep,
+  amwake, amghost, amdenyvote, amprotect, amsilence, amunsilence, amUnForceAltDim,
+  amForceAltDim, amempower, ammerc, ammindtrick, then amtele, amstatus, amwhois, ammap,
+  ampsay, npc, amrename, amlockteam, amforceteam, amkillvote, amvstr, amweather,
+  amlogout, amtelemark, ampoll, amseeGhost, admCmdPrev, admCmdNext, playerPrev,
+  playerNext, admCmdEXE. A mask holds bits 0 to 31; amorigin, amlogout, amtelemark and
+  the commands from ampoll on are every admin's whatever the mask says. The rank is kept
+  over a map change and lost on a disconnect.
+- **Logging in.** `amlogin <password or code>`. JA+'s rank passwords (`jp_councilPass`,
+  `jp_knightPass`, `jp_instructorPass`) count only with `japlus.adminPasswords 1` (SJK's
+  setting, default 0, Sol's decision of 06/11/2026); without it only a one-time code
+  logs in this way, and SJK clients log in with their key ([Key login](#ja-key-login)).
+  With passwords on, the JA+ plugin's own login (`cp_login` in its userinfo) is tried at
+  each begin, as JA+ does. A wrong password or code takes the rank away (JA+'s
+  behaviour) and counts as a wrong try: after three, the player waits 30 seconds, then
+  twice as long after each one more, at most 30 minutes (VisionJK's, not JA+'s). The
+  rank's message (`jp_*LoginMSG`, `%s` the name, `
+` a line break) is told to everyone;
+  the log gets `<name> is logged as an <rank>.` and the console a line saying how
+  (password, code or key). `amlogout` ends it. `aminfo` lists the commands the rank may
+  use, in one line rather than JA+'s line per command, then every player's (JA+'s
+  list, the saber damage lines left out).
+- **On whom.** `jp_admUsableOn` as JA+ reads it: -1 on everybody, -2 on players
+  without a rank only, 0 or more on players without a rank and on admins at least that
+  many levels below (0: the same rank or below). JA+ compares level numbers, so a player
+  of the rcon rank (level 1) is reached as a player is. On oneself always.
+- **Abuse.** With `jp_antiAdmAbuseTimer` above 0, an admin may use at most
+  `jp_antiAdmAbuseCmdsNumber` commands on others in that many seconds; one more is
+  refused, with the wait told, and with `jp_antiAdmAbuseNumberB4ban` above 0 the first
+  abuse admin-bans the admin (JA+ starts the count of abuses left at 0, so the setting's
+  number itself is never counted down from): rank lost, address added to
+  `jp_banAdminIPs`. The rcon rank is never counted.
+- **Admin bans.** `jp_banAdminIPs` (masks as `addip` takes them, a space after each)
+  lists the addresses that may not log in, read as each level starts. The server console
+  has `admBan <player>` (bans or unbans the player's address), `admAddIP <mask>`,
+  `admRemoveIP <mask|all>` and `admListIP`.
+- **The log.** Every admin command a player runs is logged as JA+ logs it (`ADMIN CMD
+  EXECUTED : <command> executed by <name>`), but the rcon rank's and the console's.
+- **The server console** (and rcon) runs the commands JA+ lets it run, with every right
+  ([the commands](#ja-admin-commands)), and `admGrant <player> <council|knight|instructor|no>`
+  and `admToggle <bit> <council|knight|instructor>` (one bit of a mask flipped and told
+  to everyone; with no argument the list of bits).
+
 Not built yet, in the order planned: the rest of the Force changes (`jp_forceCombo`'s
 push and pull grabs and its rage with speed, the flamethrower `jp_allowFlameThrower`);
 then the emotes and player commands (`amkiss`, `amflip`, the hook, `/saber`...); then
-the admin system, logged in with SJK identity keys, with JA+'s rank passwords only if
-the owner allows them; then chat, highlander, blocking walls and model scale. Until then:
+chat, highlander, blocking walls and model scale. Until then:
 
 - What the JA+ duels leave out: the 3 seconds of walking through players after a duel
   (VisionJK's own `EF_PASS_PLAYERS` bit: the JA+ plugin and EternalJK have no rule for
@@ -308,9 +364,10 @@ OpenJK's `ClientCommand` table:
 
 A command not in that table (`commands[]` in OpenJK's `g_cmds.c`) gets
 `Unknown command <name>`, as OpenJK and JoF EJK answer. `addbot` gets the stock
-refusal that only the server adds bots (`@@@ONLY_ADD_BOTS_AS_SERVER`). Mod commands
-(JoF EJK's and JA+'s `am*`, accounts, clans, races and the like) are not part of this
-server. The table is
+refusal that only the server adds bots (`@@@ONLY_ADD_BOTS_AS_SERVER`). A server mod
+adds its own: `engage_FullForceDuel` and the admin commands in [JA+ mode](#ja-admins).
+Other mods' commands (JoF EJK's, accounts, clans, races and the like) are not part of
+this server. The table is
 [client_commands.rs](../crates/sjk-game-jka/src/client_commands.rs).
 
 ## Noclip

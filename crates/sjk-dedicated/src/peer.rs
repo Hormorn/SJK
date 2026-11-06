@@ -170,6 +170,9 @@ pub struct Peer {
     pub(crate) loser: bool,
     /// `pers.netnameTime`: before this level time a new name is refused.
     pub(crate) netname_time: i32,
+    /// What the running mod's admin system keeps of the player: its rank above all
+    /// (`bridge_admin`); never set on the base game.
+    pub(crate) admin: crate::bridge::AdminState,
     /// `ps.ping`, as the endpoint last measured it; the scoreboard and `getstatus`
     /// report it. A player never measured holds 0.
     pub(crate) ping: i32,
@@ -291,6 +294,7 @@ impl Peer {
             loser: false,
             ping: 0,
             netname_time: 0,
+            admin: Default::default(),
             switch_duel_team_time: 0,
             npc_enemy: None,
             in_space: 0,

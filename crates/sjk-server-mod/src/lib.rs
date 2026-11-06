@@ -12,6 +12,8 @@
 //! the same bits ([`ServerMod::movement`]), so no client is pulled back for a rule it was
 //! told about.
 
+pub mod admin;
+
 use sjk_game_jka::duel::DuelRules;
 use sjk_game_jka::force_rules::ForceRules;
 use sjk_game_jka::pmove::MovementConfig;
@@ -150,6 +152,10 @@ pub enum ModCommand {
     /// (JA+'s `engage_FullForceDuel`, [`sjk_game_jka::duel::Duellist::full_force`]); not
     /// at the intermission (`CMD_NOINTERMISSION`).
     FullForceDuel,
+    // The admin system.
+    /// A command of the mod's admin system ([`ServerMod::admin`]), as its table names it:
+    /// the server checks the rank's rights and carries it out.
+    Admin(admin::AdminCommand),
 }
 
 /// A rule set the server can run in place of the base game.
@@ -198,6 +204,12 @@ pub trait ServerMod: Sync {
     fn command(&self, _name: &[u8]) -> Option<ModCommand> {
         None
     }
+
+    /// Its admin system (ranks, the commands each may use, the settings and texts it
+    /// reads), if it has one; the base game has none, so no player is ever an admin.
+    fn admin(&self) -> Option<&'static admin::AdminSystem> {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -244,6 +256,12 @@ mod tests {
     #[test]
     fn a_mod_without_force_rules_plays_the_base_games() {
         assert_eq!(Plain.force(&NoSettings), ForceRules::default());
+    }
+
+    #[test]
+    fn a_mod_without_an_admin_system_has_no_admin_commands() {
+        assert!(Plain.admin().is_none());
+        assert_eq!(Plain.command(b"amlogin"), None);
     }
 
     #[test]

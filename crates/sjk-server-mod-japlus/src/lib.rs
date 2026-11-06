@@ -16,7 +16,10 @@
 //! - [`JaPlus::force`]: JA+'s Force rules (`sjk_game_jka::force_rules`).
 //! - [`JaPlus::duels`]: JA+'s private duels (`sjk_game_jka::duel::DuelRules`), and its
 //!   `engage_FullForceDuel` ([`JaPlus::command`]).
+//! - [`admin`]: JA+'s admin system, its ranks' commands and texts, which the server runs
+//!   (`sjk_server_mod::admin`).
 
+pub mod admin;
 pub mod cinfo;
 pub mod combat;
 pub mod cvars;
@@ -142,8 +145,19 @@ impl ServerMod for JaPlus {
 
     fn command(&self, name: &[u8]) -> Option<ModCommand> {
         // VisionJK `g_cmds.c:3455-3462,3756`.
-        name.eq_ignore_ascii_case(b"engage_FullForceDuel")
-            .then_some(ModCommand::FullForceDuel)
+        if name.eq_ignore_ascii_case(b"engage_FullForceDuel") {
+            return Some(ModCommand::FullForceDuel);
+        }
+        // The admin system's commands a player types (`JP_ClientCommand`); those not
+        // carried out yet stay unknown commands.
+        admin::SYSTEM
+            .entry(name, false)
+            .and_then(|entry| entry.command)
+            .map(ModCommand::Admin)
+    }
+
+    fn admin(&self) -> Option<&'static sjk_server_mod::admin::AdminSystem> {
+        Some(&admin::SYSTEM)
     }
 }
 
@@ -253,6 +267,18 @@ mod tests {
             Some(ModCommand::FullForceDuel)
         );
         assert_eq!(JaPlus.command(b"engage_duel"), None);
+    }
+
+    #[test]
+    fn admin_commands_are_commands_and_the_unbuilt_ones_are_not() {
+        use sjk_server_mod::admin::AdminCommand;
+        assert_eq!(
+            JaPlus.command(b"AMLOGIN"),
+            Some(ModCommand::Admin(AdminCommand::Login))
+        );
+        assert_eq!(JaPlus.command(b"amghost"), None);
+        assert_eq!(JaPlus.command(b"admGrant"), None);
+        assert!(JaPlus.admin().is_some());
     }
 
     #[test]

@@ -16,13 +16,23 @@ fn command_words(text: &[u8]) -> Option<(&[u8], Vec<&[u8]>)> {
 
 impl NativeGame {
     /// A command the running server mod adds, `command` as the player typed it.
-    fn mod_command(&mut self, client: usize, command: &[u8], added: sjk_server_mod::ModCommand) {
+    fn mod_command(
+        &mut self,
+        client: usize,
+        command: &[u8],
+        text: &[u8],
+        added: sjk_server_mod::ModCommand,
+        server_time: i32,
+    ) {
         match added {
             sjk_server_mod::ModCommand::FullForceDuel => {
                 // `CMD_NOINTERMISSION` (VisionJK `g_cmds.c:3756`).
                 if !self.refused_at_intermission(client, command) {
                     self.duel_key(client, self.last_frame_time, true);
                 }
+            }
+            sjk_server_mod::ModCommand::Admin(admin) => {
+                self.admin_player_command(client, text, admin, server_time);
             }
         }
     }
@@ -125,7 +135,7 @@ impl NativeGame {
             .server_mod
             .and_then(|server_mod| server_mod.command(command))
         {
-            self.mod_command(client, command, added);
+            self.mod_command(client, command, text, added, server_time);
             return;
         }
         // `Cmd_ForceChanged_f` goes on as `Cmd_Team_f` when the menu sent a team with it.
