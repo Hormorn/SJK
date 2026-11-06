@@ -58,6 +58,14 @@ pub fn duels(server_mod: Option<&dyn ServerMod>, cvars: &Cvars) -> sjk_game_jka:
     server_mod.map_or_else(Default::default, |server_mod| server_mod.duels(cvars))
 }
 
+/// The grappling hook of `server_mod`; none on the base game.
+pub fn hook(
+    server_mod: Option<&dyn ServerMod>,
+    cvars: &Cvars,
+) -> sjk_game_jka::japlus_hook::HookRules {
+    server_mod.map_or_else(Default::default, |server_mod| server_mod.hook(cvars))
+}
+
 /// What `g_mod` may be, for the messages: `base, japlus`.
 pub fn choices() -> String {
     std::iter::once(BASE)

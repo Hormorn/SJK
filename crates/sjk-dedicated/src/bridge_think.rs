@@ -230,11 +230,7 @@ impl NativeGame {
             map,
             pool,
             last_frame_time,
-            missiles,
             deaths,
-            fired,
-            sounds: self_sounds,
-            told: self_told,
             ..
         } = self;
         let peer = players
@@ -249,9 +245,30 @@ impl NativeGame {
             server_time,
             &mut deaths.rng,
         );
+        let level_time = *last_frame_time;
+        // JA+'s hook thinks after the entity is converted, before `ClientEvents`
+        // (VisionJK `g_active.c:3403-3405`); nothing on the base game.
+        if ran {
+            self.hook_think(client, level_time);
+        }
+        let Self {
+            server,
+            world,
+            players,
+            pool,
+            missiles,
+            deaths,
+            fired,
+            sounds: self_sounds,
+            told: self_told,
+            ..
+        } = self;
+        let peer = players
+            .at(client)
+            .and_then(|handle| server.world_mut(*world)?.entity_mut(handle));
+        let Some(peer) = peer else { return };
         // `ClientEvents`: the fire events of this think fire the weapon from the entity
         // as it was just converted, and end the spawn's protection.
-        let level_time = *last_frame_time;
         // A think raises a fire event at most for each of its slices; no allocation.
         let mut fires = [None; 16];
         if ran {

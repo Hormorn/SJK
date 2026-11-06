@@ -324,6 +324,8 @@ impl NativeGame {
     /// drained while on, recharged while off, the cloak dropped when it runs dry.
     pub(super) fn battery_frame(&mut self, client: usize, level_time: i32) {
         let cloak_drains = self.mod_force.cloak_drains;
+        // JA+'s hook draws on the jetpack's fuel (`bridge_hook`); never on the base game.
+        let mut hook = self.hook_fuel(client);
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
@@ -341,6 +343,7 @@ impl NativeGame {
             thrusting,
             level_time,
             cloak_drains,
+            hook.as_mut(),
         );
         if (jet, cloak)
             != (
@@ -354,6 +357,9 @@ impl NativeGame {
         }
         if off == Toggled::Decloaked {
             self.cloak_toggled(client, off, level_time);
+        }
+        if hook.is_some_and(|hook| hook.ran_dry) {
+            self.free_hook(client, level_time);
         }
     }
 

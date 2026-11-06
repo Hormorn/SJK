@@ -14,6 +14,8 @@ impl NativeGame {
         command: UserCommand,
         server_time: i32,
     ) {
+        // JA+'s `ClientSpawn` lets go of the hook (VisionJK `g_client.c:4118`).
+        self.free_hook(client, server_time);
         let gravity = self.gravity();
         let (parms, rules) = (self.saber_parms(), self.userinfo_rules());
         // The class a siege player spawns as (`ClientUserinfoChanged`'s, kept in `siegeClass`).

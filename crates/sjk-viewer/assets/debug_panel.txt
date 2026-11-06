@@ -4741,7 +4741,7 @@ test: Wall run-up right after a Force-jump flip: no snap back.
 [japlus-grapple]
 area: Gameplay
 title: JA+ grapple hook predicted and its rope drawn
-change: +grapple pull and the rope hang after release no longer snap back; use cancels.
+change: +grapple pull and the rope hang after release no longer snap back; use lets go.
 change: A thin dark rope is drawn from the player's right hand to the hook.
 test: JA+: /amAltDim first if the hook does nothing (default alt dimension disables it).
 test: Hold +grapple onto a wall, release, hang, then press use to drop: smooth, rope visible.
@@ -9011,6 +9011,19 @@ test: rcon jp_gripSpeedScale 1: grip and run, no pulling back; same on a real JA
 test: rcon jp_gripOpenSaber 2, get gripped with little Force: your saber drops from the hand.
 test: rcon jp_cloakFuel 0: the cloak stays on, its bar does not drain.
 note: Not run with a client yet. Base servers (no g_mod) must play as before.
+
+[japlus-hook]
+area: Gameplay
+title: JA+ server mode: the grappling hook (+grapple, jp_allowHook, fuel, cut ropes)
+change: g_mod japlus: +grapple fires the hook; it pulls you to where it holds, rope drawn.
+change: Let go: you hang on the rope; +grapple pulls again, use drops it. Uses jetpack fuel.
+change: A swinging blade, a shot or a thrown saber cuts the rope (no hook for 10 s).
+test: Local sjk-server +set g_mod japlus, FFA map, a bot: hold +grapple at a wall.
+test: Pulled to the wall without snapping back; release: hang and swing; use: you drop.
+test: Hook the bot: it holds the bot's middle, the bot loses 1 health.
+test: Hold +grapple a while: the fuel bar drains, at 0 the hook lets go; it refills after.
+test: rcon jp_allowHook 0 then map mp/ffa3: +grapple does nothing; base server: nothing.
+note: Not run with a client yet; bots do not cut ropes on purpose (shoot one across yours).
 
 [japlus-duels]
 area: Gameplay

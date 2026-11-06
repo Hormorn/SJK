@@ -143,6 +143,8 @@ impl NativeGame {
         let level_time = self.last_frame_time;
 
         self.duel_disconnect(client, level_time);
+        // JA+'s `ClientDisconnect` lets go of the hook (VisionJK `g_client.c:3439`).
+        self.free_hook(client, level_time);
         let gametype = self.gametype;
         // Its powers stop first: a grip lets its victim go, its loops fall silent.
         if self

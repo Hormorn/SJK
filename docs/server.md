@@ -210,6 +210,39 @@ What the mode does so far:
     play included), its damage settings, the duels being fought.
   - *`refuseTele`*: toggled and said; no admin teleport reads it yet.
   - The server console's `serverTime` and `modVersion` (`ServerMod::console_command`).
+- **JA+'s grappling hook** (`+button12`; `sjk_game_jka::japlus_hook`, the server's part in
+  [bridge_hook.rs](../crates/sjk-dedicated/src/bridge_hook.rs), from VisionJK's
+  `japlus/g_japlus_hook.c` and its calls in `g_active.c`, `g_main.c`, `g_missile.c` and
+  `w_saber.c`; the `ServerMod::hook` hook, none on the base game):
+  - *The hook.* Held down, the key fires a missile from the muzzle along the view at
+    `jp_hookSpeed`, at most once per `jp_hookFloodProtect` ms, with 10 fuel or more, not
+    in the 1.5 s after a spawn, nor duelling, dead, swinging, riding, gripped, in a melee
+    grapple, flying or with the jetpack on; the throw's pose (`BOTH_RESISTPUSH`) and
+    sound. A client plugin user's (`cjp_client` a version of 1.0 or more, SJK's own
+    `1.4 SJK` included, and every bot) is the stun baton's missile the plugin draws the
+    rope to (SJK's client draws it, [grapple_rope.rs](../crates/sjk-viewer/src/grapple_rope.rs)),
+    with a twin pistol bolt beside it; anyone else's is a pistol bolt.
+  - *Taking hold.* It holds where it strikes the world, or the middle of the player or
+    NPC it strikes (one point of damage), snapped as the JA+ module snaps (the decimals
+    cut off), and pulls its owner there: `PMF_GRAPPLE_PULL` and the anchor in
+    `ps.lastHitLoc`. A hook on a body moves to its middle once, 100 ms on, then every
+    five minutes, as JA+'s does; it flies 10 seconds at most and lets go on the sky.
+  - *The rope.* The pull and the hang are the shared movement's
+    ([pmove_grapple.rs](../crates/sjk-game-jka/src/pmove_grapple.rs), switched on by
+    `ModMovement::grapple`), which every JA+ client predicts. Letting go of the key
+    drops the hook, or for a plugin user who had taken hold hangs on the rope
+    (`EF_GRAPPLE_SUSPEND`, entity flag bit 16), walking neither hangs nor pulls, and the
+    key again pulls again. Use lets go (after the move), as do death, a spawn, a duel,
+    a teleport and leaving.
+  - *Fuel.* The jetpack's: 1 every 200 ms while pulled, `jp_hookSpeed / 800 + 1` while the
+    hook flies out, nothing while hanging; out of fuel, it lets go. With the jetpack
+    off and no hook drawing, it recharges as before.
+  - *Cut ropes.* Another player's swinging blade (5 units about it), a shot (10, its own
+    shooter's too beyond 60 units of the hand) and a thrown saber (25 going out, 10
+    coming back) cut a rope from the owner's right hand to the hook: it lets go, its
+    fuel is spent, no hook for 10 seconds, the jetpack's switch locked for 3, a flash
+    where it parted, and a fall in the next 10 seconds is the cutter's. Not with
+    `dmflags` 512, and not across a private duel's isolation.
 
 | Setting | `jp_cinfo` bit | Effect |
 | --- | --- | --- |
@@ -245,6 +278,10 @@ What the mode does so far:
 | `jp_allowAmDropSaber` 1 | | `amdropsaber` works (0 by default) |
 | `jp_allowSaberSwitch` 1500 (default) | | Milliseconds between two `/saber` changes; 0 refuses them |
 | `jp_allowJetpack` 1 | | The `jetpack` command gives the jetpack (0 by default). Latched: waits for the next map |
+| `jp_allowHook` 1 (default), 2, 0 | | The grappling hook: 1 in free-for-all (and team deathmatch with `g_jediVmerc`), 2 only for `g_jediVmerc`'s mercenaries, 0 none. Latched: waits for the next map |
+| `jp_hookSpeed` 800 (default) | | The hook's speed; while it flies out it costs `jp_hookSpeed / 800 + 1` fuel every 200 ms (the pull is always 800) |
+| `jp_hookFloodProtect` 750 (default) | | Milliseconds between two hooks |
+| `dmflags` 512 | | The hook costs no fuel, and no rope is cut |
 
 A `jp_cinfo` bit is only announced for a rule the server plays, whatever its setting
 says ([cinfo.rs](../crates/sjk-server-mod-japlus/src/cinfo.rs) is the table): single
@@ -255,7 +292,7 @@ animation files, which SJK does not ship.
 
 Not built yet, in the order planned: the rest of the Force changes (`jp_forceCombo`'s
 push and pull grabs and its rage with speed, the flamethrower `jp_allowFlameThrower`);
-then the grappling hook and `amAltDim`, `immortal`, `toggleFlame`; then
+then `amAltDim`, `immortal`, `toggleFlame`; then
 the admin system, logged in with SJK identity keys, with JA+'s rank passwords only if
 the owner allows them; then chat, highlander, blocking walls and model scale. Until then:
 
@@ -281,8 +318,18 @@ the owner allows them; then chat, highlander, blocking walls and model scale. Un
 - `jp_flipkickScaleDMG` changes nothing: the server deals no flip kick damage yet, the base
   game's included (`forceKickFlip` is not set by the movement).
 - JA+'s saber rules for ghosts, mind-tricked or sleeping players and the alternate
-  dimension (`JP_SaberNoContact`) wait for those features; a blade does not cut grapple
-  ropes yet. Neither does `/kill` know of JA+'s sleeping, ghosted or silenced players.
+  dimension (`JP_SaberNoContact`) wait for those features. Neither does `/kill` know of
+  JA+'s sleeping, ghosted or silenced players.
+- What the hook leaves out: the alternate dimension's and the sleeping or knocked-down
+  admin states' bans (not built), JA+'s model scale (every rope's owner is at 100 %), the
+  game-only rule of VisionJK's movement that a player with the hook out or its key held
+  does no flip kick (`bg_pmove.c:2038`: no client predicts it, so it would pull them
+  back), JA+'s `BUTTON_HOOK` cleared during a melee grapple, and the hook's
+  `userInt1`, which names the twin (one bit on the wire). The ropes the frame's shots
+  cross are cut once every missile has run, not between two of them. The original's
+  snap puts an anchor a unit or two from VisionJK's (`docs/japlus/differences.md`):
+  SJK follows the original. Not compared with a JA+ server: the hook's flight, hold and
+  fuel numbers are VisionJK's.
 - A suicide is credited to a player or NPC still in the game only; the base game's own
   credit for a crush, a trigger's hurt or an unknown death to the last pusher is not
   built (a fall to death is).

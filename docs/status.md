@@ -38,6 +38,28 @@ real map (the tests filter one command), `/saber` with real saber files. Left ou
 `amkiss` (JA+'s own animations, answered as JA+ answers without them), JA+'s own
 animations for `amflip`, `amAltDim`, `immortal`, `toggleFlame`, the hook.
 
+## SJK's server as a JA+ server: the grappling hook
+
+06/11/2026, `personal/japlus-hook` from `main` `403b06e0`. Under `g_mod japlus` with
+`jp_allowHook` the server runs JA+ 2.4 B7's grappling hook after VisionJK's rebuild
+(`japlus/g_japlus_hook.c`): the hook missile on `+button12` (`jp_hookSpeed`,
+`jp_hookFloodProtect`, the fire rules), holding the world or a body, the pull and the
+plugin user's hang through the shared `pmove_grapple` (now on in the server's moves by
+`ModMovement::grapple`), the fuel shared with the jetpack (`dmflags` 512 frees it),
+letting go, and the ropes cut by blades, shots and thrown sabers
+([server.md](server.md#ja-mode)). The shared prediction changed for every JA+ server: a
+move with use held is pulled or hung, as the JA+ game lets go after the move
+([networking.md](networking.md#ja-grapple-hook)). New `ServerMod::hook` hook (none by
+default). Verified on Windows 11: unit tests of the fire rules, the think (fire, hang,
+walk, pull again, use, the plugin), the missiles fired, the fuel, the snap, the rope cut,
+the prediction with use held at 8/7/4/3 ms; a mapless server firing at a player (it
+holds the body's middle, one point of damage, the pull, hang, use), without the plugin,
+the flood protection, a shot's cut, and the base game and `jp_allowHook 0` with no hook.
+Not verified: with a game client or against a JA+ or VisionJK server (no flight, hold or
+fuel numbers compared in a game), a hook on a map's walls (only a mapless server ran),
+the blade and thrown saber cuts in a game. Left out: see server.md (the alternate
+dimension, model scale, the server-only flip kick rule).
+
 ## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
 
 06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`

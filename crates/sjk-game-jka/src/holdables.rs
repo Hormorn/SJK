@@ -398,6 +398,11 @@ pub fn use_cloak(packs: &mut Packs, wearer: &Wearer, level_time: i32) -> Toggled
 /// point every 150 ms; the cloak likewise, decloaking empty, unless the server's cloak
 /// lasts for ever (`cloak_drains` false: JA+'s `jp_cloakFuel` 0,
 /// [`crate::force_rules::ForceRules::cloak_drains`]). Returns what switched off.
+///
+/// With the jetpack off, a JA+ grappling hook out draws on the same fuel and timers
+/// instead of the recharge (`hook`, [`crate::japlus_hook::HookFuel`]); `None` (always on
+/// the base game) recharges as before.
+#[allow(clippy::too_many_arguments)]
 pub fn batteries(
     packs: &mut Packs,
     jetpack_fuel: &mut i32,
@@ -406,6 +411,7 @@ pub fn batteries(
     thrusting: bool,
     level_time: i32,
     cloak_drains: bool,
+    hook: Option<&mut crate::japlus_hook::HookFuel>,
 ) -> Toggled {
     let mut off = Toggled::Nothing;
     if packs.jetpack_on {
@@ -415,6 +421,17 @@ pub fn batteries(
                 *jetpack_fuel = 0;
                 packs.jetpack_on = false;
                 off = Toggled::JetpackOff;
+            }
+            packs.jetpack_reduce_at = level_time + DEFUEL_RATE;
+        }
+    } else if let Some(hook) = hook {
+        // `JP_HookFuelThink` (VisionJK `japlus/g_japlus_hook.c:369-386`): a point or more
+        // every 200 ms, the hook let go once the fuel is out.
+        if packs.jetpack_reduce_at < level_time {
+            *jetpack_fuel -= hook.cost;
+            if *jetpack_fuel < 1 {
+                *jetpack_fuel = 0;
+                hook.ran_dry = true;
             }
             packs.jetpack_reduce_at = level_time + DEFUEL_RATE;
         }
@@ -528,7 +545,9 @@ mod tests {
         let mut packs = Packs::default();
         let (mut jet, mut cloak) = (100, 50);
         assert_eq!(
-            batteries(&mut packs, &mut jet, &mut cloak, true, false, 1_000, true),
+            batteries(
+                &mut packs, &mut jet, &mut cloak, true, false, 1_000, true, None
+            ),
             Toggled::Nothing
         );
         assert_eq!(cloak, 49);
@@ -538,7 +557,7 @@ mod tests {
         for level_time in (1_000..60_000).step_by(50) {
             assert_eq!(
                 batteries(
-                    &mut packs, &mut jet, &mut cloak, true, false, level_time, false
+                    &mut packs, &mut jet, &mut cloak, true, false, level_time, false, None
                 ),
                 Toggled::Nothing
             );
@@ -546,7 +565,9 @@ mod tests {
         assert_eq!(cloak, 1);
         let mut packs = Packs::default();
         assert_eq!(
-            batteries(&mut packs, &mut jet, &mut cloak, true, false, 1_000, true),
+            batteries(
+                &mut packs, &mut jet, &mut cloak, true, false, 1_000, true, None
+            ),
             Toggled::Decloaked
         );
     }

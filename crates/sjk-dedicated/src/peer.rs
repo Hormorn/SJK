@@ -197,6 +197,8 @@ pub struct Peer {
     /// ([`sjk_game_jka::client_commands`]). A spawn clears them with `ent->flags`.
     pub(crate) god: bool,
     pub(crate) notarget: bool,
+    /// Its JA+ grappling hook (`bridge_hook`); never out on the base game.
+    pub(crate) hook: sjk_game_jka::japlus_hook::Hook,
     /// The player's movement, simulated with the rules the client predicts with.
     /// Spectating is the only state with the evidence a server needs so far.
     pub(crate) movement: Predictor,
@@ -307,6 +309,7 @@ impl Peer {
             noclip: false,
             god: false,
             notarget: false,
+            hook: Default::default(),
             last_command_time: 0,
             movement,
         }

@@ -14,7 +14,9 @@
 
 use sjk_game_jka::duel::DuelRules;
 use sjk_game_jka::force_rules::ForceRules;
+use sjk_game_jka::japlus_hook::HookRules;
 use sjk_game_jka::pmove::MovementConfig;
+use sjk_game_jka::pmove::grapple::GrappleRules;
 use sjk_game_jka::pmove_japlus::JaPlusRules;
 use sjk_game_jka::saber_damage_japlus::JaPlusSaberDamage;
 
@@ -66,6 +68,9 @@ pub struct ModMovement {
     /// Which of OpenJK's animation fixes run (`MovementConfig::legacy_fixes`, published
     /// in `CS_LEGACY_FIXES`, which clients predict from).
     pub legacy_fixes: u32,
+    /// The grappling hook's pull and hang (`MovementConfig::grapple`), which clients
+    /// predict on the servers they know have one (JA+'s); `None` on the base game.
+    pub grapple: Option<GrappleRules>,
 }
 
 impl Default for ModMovement {
@@ -75,6 +80,7 @@ impl Default for ModMovement {
             ja_plus: base.ja_plus,
             fix_roll: base.roll_rules.fix_roll,
             legacy_fixes: base.legacy_fixes,
+            grapple: base.grapple,
         }
     }
 }
@@ -86,6 +92,7 @@ impl ModMovement {
         config.ja_plus = self.ja_plus;
         config.roll_rules.fix_roll = self.fix_roll;
         config.legacy_fixes = self.legacy_fixes;
+        config.grapple = self.grapple;
     }
 }
 
@@ -331,6 +338,13 @@ pub trait ServerMod: Sync {
     fn duels(&self, _settings: &dyn Settings) -> DuelRules {
         DuelRules::default()
     }
+
+    /// The grappling hook its settings select (JA+'s `jp_allowHook`, `jp_hookSpeed`...);
+    /// none by default. Its movement is [`ModMovement::grapple`], which must be set for
+    /// the hook to pull.
+    fn hook(&self, _settings: &dyn Settings) -> HookRules {
+        HookRules::default()
+    }
     /// The player command `name` (any letter case) is in its table, if it adds one;
     /// none by default.
     fn command(&self, _name: &[u8]) -> Option<ModCommand> {
@@ -425,6 +439,12 @@ mod tests {
     }
 
     #[test]
+    fn a_mod_without_a_hook_has_none() {
+        assert!(!Plain.hook(&NoSettings).enabled());
+        assert_eq!(ModMovement::default().grapple, None);
+    }
+
+    #[test]
     fn the_base_game_kills_as_before() {
         let base = ModCombat::default();
         assert_eq!(base.saber, JaPlusSaberDamage::default());
@@ -488,12 +508,14 @@ mod tests {
             },
             fix_roll: 2,
             legacy_fixes: 0,
+            grapple: Some(GrappleRules { pull_speed: 800.0 }),
         }
         .apply(&mut config);
         assert!(config.ja_plus.enabled);
         assert_eq!(config.roll_rules.fix_roll, 2);
         assert!(config.roll_rules.saber_forbids_rolls);
         assert_eq!(config.legacy_fixes, 0);
+        assert_eq!(config.grapple, Some(GrappleRules { pull_speed: 800.0 }));
         assert_eq!(config.saber_speed_scales, [0.5, 1.0]);
     }
 }

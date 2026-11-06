@@ -87,6 +87,7 @@ pub mod holocron;
 pub(crate) mod item_physics;
 pub mod item_push;
 pub mod items;
+pub mod japlus_hook;
 pub mod jedi_master;
 pub mod knockdown;
 pub mod melee;
