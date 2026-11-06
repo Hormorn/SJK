@@ -10,7 +10,8 @@ pushes and tilts eased in over a few frames for limited chains
 ([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Collision of a bone's middle
 applies to every colliding chain; the rest needs the new options. Verified on Windows 10:
 unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
-tests. Not verified: the final state's feel in a game, other machines or other rigs; arms
+tests. Played in game on this client with `main` merged: it works and the frame
+rate was fine. Not verified: in a game on Linux and macOS, other machines or other rigs; arms
 and head are not capsules and the mesh itself is not checked, so a sharp pose can show
 cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
 
