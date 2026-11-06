@@ -115,7 +115,10 @@ rig: 117 degrees on a 1.3-unit lace bone). The bone tilts by half the limit at 2
 lag and only nears the limit beyond that, and the spring runs free of the bone. A hard
 clamp was tried first and is why: the lag dwarfs a small limit, so the bone sat against
 it and crossed to the other side in a frame whenever the lag turned round. The angles add
-up down a chain, so hair that should barely move takes a few degrees. A limited joint
+up down a chain, so hair that should barely move takes a few degrees. It takes 0 to 180, and
+anything else rejects the manifest: `limit 180` means no limit, as if the word were left out,
+and `limit 0` gives a joint that never tilts with its spring but still takes up pushes over a
+few frames and, stacked with no children, swings on its lever. A limited joint
 stacked on its anchor with no children, as a rig's single-joint hair strand or sleeve is,
 has no bone to aim; it swings about its pivot instead, along the line to the
 weighted middle of the vertices it carries. Without `limit` such a joint stays still.
@@ -128,8 +131,12 @@ for each unit per second at the tip and less towards the anchor, and against its
 round the player as they turn. So the steady lag at the tip is `speed * drag / stiffness`:
 at the game's run of 250, drag 1 and stiffness 70 lag 3.6 units, which with a `limit` tilts
 each bone 64 percent of it. Falling blows a chain up as a run blows it back. Movement counts up
-to 800 units per second and turns up to 12 radians per second; a jump of more than 3000 units
-per second is a teleport, and a gap of more than 0.1 s starts again at rest.
+to 800 units per second and turns up to 12 radians per second. A jump of more than 3000 units per
+second is a teleport: it starts again at rest, whatever the yaw did, as do a gap of more than 0.1 s
+and a change of where the origin comes from (another body on a reused mesh, or the local player's
+prediction giving way to the interpolated origin in the free camera). An actor is only followed
+while a chain of its rig has a `drag`, and one whose origin is not read (no player pose, a cut-off
+limb) stops at once.
 
 A chain may fork, and joints may be stacked on one spot, as some rigs do. Each joint
 is placed from where its parent now stands. A parent is turned towards its first child
@@ -156,19 +163,23 @@ makes none. With the mannequin preset that is the pelvis, five spine joints, bot
 thighs and both calves. Each frame every chain point is held at its bone's length,
 pushed out of the capsules it is not exempt from (its speed into them stopped) and
 held at its length again. A point is exempt from its chain anchor's capsule and from
-those it or its bone's middle already lie in at rest, so a cape hanging from the back, or
-a tail root inside the hips, is not shoved off its own body. A chain whose line says
+those it already lies in at rest, so a cape hanging from the back, or a tail root inside the
+hips, is not shoved off its own body. A chain whose line says
 `nocollide` passes through. `clearance <units>` on a line holds that chain so much further
-out, since the capsules sit under the skin, but no further than each joint lies at rest,
-so standing still moves nothing (0 by default; the at-rest exemption still uses the plain
-radius). A limited chain takes up each push over a few frames (`PUSH_RATE`), since a push
+out, since the capsules sit under the skin, but no further than each joint or bone's middle
+lies at rest, so standing still moves nothing (0 by default; the at-rest exemption still uses
+the plain radius). A limited chain takes up each push over a few frames (`PUSH_RATE`), since a push
 of a unit turns a short bone tens of degrees, and its bones take up the spring's lag the
 same way (`TILT_RATE`): a change of animation moves the body far in its tenth of a second
 blend, and every bone of a chain tilting at once made the tip jump (measured on a
 seven-bone cape when stopping and starting: 5.7 degrees in the first tick, then 0.6,
 rising smoothly; the cost is that a fast leg can get about a unit further into a loose
-flap for a moment). Each joint and the middle of its bone collide, so a long bone no
-longer cuts through a leg its two ends miss; the cloth between two chains and the mesh
+flap for a moment). Each joint and the middle of its bone collide, each with its own at-rest
+exemption, so a long bone no longer cuts through a leg its two ends miss, and a bone coming
+out of the hips, its middle inside them at rest, still has its joint kept out of them. Moving
+the joint moves the middle half as far, so a push on the middle moves the joint by twice the
+middle's depth. This one applies to every colliding chain, with no option: an existing tail or
+cape can look a little different near the body. The cloth between two chains and the mesh
 itself are not checked, so a sharp pose can still show some through. The head is not a
 capsule, and the arms are only for a chain whose line says `arms`: then the rig also measures
 the upper arms and forearms (`ARM_BONES`) the same way, and a chain without the word ignores them. A rig
@@ -188,7 +199,9 @@ plane through its nearest inner bone at rest, which turns with that bone, stayin
 its chain's `clearance` or by what it has at rest if that is less. A fixed bone rather
 than the nearest each frame, so the push never jumps. Inner chains move first; a joint
 beyond their ends at rest, such as hair above a cape's top, takes no plane. The push is
-one way: the cape pushes the hair and not the other way.
+one way: the cape pushes the hair and not the other way. The log names a `layer` line that
+does nothing or something odd when the model loads: a joint with no `dynamic` line, a chain
+over itself, or lines that go round in a circle.
 
 ### Bolts on the rig
 
@@ -244,6 +257,10 @@ A model folder (`models/players/<name>/`) with `sjk_rig.cfg` is a rig model; `/m
 | `map <joint> <bone> as <other joint>` | ... with another joint's alignment (finger chains) | |
 
 `map` lines replace the preset's entry for that joint or add one.
+
+A client rejects the whole manifest over a line or option it does not know, so on an older
+client a rig model using a newer one (`limit`, `clearance`, `layer`, `drag`, `arms`) does not load at all,
+rather than dropping that line.
 
 ### Variants
 

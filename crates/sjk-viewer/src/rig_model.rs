@@ -233,7 +233,10 @@ fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
             "wag" => settings.wag = number(words.next()?)?,
             "stiffness" => settings.stiffness = number(words.next()?).filter(|n| *n > 0.0)?,
             "damping" => settings.damping = number(words.next()?).filter(|n| *n >= 0.0)?,
-            "limit" => settings.limit = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "limit" => {
+                settings.limit =
+                    number(words.next()?).filter(|n| (0.0..=dynamics::NO_LIMIT).contains(n))?;
+            }
             "clearance" => settings.clearance = number(words.next()?).filter(|n| *n >= 0.0)?,
             "drag" => settings.drag = number(words.next()?).filter(|n| *n >= 0.0)?,
             "arms" => settings.arms = true,
@@ -241,6 +244,44 @@ fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
         }
     }
     Some(settings)
+}
+
+/// What is wrong with `layer` lines (outer and inner joint), `anchors` being the joints
+/// on `dynamic` lines: such a line loads, and does nothing or something odd, so a pack's
+/// author needs telling.
+fn layer_problems<'a>(
+    layers: &[(usize, usize)],
+    anchors: &[usize],
+    name: impl Fn(usize) -> &'a str,
+) -> Vec<String> {
+    let mut problems = Vec::new();
+    for &(outer, inner) in layers {
+        let line = format!("layer {} over {}", name(outer), name(inner));
+        if outer == inner {
+            problems.push(format!("{line}: a chain cannot lie over itself"));
+            continue;
+        }
+        for joint in [outer, inner] {
+            if !anchors.contains(&joint) {
+                problems.push(format!("{line}: {} has no dynamic line", name(joint)));
+            }
+        }
+        // A way back from the inner joint to the outer one, over the other lines.
+        let mut reached = vec![inner];
+        let mut next = 0;
+        while let Some(&from) = reached.get(next) {
+            next += 1;
+            for &(over, under) in layers {
+                if over == from && over != under && !reached.contains(&under) {
+                    reached.push(under);
+                }
+            }
+        }
+        if reached.contains(&outer) {
+            problems.push(format!("{line}: the layer lines go round in a circle"));
+        }
+    }
+    problems
 }
 
 impl Manifest {
@@ -1048,6 +1089,10 @@ impl RigModel {
                 found
             })
             .collect();
+        let on_lines: Vec<usize> = dynamic_anchors.iter().map(|(joint, _)| *joint).collect();
+        for problem in layer_problems(&layers, &on_lines, |joint| joints[joint].name.as_str()) {
+            crate::log::progress(format_args!("rig model {base}: {MANIFEST}: {problem}"));
+        }
         chains.layer(&joints, &layers);
         // Alignments first (an `As` entry reads another's), then the driven joints.
         let mut aligned: Vec<Option<Mat3A>> = vec![None; joints.len()];
@@ -1282,6 +1327,11 @@ impl RigModel {
     /// Pose every joint from the driver's evaluated `bones` (one model-space matrix
     /// per GLA bone, as the GLM is skinned with), with `play`'s clip over it, into
     /// `scratch.palette`.
+    /// Whether a chain feels the air, so [`Scratch::observe_motion`] is worth calling.
+    pub(crate) fn wants_drag(&self) -> bool {
+        self.chains.wants_drag()
+    }
+
     pub(crate) fn pose(
         &self,
         bones: &[[[f32; 4]; 3]],
@@ -1594,8 +1644,22 @@ pub(crate) struct Scratch {
 impl Scratch {
     /// The actor stands at `origin` facing `yaw_degrees` at `time_ms`: the air on its
     /// dynamic chains answers this.
-    pub(crate) fn observe_motion(&mut self, origin: [f32; 3], yaw_degrees: f32, time_ms: i64) {
-        self.dynamics.motion.observe(origin, yaw_degrees, time_ms);
+    pub(crate) fn observe_motion(
+        &mut self,
+        origin: [f32; 3],
+        yaw_degrees: f32,
+        time_ms: i64,
+        source: dynamics::MotionSource,
+    ) {
+        self.dynamics
+            .motion
+            .observe(origin, yaw_degrees, time_ms, source);
+    }
+
+    /// Nobody will tell it of the actor's movement for now, so it stops: no last gust goes on
+    /// acting on a body whose origin is not followed.
+    pub(crate) fn halt_motion(&mut self) {
+        self.dynamics.motion = dynamics::Motion::default();
     }
 }
 
