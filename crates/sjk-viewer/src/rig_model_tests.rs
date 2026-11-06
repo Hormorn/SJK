@@ -1136,7 +1136,7 @@ fn dynamic_chain_motion_of_an_installed_rig() {
     let gla = Gla::parse(&read("models/players/_humanoid/_humanoid.gla")).unwrap();
     let glm = sjk_model::Glm::parse(&read("models/players/kyle/model.glm")).unwrap();
     let directory = format!("models/players/{name}");
-    let manifest = super::manifest(&vfs, &directory)
+    let manifest = super::manifest(&vfs, &directory, "default")
         .unwrap()
         .expect("a rig model");
     let rig = RigModel::load(&vfs, &directory, &manifest, &gla, &glm).unwrap();
