@@ -583,8 +583,8 @@ pull requests merged into SJK, most of them bringing SJK in line with EternalJK
   deaths (`cg_scoreboardDeathsRank`, off).
 - #321 a finished trade's toast says what it gave and received, names shown in full.
 - #236 JoF hats as in JoF EJK: their pictures from the old EternalJK folder, McFox two-sided.
-- #370 130 new blades from his Star Wars round (blades 170 to 299): 25 Common, 24 Uncommon,
-  34 Rare, 38 Legendary and 9 Mythical, each with its own colours, trail and sounds, and
+- #370 130 new blades from his Star Wars round (blades 170 to 299): 25 Common, 21 Uncommon,
+  29 Rare, 38 Legendary and 17 Mythical (Sol's tiers after testing them), each with its own colours, trail and sounds, and
   their effects in the air drawn at half size so a close blade stays cheap.
 
 Lumaya ([lumayaa](https://github.com/lumayaa)), contributor, has 88 pull requests
@@ -1018,6 +1018,15 @@ Blackwolf's VisionJK rebuild of the JA+ 2.4 B7 server module from its Linux bina
 (GPL-2.0, approved for reuse) is the reference for SJK's JA+ server mode (06/11/2026,
 `g_mod japlus`): JA+'s settings and their defaults and the `jp_cinfo` bits come from it,
 and its behaviour is ported into SJK's own code, not its source.
+
+Kushina ([kushinaSJK](https://github.com/kushinaSJK)), contributor and player, has 1 pull
+request merged into SJK
+([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AkushinaSJK)); her
+ideas are under [Ideas](#ideas):
+
+- #373 dynamic chains on rig models that fork or stack joints (hair: a stem with strands
+  under it) no longer throw their bones about: each joint is placed from where its parent
+  now stands, parents first, and a bone shorter than 0.01 units no longer turns its parent.
 
 ## Art
 

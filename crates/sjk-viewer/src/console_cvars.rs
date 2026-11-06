@@ -1531,15 +1531,7 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "cl_packetdup",
             1_i64,
             archive,
-            "Repeat the previous N packets' usercmds in every packet (0 to 5) so lost packets drop no move; servers SJK knows to take fewer get fewer (JoF's: none)",
-        ),
-        // SJK's: the servers known to take fewer repeated commands keep their cap
-        // unless lifted (`server_caps.rs`).
-        CvarDefinition::new(
-            crate::server_caps::PACKET_DUP_OVERRIDE_CVAR,
-            0_i64,
-            archive,
-            "1 ignores the servers SJK knows to take fewer repeated packets (JoF's: none, Heimdall kicks for them): cl_packetdup applies as set there too",
+            "Repeat the previous N packets' usercmds in every packet (0 to 5) so lost packets drop no move",
         ),
         CvarDefinition::new(
             "cl_timeNudge",

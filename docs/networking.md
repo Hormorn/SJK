@@ -740,13 +740,13 @@ previous packet, and with `cl_packetdup` (0 to 5) the commands of that many earl
 packets as well, at most 32 (`MAX_PACKET_USERCMDS`)
 ([command_history.rs](../crates/sjk-client/src/command_history.rs)). At 125 or
 more each command leaves in a packet of its own; stock's 30 batches about four.
-A server family in [server_caps.rs](../crates/sjk-viewer/src/server_caps.rs) may take
-fewer repeats (`max_packet_dup`): on JoF's servers packets repeat none, whatever
-`cl_packetdup` says, since Milamber, who maintains Heimdall, named `cl_packetdup` as
-what it kicked SJK players for (Turin's kicks, 04/11/2026). JoF EJK itself repeats one
-packet whatever its `cl_packetdup` (`CL_WritePacket` reads `outgoingSequence - 1 - 1`).
-`cl_packetdup_nocap 1` (archived, 0) lifts these caps; `gameplay_fps_nocap` does not,
-and the log names the cap when a listed server is joined.
+Every server takes `cl_packetdup` as set, 1 by default, the one earlier packet JoF EJK
+always repeats (`CL_WritePacket` reads `outgoingSequence - 1 - 1`). From 04/11 to
+06/11/2026 JoF's servers took none (`max_packet_dup` in
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs), lifted by
+`cl_packetdup_nocap`), on a reading of Milamber's remark about Turin's Heimdall kicks;
+Milamber, who maintains Heimdall, has since confirmed the default is right, and the cap
+and its cvar are gone.
 Losing window focus lets the next packet leave at once with the released keys.
 Prediction keeps 512 unacknowledged commands (JoF EJK's `cl_commandsize` ceiling),
 1.5 seconds at a gameplay FPS of 333. The flip kick's frame cvars stay EJK's frames

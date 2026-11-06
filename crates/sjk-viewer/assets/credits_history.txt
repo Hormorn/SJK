@@ -9,6 +9,18 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 06/11/2026 | - | JoF: take cl_packetdup as set again (revert the cap at 0)
+- 4439cbf |  | JoF: take cl_packetdup as set again (revert the cap at 0)
++ 06/11/2026 | - | Credits history after the editions, saber_loadall and the new blades' tiers
+- 48ccdbf |  | Credits history after the editions, saber_loadall and the new blades' tiers
++ 06/11/2026 | - | Sol's tiers for Creyon's round: 19 blades up a tier after his tests
+- da28de9 |  | Sol's tiers for Creyon's round: 19 blades up a tier after his tests
++ 06/11/2026 | - | saber_loadall: build every blade's shader at once, to see each blade's real look right away
+- c59b6f0 |  | saber_loadall: build every blade's shader at once, to see each blade's real look right away
++ 06/11/2026 | - | Collections: Alpha and Beta editions, an Edition filter, holocrons stamped with theirs
+- 0b8a114 |  | Collections: Alpha and Beta editions, an Edition filter, holocrons stamped with theirs
++ 06/11/2026 | - | Credits history after PR #370 (Creyon's 130 blades)
+- d50ddac |  | Credits history after PR #370 (Creyon's 130 blades)
 + 06/11/2026 | - | Creyon's round waits for Sol's tests: blades 170 to 299 do not drop yet
 - c8b733a |  | Creyon's round waits for Sol's tests: blades 170 to 299 do not drop yet
 + 06/11/2026 | - | Leave the God Ki blade out of Creyon's round (Dragon Ball material)

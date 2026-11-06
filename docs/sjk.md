@@ -85,7 +85,6 @@ migrated, except where the table says so. Where each is documented:
 | `cl_maxpackets` | 125 | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `gameplay_fps` | 0, Auto: movement at the FPS cap, a `pmove_fixed` server's step wins | [Gameplay FPS](client.md#gameplay-fps) |
 | `gameplay_fps_nocap` | 0: the known server caps (JoF's 125) hold | [User commands and move packets](networking.md#user-commands-and-move-packets) |
-| `cl_packetdup_nocap` | 0: the known servers' `cl_packetdup` caps (JoF's 0) hold | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `cjp_client` | empty: `1.4 SJK` on JA+, `1.4JAPRO` on jaPRO (its client-support switch); only a staff key's value is sent | [Networking](networking.md) |
 | `rate` | 90000 (stock 25000), saved 25000 moved to 90000 once | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | rendering profile | noon, bloom, dust, material maps | [Default visual profile](rendering.md#default-visual-profile) |

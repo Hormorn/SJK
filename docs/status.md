@@ -34,10 +34,23 @@ applies to every colliding chain, with its own at-rest exemption, and a push on 
 moves the joint twice as far; the rest needs the new options. The log names `layer` lines that
 do nothing. Verified on Windows 10:
 unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
-tests. Played in game on this client with `main` merged: it works and the frame
-rate was fine. Not verified: in a game on Linux and macOS, other machines or other rigs; arms
+tests. Played in game on this client with `main` merged, before the review's changes (separate
+exemptions, `limit` up to 180, the `layer` log): it works and the frame rate was fine. Not
+verified: those changes in a game; in a game on Linux and macOS, other machines or other rigs; arms
 and head are not capsules and the mesh itself is not checked, so a sharp pose can show
 cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
+
+## JoF takes `cl_packetdup` as set again
+
+06/11/2026, `personal/jof-packetdup-back` from `main` `48ccdbf2`, Sol's request after
+Milamber, who maintains Heimdall, confirmed that the default is right: the JoF-only cap
+of 04/11 (no repeated commands, "No repeated commands on JoF" below) is reverted, with
+its `cl_packetdup_nocap` cvar, so packets repeat the one before (`cl_packetdup` 1), as
+JoF EJK's always do. Sol was kicked twice on 06/11 with the cap on while idle, and the
+server view lines ([networking.md](networking.md)) showed steady timing before both
+kicks (command ages 51 to 58 ms each second, no gap or frame over 40 ms), so the cause
+is still unknown. Verified on Windows 11: fmt, build, clippy, workspace tests. Not
+verified: in a game, or that Heimdall kicks less.
 
 ## Rig chains that fork or stack joints no longer jump
 
@@ -51,7 +64,6 @@ unit test of such a fork (fails on `main`, 22.8 degrees in a frame), the ignored
 on a local hair rig (largest turn in a frame 137 degrees before, 13 after), fmt, build,
 clippy, workspace tests. Not verified: in a game on this branch alone; the rig's short
 bones still stray far from their animated direction under a hard sway.
-
 
 ## Chat row tools: x, + and a cog
 
