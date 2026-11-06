@@ -755,7 +755,8 @@ fn push_out(
     let mut moved = false;
     for (bit, capsule) in chains.capsules.iter().enumerate() {
         let mask = 1u64 << bit;
-        if ignored & ignored_middle & mask != 0 {
+        let (tip, middle) = (ignored & mask == 0, ignored_middle & mask == 0);
+        if !tip && !middle {
             continue;
         }
         let from = pose[capsule.from].translation;
@@ -766,24 +767,15 @@ fn push_out(
         } else {
             squared.recip()
         };
-        // The tip, then the middle: moving the tip moves the middle half as far, so the
-        // middle's way out asks for twice its depth.
-        let samples = [
-            (1.0, 1.0, ignored, reach[bit]),
-            (0.5, 2.0, ignored_middle, reach_middle[bit]),
-        ];
-        for (share, leverage, skip, radius) in samples {
-            if skip & mask != 0 {
-                continue;
-            }
+        // As [`closest`], with the division shared. This runs for most pairs of joint and
+        // capsule, and most of them are far apart, so they take no square root.
+        let mut push = |share: f32, leverage: f32, radius: f32| {
             let sample = origin + (*point - origin) * share;
-            // As [`closest`], with the division shared; this runs for most pairs of joint
-            // and capsule, and most of them are far apart, so they take no square root.
             let from_start = sample - from;
             let offset = from_start - along * (from_start.dot(along) * per_squared).clamp(0.0, 1.0);
             let apart = offset.length_squared();
             if apart >= radius * radius || apart <= 1e-8 {
-                continue;
+                return false;
             }
             let distance = apart.sqrt();
             let normal = offset / distance;
@@ -792,7 +784,15 @@ fn push_out(
             if into < 0.0 {
                 *velocity -= normal * into;
             }
-            moved = true;
+            true
+        };
+        // The tip, then the middle: moving the tip moves the middle half as far, so the
+        // middle's way out asks for twice its depth.
+        if tip {
+            moved |= push(1.0, 1.0, reach[bit]);
+        }
+        if middle {
+            moved |= push(0.5, 2.0, reach_middle[bit]);
         }
     }
     moved
