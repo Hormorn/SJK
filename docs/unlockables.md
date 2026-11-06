@@ -1336,10 +1336,19 @@ fireworks keep their colours) chromas. Creyon's Star Wars round (1/11/2026) made
   the light's colour if the rim is grey). Worn on a saber, every colour the skin draws
   (glow, core, arcs, motes, veins, scan lines, glyphs, embers) is turned round the grey
   axis by the gap from that hue to the saber colour's, keeping brightness and
-  saturation; the dynamic light and the blur trail turn with it. A grey or white
-  colour (under 20 % saturation) has no hue to take: the skin is drawn as its file
-  says. The turn rides on every blade instance (`Instance::chroma`, attribute 8), so
-  `saber.wgsl` turns the finished glow and core once; other players' blades take their
+  saturation; the dynamic light and the blur trail turn with it. A custom RGB colour
+  paler than the skin also takes its paleness (Dante's idea, 06/11/2026: a blue chroma
+  could not be worn white): every colour is drawn toward the grey of its own brightness
+  (`greyed`, the mean of its channels) by `Chroma::grey`, 1 minus the colour's saturation
+  over the skin's (capped at `CHROMA_FULL`, 0.75), so white or grey gives a white or grey
+  blade, a pastel a paler one, and a stock colour (0.8 to 0.9) or a strong custom one
+  changes nothing. A colour under 3 % saturation has no hue to take, so the turn is 0
+  and only the greying applies. The turn and the greying ride packed on every blade
+  instance (`Instance::chroma`, attribute 8: the turn in [0, 1) plus the greying in
+  255ths as the whole part, `pack_chroma`); `blade_vertex` unpacks them, and
+  `saber.wgsl` turns and greys the finished glow and core once (`chroma_wear`; a round
+  blade's `sig_coloured` greys after its palette). The Collection's swatches and the
+  Moon's moondust read the same packed value (`wear_chroma`). Other players' blades take their
   colours from their `CS_PLAYERS` string, so everyone sees a chroma in its wearer's
   colour. A pale skin (the Storm, the Hologram) stays pale, only tinted.
 - **Team games**: with `cg_saberTeamColors` (on by default) a red or blue player's

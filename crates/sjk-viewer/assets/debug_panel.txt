@@ -4284,9 +4284,23 @@ change: A colour wheel marks them: Collection rack and detail, Saber tab swatche
 change: Collection Shaders: double click wears an owned one; the name no longer runs under Worn.
 test: Wear Glitch (staff unlock if needed), set the saber red then green: the blade follows.
 test: Dual sabers in two colours: each chroma blade takes its own saber's colour.
-test: Custom RGB white: the chroma shows its own colours. Another player sees yours too.
+test: Custom RGB white: the chroma blade is white (chroma-pale-rgb). Others see yours too.
 test: Collection > Shaders: colour wheels beside chroma names; double click an owned row.
 test: Detail beside the model: the long name ends before the Worn/Yours/Locked pill, at 4K.
+
+[chroma-pale-rgb]
+area: Rendering & effects
+title: Chroma shader blades take a pale custom colour: white, grey, pastel
+change: A custom RGB paler than the shader now makes it paler too: white or grey gives a white
+change: or grey blade at the shader's brightness, a pastel a paler blade (Dante's idea).
+change: Stock colours and strong custom colours (75 percent saturation and up) are as before.
+test: Saber page, wear a blue chroma (Storm, Glitch...), Custom, set 255 255 255: a white blade.
+test: Set 128 128 128: a grey blade. Set 207 190 234: a pale violet blade, not a strong one.
+test: Slide Green from 0 to 255 with R 255, B 255: the blade fades from magenta to white smoothly.
+test: Pick stock blue, then RGB 0 0 255: the blade looks as before. Trail and light follow it.
+test: A signature chroma (Eclipse, a Mythical of the round) worn white is white too.
+test: Collection > Shaders thumbnails with Custom white show the shaders white.
+test: A second SJK player sees your white chroma blade white.
 
 [rarity-fx]
 area: Menus & settings

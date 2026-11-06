@@ -169,11 +169,7 @@ pub(crate) fn blade(
             );
             if let Some(signature) = skin.signature {
                 let tint = |rgb: Rgb, alpha: f32| {
-                    let rgb = if turn == 0.0 {
-                        rgb
-                    } else {
-                        crate::saber_skins::turn_hue(rgb, turn)
-                    };
+                    let rgb = crate::saber_skins::wear_chroma(rgb, turn);
                     ui(rgb, alpha)
                 };
                 effects::signature(
@@ -572,11 +568,7 @@ fn still_blade(
 ) {
     let colour = |u: f32, alpha: f32| {
         let rgb = gradient(def, u);
-        let rgb = if turn == 0.0 {
-            rgb
-        } else {
-            crate::saber_skins::turn_hue(rgb, turn)
-        };
+        let rgb = crate::saber_skins::wear_chroma(rgb, turn);
         ui(rgb, alpha * light)
     };
     capsule(
@@ -1247,7 +1239,8 @@ mod tests {
             turn
         );
         assert_eq!(chroma_turn(None, [0, 0, 255]), 0.0);
-        assert_eq!(chroma_turn(Some(&skin), [255, 255, 255]), 0.0);
+        // White greys it: no turn, the whole greying.
+        assert_eq!(chroma_turn(Some(&skin), [255, 255, 255]), 255.0);
     }
 
     /// The colour of the first opaque shape, the core: it moves only with a turning hue.

@@ -279,8 +279,9 @@ struct VertexOutput {
     // blade's own reference direction across its axis, octahedron-packed (`frame`), for the
     // signatures' fixed three-dimensional frame.
     @location(9) @interpolate(flat) down: vec4<f32>,
-    // A chroma skin's turn to its wearer's colour (saber_skins.rs `Chroma`); 0 otherwise.
-    @location(10) @interpolate(flat) chroma: f32,
+    // A chroma skin's turn to its wearer's colour, x in turns, and y how far it is greyed
+    // (saber_skins.rs `Chroma`, unpacked from the instance's `chroma`); zeros otherwise.
+    @location(10) @interpolate(flat) chroma: vec2<f32>,
     // The sections its wearer switched off: x the `OFF_*` bits, y the `OFF2_*`; 0 otherwise.
     @location(11) @interpolate(flat) off: vec2<u32>,
     // A skinned blade's swing (0 to 1) and the seconds since its last clash, since it was
@@ -567,7 +568,8 @@ fn blade_vertex(vertex_index: u32, blade: BladeInstance) -> VertexOutput {
     output.animation = blade_animation;
     output.motion = blade.motion;
     output.persona = blade_persona;
-    output.chroma = blade_chroma;
+    // The turn in [0, 1) and the greying in 255ths as the whole part (`pack_chroma`).
+    output.chroma = vec2(fract(blade_chroma), min(floor(blade_chroma) / 255.0, 1.0));
     output.down = vec4(vec2(-side.z, -up.z), oct_pack(blade.frame.xyz));
     var world: vec3<f32>;
     if hilt <= STAR {
@@ -1014,6 +1016,24 @@ fn skin_turn_hue(color: vec3<f32>, turns: f32) -> vec3<f32> {
     let s = sin(TAU * turns);
     let turned = color * c + cross(axis, color) * s + axis * dot(axis, color) * (1.0 - c);
     return max(turned, vec3(0.0));
+}
+
+// `color` drawn `grey` (0 to 1) of the way to the grey of its own brightness (saber_skins.rs
+// `greyed`): what a chroma worn in a pale custom colour takes of its paleness (Dante's idea).
+fn skin_greyed(color: vec3<f32>, grey: f32) -> vec3<f32> {
+    let mean = (color.r + color.g + color.b) / 3.0;
+    return max(mix(color, vec3(mean), grey), vec3(0.0));
+}
+
+// Whether a chroma changes its colours at all (`VertexOutput::chroma`).
+fn chroma_on(chroma: vec2<f32>) -> bool {
+    return chroma.x != 0.0 || chroma.y != 0.0;
+}
+
+// `color` as a chroma worn in its wearer's colour draws it: turned, then greyed
+// (saber_skins.rs `wear_chroma`).
+fn chroma_wear(color: vec3<f32>, chroma: vec2<f32>) -> vec3<f32> {
+    return skin_greyed(skin_turn_hue(color, chroma.x), chroma.y);
 }
 
 // --- Later effects (blade_skin_effects.rs): each draws nothing when its lanes are zeros ---
@@ -1783,8 +1803,8 @@ fn afterimage_glow(input: VertexOutput) -> vec3<f32> {
     if any(hue.xyz != vec3(0.0)) {
         glow = skin_turn_hue(glow, time * hue.x + along * hue.y + out * hue.z);
     }
-    if input.chroma != 0.0 {
-        glow = skin_turn_hue(glow, input.chroma);
+    if chroma_on(input.chroma) {
+        glow = chroma_wear(glow, input.chroma);
     }
     return glow * persona_fade(input);
 }
@@ -1879,8 +1899,8 @@ fn skin_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
         var smoke = skin_wisps(skin, input, r, time, seed) * skin.wisp_color.rgb
             * skin.wisp_color.w;
         smoke = skin_apply_tint(smoke, skin_tint(skin, input));
-        if input.chroma != 0.0 {
-            smoke = skin_turn_hue(smoke, input.chroma);
+        if chroma_on(input.chroma) {
+            smoke = chroma_wear(smoke, input.chroma);
         }
         glow += smoke;
     }
@@ -2153,8 +2173,8 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
         return sig_coloured(input, (glow + max(uTurnFx, vec3(0.0)) * shown) * edge) + (kept_glow + max(uKeep, vec3(0.0)) * shown + sig_coloured_air(input, own_effects)) * edge;
     }
     // A chroma takes its wearer's colour: everything it drew, turned at once.
-    if input.chroma != 0.0 {
-        glow = skin_turn_hue(glow, input.chroma);
+    if chroma_on(input.chroma) {
+        glow = chroma_wear(glow, input.chroma);
     }
     return glow;
 }
@@ -2237,8 +2257,8 @@ fn skin_core(input: VertexOutput, texel: vec4<f32>, uv: vec2<f32>, footprint: f3
         core *= 1.0 - smoothstep(0.36, 0.5, abs(uv.x - 0.5));
         return sig_coloured(input, core);
     }
-    if input.chroma != 0.0 {
-        core = skin_turn_hue(core, input.chroma);
+    if chroma_on(input.chroma) {
+        core = chroma_wear(core, input.chroma);
     }
     return core;
 }
@@ -2378,8 +2398,8 @@ fn star_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
             input.animation.y + f * 0.37, pixel / grown) * skin.flash_color.rgb
             * skin.flash_color.w * bright;
         flash = skin_apply_tint(flash, skin_tint(skin, input));
-        if input.chroma != 0.0 {
-            flash = skin_turn_hue(flash, input.chroma);
+        if chroma_on(input.chroma) {
+            flash = chroma_wear(flash, input.chroma);
         }
         return flash * persona_fade(input);
     }
@@ -2398,8 +2418,8 @@ fn star_glow(input: VertexOutput, pixel: f32) -> vec3<f32> {
         return vec3(0.0);
     }
     glint = skin_apply_tint(glint, skin_tint(skin, input));
-    if input.chroma != 0.0 {
-        glint = skin_turn_hue(glint, input.chroma);
+    if chroma_on(input.chroma) {
+        glint = chroma_wear(glint, input.chroma);
     }
     return glint * persona_fade(input) * (1.0 - (1.0 - GLINT_BEHIND) * input.shaft);
 }
@@ -2878,8 +2898,8 @@ fn solid_colour(input: VertexOutput) -> vec4<f32> {
         let gloss = skin.ink_more.x * exp(-pow((x / max(radius, 0.0001) - 0.35) / 0.12, 2.0))
             * (0.5 + 0.5 * sin(place * 0.25 - time * 0.8));
         var colour = ink.rgb;
-        if input.chroma != 0.0 {
-            colour = skin_turn_hue(colour, input.chroma);
+        if chroma_on(input.chroma) {
+            colour = chroma_wear(colour, input.chroma);
         }
         var rgb = mix(out.rgb, colour + vec3(gloss), body);
         var alpha = max(out.a, body);
@@ -2991,8 +3011,10 @@ struct LabPlace {
     age: f32,
     since_swing: f32,
     since_clash: f32,
-    // A chroma's turn to its wearer's colour (0: the design's own colours).
+    // A chroma's turn to its wearer's colour (0: the design's own colours), and how far
+    // it is greyed (`VertexOutput::chroma`).
     turn: f32,
+    grey: f32,
     // How much narrower than the lab's it is drawn (`LAB_THIN`).
     thin: f32,
     // A blade gone in whose words float on (`saber_motion::BladeMotion::lingering`: its
@@ -3055,17 +3077,18 @@ fn lab_place(input: VertexOutput, pixel: f32) -> LabPlace {
     p.age = input.motion.z;
     p.since_swing = input.motion.w;
     p.since_clash = input.motion.y;
-    p.turn = input.chroma;
+    p.turn = input.chroma.x;
+    p.grey = input.chroma.y;
     p.off = input.off.x;
     return p;
 }
 
 // `c` turned to the wearer's colour, for a chroma's parts that take it.
 fn lab_turn(c: vec3<f32>, p: LabPlace) -> vec3<f32> {
-    if p.turn == 0.0 {
+    if p.turn == 0.0 && p.grey == 0.0 {
         return c;
     }
-    return skin_turn_hue(c, p.turn);
+    return chroma_wear(c, vec2(p.turn, p.grey));
 }
 
 // `p` as a copy of the blade turned `angle` (radians, on screen) about its hilt sees it.
@@ -4391,8 +4414,8 @@ fn lab_solid(input: VertexOutput, pixel: f32) -> vec4<f32> {
     let n = lab_design(input);
     let p = lab_place(input, pixel);
     var color = vec3(0.2, 0.7, 1.0);
-    if input.chroma != 0.0 {
-        color = skin_turn_hue(color, input.chroma);
+    if chroma_on(input.chroma) {
+        color = chroma_wear(color, input.chroma);
     }
     var out = vec4(0.0);
     switch n {
@@ -4538,7 +4561,7 @@ fn sig_take(input: VertexOutput) {
     uOwn = 0.0;
     uTurnFx = vec3(0.0);
     uAirCover = 0.0;
-    uTurn = input.chroma;
+    uTurn = input.chroma.x;
     {
         let ay = normalize(input.axis.xyz);
         var az = oct_unpack(input.down.zw);
@@ -4584,22 +4607,22 @@ fn sig_recolour(c: vec3<f32>, hue: f32) -> vec3<f32> {
 // The colour a signature skin's pass ends with: its wearer's hue for a chroma.
 fn sig_coloured(input: VertexOutput, c: vec3<f32>) -> vec3<f32> {
     let base = skins[skin_index(input)].design_color.w;
-    if input.chroma == 0.0 || base < 0.0 {
+    if !chroma_on(input.chroma) || base < 0.0 {
         return c;
     }
     if SIG_OWN_EFFECTS {
-        return sig_turned(c, base, fract(base + input.chroma), 0.0);
+        return skin_greyed(sig_turned(c, base, fract(base + input.chroma.x), 0.0), input.chroma.y);
     }
-    return sig_recolour(c, fract(base + input.chroma));
+    return skin_greyed(sig_recolour(c, fract(base + input.chroma.x)), input.chroma.y);
 }
 
 // The same for a round blade's air effects: a neighbour on the wheel, so they stand off the body.
 fn sig_coloured_air(input: VertexOutput, c: vec3<f32>) -> vec3<f32> {
     let base = skins[skin_index(input)].design_color.w;
-    if input.chroma == 0.0 || base < 0.0 {
+    if !chroma_on(input.chroma) || base < 0.0 {
         return c;
     }
-    return sig_turned(c, base, fract(base + input.chroma), 0.13);
+    return skin_greyed(sig_turned(c, base, fract(base + input.chroma.x), 0.13), input.chroma.y);
 }
 
 // A round blade under a chroma (Creyon, 3/11/2026: all one colour hid the effects, then a plain turn gave colours
