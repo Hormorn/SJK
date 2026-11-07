@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Your inputs leave as soon as before again: since 2026.1107.1 every command was made a frame late (3 ms at 350 FPS, 17 ms at 60) off SJK's servers; now only its time stamp is stock's _(Sol)_
 - `cl_freshStamps 1` stamps your commands with this frame's server time on every server again, as before 2026.1107.1 (0 keeps the stock stamp, but on SJK servers); Heimdall on JoF may kick for it _(Sol)_
 - Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
 - Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_

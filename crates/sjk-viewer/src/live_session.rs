@@ -250,23 +250,23 @@ impl GpuState {
                 )
             },
         );
-        let command_time = if previous_frame {
-            previous_frame_time
-        } else {
-            server_time
-        };
         if !session.is_local() {
             // Which stamp, and around a switch how the server saw each (`server_view`).
             self.server_view.stamps(!previous_frame, now, |line| {
                 crate::log::progress(format_args!("{line}"));
             });
         }
-        let due = self.command_schedule.due(
-            command_time,
-            self.server_clock.anchored(),
-            now,
-            step,
+        // Made as soon as the frame's own reading says so; stamped as stock
+        // (`CommandSchedule::stock_stamps`).
+        let due =
+            self.command_schedule
+                .due(server_time, self.server_clock.anchored(), now, step, pacing);
+        let due = self.command_schedule.stock_stamps(
+            due,
             pacing,
+            step,
+            previous_frame_time,
+            previous_frame,
         );
         if let Some(console) = &self.console {
             session.set_packet_dup(console.packet_dup());
