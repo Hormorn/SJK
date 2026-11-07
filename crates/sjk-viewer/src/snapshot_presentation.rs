@@ -227,10 +227,18 @@ impl GpuState {
         game_audio: &mut Option<GameAudio>,
         visual_now: Instant,
     ) {
+        // A demo typed into the console still has its map to load: its clock
+        // starts with the first frame drawn in that map, not while it loads.
+        if self.pending_map_reload
+            || self.world_load_task.is_some()
+            || self.world_install_task.is_some()
+        {
+            return;
+        }
         let Some(mut session) = self.demo_session.take() else {
             return;
         };
-        let relative = session.paced_relative_millis(self.ui_epoch.elapsed());
+        let relative = session.paced_relative_millis(visual_now);
         let relative = self.console.as_ref().map_or(relative, |console| {
             console.demo_time(
                 relative,
@@ -290,15 +298,37 @@ impl GpuState {
         });
         if let Err(error) = advance {
             eprintln!("demo playback stopped: {error}");
-            self.quit_requested = true;
-            self.demo_session = Some(session);
+            if let Some(console) = &mut self.console {
+                console.push_log(format!("^1Demo playback stopped: {error}"));
+            }
+            self.finish_demo(session);
             return;
         }
         if session.ended() {
-            self.quit_requested = true;
+            self.finish_demo(session);
+            return;
         }
+        // A demo is not predicted: its player is drawn from the recorded snapshots.
+        // The world built for the demo seeds prediction from its first snapshot,
+        // which nothing in playback moves on, so without this every frame showed
+        // that snapshot's flags on the player: the talk balloon of the console
+        // that typed `record` stayed up for the whole demo.
+        self.local_prediction
+            .stop(session.latest_snapshot().player.view_height() as f32);
         update_demo_camera(self, &session);
         self.demo_session = Some(session);
+    }
+
+    /// A demo has played to its end (or could not go on). One played from the
+    /// console returns to the main menu, as `disconnect` does and as the
+    /// reference client does at a demo's end; `--play-demo` closes the game.
+    fn finish_demo(&mut self, session: demo_playback::Session) {
+        if session.from_console() {
+            self.disconnect_to_menu();
+        } else {
+            self.demo_session = Some(session);
+            self.quit_requested = true;
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Camera used while replaying a demo.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -204,6 +204,12 @@ fn fixed_relative_millis(elapsed: Duration, fps: u32) -> u64 {
     frame.saturating_mul(1_000) / fps
 }
 
+/// Milliseconds of playback at `now` on a clock that starts at its first reading.
+fn playback_millis(origin: &mut Option<Instant>, now: Instant, fps: u32) -> u64 {
+    let origin = *origin.get_or_insert(now);
+    fixed_relative_millis(now.saturating_duration_since(origin), fps)
+}
+
 /// Shared-stream playback state used by both windowed and capture modes.
 pub(crate) struct Session {
     stream: DemoPlayback<BufReader<File>>,
@@ -213,6 +219,14 @@ pub(crate) struct Session {
     current_server_time: i64,
     camera: Camera,
     fps: u32,
+    /// The wall-clock instant of playback's first frame, set when the first
+    /// frame asks for the demo's time. A demo typed into the console opens
+    /// long after the game started, and a clock from that start would put
+    /// playback past the demo's end at once.
+    clock_origin: Option<Instant>,
+    /// Played from the console (`demo`): its end returns to the main menu
+    /// instead of closing the game as `--play-demo` does.
+    from_console: bool,
     ended: bool,
     initial_observation_pending: bool,
 }
@@ -268,6 +282,8 @@ impl Session {
             current_server_time: i64::from(first.server_time),
             camera,
             fps: fps.max(1),
+            clock_origin: None,
+            from_console: false,
             ended: false,
             initial_observation_pending: true,
         })
@@ -375,12 +391,41 @@ impl Session {
         self.camera
     }
 
-    /// Quantize a wall-clock duration onto the deterministic playback clock.
-    pub(crate) fn paced_relative_millis(&self, elapsed: Duration) -> u64 {
-        fixed_relative_millis(elapsed, self.fps)
+    /// The demo time to show at `now`, quantized onto the deterministic playback
+    /// clock and counted from the first frame that asked (the demo's start).
+    pub(crate) fn paced_relative_millis(&mut self, now: Instant) -> u64 {
+        playback_millis(&mut self.clock_origin, now, self.fps)
+    }
+
+    /// Mark a demo typed into the console: its end returns to the main menu.
+    pub(crate) fn set_from_console(&mut self) {
+        self.from_console = true;
+    }
+
+    pub(crate) fn from_console(&self) -> bool {
+        self.from_console
     }
 
     pub(crate) fn ended(&self) -> bool {
         self.ended
+    }
+}
+
+#[cfg(test)]
+mod clock_tests {
+    use super::*;
+
+    #[test]
+    fn playback_starts_at_its_first_frame_not_at_game_start() {
+        // A demo typed into the console minutes after the game started.
+        let game_start = Instant::now();
+        let first_frame = game_start + Duration::from_secs(200);
+        let mut origin = None;
+        assert_eq!(playback_millis(&mut origin, first_frame, 60), 0);
+        assert_eq!(
+            playback_millis(&mut origin, first_frame + Duration::from_millis(1_500), 60),
+            1_500
+        );
+        assert_eq!(origin, Some(first_frame));
     }
 }
