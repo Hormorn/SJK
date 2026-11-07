@@ -188,7 +188,7 @@ fn duel6_sjk_holocron_forms() {
 
 /// The engram (the Mythical holocron) and the four kyber crystals up close
 /// (`docs/holocrons.md`, "Kyber crystals"): each held at two moments (the parts moved
-/// and the engram's plates breathed between them), then each held none of, cropped to
+/// between them), then each held none of, cropped to
 /// the stage on one sheet, a row each.
 #[test]
 #[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]

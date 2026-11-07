@@ -61,10 +61,10 @@ set), not one cube in four colours:
 
 | Tier | Holocron | What moves |
 | --- | --- | --- |
-| Uncommon | The Jedi cube: the holocron's cube with a raised plateau on each face (the face on it, the emblem on its flat top), a lamp over each, steel edges | nothing of its own |
+| Uncommon | The Jedi cube (Sol's sculpted model, 08/11/2026): a steel-framed cube with riveted corners, glowing green glass on each face round a raised emblem plate, baked onto a 300-triangle low poly with a normal map | nothing of its own |
 | Rare | The Great Holocron: a dodecahedron, a raised pentagon in each face with the Jedi Order's emblem and runes, lit edges | a broken halo, tilted, turning and bobbing around it |
 | Legendary | The Sith pyramid (Sol's sculpted model, 05/11/2026): a dark frustum on a carved plinth, glowing purple runes and lines down its sides, baked from a high-poly model onto a 58-triangle low poly with a normal map | its cap floats over it, turning and bobbing; a glowing eye turns between them |
-| Mythical | The engram (21/10/2026; until then the kyber prism, now the [Kyber crystal](#kyber-crystals)): a long faceted gold gem of thirty triangular plates, each a slab apart from the next so thin glowing seams run between them, a white-hot core inside, a faint old-republic rune in a seal on each plate, the facets in four shades so they stand apart in any light | the shell turns about its length while it slowly tumbles over; the plates breathe out and back (up to 0.4 units, the core showing between them at the top of the breath); the seams and core pulse; streaks of reflection sweep the facets as they turn; eight sparks circle it |
+| Mythical | The engram (21/10/2026; until then the kyber prism, now the [Kyber crystal](#kyber-crystals); Sol's sculpted model since 08/11/2026): a lumpy gem of triangular gold plates, each with an engraved rim and seal, glowing gold seams between them, baked onto a 400-triangle low poly with a normal map | streaks of reflection sweep the plates as it turns; eight sparks circle it |
 
 They are made by `scripts/holocron_assets.py` with the shapes in `scripts/holocron_forms.py`:
 a model per part (the body, which stands still against the holocron, and each moving
@@ -75,17 +75,21 @@ client includes ([holocrons/stage.rs](../crates/sjk-viewer/src/holocrons/stage.r
 client mounts (`holocron_files.rs`). The Jedi cube's face is the shipped face in the tier's
 colour; the Great Holocron's pentagon and the kyber crystal come from Sol's pictures
 (17/10/2026) in the asset folder's `art/`, fitted and painted in the tier's colours by the
-script, and the Sith pyramid is Sol's sculpted model there (`art/sith_pyramid/`, its
+script, and the Jedi cube, the Sith pyramid and the engram are Sol's sculpted models there
+(`art/jedi_cube/`, `art/sith_pyramid/`, `art/gold_engram/`: each a low poly with its
 baked colour, glow and normal maps)
 (`--art <key>=<picture>` tries another; the folder's
-[README](../crates/sjk-viewer/assets/holocron/README.md)); the engram's plate is drawn by
-the script. The four are sized to fill about the cube's room on screen.
+[README](../crates/sjk-viewer/assets/holocron/README.md)). The four are sized to fill
+about the same room on screen.
 
-The engram's plates breathe in their shader (`deformVertexes wave`): every vertex of a
-plate, its walls too, carries the plate's normal, so the whole slab moves out along it as
-one. A soft halo sprite was tried (`deformVertexes autosprite`), but on the stage a surface
-whose only stage is added light did not show (an opaque test of it did, turned to the
-camera), so the halo comes from the glow pass around the seams and core instead.
+Until 08/11/2026 the Jedi cube was drawn by the script (a plateau on each face with the
+shipped face on it, a lamp over each) and the engram was thirty plates drawn by the script
+that breathed out and back in their shader (`deformVertexes wave`) over a white-hot core.
+A sculpted low poly is flat-shaded with its corners split per face, so a vertex wave would
+crack it open: the sculpted engram stands still in its shader. A soft halo sprite was
+tried on the old engram (`deformVertexes autosprite`), but on the stage a surface whose
+only stage is added light did not show, so the halo comes from the glow pass around the
+seams instead.
 
 ### Kyber crystals
 

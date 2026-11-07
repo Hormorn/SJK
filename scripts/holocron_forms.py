@@ -2,20 +2,17 @@
 
 Each tier is its own object (Sol's pick, 17/10/2026, from the proposals' second set):
 
-- uncommon, the Jedi cube: the holocron's cube with a raised plateau on each face (the
-  face picture on it, the emblem on its flat top, its bevelled sides catching the
-  light), a lamp over each and steel edges;
+- uncommon, the Jedi cube: Sol's sculpted model (08/11/2026), a steel-framed cube with
+  glowing green glass round an emblem plate on each face (a low poly with its detail
+  baked into pictures);
 - rare, the Great Holocron: a dodecahedron with a raised pentagon in each face, lit
   edges, and a broken halo turning around it;
 - legendary, the Sith pyramid: Sol's sculpted model (05/11/2026), a dark frustum on a
   plinth with glowing runes carved down its sides, its cap floating free over a glowing
   eye, both bobbing and turning (a low poly with its detail baked into pictures);
-- mythical, the engram (21/10/2026, Sol: "make a cool shader of it like Destiny"): a
-  long faceted gold gem of thirty triangular plates, each a slab apart from the next
-  so thin glowing seams run between them, a white-hot core showing through, the plates
-  breathing outward and back (their shader's `deformVertexes wave`), the shell turning
-  and slowly tumbling, eight sparks circling it, a faint old-republic rune etched in
-  each plate, a sheen running over the facets, the seams and core glowing into a halo.
+- mythical, the engram (21/10/2026, Sol: "make a cool shader of it like Destiny"; Sol's
+  sculpted model since 08/11/2026): a lumpy gem of triangular gold plates with glowing
+  seams between them, a sheen running over the plates, eight sparks circling it.
 
 The kyber crystals (`kyber_<tier>`, 21/10/2026) are one more object in the four tiers'
 colours: what was the mythical holocron until then, the kyber prism, a broad
@@ -28,7 +25,7 @@ each moving part (the halo, the cap and the eye, the crystal, the rings, a mote)
 that the client can turn each one ([`PARTS`], mirrored by `holocrons/stage.rs`'s
 table: keep the two in step). A moving part is modelled about its own centre, which
 the motion turns it about; the body about the holocron's centre. Units are the
-model's (the cube's edge is 6), z up.
+model's (the Jedi cube's edge is about 6), z up.
 
 A part's surfaces are grouped by material (one MD3 surface each): a material is a
 picture and a shader of the same name (`models/sjk/<material>`), written by
@@ -305,51 +302,35 @@ def dodecahedron_faces(radius: float):
 # ---------------------------------------------------------------------------
 # The forms. Sizes are chosen so the four fill about the same room on screen.
 
-CUBE_HALF = 3.0
+ART = Path(__file__).resolve().parent.parent / "crates/sjk-viewer/assets/holocron/art"
+
+
+def sculpted_body(tier: str, folder: str, scale: float) -> Mesh:
+    """A sculpted form's body: the low poly `low_body` of `art/<folder>/<folder>.obj`
+    (Blender's units, baked from Sol's model), scaled and centred on the holocron's
+    centre, in the tier's face material."""
+    triangles = read_obj(ART / folder / f"{folder}.obj")["low_body"]
+    points = np.array([p for triangle in triangles for p, _, _ in triangle])
+    centre = (points.min(0) + points.max(0)) / 2
+    mesh = Mesh()
+    for triangle in triangles:
+        mesh.triangle(f"holocron_{tier}", [(p - centre) * scale for p, _, _ in triangle],
+                      [n for _, n, _ in triangle], [uv for _, _, uv in triangle])
+    return mesh
+
+
+# The sculpted forms' folders in `art/` and their scales (Blender's metre to model units),
+# so the four fill about the same room on screen.
+JEDI_CUBE = "jedi_cube"
+JEDI_CUBE_SCALE = 6.4
+GOLD_ENGRAM = "gold_engram"
+GOLD_ENGRAM_SCALE = 7.4
 
 
 def jedi_cube(tier: str) -> dict:
-    mesh = Mesh()
-    face = f"holocron_{tier}"
-    # The plateau: its foot's and top's half sizes and its height.
-    foot_half, top_half, plateau = 2.3, 1.55, 0.75
-    for normal, up in (
-        ((1, 0, 0), (0, 0, 1)), ((-1, 0, 0), (0, 0, 1)), ((0, 1, 0), (0, 0, 1)),
-        ((0, -1, 0), (0, 0, 1)), ((0, 0, 1), (1, 0, 0)), ((0, 0, -1), (1, 0, 0)),
-    ):
-        n, u = np.array(normal, float), np.array(up, float)
-        r = np.cross(u, n)
-        h = CUBE_HALF
-
-        def uv(p):
-            return (0.5 + np.dot(p, r) / (2 * h), 0.5 - np.dot(p, u) / (2 * h))
-
-        def square(half):
-            return [n * h + r * sx * half + u * sy * half for sx, sy in ((-1, 1), (1, 1), (1, -1), (-1, -1))]
-
-        outer, foot = square(h), square(foot_half)
-        top = [p + n * plateau for p in square(top_half)]
-        for k in range(4):
-            j = (k + 1) % 4
-            for quad in ([outer[k], outer[j], foot[j], foot[k]], [foot[k], foot[j], top[j], top[k]]):
-                mesh.polygon(face, quad, (0, 0, 0), [uv(p) for p in quad])
-        mesh.polygon(face, top, (0, 0, 0), [uv(p) for p in top])
-        octahedron(mesh, light(tier), n * (h + plateau + 0.45), 0.34)
-    # Steel edges and corner caps.
-    h = CUBE_HALF
-    for axis in range(3):
-        for s1 in (-1, 1):
-            for s2 in (-1, 1):
-                a, b = np.zeros(3), np.zeros(3)
-                a[axis], b[axis] = -h, h
-                a[(axis + 1) % 3] = b[(axis + 1) % 3] = s1 * h
-                a[(axis + 2) % 3] = b[(axis + 2) % 3] = s2 * h
-                bar(mesh, STEEL, a, b, 0.36)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            for sz in (-1, 1):
-                box(mesh, STEEL, (sx * h, sy * h, sz * h), (0.3, 0.3, 0.3))
-    return {"body": mesh}
+    """The Jedi cube: Sol's sculpted cube (08/11/2026), steel framing glowing green glass
+    with an emblem plate on each face."""
+    return {"body": sculpted_body(tier, JEDI_CUBE, JEDI_CUBE_SCALE)}
 
 
 DODECA_RADIUS = 4.0
@@ -399,7 +380,7 @@ def great_holocron(tier: str) -> dict:
 # poly in Blender, its detail baked into pictures (`art/sith_pyramid/`, README.md). Its
 # units are Blender's, the foot on z = 0: scaled up to about the other forms' size, the
 # body's flat top kept under the eye.
-SITH_SCULPT = Path(__file__).resolve().parent.parent / "crates/sjk-viewer/assets/holocron/art/sith_pyramid"
+SITH_SCULPT = ART / "sith_pyramid"
 SITH_SCALE = 7.0
 SITH_TOP = 0.4
 
@@ -458,109 +439,12 @@ def kyber_crystal(form: str) -> dict:
     return parts
 
 
-# The engram: a tip at each end and three rings of five corners between (height,
-# radius, turn), the middle one turned half a step, so the plates are thirty
-# triangles: five round each tip and two bands of ten between the rings.
-ENGRAM_TIP = 5.3
-ENGRAM_RINGS = ((2.5, 2.15, 0.0), (0.0, 3.05, math.pi / 5), (-2.5, 2.15, 0.0))
-# Each plate is its triangle drawn in by SEAM (half the seam between two plates), a
-# slab PLATE_DEPTH thick whose inner face is drawn in by PLATE_TAPER more, so the
-# seams open toward the core.
-SEAM = 0.13
-PLATE_DEPTH = 0.55
-PLATE_TAPER = 0.07
-CORE_RADIUS = 1.8
-
-
-def engram_faces():
-    """The engram's thirty triangles, each its tip first (the corner the picture's tip
-    goes to) and the two others after."""
-    top, bottom = np.array((0.0, 0.0, ENGRAM_TIP)), np.array((0.0, 0.0, -ENGRAM_TIP))
-    a, b, c = (ring_points(5, radius, z, turn) for z, radius, turn in ENGRAM_RINGS)
-    faces = []
-    for k in range(5):
-        j = (k + 1) % 5
-        faces += [
-            (top, a[k], a[j]),
-            (b[k], a[k], a[j]),
-            (a[j], b[k], b[j]),
-            (c[j], b[k], b[j]),
-            (b[k], c[k], c[j]),
-            (bottom, c[k], c[j]),
-        ]
-    return faces
-
-
-# The engram's face picture is four plates in a 2 by 2 grid, each a shade darker
-# (holocron_assets.py's ENGRAM_TONES); a plate takes the one its facing gives it against
-# KEY, so the facets stand apart however the world lights them (the stage's light is
-# at the holocron's centre, behind every plate).
-ENGRAM_KEY = np.array((-0.45, -0.55, 0.7)) / np.linalg.norm((-0.45, -0.55, 0.7))
-
-
-def engram_tone(normal) -> int:
-    facing = float(np.dot(normal, ENGRAM_KEY))
-    return int(np.clip(np.floor((0.75 - facing) / 0.45), 0, 3))
-
-
-def engram_plate(mesh: Mesh, face: str, seam: str, triangle) -> None:
-    """One plate: its outer face (the picture on it in its tone, its tip at the triangle's tip),
-    its walls in the seam's glow and its inner face, every vertex with the plate's
-    normal (see Mesh.polygon)."""
-    corners = [np.asarray(p, float) for p in triangle]
-    normal = newell(corners)
-    if np.dot(normal, sum(corners)) < 0:
-        normal = -normal
-    sides = [np.linalg.norm(corners[(i + 1) % 3] - corners[(i + 2) % 3]) for i in range(3)]
-    incentre = sum(s * p for s, p in zip(sides, corners)) / sum(sides)
-    area = np.linalg.norm(np.cross(corners[1] - corners[0], corners[2] - corners[0])) / 2
-    inradius = 2 * area / sum(sides)
-
-    def drawn_in(by, depth):
-        return [incentre + (p - incentre) * (1 - by / inradius) - normal * depth for p in corners]
-
-    outer = drawn_in(SEAM, 0.0)
-    inner = drawn_in(SEAM + PLATE_TAPER, PLATE_DEPTH)
-    middle = incentre - normal * PLATE_DEPTH / 2
-    tone = engram_tone(normal)
-    u0, v0 = (tone % 2) * 0.5, (tone // 2) * 0.5
-    uvs = [(u0 + 0.5 * u, v0 + 0.5 * v) for u, v in ((0.5, 0.0), (0.0, 1.0), (1.0, 1.0))]
-    mesh.polygon(face, outer, middle, uvs, normal=normal)
-    for k in range(3):
-        j = (k + 1) % 3
-        mesh.polygon(seam, [outer[k], outer[j], inner[j], inner[k]], middle,
-                     [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], normal=normal)
-    mesh.polygon(seam, inner, incentre + normal * 4.0, [(0.5, 0.0), (0.0, 1.0), (1.0, 1.0)], normal=normal)
-
-
-def icosahedron(mesh: Mesh, material: str, radius: float) -> None:
-    phi = (1 + 5 ** 0.5) / 2
-    corners = []
-    for a in (-1, 1):
-        for b in (-phi, phi):
-            corners += [(0, a, b), (a, b, 0), (b, 0, a)]
-    corners = np.array(corners, float)
-    corners *= radius / np.linalg.norm(corners[0])
-    for simplex in ConvexHull(corners).simplices:
-        mesh.polygon(material, list(corners[simplex]), (0, 0, 0), [(0.5, 0.0), (0.0, 1.0), (1.0, 1.0)])
-
-
 def engram(tier: str) -> dict:
-    face = f"holocron_{tier}"
-    shell = Mesh()
-    faces = engram_faces()
-    for triangle in faces:
-        engram_plate(shell, face, f"{face}_seam", triangle)
-    # The core stays inside every plate's inner face.
-    nearest = min(
-        abs(np.dot(newell([np.asarray(p, float) for p in t]), np.asarray(t[0], float))) for t in faces
-    )
-    assert CORE_RADIUS < nearest - PLATE_DEPTH, nearest
-    body = Mesh()
-    icosahedron(body, f"{face}_core", CORE_RADIUS)
+    """The engram: Sol's sculpted gold puzzle (08/11/2026), a lumpy gem of triangular
+    gold plates with glowing seams between them, and its sparks."""
     spark = Mesh()
     octahedron(spark, light(tier), (0, 0, 0), 0.16, stretch=2.0)
-    return {"body": body, "shell": shell, "mote": spark}
+    return {"body": sculpted_body(tier, GOLD_ENGRAM, GOLD_ENGRAM_SCALE), "mote": spark}
 
 
 FORMS = {
@@ -667,9 +551,7 @@ PARTS = {
         Motion("cap", at=(0.0, 0.0, 3.2), bob=(0.35, 1.5), spin=(0.0, 0.35)),
         Motion("eye", at=(0.0, 0.0, 1.25), bob=(0.1, 1.5), spin=(0.0, -1.2)),
     ],
-    # The core stands still in the middle; the shell turns about its length
-    # while that slowly tips over (a tumble), and the plates breathe in their shader.
-    "mythical": [Motion("body"), Motion("shell", spin=(0.0, 0.3), tumble=(0.0, 0.09)), *sparks()],
+    "mythical": [Motion("body"), *sparks()],
     **{form: kyber_parts(form) for form in KYBER_IDS},
 }
 
