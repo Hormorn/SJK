@@ -22,8 +22,8 @@ going from 1.3 units to 2.2 with drag and 4.1 without, so the two go together; s
 and the saber run did not jump more. A cape's outer columns should not take `arms`: the arm swings
 with the stride and shoved them, their hem rising and falling 13.6 units per stride (2.5 without)
 and following the knees, so a local cape keeps it on its middle columns only. Played in game on
-Windows 10 with `main` merged, before the review's changes: hair and capes trail as they should,
-and the frame rate was fine. Not verified: those changes in a game; in a game on Linux and macOS, other machines or other rigs; the arm can show through
+Windows 10 with `main` merged and the review's changes: hair and capes trail as they should, the
+collisions hold, the speed shows, and it runs well. Not verified: in a game on Linux and macOS, other machines or other rigs; the arm can show through
 a column without `arms`.
 
 ## Rig cloth: limits, clearance, layers, levers and eased tilts
@@ -40,9 +40,9 @@ applies to every colliding chain, with its own at-rest exemption, and a push on 
 moves the joint twice as far; the rest needs the new options. The log names `layer` lines that
 do nothing. Verified on Windows 10:
 unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
-tests. Played in game on this client with `main` merged, before the review's changes (separate
-exemptions, `limit` up to 180, the `layer` log): it works and the frame rate was fine. Not
-verified: those changes in a game; in a game on Linux and macOS, other machines or other rigs; arms
+tests. Played in game on this client with `main` merged and the review's changes, together with
+the motion options ("Rig chains feel the player's movement" above): it works and runs well.
+Not verified: in a game on Linux and macOS, other machines or other rigs; arms
 and head are not capsules and the mesh itself is not checked, so a sharp pose can show
 cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
 
