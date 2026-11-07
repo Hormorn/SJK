@@ -681,8 +681,19 @@ from `cl.serverTime`, which the cgame draws at and `CL_CreateCmd` stamps command
 (`cmd->serverTime = cl.serverTime`), so a stock player's nudge reaches the server in
 every command. Stock also stamps a frame's commands with the previous frame's
 `cl.serverTime` (`CL_Frame` runs `CL_SendCmd` before `CL_SetCGameTime`, JoF EJK
-`cl_main.cpp`), where SJK reads its clock in the frame that makes the command: SJK's
-stamps are a frame fresher than JoF EJK's (8 ms at 125 FPS, 33 ms at 30). The delta
+`cl_main.cpp`), and so does SJK since 07/11/2026 (`ServerClock::command_time`): a
+frame's commands carry the time the frame before read, while the frame itself draws
+and predicts at its own reading. Until then SJK read its clock in the frame that made
+the command, so its stamps were a frame fresher than every other client's (8 ms at
+125 FPS, 33 ms at 30), and Heimdall reads a command stamped ahead of a stock client's
+as a negative `cl_timeNudge`, the one it kicks for (Milamber, who maintains Heimdall,
+06/11/2026); commands that trail the server read as a positive nudge, which it does
+not kick. A new timeline (a gamestate, a new connection, a re-anchor or a 500 ms
+reset) forgets the previous reading, so no command carries the old timeline's time,
+and after a hitch commands trail the frame's reading by at most 50 ms (a frame at the
+slowest gameplay FPS) where a stock client's carry the time from before it. SJK's own
+servers (`sjk 1` in the serverinfo, `server_caps::FRESH_STAMPS`) run no such check, so
+there commands still carry the frame's own reading (Sol, 07/11/2026). The delta
 is adjusted once a frame, on the newest snapshot, and only once the frame has read
 every queued snapshot (a frame reads at most 8, `SNAPSHOTS_PER_FRAME` in
 [live_session.rs](../crates/sjk-viewer/src/live_session.rs)): stock reads the whole
@@ -697,7 +708,7 @@ that as a large `cl_timeNudge`; JoF's anti-cheat (Heimdall) kicked Slash for it 
 On JoF (a server in
 [server_caps.rs](../crates/sjk-viewer/src/server_caps.rs)) commands are paced as JoF EJK's
 `cl_cmdratecap` instead of on the grid: at most one a frame, stamped with the frame's
-server time, on an accumulator that keeps 125 a second on average and starts again after a
+command time, on an accumulator that keeps 125 a second on average and starts again after a
 hitch (`Pacing::OnePerFrame`). The grid's catch-up commands, stamped up to 32 ms in the
 past whenever the frame rate fell below 125, made SJK's commands trail the server 10 to
 40 ms more than JoF EJK's, and Heimdall kicked for a time nudge again (02/11/2026).
@@ -720,7 +731,8 @@ in storage allocated once, with every frame and packet gap over 40 ms, and write
 s:` line a minute while playing a remote server. Followed players' states, the
 intermission and the map load before the clock is anchored are left out. JoF's
 servers run `sv_fps 30` (Turin's log, 04/11/2026): a snapshot every 33 ms, so a
-normal age is the clock's lag, the way up and up to 33 ms of waiting for a frame.
+normal age is the clock's lag, the frame a command's time trails it by (8 ms at
+125 FPS, since 07/11/2026), the way up and up to 33 ms of waiting for a frame.
 
 `rate` defaults to 90000 bytes a second (11/10/2026, Sol's choice): stock's 25000
 leaves about 600 bytes a snapshot at a server's 40 a second, less than a busy

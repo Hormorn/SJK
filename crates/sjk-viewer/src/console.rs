@@ -516,6 +516,12 @@ impl ViewerConsole {
             .map_or_else(Default::default, |cap| cap.pacing)
     }
 
+    /// Whether commands carry the clock as the previous frame read it, as stock's
+    /// do: on every server but SJK's own ([`crate::server_caps::FRESH_STAMPS`]).
+    pub(crate) fn command_stamps_previous_frame(&self) -> bool {
+        crate::server_caps::stamps_previous_frame(self.server_family)
+    }
+
     /// The server's known command cap ([`crate::server_caps`]), lifted or not.
     pub(crate) fn server_cap(&self) -> Option<&'static crate::server_caps::ServerCap> {
         self.server_cap

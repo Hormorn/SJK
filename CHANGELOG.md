@@ -32,12 +32,24 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
+- Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
+
+## 2026.1107.1 (Alpha) | 07/11/2026
+
+Fixes for the Heimdall kicks on JoF, map weather, Creyon's 130 blades and JA+ games in Create game.
+
+> Heimdall kicks: The random "Set /cl_timeNudge 0" kicks on JoF are fixed: your commands are now timed the way other clients' are (found by Milamber).
+> Weather: Maps can get rain, storms, snow and fog, with lightning, rain-mirroring puddles and rain and wind sounds you can switch on.
+> New blades: 130 new blades by Creyon, 17 of them Mythical, in the new Beta Edition; they come to holocrons soon.
+> JA+ games: Create game can host a JA+ game, with JA+ Force rules, saber damage and duels.
+> Smoother: The model picker no longer freezes while you browse, and rain and fog cost far less on the GPU.
+
 = s_weatherSounds: Hear the rain and the wind when a map has weather, quieter under a roof.
 = r_clouds reset: Volumetric clouds over open sky are now off by default under every graphics preset; switch them on here if you like them.
 = r_weatherLightning: Lightning in storms: flashes light up the rain, the fog and the wet streets, and thunder rolls in after them.
 
-- Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
-- Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
+- Your commands carry the server time your previous frame read, as every other client's do (not on SJK's own servers): they went out a frame fresher (8 ms at 125 FPS), which JoF's anti-cheat (Heimdall) reads as a negative time nudge and kicks for with "Set /cl_timeNudge 0" _(Milamber, after OpenJK)_
 - Rig model hair and other chains that fork or stack joints no longer jump about from frame to frame _(Kushina, PR #373)_
 - Create game can host a JA+ game: the new Server mod row (under Server) picks Base game, the default, or JA+, and the game you start runs that mod; your choice is kept for next time _(Sol)_
 - SJK's server in JA+ mode (`g_mod japlus`) plays JA+'s Force rules: push and pull reach players on the ground (`jp_pushPullKnockDown`) and teammates with `g_friendlyFire`, and fling items (`jp_pushAll`); absorb gains more (`jp_fixAbsorb`); a grip may start rolling (`jp_fixRoll`); `jp_gripOpenSaber`, `jp_cloakFuel` and `jp_gripSpeedScale` work, and SJK players predict a JA+ server's grip speed from its server info _(Sol, after VisionJK by Blackwolf)_

@@ -46,6 +46,27 @@ verified: those changes in a game; in a game on Linux and macOS, other machines 
 and head are not capsules and the mesh itself is not checked, so a sharp pose can show
 cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
 
+## Commands carry the previous frame's server time, as stock
+
+07/11/2026, `fix/command-stamp-previous-frame` from `main` `92623e3b`. A frame's commands
+now carry the clock as the frame before read it (`ServerClock::command_time`), as stock's
+and JoF EJK's do (`CL_SendCmd` stamps `cl.serverTime` before `CL_SetCGameTime` reads the
+next one), on every server but SJK's own (`server_caps::FRESH_STAMPS`, Sol's choice: no
+anti-cheat there, so its players keep the fresher stamp) and with both pacings; what the
+frame draws and predicts keeps its own reading. SJK's stamps were a frame fresher than every other client's (8 ms at
+125 FPS), and on JoF since 02/11 fresher still (no rounding down to the grid). Milamber,
+who maintains Heimdall, found that it reads stamps ahead of a stock client's as a
+negative `cl_timeNudge`, the one it kicks for, and stamps that trail as a positive one,
+which it does not kick: the 23/10, 02/11 and 04/11 changes worked on trailing stamps and
+repeated commands (which a server drops before running), and the idle kicks with steady
+timing of 06/11 fit a steady offset. A new timeline forgets the previous reading, and a
+hitch's commands trail the reading by at most 50 ms ([networking.md](networking.md)). The
+server view's command ages read about a frame higher. Verified on Windows 11: unit tests
+(each frame's commands carry the previous frame's reading with 8, 7, 4 and 3 ms frames;
+at most 50 ms behind after a 1.3 s hitch; a restart, a 500 ms reset and a new connection
+never carry the old timeline's time; the hitch tests stamp as the client now does), fmt,
+build, clippy, workspace tests. Not verified: in a game, or that Heimdall kicks less.
+
 ## JoF takes `cl_packetdup` as set again
 
 06/11/2026, `personal/jof-packetdup-back` from `main` `48ccdbf2`, Sol's request after

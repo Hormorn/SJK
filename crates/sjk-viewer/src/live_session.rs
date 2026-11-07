@@ -227,20 +227,41 @@ impl GpuState {
         let force_repeat = if dialogue_active { None } else { force_repeat };
 
         // User commands are made on the gameplay FPS's grid and wait for the next
-        // `cl_maxpackets` packet (`command_rate`).
+        // `cl_maxpackets` packet (`command_rate`). They carry the clock as the
+        // previous frame read it, as stock's do (`CL_SendCmd` before
+        // `CL_SetCGameTime`), except on SJK's own servers (`server_caps::FRESH_STAMPS`);
+        // what this frame shows uses its own reading.
         let now = Instant::now();
         crate::emote_end_debug::observe_frame(now);
+        let previous_frame_time = self.server_clock.command_time(now);
         let server_time = self.server_clock.server_time(now);
-        let (step, pacing) = self.console.as_mut().map_or(
-            (sjk_client::command_rate::COMMAND_MILLIS, Default::default()),
+        let (step, pacing, previous_frame) = self.console.as_mut().map_or(
+            (
+                sjk_client::command_rate::COMMAND_MILLIS,
+                Default::default(),
+                true,
+            ),
             |console| {
                 console.set_frame_cap(frame_cap);
-                (console.command_step(), console.command_pacing())
+                (
+                    console.command_step(),
+                    console.command_pacing(),
+                    console.command_stamps_previous_frame(),
+                )
             },
         );
-        let due =
-            self.command_schedule
-                .due(server_time, self.server_clock.anchored(), now, step, pacing);
+        let command_time = if previous_frame {
+            previous_frame_time
+        } else {
+            server_time
+        };
+        let due = self.command_schedule.due(
+            command_time,
+            self.server_clock.anchored(),
+            now,
+            step,
+            pacing,
+        );
         if let Some(console) = &self.console {
             session.set_packet_dup(console.packet_dup());
         }
