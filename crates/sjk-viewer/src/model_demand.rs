@@ -134,6 +134,18 @@ impl GpuState {
                 })
             })
             .or_else(|| {
+                // The three parts of an E-Web set down (`eweb_view`).
+                let snapshot = match (&self.live_session, &self.demo_session) {
+                    (Some(live), _) => live.latest_snapshot(),
+                    (None, Some(demo)) => demo.latest_snapshot(),
+                    (None, None) => return None,
+                };
+                let attempted = &self.config_string_refresh.models.attempted;
+                crate::eweb_view::wanted(snapshot, world, |appearance| {
+                    attempted.contains(appearance)
+                })
+            })
+            .or_else(|| {
                 // A model a map edit places (`map_edits`).
                 let attempted = &self.config_string_refresh.models.attempted;
                 self.map_edits

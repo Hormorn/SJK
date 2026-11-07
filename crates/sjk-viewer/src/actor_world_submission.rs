@@ -471,6 +471,8 @@ pub(crate) fn submit(
             // The flying hilt is owned by this branch, including its blades.
         } else if submit_emplaced(&mut sinks, entity, &transform, snapshot, local_entity_id) {
             // A turned emplaced gun is drawn in its two parts.
+        } else if submit_eweb(&mut sinks, entity, &transform, snapshot, game_state) {
+            // An E-Web set down is drawn in its three parts.
         } else if let Some(mesh) = entity.appearance().and_then(|appearance| {
             sinks
                 .object_meshes
@@ -1693,6 +1695,47 @@ fn submit_emplaced(
                 .sample_pose(presentation_time)
                 .map(|pose| pose.view_angles_degrees)
         },
+    )
+}
+
+/// An E-Web set down, its top turned by the server's bone angles ([`crate::eweb_view`]).
+/// Returns whether `entity` was drawn so.
+fn submit_eweb(
+    sinks: &mut Sinks<'_>,
+    entity: &sjk_runtime::SceneEntity,
+    transform: &sjk_runtime::Transform,
+    snapshot: Option<&Snapshot>,
+    game_state: Option<&GameState>,
+) -> bool {
+    let (Some(snapshot), Some(appearance)) = (snapshot, entity.appearance()) else {
+        return false;
+    };
+    if !appearance
+        .model
+        .eq_ignore_ascii_case(crate::eweb_view::MODEL)
+    {
+        return false;
+    }
+    let Some(state) = u16::try_from(entity.id.get().wrapping_sub(1))
+        .ok()
+        .and_then(|number| {
+            snapshot
+                .entities
+                .binary_search_by_key(&number, |state| state.number())
+                .ok()
+        })
+        .map(|index| &snapshot.entities[index])
+    else {
+        return false;
+    };
+    crate::eweb_view::submit(
+        sinks.object_meshes,
+        sinks.object_groups,
+        state,
+        appearance,
+        transform,
+        sinks.entity_view_flags,
+        game_state,
     )
 }
 

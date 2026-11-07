@@ -273,6 +273,8 @@ pub struct NativeGame {
     npcs: bridge_npcs::Npcs,
     /// Its emplaced guns and who is at them (`bridge_emplaced`).
     mounted: bridge_use::bridge_emplaced::Mounted,
+    /// The E-Webs: the holdables set down and the maps' own ([`bridge_eweb`]).
+    ewebs: bridge_eweb::Ewebs,
     /// Its effect runners and speakers, and the effect and soundset tables (`bridge_map_effects`).
     map_effects: bridge_map_effects::MapEffects,
     /// Its turrets (`bridge_map_turrets`).
@@ -484,6 +486,7 @@ impl NativeGame {
             demo_files: Vec::new(),
             npcs: Default::default(),
             mounted: Default::default(),
+            ewebs: Default::default(),
             map_effects: Default::default(),
             map_turrets: Default::default(),
             stock: Default::default(),
@@ -2641,6 +2644,7 @@ impl NativeGame {
         self.update_saber_entities(server_time);
         self.saber_thinks(server_time);
         self.run_emplaced(server_time);
+        self.run_ewebs(server_time);
         self.run_missiles(server_time);
         self.run_spheres(server_time);
         self.run_charges(server_time);
@@ -3389,6 +3393,8 @@ mod bridge_client_commands;
 mod bridge_ctf;
 #[path = "bridge_duel.rs"]
 mod bridge_duel;
+#[path = "bridge_eweb.rs"]
+mod bridge_eweb;
 #[path = "bridge_follow.rs"]
 mod bridge_follow;
 #[path = "bridge_force.rs"]

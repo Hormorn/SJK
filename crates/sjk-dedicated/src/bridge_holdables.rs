@@ -52,7 +52,7 @@ const GENERIC_TAGS: [i32; 12] = [
     HI_CLOAK,
 ];
 /// The holdables this server cannot use yet.
-const UNPORTED: [i32; 2] = [HI_SENTRY_GUN, HI_EWEB];
+const UNPORTED: [i32; 1] = [HI_SENTRY_GUN];
 /// `EV_PLAY_EFFECT`, `EFFECT_SPARK_EXPLOSION`, `s.angles`, `s.origin`.
 const EV_PLAY_EFFECT: u32 = 68;
 const EFFECT_SPARK_EXPLOSION: u32 = 4;
@@ -168,6 +168,11 @@ impl NativeGame {
     /// `ItemUse_*` for `tag` by `client`; `moved` when the use key's movement used it (and
     /// so already took a used-up item away).
     fn use_item(&mut self, client: usize, tag: i32, level_time: i32, moved: bool) {
+        // `ItemUse_UseEWeb`: set down or put away (`bridge_eweb`).
+        if tag == HI_EWEB {
+            self.use_eweb(client, level_time);
+            return;
+        }
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
@@ -220,9 +225,9 @@ impl NativeGame {
                 self.cloak_toggled(client, toggled, level_time);
             }
             HI_SHIELD => self.place_shield(client, level_time),
-            HI_SENTRY_GUN | HI_EWEB => {
+            HI_SENTRY_GUN => {
                 // Given back: the movement used a sentry up.
-                if moved && tag == HI_SENTRY_GUN {
+                if moved {
                     peer.state.stats[STAT_HOLDABLE_ITEMS] |= 1 << tag;
                     peer.state.stats[STAT_HOLDABLE_ITEM] = holdables::index_of(tag);
                     peer.movement = peer.movement.reseeded(&peer.state);

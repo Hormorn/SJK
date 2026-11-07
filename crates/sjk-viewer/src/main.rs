@@ -144,6 +144,7 @@ mod emote_end_debug;
 mod emote_help;
 mod emote_picker;
 mod emplaced_swivel;
+mod eweb_view;
 mod fake_noclip;
 mod file_dialog;
 mod finishers;
@@ -434,7 +435,8 @@ use sjk_vfs::VirtualFileSystem;
 
 use scene_flatten::{
     ActorDraw, DrawBatch, FlattenedScene, ViewerMaterial, append_actor_mesh, append_md3_mesh,
-    append_static_glm_mesh, append_static_glm_surfaces, preview_gpu_vertex,
+    append_static_glm_mesh, append_static_glm_surfaces, append_static_glm_triangles,
+    preview_gpu_vertex,
 };
 use shared_geometry::SharedGeometry;
 use std::collections::{BTreeMap, BTreeSet, HashMap};

@@ -446,6 +446,7 @@ impl GpuState {
             self.console.as_ref(),
             session.game_state(),
             &snapshot.player,
+            crate::prediction_preview::interpolated::using_eweb(snapshot),
         )
         .is_some()
         {

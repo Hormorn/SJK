@@ -169,6 +169,9 @@ impl NativeGame {
                     .map_or(sjk_protocol::ENTITY_NUMBER_NONE, |peer| peer.riding.owner),
             ),
         );
+        // The E-Webs, but the one `client` owns or works (`bridge_eweb`).
+        let ewebs: Vec<_> = self.ewebs.obstacles(client as u16).collect();
+        self.obstacles.extend(ewebs);
         // The solid siege items (`bridge_siege_items`).
         let items = self.siege_item_obstacles();
         self.obstacles.extend(items);
@@ -214,6 +217,7 @@ impl NativeGame {
         Self::add_npc_splash_targets(npcs, splash_targets);
         map_turrets.add_splash_targets(splash_targets);
         splash_targets.extend(mounted.splash_targets());
+        splash_targets.extend(self.ewebs.splash_targets());
         splash_targets.extend(self.stock.shields.splash_targets());
     }
 }

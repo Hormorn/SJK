@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- The E-Web works: use it from the inventory to set the heavy repeater down in front of you, aim with the mouse and fire, use it again (or back off) to put it away; it blows up when shot to pieces or when you die. The E-Webs of single-player maps such as hoth2 stand on the map too, and anyone facing one takes it with the use key (hub report #267) _(Slash, after Hormorn's and AngeloPapaya's reports)_
 - Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
 - Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
 

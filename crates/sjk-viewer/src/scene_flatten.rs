@@ -296,10 +296,27 @@ pub(super) fn append_static_glm_surfaces(
     model: &Glm,
     keep: impl Fn(&sjk_model::GlmSurface) -> bool,
 ) -> Result<Vec<ActorDraw>, Box<dyn Error>> {
+    append_static_glm_triangles(scene, model, |surface, _| keep(surface))
+}
+
+/// [`append_static_glm_surfaces`] keeping only the triangles `keep` takes (an E-Web's
+/// parts, [`crate::eweb_view`]); a surface left with none is not drawn.
+pub(super) fn append_static_glm_triangles(
+    scene: &mut FlattenedScene,
+    model: &Glm,
+    keep: impl Fn(&sjk_model::GlmSurface, &[u32; 3]) -> bool,
+) -> Result<Vec<ActorDraw>, Box<dyn Error>> {
     let lod = model.lods.first().ok_or("static GLM has no LOD")?;
     let mut draws = Vec::new();
     for (surface, hierarchy) in lod.surfaces.iter().zip(&model.hierarchy) {
-        if hierarchy.name.starts_with('*') || hierarchy.flags & 0x2 != 0 || !keep(surface) {
+        if hierarchy.name.starts_with('*') || hierarchy.flags & 0x2 != 0 {
+            continue;
+        }
+        if !surface
+            .triangles
+            .iter()
+            .any(|triangle| keep(surface, triangle))
+        {
             continue;
         }
         let vertex_base: u32 = scene.vertices.len().try_into()?;
@@ -313,7 +330,11 @@ pub(super) fn append_static_glm_surfaces(
                 texture_coordinates: vertex.texture_coordinates,
                 lightmap_coordinates: [0.0; 2],
             }));
-        for triangle in &surface.triangles {
+        for triangle in surface
+            .triangles
+            .iter()
+            .filter(|triangle| keep(surface, triangle))
+        {
             for index in triangle {
                 scene.indices.push(
                     vertex_base
