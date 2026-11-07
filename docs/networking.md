@@ -683,7 +683,14 @@ every command. Stock also stamps a frame's commands with the previous frame's
 `cl.serverTime` (`CL_Frame` runs `CL_SendCmd` before `CL_SetCGameTime`, JoF EJK
 `cl_main.cpp`), and so does SJK since 07/11/2026 (`ServerClock::command_time`): a
 frame's commands carry the time the frame before read, while the frame itself draws
-and predicts at its own reading. Until then SJK read its clock in the frame that made
+and predicts at its own reading. A command is still made as soon as the frame's own
+reading says it is due, and only then stamped with the older time
+(`CommandSchedule::stock_stamps`: JoF's one command a frame takes the previous
+frame's reading, the grid's keep their spacing a step older, and no stamp goes back
+to or before the one before it). Release 2026.1107.1 ran the schedule on the older
+time itself, so each command was made, and read the keys, a frame late: a frame of
+input delay stock does not have (3 ms at 350 FPS, 17 ms at 60), which Sol felt
+(07/11/2026). Until 07/11/2026 SJK read its clock in the frame that made
 the command, so its stamps were a frame fresher than every other client's (8 ms at
 125 FPS, 33 ms at 30), and Heimdall reads a command stamped ahead of a stock client's
 as a negative `cl_timeNudge`, the one it kicks for (Milamber, who maintains Heimdall,
