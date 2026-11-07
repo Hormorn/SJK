@@ -1,3 +1,31 @@
+## Rig chains feel the player's movement, and can keep out of the arms
+
+06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only
+the animation, so hair and capes did not trail behind a running player, and arms passed
+through hair. New `dynamic` options: `drag <n>`, air on the chain from the player's velocity
+and turn through the world, and `arms`, which keeps the chain out of the upper arms and
+forearms, measured only for a rig with a chain that asks
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Without them nothing changes.
+A teleport or a change of the origin's source (the free camera's switch between prediction
+and interpolation, another body on a reused mesh) starts the movement again at rest, facing
+included; only a rig with a chain that has `drag` follows it; an actor whose origin is not read
+stops at once.
+Verified on Windows 10: unit tests (trailing, every facing, teleports with a snapped facing, a
+change of source, a paused clock, the yaw's wrap, arm exemption), fmt, build, clippy, workspace tests. Measured in release on local
+rigs, a whole pose per actor while running: 19.5 to 22.1 us (55 chain joints, drag and arms),
+37.8 to 39.8 us (120), 22.4 to 22.4 us (63, drag only); no allocation per frame. Measured again
+with the review's changes, the old and new code run in turn with the options on: 22.3 to 22.0 us
+(55), 41.1 to 41.5 us (120), 21.7 to 22.4 us (63), the same within the runs' spread. Hair vertices
+in the arms' capsules on one rig: 46 to 0 on the empty-handed run, 27 to 5 on a saber swing.
+A cost: arms pushing hair move it faster on the empty-handed run, its largest step in 8 ms
+going from 1.3 units to 2.2 with drag and 4.1 without, so the two go together; saber swings
+and the saber run did not jump more. A cape's outer columns should not take `arms`: the arm swings
+with the stride and shoved them, their hem rising and falling 13.6 units per stride (2.5 without)
+and following the knees, so a local cape keeps it on its middle columns only. Played in game on
+Windows 10 with `main` merged and the review's changes: hair and capes trail as they should, the
+collisions hold, the speed shows, and it runs well. Not verified: in a game on Linux and macOS, other machines or other rigs; the arm can show through
+a column without `arms`.
+
 ## Rig cloth: limits, clearance, layers, levers and eased tilts
 
 06/11/2026, `feat/rig-dynamics-cloth` from `fix/rig-dynamics-forked-chains`. Hair, capes

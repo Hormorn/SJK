@@ -3039,6 +3039,12 @@
 - 0874042 |  | Decode print and cp text as legacy bytes
 
 = Kushina
++ 07/11/2026 | SJK #377 | Let rig chains feel the player's movement and keep out of the arms
+- d2bc221 |  | Let rig chains feel the player's movement and keep out of the arms
+- dbb19fa |  | Record rig chain drag and arms in the status page
+- f23a217 |  | Record the in-game test of rig chain drag and arms
+- d19081a |  | Record the review's changes and the measured cost in the status page
+- eb58eda |  | Run the checks again
 + 07/11/2026 | SJK #374 | Add limits, clearance, layers and levers to rig chains
 - 961c98a |  | Add limits, clearance, layers and levers to rig chains
 - 5ffce94 |  | Record the in-game test of rig cloth in the status page

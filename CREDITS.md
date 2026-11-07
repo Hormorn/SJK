@@ -989,7 +989,7 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
   ribbons, sparks, crackle, flash, unrest, chroma by file), and the burn on a saber kill,
   which became the first finisher, Disintegrate (04/11/2026).
 
-Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 2 pull
+Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 3 pull
 requests merged into SJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ABlackwolf1337)):
 
@@ -1032,6 +1032,9 @@ ideas are under [Ideas](#ideas):
   than at rest), `layer <outer> over <inner>` keeps one chain on its side of another, and a
   limited childless joint swings on a lever; for every colliding chain a bone's middle now
   collides with the body too, with its own at-rest exemption.
+- #377 two more opt-in `dynamic` options: `drag` lets a chain feel the player's movement
+  and turning (hair and capes trail behind a running player; teleports and a paused clock
+  do not count), and `arms` keeps a chain out of the upper arms and forearms.
 
 ## Art
 

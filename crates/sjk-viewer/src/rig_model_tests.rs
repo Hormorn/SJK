@@ -801,7 +801,7 @@ fn a_manifest_names_its_dynamic_joints() {
     let parsed = manifest(
         "dynamic tail_root\ndynamic hair 0\n\
          dynamic cape_l wag 0 stiffness 120 damping 9 nocollide\ndynamic cape_r 800 wag 0\n\
-         dynamic strand limit 4 clearance 1.5\nlayer strand over cape_l",
+         dynamic strand limit 4 clearance 1.5 drag 0.8 arms\nlayer strand over cape_l",
     );
     assert_eq!(parsed.layers, [("strand".to_owned(), "cape_l".to_owned())]);
     let default = dynamics::Settings::default();
@@ -839,6 +839,8 @@ fn a_manifest_names_its_dynamic_joints() {
                 dynamics::Settings {
                     limit: 4.0,
                     clearance: 1.5,
+                    drag: 0.8,
+                    arms: true,
                     ..default
                 }
             ),
@@ -1689,6 +1691,19 @@ fn the_pelvis_vertices_make_a_capsule_for_the_dynamic_chains() {
     let capsule = rig.chains.capsules[0];
     assert_eq!((capsule.from, capsule.to), (0, 2));
     assert!((capsule.radius - 8.0).abs() < 0.1, "{capsule:?}");
+    assert!(!capsule.arm);
+    // An arm makes a capsule only for a rig with a chain that asks.
+    let mut armed = driver();
+    armed.bones[1].name = "lhumerus".to_owned();
+    let map = "scale 40\nmap pelvis lhumerus hip cranium\n";
+    let arm = |line: &str| {
+        let text = format!("{map}{line}");
+        RigModel::fit(model.clone(), "", &manifest(&text), &armed).unwrap()
+    };
+    assert!(arm("dynamic tail_root").chains.capsules.is_empty());
+    let asked = arm("dynamic tail_root arms");
+    assert_eq!(asked.chains.capsules.len(), 1);
+    assert!(asked.chains.capsules[0].arm);
     // Without a dynamic chain no capsule is measured.
     let still = RigModel::fit(
         model,

@@ -518,9 +518,10 @@ link: Blackwolf1337's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=
 
 [Kushina]
 github: kushinaSJK
-role: Contributor: 2 merged pull requests; ideas for SJK
+role: Contributor: 3 merged pull requests; ideas for SJK
 did: #373 Rig model hair and other forked chains no longer jump about
 did: #374 Rig chains: limit, clearance, layer lines and levers; a bone's middle collides
+did: #377 Rig hair and capes trail behind a running player and keep out of the arms
 did: The Varykino Blossom blade: a blossom-pink blade, lavender mist, a flowering branch and blossoms shed as it swings
 did: Favourite and locked saber shaders: stars listed first, locks kept from break down and trades
 did: Plugin options as Settings switches, in place of typing a cp_pluginDisable number

@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
 - Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
 
 ## 2026.1107.1 (Alpha) | 07/11/2026

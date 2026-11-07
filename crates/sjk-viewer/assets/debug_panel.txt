@@ -3682,6 +3682,14 @@ note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab
 
 # ---- Rendering & effects ----
 
+[rig-chain-motion]
+area: Rendering & effects
+title: Rig chains trail the player (drag) and keep out of the arms (Kushina, #377)
+change: New dynamic options drag (air against the player's movement and turn) and arms.
+test: A rig with drag on its hair or cape: run, it trails behind; stop, it swings back.
+test: Teleport or respawn: no sudden whip of the chain. Toggle freecam: no gust.
+test: A rig with arms on its hair: swing the saber, the arms push the hair aside.
+
 [rig-chain-cloth]
 area: Rendering & effects
 title: Rig chains: limit, clearance, layer and levers (Kushina, #374)
