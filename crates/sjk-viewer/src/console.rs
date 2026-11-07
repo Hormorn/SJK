@@ -346,6 +346,8 @@ pub(crate) struct ViewerConsole {
     server_family: Option<&'static sjk_mod::KnownServer>,
     /// `gameplay_fps_nocap`: 1 lifts the known caps.
     caps_lifted: console_cvars::IntegerSetting,
+    /// `cl_freshStamps`: 1 keeps the frame's own stamp on every server.
+    fresh_stamps: console_cvars::IntegerSetting,
     /// Whether the server takes the inputs at that step ([`crate::input_health`]).
     input_health: crate::input_health::InputHealth,
     pmove_fixed: console_cvars::IntegerSetting,
@@ -517,9 +519,11 @@ impl ViewerConsole {
     }
 
     /// Whether commands carry the clock as the previous frame read it, as stock's
-    /// do: on every server but SJK's own ([`crate::server_caps::FRESH_STAMPS`]).
+    /// do: on every server but SJK's own ([`crate::server_caps::FRESH_STAMPS`]),
+    /// unless `cl_freshStamps` 1 keeps the fresh stamp everywhere.
     pub(crate) fn command_stamps_previous_frame(&self) -> bool {
-        crate::server_caps::stamps_previous_frame(self.server_family)
+        !self.fresh_stamps.enabled()
+            && crate::server_caps::stamps_previous_frame(self.server_family)
     }
 
     /// The server's known command cap ([`crate::server_caps`]), lifted or not.
