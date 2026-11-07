@@ -8821,6 +8821,8 @@ test: play on JoF for a while, idle and moving: no Heimdall kick, movement and h
 test: Create game: movement and hits feel as before.
 change: cl_freshStamps 1 keeps this frame's time on every server (Sol); 0, the default, as above.
 test: cl_freshStamps 1 on JoF: the frame's own stamp again (Heimdall may kick); 0 back to stock.
+change: The log names the stamp and each switch; 10 s later "command stamps compared" before/after.
+test: flip cl_freshStamps every ~20 s a few times: each compared line shows age about -1 frame on 1.
 
 [jof-packetdup-back]
 area: Gameplay
