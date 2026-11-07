@@ -8819,6 +8819,8 @@ change: Off SJK servers, commands are stamped a frame older, as JoF EJK's (Milam
 change: On SJK's own servers (Create game, devmap) commands keep this frame's time, as before.
 test: play on JoF for a while, idle and moving: no Heimdall kick, movement and hits as before.
 test: Create game: movement and hits feel as before.
+change: cl_freshStamps 1 keeps this frame's time on every server (Sol); 0, the default, as above.
+test: cl_freshStamps 1 on JoF: the frame's own stamp again (Heimdall may kick); 0 back to stock.
 
 [jof-packetdup-back]
 area: Gameplay

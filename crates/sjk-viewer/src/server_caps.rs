@@ -55,6 +55,10 @@ pub(crate) const KNOWN: &[ServerCap] = &[
 /// players keep the fresher stamp (Sol, 07/11/2026).
 pub(crate) const FRESH_STAMPS: &[&str] = &["sjk"];
 
+/// 1 keeps the frame's own clock reading on every server, as on [`FRESH_STAMPS`]'
+/// (Sol, 07/11/2026).
+pub(crate) const FRESH_STAMPS_CVAR: &str = "cl_freshStamps";
+
 /// Whether commands on a server of `family` carry the previous frame's clock
 /// reading: every server but [`FRESH_STAMPS`]'.
 pub(crate) fn stamps_previous_frame(family: Option<&sjk_mod::KnownServer>) -> bool {
