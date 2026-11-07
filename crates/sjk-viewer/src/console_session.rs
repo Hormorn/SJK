@@ -665,6 +665,8 @@ impl ViewerConsole {
             pending_fishing: None,
             fishing_card: Default::default(),
             pending_fishing_sell: false,
+            wheel_of_doom_on: false,
+            pending_wheel_of_doom: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,

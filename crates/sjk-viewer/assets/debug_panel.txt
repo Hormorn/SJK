@@ -9092,3 +9092,17 @@ test: rcon jp_DuelAlpha -1: duellists collide again, still no pulling back.
 test: /engage_FullForceDuel on a second client, accept: push and lightning work in the duel.
 test: Win: centre print with health and armour; console line for everyone.
 note: Not run with a client yet. No 3 s pass-through after a duel (no JA+ client predicts it).
+
+[wheel-of-doom]
+area: Gameplay
+title: WHEEL OF DOOM toy: spin for credits, a Mythical holocron or doom (needs hub wheel-of-doom)
+change: toy_wheelofdoom (Collection > Toys, a bind, quick wheel): first press shows the price.
+change: A second within 5 s spins a wheel before you; others see it; 16 outcomes, 5 min cooldown.
+change: Effects on your own keys, mouse, view for 15-30 s; HUD line; end on new map or death.
+test: Join a server, toy_wheelofdoom: price card by the crosshair; again: wheel spins, ticks, stops.
+test: Wait out an effect: HUD line counts down, the effect ends; die or change map: it ends.
+test: Press again at once: "Your next spin in N s"; in a duel: refused in the centre.
+test: Second SJK client nearby: sees the wheel spin and stop on the same segment.
+test: Over several spins: mirror, blind, upside down, no saber, quack look and feel right.
+test: Settings > Sound > Toys, WHEEL OF DOOM sounds off: the wheel spins silently.
+note: Placeholder model (Sol's to come). Mirror flips the whole picture, HUD included.

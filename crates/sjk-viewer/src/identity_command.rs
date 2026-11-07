@@ -247,6 +247,8 @@ mod tests {
             mystery_box: None,
             junk: None,
             junk_sale: None,
+            wheel_of_doom: None,
+            wheel_of_doom_spin: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,

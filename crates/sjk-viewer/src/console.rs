@@ -285,6 +285,10 @@ pub(crate) struct ViewerConsole {
     fishing_card: crate::fishing_sell::Card,
     /// The Fishing card's Sell junk button was pressed.
     pending_fishing_sell: bool,
+    /// A WHEEL OF DOOM of the player's runs, mirrored as [`Self::order66_on`] is.
+    wheel_of_doom_on: bool,
+    /// The Toys tab pressed the WHEEL OF DOOM's switch, not yet taken.
+    pending_wheel_of_doom: bool,
     /// The Monitor toy is on, mirrored as [`Self::order66_on`] is.
     monitor_on: bool,
     /// The Toys tab asked to turn the Monitor on (`true`) or off, not yet taken.
