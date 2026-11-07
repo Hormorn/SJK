@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- The Uncommon and Mythical holocrons are sculpted by Sol too: a steel-framed Jedi cube with glowing green glass round an emblem plate on each face, and a gold engram of engraved triangular plates with glowing seams between them, both detailed by a normal map _(Sol)_
 - The WHEEL OF DOOM: a new toy (`toy_wheelofdoom`, Collection > Toys) you spin for credits; it lands on a Mythical holocron, on nothing, or on doom: reversed keys, an inverted mouse, a mirrored or upside-down world, darkness, no saber, quacks, a curse or a blast, for a few seconds _(Sol)_
 - Your inputs leave as soon as before again: since 2026.1107.1 every command was made a frame late (3 ms at 350 FPS, 17 ms at 60) off SJK's servers; now only its time stamp is stock's _(Sol)_
 - `cl_freshStamps 1` stamps your commands with this frame's server time on every server again, as before 2026.1107.1 (0 keeps the stock stamp, but on SJK servers); Heimdall on JoF may kick for it _(Sol)_
