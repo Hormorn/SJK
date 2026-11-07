@@ -3682,6 +3682,15 @@ note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab
 
 # ---- Rendering & effects ----
 
+[rig-chain-cloth]
+area: Rendering & effects
+title: Rig chains: limit, clearance, layer and levers (Kushina, #374)
+change: New dynamic options limit and clearance, and layer <outer> over <inner> lines.
+change: Every colliding chain now also keeps the middle of each bone out of the body.
+test: A rig tail or cape near the legs: run and turn, it stays out of hips and thighs.
+test: A rig with limit on its hair: strands stay near their animated direction, no flips.
+test: A rig with a layer line (hair over a cape): the hair stays on the cape's outer side.
+
 [rig-forked-chains]
 area: Rendering & effects
 title: Rig chains that fork or stack joints no longer jump (Kushina, #373)

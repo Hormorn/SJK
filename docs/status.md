@@ -1,3 +1,23 @@
+## Rig cloth: limits, clearance, layers, levers and eased tilts
+
+06/11/2026, `feat/rig-dynamics-cloth` from `fix/rig-dynamics-forked-chains`. Hair, capes
+and soft parts on rig models could not be tuned to behave: the spring's lag is in game
+units, so short bones swung far on a small step; a long bone passed through a leg its two
+ends missed; layered chains crossed; single-joint strands could not move; and a change of
+animation made a long chain's tip jump. New `dynamic` options `limit` and `clearance`, a
+`layer <outer> over <inner>` line, swinging about a pivot for stacked single joints, and
+pushes and tilts eased in over a few frames for limited chains
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Collision of a bone's middle
+applies to every colliding chain, with its own at-rest exemption, and a push on the middle
+moves the joint twice as far; the rest needs the new options. The log names `layer` lines that
+do nothing. Verified on Windows 10:
+unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
+tests. Played in game on this client with `main` merged and the review's changes, together with
+the motion options ("Rig chains feel the player's movement" above): it works and runs well.
+Not verified: in a game on Linux and macOS, other machines or other rigs; arms
+and head are not capsules and the mesh itself is not checked, so a sharp pose can show
+cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
+
 ## Commands carry the previous frame's server time, as stock
 
 07/11/2026, `fix/command-stamp-previous-frame` from `main` `92623e3b`. A frame's commands

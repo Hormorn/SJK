@@ -192,6 +192,8 @@ pub(crate) struct Manifest {
     /// Joints whose chains below move on their own (`dynamic` lines), each with its
     /// chain's settings.
     pub(crate) dynamic: Vec<(String, dynamics::Settings)>,
+    /// `layer` lines: the chain under the first joint stays outside that under the second.
+    pub(crate) layers: Vec<(String, String)>,
 }
 
 /// The driver's bones whose rig joints (from their bone map entry to the joint it
@@ -210,7 +212,8 @@ const COLLISION_BONES: &[&str] = &[
 ];
 
 /// A `dynamic` line's words after the joint: `[gravity] [gravity <n>] [wag <n>]
-/// [stiffness <n>] [damping <n>] [nocollide]`, any order after the bare gravity.
+/// [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [nocollide]`, any
+/// order after the bare gravity.
 fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
     let mut settings = dynamics::Settings::default();
     let number = |word: &str| word.parse::<f32>().ok().filter(|n| n.is_finite());
@@ -226,10 +229,53 @@ fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
             "wag" => settings.wag = number(words.next()?)?,
             "stiffness" => settings.stiffness = number(words.next()?).filter(|n| *n > 0.0)?,
             "damping" => settings.damping = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "limit" => {
+                settings.limit =
+                    number(words.next()?).filter(|n| (0.0..=dynamics::NO_LIMIT).contains(n))?;
+            }
+            "clearance" => settings.clearance = number(words.next()?).filter(|n| *n >= 0.0)?,
             _ => return None,
         }
     }
     Some(settings)
+}
+
+/// What is wrong with `layer` lines (outer and inner joint), `anchors` being the joints
+/// on `dynamic` lines: such a line loads, and does nothing or something odd, so a pack's
+/// author needs telling.
+fn layer_problems<'a>(
+    layers: &[(usize, usize)],
+    anchors: &[usize],
+    name: impl Fn(usize) -> &'a str,
+) -> Vec<String> {
+    let mut problems = Vec::new();
+    for &(outer, inner) in layers {
+        let line = format!("layer {} over {}", name(outer), name(inner));
+        if outer == inner {
+            problems.push(format!("{line}: a chain cannot lie over itself"));
+            continue;
+        }
+        for joint in [outer, inner] {
+            if !anchors.contains(&joint) {
+                problems.push(format!("{line}: {} has no dynamic line", name(joint)));
+            }
+        }
+        // A way back from the inner joint to the outer one, over the other lines.
+        let mut reached = vec![inner];
+        let mut next = 0;
+        while let Some(&from) = reached.get(next) {
+            next += 1;
+            for &(over, under) in layers {
+                if over == from && over != under && !reached.contains(&under) {
+                    reached.push(under);
+                }
+            }
+        }
+        if reached.contains(&outer) {
+            problems.push(format!("{line}: the layer lines go round in a circle"));
+        }
+    }
+    problems
 }
 
 impl Manifest {
@@ -243,6 +289,7 @@ impl Manifest {
             lift: 0.0,
             map: Vec::new(),
             dynamic: Vec::new(),
+            layers: Vec::new(),
         };
         for (number, line) in text.lines().enumerate() {
             let line = line.split("//").next().unwrap_or("").trim();
@@ -275,6 +322,9 @@ impl Manifest {
                 ["dynamic", joint, rest @ ..] => manifest
                     .dynamic
                     .push(((*joint).to_owned(), dynamic_settings(rest).ok_or_else(bad)?)),
+                ["layer", outer, "over", inner] => manifest
+                    .layers
+                    .push(((*outer).to_owned(), (*inner).to_owned())),
                 ["map", joint, bone] => manifest.map.push(entry(joint, bone, Align::Rest)),
                 ["map", joint, bone, "as", other] => {
                     manifest
@@ -1012,6 +1062,24 @@ impl RigModel {
             })
             .collect();
         let mut chains = dynamics::Chains::under(&joints, &order, &dynamic_anchors);
+        let layers: Vec<(usize, usize)> = manifest
+            .layers
+            .iter()
+            .filter_map(|(outer, inner)| {
+                let found = joint_index(outer).zip(joint_index(inner));
+                if found.is_none() {
+                    crate::log::progress(format_args!(
+                        "rig model {base}: {MANIFEST}: no joints for layer {outer:?} over {inner:?}"
+                    ));
+                }
+                found
+            })
+            .collect();
+        let on_lines: Vec<usize> = dynamic_anchors.iter().map(|(joint, _)| *joint).collect();
+        for problem in layer_problems(&layers, &on_lines, |joint| joints[joint].name.as_str()) {
+            crate::log::progress(format_args!("rig model {base}: {MANIFEST}: {problem}"));
+        }
+        chains.layer(&joints, &layers);
         // Alignments first (an `As` entry reads another's), then the driven joints.
         let mut aligned: Vec<Option<Mat3A>> = vec![None; joints.len()];
         for entry in &map {
@@ -1134,6 +1202,20 @@ impl RigModel {
                 joint_index(name)
             });
             chains.collide_with(&joints, capsules);
+            chains.swing_from(
+                &joints,
+                surfaces
+                    .iter()
+                    .flat_map(|surface| &surface.vertices)
+                    .flat_map(|vertex| {
+                        let position = Vec3A::from_array(vertex.position);
+                        vertex
+                            .joints
+                            .into_iter()
+                            .zip(vertex.weights)
+                            .map(move |(joint, weight)| (usize::from(joint), position, weight))
+                    }),
+            );
         }
         crate::log::progress(format_args!(
             "rig model {base}: {} joints ({mapped} driven by {:?}), {} surfaces, {} clips{}, scale {scale:.2}",

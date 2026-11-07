@@ -989,8 +989,8 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
   ribbons, sparks, crackle, flash, unrest, chroma by file), and the burn on a saber kill,
   which became the first finisher, Disintegrate (04/11/2026).
 
-Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 1 pull
-request merged into SJK
+Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 2 pull
+requests merged into SJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ABlackwolf1337)):
 
 - #333 on JA+ servers the dual sabers' forward jump attack raises the feet only when another
@@ -1027,6 +1027,11 @@ ideas are under [Ideas](#ideas):
 - #373 dynamic chains on rig models that fork or stack joints (hair: a stem with strands
   under it) no longer throw their bones about: each joint is placed from where its parent
   now stands, parents first, and a bone shorter than 0.01 units no longer turns its parent.
+- #374 new opt-in `dynamic` options for rig chains: `limit` holds each bone near its animated
+  direction on a soft curve, `clearance` holds a chain further out of the body (no further
+  than at rest), `layer <outer> over <inner>` keeps one chain on its side of another, and a
+  limited childless joint swings on a lever; for every colliding chain a bone's middle now
+  collides with the body too, with its own at-rest exemption.
 
 ## Art
 

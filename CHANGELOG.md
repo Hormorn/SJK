@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
+
 ## 2026.1107.1 (Alpha) | 07/11/2026
 
 Fixes for the Heimdall kicks on JoF, map weather, Creyon's 130 blades and JA+ games in Create game.
