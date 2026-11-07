@@ -2,8 +2,14 @@
 //! line top left with a link to each of SJK's donation pages, opened in the browser,
 //! and × to hide it for good (`ui_supportLinks 0`; Settings > Interface shows it
 //! again). It asks no server anything and promises nothing for a donation.
+//!
+//! Shelved since 07/11/2026 ([`SHELVED`], Sol's request): the line never shows and
+//! its setting leaves Settings; `docs/sjk.md` "Donations" says how to bring it back.
 
 use crate::console::ViewerConsole;
+
+/// The line is shelved: hidden for everyone, whatever `ui_supportLinks` says.
+pub(crate) const SHELVED: bool = true;
 
 /// The setting that shows the line (on by default).
 pub(crate) const CVAR: &str = "ui_supportLinks";
@@ -36,7 +42,7 @@ impl Link {
 
 /// Whether the player shows the line.
 pub(crate) fn shown(console: Option<&ViewerConsole>) -> bool {
-    console.is_none_or(|console| console.bool_cvar(CVAR) != Some(false))
+    !SHELVED && console.is_none_or(|console| console.bool_cvar(CVAR) != Some(false))
 }
 
 /// Open `link`'s page in the player's browser.

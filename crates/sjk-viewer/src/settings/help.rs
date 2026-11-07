@@ -1254,10 +1254,6 @@ const HELP: &[(&str, &str)] = &[
         "The SJK UI, SJK's own menus over the live map; or classic menus after the original game's.",
     ),
     (
-        crate::support_links::CVAR,
-        "Support SJK at the top left of the SJK UI's main page: links to SJK's GitHub Sponsors and Ko-fi pages. Off hides it, as its x does.",
-    ),
-    (
         super::slider_peek::CVAR,
         "In the game, hold a slider in the SJK UI a moment and the rest of Settings fades away, showing the game as you drag. Off keeps it.",
     ),

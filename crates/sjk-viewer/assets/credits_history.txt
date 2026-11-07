@@ -9,6 +9,8 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 07/11/2026 | - | Shelve Support SJK: hide the donation links on the main page
+- ed9f00f |  | Shelve Support SJK: hide the donation links on the main page
 + 07/11/2026 | - | Release 2026.1107.1
 - 2c5853e |  | Release 2026.1107.1
 + 06/11/2026 | - | JoF: take cl_packetdup as set again (revert the cap at 0)

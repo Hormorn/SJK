@@ -94,7 +94,7 @@ migrated, except where the table says so. Where each is documented:
 | `cl_experimentalShowcase` | off (the experimental `ghost` and `mimic` commands, staff keys only) | [Ghost replay](client.md#ghost-replay) |
 | `ui_sliderPeek` | on: over a match, a Settings slider held a moment fades the rest of the screen away | [Settings](sjk-ui.md#settings) |
 | `cl_sjkChatJof`, `cl_sjkChatS` | -1, Auto: a verified JoF or S player reads their own clan's chat, staff both (Sol's spec, 03/11/2026); the other only when chosen | [Clan chats](hub-chat.md#clan-chats) |
-| `ui_supportLinks` | on: Support SJK's links to GitHub Sponsors and Ko-fi, until its × hides them ([Donations](#donations)) | [Main page](sjk-ui.md#main-page) |
+| `ui_supportLinks` | on, but shelved since 07/11/2026: Support SJK's links never show ([Donations](#donations)) | [Main page](sjk-ui.md#main-page) |
 
 The HUD look (`cg_hudStyle game`) and the console (`con_style auto`: the SJK UI's
 console with its menus, else the classic one; a saved `classic` moved once to
@@ -310,7 +310,10 @@ https://ko-fi.com/soljk (Sol's page, 13/10/2026). They are offered in two places
   ×, which hides it for good (`ui_supportLinks 0`; Settings, Interface, "Support SJK"
   shows it again). Both addresses are in
   [support_links.rs](../crates/sjk-viewer/src/support_links.rs); it asks no server
-  anything.
+  anything. Shelved since 07/11/2026 (Sol's request): `support_links::SHELVED` hides
+  the line for everyone and its Settings row is gone. To bring it back, set `SHELVED`
+  to false and restore the "Support SJK" row in `settings/catalog.rs`, its place in
+  `settings/groups.rs` (Interface) and its line in `settings/help.rs`.
 
 Nothing is sold: a donation brings no feature and no advantage in the game, and
 neither place promises anything for one.

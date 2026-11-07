@@ -2434,6 +2434,10 @@ Not verified in game: a crystal given at the live hub, then opened.
 
 ## Support SJK on the main page
 
+Shelved 07/11/2026 (`personal/shelve-support-links`, Sol's request): the line no longer
+shows for anyone (`support_links::SHELVED`) and its Settings row is gone; the code stays
+for a revival ([sjk.md](sjk.md#donations)).
+
 26/10/2026, `personal/support-links`, Sol's request: a small line at the top left of the
 SJK UI's main page, "Support SJK" with outlined GitHub Sponsors and Ko-fi pills that open
 those pages in the browser, and a round x that hides it for good (`ui_supportLinks 0`,
