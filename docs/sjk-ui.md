@@ -1711,7 +1711,7 @@ for the run.
   model's blade following at once and, worn, every SJK player's view of it
   ([unlockables.md](unlockables.md#options)).
 - **Toys** (rows since 25/10/2026,
-  [collection_toys.rs](../crates/sjk-viewer/src/collection_toys.rs)): "10 toys", things
+  [collection_toys.rs](../crates/sjk-viewer/src/collection_toys.rs)): "11 toys" (counted from the toys, as the tab's count is, hub report #265), things
   to use in a match, and how many are on now. Illuminate's holocron, the cardboard box
   (since 16/10/2026), Order 66 (since 17/10/2026), the Hax (since 21/10/2026), the
   Ragdoll (since 23/10/2026), the Drone (since 24/10/2026), the Boombox (since
