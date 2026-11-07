@@ -3036,6 +3036,11 @@
 - 8db7327 |  | Wrap centre prints at 50 characters, not UTF-8 bytes
 - 0874042 |  | Decode print and cp text as legacy bytes
 
+= Kushina
++ 06/11/2026 | SJK #373 | Fix rig chains that fork or stack joints jumping
+- d38c7b3 |  | Fix rig chains that fork or stack joints jumping
+- 5c3a43a |  | Pass the variant to manifest in the installed rig test
+
 = Lukas
 + 02/11/2026 | SJK #306 | Send long chat drafts as complete messages
 - a7f9d96 |  | Split long chat messages before sending
@@ -3345,6 +3350,9 @@
 - 8d21001 |  | Clip visible saber blades at world walls
 
 = Milamber
++ 07/11/2026 | SJK #380 | Stamp commands with the previous frame's server time, as stock
+- f89a623 |  | Stamp commands with the previous frame's server time, as stock
+- 31d61a3 | Sol | Keep the frame's own stamp on SJK's servers
 + 03/11/2026 | - | Add the Saber Lab handover and Milamber's blade
 - c2b9e80 |  | Add the Saber Lab handover and Milamber's blade
 + 03/11/2026 | - | Add the Saber Lab: a live blade-skin lab with new effects and a builder

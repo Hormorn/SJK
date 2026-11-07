@@ -8786,6 +8786,14 @@ test: on JoF with gameplay_fps 0, play 30 min with com_maxfps 60: no Heimdall ki
 test: movement and jumps feel as before at 125+ FPS; at 60 FPS like JoF EJK.
 test: on a non-JoF server at 60 FPS, gameplay_fps 333 still moves like 333.
 
+[command-stamp-previous-frame]
+area: Gameplay
+title: Commands carry the previous frame's server time, as stock (not on SJK servers)
+change: Off SJK servers, commands are stamped a frame older, as JoF EJK's (Milamber's Heimdall fix).
+change: On SJK's own servers (Create game, devmap) commands keep this frame's time, as before.
+test: play on JoF for a while, idle and moving: no Heimdall kick, movement and hits as before.
+test: Create game: movement and hits feel as before.
+
 [jof-packetdup-back]
 area: Gameplay
 title: JoF: packets repeat the packet before again (cl_packetdup default 1)

@@ -28,7 +28,8 @@
 //!
 //! On a server known to cap commands (JoF's, `server_caps` in the viewer) it paces
 //! them as JoF EJK's `cl_cmdratecap` does instead ([`Pacing::OnePerFrame`]): at most
-//! one command a frame, stamped with the server time of that frame, on an
+//! one command a frame, stamped with the frame's command time (as JoF EJK's, the
+//! clock as the previous frame read it, `ServerClock::command_time`), on an
 //! accumulator that keeps one a step on average. The grid's catch-up commands are
 //! stamped in the past (a 60 FPS frame sends one 8 ms old, a 30 FPS frame three up
 //! to 24 ms old) and its stamps are rounded down, so on JoF SJK's commands trailed
@@ -108,7 +109,8 @@ pub enum Pacing {
     /// `pmove_fixed` server.
     #[default]
     Grid,
-    /// JoF EJK's `cl_cmdratecap`: at most one command a frame, stamped now.
+    /// JoF EJK's `cl_cmdratecap`: at most one command a frame, stamped with the
+    /// frame's command time.
     OnePerFrame,
 }
 
