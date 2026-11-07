@@ -6152,7 +6152,8 @@ and everyone else's (`s_toyBoxSound`, `s_toyOrder66Sound`, `s_toyHaxSound`,
 [Banana peel](#banana-peel), 29/10/2026), `s_toyTagSound` (the [Tag](#tag)'s spray,
 03/11/2026), `s_toyMasterSound` (the toys [the Toy
 Master](toy-master.md) hides, 30/10/2026), `s_toyFishingSound`
-(the [Fishing](#fishing) toy), all
+(the [Fishing](#fishing) toy), `s_toyWheelOfDoomSound` (the
+[WHEEL OF DOOM](wheel-of-doom.md), 07/11/2026), all
 on by default,
 archived). The toy still
 runs and is still seen; nothing is sent to anyone. The Illuminate holocron makes no
@@ -6593,8 +6594,9 @@ its Toys page as it was, and gains them from Add a choice, Toys. The page holds 
 later toys are in the catalogue's Toys group only, to add from there: Box hunt
 (`toy_boxhunt`), the Tag (`toy_tag`) and since 29/10/2026 the
 [Banana peel](#banana-peel) (Banana peel, `toy_banana`, marked while it is on, and Drop
-banana peel, `banana_drop`) and [Fishing](#fishing) (`toy_fishing`, marked while the rod
-is out).
+banana peel, `banana_drop`), [Fishing](#fishing) (`toy_fishing`, marked while the rod
+is out) and since 07/11/2026 the [WHEEL OF DOOM](wheel-of-doom.md) (`toy_wheelofdoom`,
+a press: the first shows the price, a second spins).
 
 ### GIF wheel
 

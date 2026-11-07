@@ -305,6 +305,7 @@ impl GpuState {
         let force_power = snapshot.player.selected_force_power();
         let known = self.gameplay_input.selection.known(&snapshot.player);
         let own_slot = u8::try_from(snapshot.player.client_num()).ok();
+        let wheel_saber = GpuState::wheel_of_doom_saber(&snapshot.player);
         let attack_stops_emote = self
             .console
             .as_ref()
@@ -339,6 +340,10 @@ impl GpuState {
             self.cardboard_box
                 .set_flying(self.local_prediction.fake_noclip());
             self.cardboard_box.shape_command(&mut command);
+            // The WHEEL OF DOOM's effects on the player's own moves (`wheel_of_doom`).
+            self.wheel_of_doom
+                .effects
+                .shape_command(&mut command, wheel_saber, now);
             // Moving, jumping or attacking puts the rod away; `+use` hooks a bite
             // (`fishing`).
             self.fishing.shape_command(&command);

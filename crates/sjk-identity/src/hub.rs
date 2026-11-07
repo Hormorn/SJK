@@ -689,6 +689,28 @@ pub trait Hub: Send {
         ))
     }
 
+    /// The WHEEL OF DOOM's price, cooldown and segments (`GET /v1/wheel-of-doom`,
+    /// 07/11/2026).
+    fn wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+    ) -> Result<crate::wheel_of_doom::Wheel, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not read the wheel of doom".to_owned(),
+        ))
+    }
+
+    /// Spin the WHEEL OF DOOM, the player on `server` (`POST /v1/wheel-of-doom/spin`).
+    fn spin_wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+        _server: &str,
+    ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not spin the wheel of doom".to_owned(),
+        ))
+    }
+
     /// SJK's creator: place a mystery box (`POST /v1/creator/mystery-box`); answers its id.
     fn place_mystery_box(
         &mut self,
@@ -2024,6 +2046,26 @@ impl Hub for HttpHub {
         identity: &Identity,
     ) -> Result<crate::mystery_box::Boxes, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/mystery-boxes", None)?)
+    }
+
+    fn wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+    ) -> Result<crate::wheel_of_doom::Wheel, HubError> {
+        parse(self.send(Some(identity), "GET", "/v1/wheel-of-doom", None)?)
+    }
+
+    fn spin_wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+        server: &str,
+    ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/wheel-of-doom/spin",
+            Some(json!({ "server": server })),
+        )?)
     }
 
     fn junk_status(&mut self, identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {

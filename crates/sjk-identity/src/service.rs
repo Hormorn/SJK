@@ -314,6 +314,15 @@ pub struct Snapshot {
     /// The answer to the last junk sale ([`Service::sell_junk`]), by serial, or why it
     /// was refused (in the player's words).
     pub junk_sale: Option<(u64, Result<crate::junk::JunkSold, String>)>,
+    /// The WHEEL OF DOOM's price, cooldown and segments as the hub last said
+    /// ([`Service::read_wheel_of_doom`]): `None` until read, or with a hub that has none.
+    pub wheel_of_doom: Option<crate::wheel_of_doom::Wheel>,
+    /// The answer to the last [`Service::spin_wheel_of_doom`], by serial, or why it was
+    /// refused (in the player's words, with the cooldown's seconds left).
+    pub wheel_of_doom_spin: Option<(
+        u64,
+        Result<crate::wheel_of_doom::Spin, crate::wheel_of_doom::Refused>,
+    )>,
     /// The box hunt as last read, by serial, for the server named
     /// ([`Service::read_box_hunt`]).
     pub box_hunt: Option<(u64, String, crate::mystery_box::HuntState)>,
@@ -746,6 +755,8 @@ impl Snapshot {
             mystery_box: None,
             junk: None,
             junk_sale: None,
+            wheel_of_doom: None,
+            wheel_of_doom_spin: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,
@@ -903,6 +914,12 @@ enum Command {
     RemoveMysteryBox(i64),
     /// Ask the hub about junk selling.
     ReadJunk,
+    /// Read the WHEEL OF DOOM's price, cooldown and segments.
+    ReadWheelOfDoom,
+    /// Spin the WHEEL OF DOOM on `server`.
+    SpinWheelOfDoom {
+        server: String,
+    },
     /// Sell these pieces of fished junk, by id.
     SellJunk(std::collections::BTreeMap<String, u32>),
     /// Read the box hunt on `server`, the player away or not.
@@ -1128,6 +1145,7 @@ struct Worker {
     mystery_box_serial: u64,
     /// The last junk sale's serial.
     junk_serial: u64,
+    wheel_serial: u64,
     box_hunt_serial: u64,
     /// When the Toy Master's toys are next read, and the last request's serial.
     due_secrets: Instant,
@@ -1462,6 +1480,7 @@ impl Worker {
             due_mystery_boxes: now,
             mystery_box_serial: 0,
             junk_serial: 0,
+            wheel_serial: 0,
             box_hunt_serial: 0,
             due_secrets: now,
             secret_serial: 0,
@@ -1926,6 +1945,8 @@ impl Worker {
                     .map(|_| (BoxDone::Removed(id), None))
             }),
             Command::ReadJunk => self.read_junk(),
+            Command::ReadWheelOfDoom => self.read_wheel_of_doom(),
+            Command::SpinWheelOfDoom { server } => self.spin_wheel_of_doom(&server, now),
             Command::SellJunk(held) => self.sell_junk(&held),
             Command::UseSecret {
                 id,
@@ -3262,6 +3283,46 @@ impl Worker {
 
     /// Ask the hub about junk selling: [`Snapshot::junk`] is what it said, `None` when it
     /// could not be asked or has none (an older hub).
+    /// Ask the hub for the WHEEL OF DOOM: [`Snapshot::wheel_of_doom`] is what it said,
+    /// kept as it was when it could not be asked.
+    fn read_wheel_of_doom(&mut self) {
+        let wheel = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.wheel_of_doom(&self.identity).ok(),
+            _ => None,
+        };
+        if let Some(wheel) = wheel {
+            self.update(|snapshot| snapshot.wheel_of_doom = Some(wheel));
+        }
+    }
+
+    /// Spin the WHEEL OF DOOM on `server`: the answer goes in
+    /// [`Snapshot::wheel_of_doom_spin`], the profile after it (the credits, a holocron) in
+    /// [`Snapshot::me`]; a holocron won is read at once for the Collection.
+    fn spin_wheel_of_doom(&mut self, server: &str, now: Instant) {
+        self.wheel_serial += 1;
+        let serial = self.wheel_serial;
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.spin_wheel_of_doom(&self.identity, server),
+            _ => Err(self.not_connected()),
+        };
+        if matches!(&outcome, Ok(answer) if answer.spin.holocron.is_some()) {
+            self.due_holocrons = self.due_holocrons.min(now);
+        }
+        self.update(|snapshot| {
+            let outcome = match outcome {
+                Ok(answer) => {
+                    if let Some(shop) = snapshot.shop.as_mut() {
+                        shop.day.credits = answer.profile.credits;
+                    }
+                    snapshot.set_me(answer.profile);
+                    Ok(answer.spin)
+                }
+                Err(error) => Err(crate::wheel_of_doom::refusal(&error)),
+            };
+            snapshot.wheel_of_doom_spin = Some((serial, outcome));
+        });
+    }
+
     fn read_junk(&mut self) {
         let status = match (self.hub.as_mut(), self.registered) {
             (Some(hub), true) => hub.junk_status(&self.identity).ok(),
@@ -4333,6 +4394,18 @@ impl Service {
     /// it still pays today: the answer arrives in [`Snapshot::junk`].
     pub fn read_junk(&self) {
         let _ = self.commands.send(Command::ReadJunk);
+    }
+
+    /// Ask the hub for the WHEEL OF DOOM's price, cooldown and segments: the answer
+    /// arrives in [`Snapshot::wheel_of_doom`].
+    pub fn read_wheel_of_doom(&self) {
+        let _ = self.commands.send(Command::ReadWheelOfDoom);
+    }
+
+    /// Spin the WHEEL OF DOOM, the player on `server`: what it landed on arrives in
+    /// [`Snapshot::wheel_of_doom_spin`], the credits after in the profile.
+    pub fn spin_wheel_of_doom(&self, server: String) {
+        let _ = self.commands.send(Command::SpinWheelOfDoom { server });
     }
 
     /// Sell `held`, pieces of fished junk by id: what the hub took arrives in

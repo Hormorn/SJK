@@ -388,6 +388,7 @@ mod weapon_select;
 mod weapon_view;
 mod weather;
 mod wgsl_source;
+mod wheel_of_doom;
 mod window_icon;
 mod world_materials;
 mod world_notes;
@@ -726,6 +727,9 @@ struct GpuState {
     map_edits: map_edits::State,
     /// The mystery boxes standing on the loaded map (`mystery_box`).
     mystery_boxes: mystery_box::MysteryBoxes,
+    /// The WHEEL OF DOOM toy (`toy_wheelofdoom`): the wheels spinning and the spinner's
+    /// effects.
+    wheel_of_doom: wheel_of_doom::WheelOfDoom,
     /// What the player's Use key does at what they face, by the crosshair (`use_prompt`).
     use_prompt: use_prompt::UsePrompt,
     /// The Toy Master's toys hidden on the loaded map (`toy_master`).
@@ -1712,6 +1716,7 @@ impl GpuState {
             decal_surfaces,
             map_edits: Default::default(),
             mystery_boxes: Default::default(),
+            wheel_of_doom: Default::default(),
             use_prompt: Default::default(),
             toy_master: Default::default(),
             player_shadows: player_shadows::State::default(),
@@ -2065,6 +2070,13 @@ impl GpuState {
             self.effect_aux.camera_offset(visual_now),
         );
         self.update_fog_setting();
+        // The WHEEL OF DOOM turns the player's own view over or sways it (`wheel_of_doom`).
+        let (view_target, view_up) = if local_view && branch != "backdrop" {
+            self.wheel_of_doom
+                .turn_view(view_position, view_target, view_up, Instant::now())
+        } else {
+            (view_target, view_up)
+        };
         let view = look_at_mat4(view_position, view_target, view_up);
         let aspect = self.configuration.width as f32 / self.configuration.height as f32;
         let fov = self.scope_fov(presentation_time as i32, game_audio);
@@ -2441,6 +2453,10 @@ impl GpuState {
             viewport,
             information_visible && intermission_view.is_none() && !scoreboard_held,
         );
+        self.append_wheel_of_doom_draw(
+            viewport,
+            information_visible && intermission_view.is_none() && !scoreboard_held,
+        );
         self.append_fishing_cue(
             viewport,
             information_visible && intermission_view.is_none() && !scoreboard_held,
@@ -2730,6 +2746,7 @@ impl GpuState {
             Some(&self.world_pings.list),
             Some(&self.drone.list),
             Some(self.mystery_boxes.labels()),
+            Some(&self.wheel_of_doom.draw.list),
             Some(self.use_prompt.list()),
             information_visible.then(|| &self.hud.team_logo.list),
             information_visible.then(|| &self.hud.nameplate.list),
@@ -3057,6 +3074,7 @@ impl GpuState {
         self.static_models.append_instances(&mut self.object_groups);
         self.append_map_edit_instances();
         self.append_mystery_box_instances();
+        self.append_wheel_of_doom_instances();
         self.append_toy_master_instances();
         pickups::simple::append_frame(self, visual_now);
         // The charge glow on the view gun's muzzle (`cg_weapons.c` charge bits), after
@@ -3383,6 +3401,8 @@ impl GpuState {
         if let Some(phases) = &self.gpu_phases {
             phases.mark(&mut encoder, "overlays+post+hud");
         }
+        // The WHEEL OF DOOM's Mirror flips the finished picture (`wheel_of_doom`).
+        self.encode_wheel_of_doom_mirror(&mut encoder, output.frame.as_ref(), &output.view);
         self.encode_console_screenshot(&mut encoder, output.frame.as_ref());
         if let Some(phases) = &self.gpu_phases {
             phases.mark(&mut encoder, "capture");

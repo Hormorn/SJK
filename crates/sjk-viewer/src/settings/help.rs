@@ -611,6 +611,10 @@ const HELP: &[(&str, &str)] = &[
         "Off: your casts, bites and catches are silent. The toy still works.",
     ),
     (
+        crate::toy_sounds::Toy::WheelOfDoom.cvar(),
+        "Off: every WHEEL OF DOOM spins silently on this PC, yours and other players', quacks included.",
+    ),
+    (
         crate::fishing::CUE_CVAR,
         "A \"!\" over the float and \"Bite! Press Use!\" when a fish bites. Sound off: only while the fishing sounds can't be heard.",
     ),

@@ -1,3 +1,23 @@
+## WHEEL OF DOOM (client side)
+
+07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins
+for credits, `toy_wheelofdoom` (Collection > Toys, the quick wheel, a bind): a first press
+shows the price, a second spins; the hub (its `wheel-of-doom` branch, `GET /v1/wheel-of-doom`,
+`POST /v1/wheel-of-doom/spin`) takes the price, keeps the 5 minute cooldown and rolls one of
+16 segments. A placeholder wheel stands before the spinner and spins 6 s onto it, for every SJK
+player near (the hub's toy event `wheel_of_doom` `spin_<outcome>`); the spinner gets one of
+twelve effects on their own input or view for 15 to 30 s (reversed keys, inverted mouse,
+mirror, upside down, blind, drunk, tiny or huge FOV, no saber, quack, walk, bunny), the
+mystery box's blast and `kill`, a curse, nothing, or a Mythical holocron
+([wheel-of-doom.md](wheel-of-doom.md)). Settings > Sound > Toys, `s_toyWheelOfDoomSound`.
+Verified on Windows 11: unit tests (segments and the stop under the pointer, the slowing spin,
+the ticks, stop, laugh, fanfare and blast, unknown outcomes, the refusals, each effect's input
+and view transform, timers and clearing, the curse; the identity side's answers, event and
+refusals with the cooldown's seconds), off-screen world shots of the wheel on duel6, fmt, build,
+clippy. Not verified: in a game or against the hub; the Mirror pass on a live surface, the
+pinhole, the saber toggle on real servers, the wheel's placement against walls. The model is a
+placeholder for Sol's.
+
 ## Rig chains feel the player's movement, and can keep out of the arms
 
 06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only
