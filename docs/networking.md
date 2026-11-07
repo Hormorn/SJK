@@ -735,6 +735,14 @@ intermission and the map load before the clock is anchored are left out. JoF's
 servers run `sv_fps 30` (Turin's log, 04/11/2026): a snapshot every 33 ms, so a
 normal age is the clock's lag, the frame a command's time trails it by (8 ms at
 125 FPS, since 07/11/2026), the way up and up to 33 ms of waiting for a frame.
+The log also names the stamp a session's commands carry (`command stamps:`) and every
+switch of `cl_freshStamps`; 10 seconds after a switch a `command stamps compared
+around the switch` line sets the 10 seconds before it against the 10 after (age,
+round trip, age minus round trip, their change and the frame time). Seconds side by
+side share most of the ping's wobble, which buries a one-frame shift in the minute
+lines (Sol's JoF test at 350 FPS, 07/11/2026, a 3 ms frame under 10 to 25 ms of
+minute-to-minute swing); flip it a few times and read the changes. The kept
+snapshots cover 20 seconds at 100 a second for it.
 
 `rate` defaults to 90000 bytes a second (11/10/2026, Sol's choice): stock's 25000
 leaves about 600 bytes a snapshot at a server's 40 a second, less than a busy

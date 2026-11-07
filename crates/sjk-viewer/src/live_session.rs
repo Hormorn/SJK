@@ -255,6 +255,12 @@ impl GpuState {
         } else {
             server_time
         };
+        if !session.is_local() {
+            // Which stamp, and around a switch how the server saw each (`server_view`).
+            self.server_view.stamps(!previous_frame, now, |line| {
+                crate::log::progress(format_args!("{line}"));
+            });
+        }
         let due = self.command_schedule.due(
             command_time,
             self.server_clock.anchored(),
