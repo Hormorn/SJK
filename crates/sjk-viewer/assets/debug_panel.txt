@@ -2750,6 +2750,15 @@ test: Esc menu: the Credits icon is a grey disc with a silver laurel.
 test: Settings rail: every category icon is grey; Chat, Mods and Quick wheel have one too.
 test: What's new card: the headings' icons are grey discs.
 
+[shelve-support-links]
+area: Menus & settings
+title: Support SJK shelved: no donation links on the main page
+change: The GitHub Sponsors and Ko-fi line at the top left of the SJK UI main page is hidden.
+change: Settings > Interface no longer has a Support SJK row.
+test: SJK UI main page: no Support SJK line top left, at 1080p and 4K (150 %).
+test: Settings > Interface: no Support SJK row.
+test: ui_supportLinks 1 in the console: the line still stays hidden.
+
 [support-links]
 area: Menus & settings
 title: Support SJK on the main page: GitHub Sponsors and Ko-fi, x hides it for good
