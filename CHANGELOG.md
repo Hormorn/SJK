@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Solfox is a new fox: Sol's own model, with a sculpted head, a tail and arms that bend cleanly, and a second look, Solfox cloth, with a hood, cape and long skirt that move as you run. SJK players get it from the hub as before _(Sol)_
 = cg_statusBalloons: Status bubbles: the chat bubble over SJK players shows why it is up: dots while typing, a pause sign in a menu, a moon while alt-tabbed.
 - Joining a server or changing map no longer joins the same server again and again until it refuses you ("Too Many players with the same IP"): with a server password saved from an earlier join, the client took it for a new one after every map load, graphics reload or failed join _(Sol)_
 - SJK chat page: the Online window holds three rows of faces, and its List shows every online player as a row with the icons of the clients they are on (SJK, JoF EJK, the SJK Launcher); the wheel scrolls it, Faces or Escape goes back _(Sol)_

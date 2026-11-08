@@ -1373,7 +1373,8 @@ Built ([sjk_packs.rs](../crates/sjk-viewer/src/sjk_packs.rs); the download is th
 identity service's, [identity.md](identity.md#asset-packs)). A pack is a PK3 of game
 paths the hub serves (`GET /v1/assets`, `GET /v1/assets/<name>`): `sjk_skins` (the blade
 skins' files and sounds), `sjk_cards` (the cards) and, since 16/10/2026, `sjk_solfox`
-(Reyced's Solfox player model, which any player may wear; mounted below the game data like
+(the Solfox player model, which any player may wear: Reyced's GLM until 08/11/2026, since
+then Sol's rig model with a default and a `cloth` look; mounted below the game data like
 the others, so it shows in the model list and on other SJK players with no code of its
 own).
 

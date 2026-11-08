@@ -538,8 +538,8 @@ link: Kushina's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Ap
 == Art
 
 [Reyced]
-role: Artist: the Solfox player model
-did: Made Solfox, Sol's fox player model, which every SJK player gets through the hub
+role: Artist: the first Solfox player model
+did: Made the first Solfox, the fox model Creyon's wolf is built on
 
 == Ideas
 

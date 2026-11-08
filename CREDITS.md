@@ -1051,11 +1051,16 @@ ideas are under [Ideas](#ideas):
 
 ## Art
 
-Reyced made Solfox, a fox player model (`models/players/solfox`), for Sol in October
-2026. Sol reshaped its feet and gave its cape a two-sided shader, and the SJK hub
-serves it to every SJK player in the `sjk_solfox` pack (16/10/2026), so anyone may
-wear it and SJK players see it on each other. Reyced keeps the rights to the model;
-it is distributed with his permission and is not part of SJK's code or its licence.
+Reyced made the first Solfox, a fox player model (`models/players/solfox`), for Sol in
+October 2026; the SJK hub served it to every SJK player in the `sjk_solfox` pack from
+16/10/2026 until 08/11/2026, when Sol's own Solfox replaced it. Creyon's wolf
+(`sjk_creyonwolf`) is still built on its body mesh, UV layout and bone weights; Reyced
+keeps the rights to the model, distributed with his permission and not part of SJK's
+code or its licence.
+
+Since 08/11/2026 Solfox is Sol's: a rig model (`sjk_rig.cfg`, a glTF with its own
+skeleton) whose body, head and clothes Sol generated with Tripo (AI), then fitted and
+sculpted, with a default look and a `cloth` one (hood, cape and long skirt that move).
 
 Blep, a player, drew the Gonk, EZ and Geyon tags (Geyon for Creyon) and proposed them
 in the Discord's #tag-proposals; Sol picked them (30/10/2026), and the SJK hub serves
