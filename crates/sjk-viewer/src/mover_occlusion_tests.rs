@@ -10,6 +10,7 @@ fn lamp(position: [f32; 3], radius: f32, power: f32) -> Lamp {
         radius,
         axis_u: Vec3::ZERO,
         axis_v: Vec3::ZERO,
+        fixture: crate::lamp_lights::Fixture::None,
     }
 }
 

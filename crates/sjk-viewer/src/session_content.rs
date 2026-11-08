@@ -203,6 +203,8 @@ impl Selection {
             self.map_checksum.is_some()
         ));
         let mut bsp = sjk_bsp::Bsp::parse(&asset.bytes)?;
+        // The world's build then knows which map edits document its lamps follow.
+        crate::map_edits::lights::note_loaded(path, actual, &bsp);
         crate::external_lightmaps::load(vfs, path, &mut bsp);
         crate::lightmap_styles::compose(&mut bsp);
         Ok(bsp)

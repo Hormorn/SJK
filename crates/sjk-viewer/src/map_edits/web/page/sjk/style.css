@@ -99,3 +99,10 @@ button, nav, .tile .thumb { user-select: none; -webkit-user-select: none; }
 .tiles.fill { grid-template-columns: repeat(3, 1fr); max-height: none; }
 .tile b { display: block; color: var(--gold); font-size: 10px; }
 .tile.best { box-shadow: inset 0 0 0 1px var(--gold-dim); }
+/* the Lights page: a colour swatch per light or lamp, the chosen light's fields */
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+.fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.fields label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11px; }
+.fields input[type=color] { padding: 2px; height: 32px; }
+#lightProps[hidden], #lampProps[hidden] { display: none; }
+#tab-lights .list { max-height: 26vh; }

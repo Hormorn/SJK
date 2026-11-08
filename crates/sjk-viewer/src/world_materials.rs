@@ -318,6 +318,10 @@ pub(crate) struct Runtime {
     surfaces_by_source: Vec<crate::gi_voxels::Surface>,
     /// Local lights from the map's emissive faces (real-time mode).
     lamps: crate::lamp_lights::LampSet,
+    /// The lamps' fixtures as found, before map edits (the browser editor's markers).
+    pub(crate) lamp_fixtures: Vec<crate::lamp_lights::FixtureSummary>,
+    /// The map edits' lamp changes this world was built with.
+    pub(crate) lamp_edits: crate::lamp_lights::LampEdits,
     /// The movers' opaque casters (`mover_occlusion.rs`): door tiles for the lamps near
     /// them and, with or without, the far sun cascade's refreshes.
     pub(crate) mover_occluders: Vec<mover_occlusion::Occluder>,
@@ -520,6 +524,8 @@ fn finish_runtime(
         gi: None,
         surfaces_by_source,
         lamps: crate::lamp_lights::LampSet::default(),
+        lamp_fixtures: Vec::new(),
+        lamp_edits: Default::default(),
         mover_occluders: Vec::new(),
         active: Default::default(),
         indirect: None,

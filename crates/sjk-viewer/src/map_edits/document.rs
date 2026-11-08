@@ -14,6 +14,12 @@ pub(crate) const MAX_EDITS: usize = 2048;
 const MAX_PATH: usize = 160;
 /// Most world effect commands one weather edit runs.
 pub(crate) const MAX_WEATHER: usize = 16;
+/// The reach an added light may have, in units ([`Kind::Light`]).
+pub(crate) const LIGHT_RADIUS: std::ops::RangeInclusive<f32> = 16.0..=2048.0;
+/// How strong an added light may be: its colour is multiplied by this.
+pub(crate) const LIGHT_INTENSITY: std::ops::RangeInclusive<f32> = 0.05..=8.0;
+/// Farthest a map lamp may be moved from where the map has it, along each axis.
+pub(crate) const LAMP_OFFSET: f32 = 4096.0;
 
 /// One map's edits.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -86,6 +92,36 @@ pub(crate) enum Kind {
     /// `mist`, ...) run in place of the map's own, as `r_weatherForce` replaces them. One
     /// per scope; on a server, its own weather edit wins over the every-server one.
     Weather { commands: Vec<String> },
+    /// A point light staff added: drawn as a dynamic light (the frame's point-light list,
+    /// as `r_dynamiclight`'s are) at `origin`, of `color` (0 to 1 each) times
+    /// `intensity`, reaching `radius` units. Every preset draws it; the baked lightmaps
+    /// are not changed.
+    Light {
+        origin: [f32; 3],
+        color: [f32; 3],
+        radius: f32,
+        #[serde(default = "unit_intensity")]
+        intensity: f32,
+    },
+    /// One of the map's own real-time lamps (a fixture: every lamp patch of one BSP
+    /// surface, of one surface of a prop's model, or one steady effect), turned off or
+    /// moved by `offset`. `fixture` names it as [`crate::lamp_lights::Fixture`] writes
+    /// it (`surface:1043`, `prop:12:3`, `effect:40`); `name` is its shader, model or
+    /// effect, kept to name it. Only the real-time lighting (Experimental) draws lamps,
+    /// and they are found when the map's world is built, so the edit applies from then.
+    Lamp {
+        fixture: String,
+        #[serde(default)]
+        name: String,
+        #[serde(default)]
+        off: bool,
+        #[serde(default)]
+        offset: [f32; 3],
+    },
+}
+
+fn unit_intensity() -> f32 {
+    1.0
 }
 
 fn unit_scale() -> [f32; 3] {
@@ -125,6 +161,37 @@ impl Edit {
                 format!("Shown face: {} -> {}", last(shader), last(to))
             }
             Kind::Weather { commands } => format!("Weather: {}", commands.join(", ")),
+            Kind::Light {
+                color,
+                radius,
+                intensity,
+                ..
+            } => format!(
+                "Light: #{} r{radius:.0}{}",
+                hex(*color),
+                if (intensity - 1.0).abs() < 1e-3 {
+                    String::new()
+                } else {
+                    format!(" x{intensity:.2}")
+                }
+            ),
+            Kind::Lamp {
+                fixture,
+                name,
+                off,
+                offset,
+            } => {
+                let what = if name.is_empty() {
+                    fixture.clone()
+                } else {
+                    format!("{} ({fixture})", last(name))
+                };
+                match (*off, offset.iter().any(|axis| *axis != 0.0)) {
+                    (true, _) => format!("Lamp off: {what}"),
+                    (false, true) => format!("Lamp moved: {what}"),
+                    (false, false) => format!("Lamp: {what}"),
+                }
+            }
         };
         match &self.server {
             Some(server) => format!("{what}, {server} only"),
@@ -164,6 +231,30 @@ impl Edit {
                 to,
             } => format!("show brush {brush} side {side} ({shader}) as {to}"),
             Kind::Weather { commands } => format!("weather {}", commands.join(", ")),
+            Kind::Light {
+                origin,
+                color,
+                radius,
+                intensity,
+            } => format!(
+                "light at {:.0} {:.0} {:.0}, colour {:.2} {:.2} {:.2}, radius {radius:.0}, \
+                 intensity {intensity:.2}",
+                origin[0], origin[1], origin[2], color[0], color[1], color[2]
+            ),
+            Kind::Lamp {
+                fixture,
+                name,
+                off,
+                offset,
+            } => format!(
+                "lamp {fixture} ({name}){}{}",
+                if *off { " off" } else { "" },
+                if offset.iter().any(|axis| *axis != 0.0) {
+                    format!(", moved {:.0} {:.0} {:.0}", offset[0], offset[1], offset[2])
+                } else {
+                    String::new()
+                }
+            ),
         };
         let scope = self
             .server
@@ -227,6 +318,32 @@ impl Document {
                 Kind::Weather { commands } => {
                     check_weather(commands)
                         .map_err(|why| format!("edit {}: bad weather: {why}", edit.id))?;
+                    &[]
+                }
+                Kind::Light {
+                    origin,
+                    color,
+                    radius,
+                    intensity,
+                } => {
+                    check_light(*origin, *color, *radius, *intensity)
+                        .map_err(|why| format!("edit {}: bad light: {why}", edit.id))?;
+                    &[]
+                }
+                Kind::Lamp {
+                    fixture,
+                    name,
+                    offset,
+                    ..
+                } => {
+                    if crate::lamp_lights::Fixture::parse(fixture).is_none()
+                        || name.len() > MAX_PATH
+                        || !offset
+                            .iter()
+                            .all(|axis| axis.is_finite() && axis.abs() <= LAMP_OFFSET)
+                    {
+                        return Err(format!("edit {}: bad lamp", edit.id));
+                    }
                     &[]
                 }
             };
@@ -310,6 +427,47 @@ pub(crate) fn check_weather(commands: &[String]) -> Result<(), String> {
     }
 }
 
+/// The limits an added light keeps: a finite origin, each colour channel 0 to 1 (not all
+/// 0), a radius in [`LIGHT_RADIUS`] and an intensity in [`LIGHT_INTENSITY`].
+pub(crate) fn check_light(
+    origin: [f32; 3],
+    color: [f32; 3],
+    radius: f32,
+    intensity: f32,
+) -> Result<(), String> {
+    if !origin.iter().all(|axis| axis.is_finite()) {
+        return Err("its origin is not a point".into());
+    }
+    if !color.iter().all(|channel| (0.0..=1.0).contains(channel))
+        || color.iter().all(|channel| *channel == 0.0)
+    {
+        return Err("each colour channel is 0 to 1, not all 0".into());
+    }
+    if !LIGHT_RADIUS.contains(&radius) {
+        return Err(format!(
+            "the radius is {} to {} units",
+            LIGHT_RADIUS.start(),
+            LIGHT_RADIUS.end()
+        ));
+    }
+    if !LIGHT_INTENSITY.contains(&intensity) {
+        return Err(format!(
+            "the intensity is {} to {}",
+            LIGHT_INTENSITY.start(),
+            LIGHT_INTENSITY.end()
+        ));
+    }
+    Ok(())
+}
+
+/// A colour as six hex digits, `ffcc80`.
+pub(crate) fn hex(color: [f32; 3]) -> String {
+    color
+        .iter()
+        .map(|channel| format!("{:02x}", (channel.clamp(0.0, 1.0) * 255.0).round() as u8))
+        .collect()
+}
+
 /// Whether `command` is a plausible world effect command to keep: 1 to [`MAX_PATH`]
 /// printable ASCII characters, none of the console's separators. What it does is the
 /// weather's to read (an unknown one is skipped there).
@@ -336,6 +494,7 @@ fn same_subject(a: &Kind, b: &Kind) -> bool {
             },
         ) => a == b && c == d,
         (Kind::Weather { .. }, Kind::Weather { .. }) => true,
+        (Kind::Lamp { fixture: a, .. }, Kind::Lamp { fixture: b, .. }) => a == b,
         _ => false,
     }
 }
@@ -580,6 +739,122 @@ mod tests {
         );
         assert!(document.check().is_err());
         assert!(Document::parse("{", "mp/ffa3", 1).is_err());
+    }
+
+    /// An added light round-trips in the hub's shape, is named by its colour and reach,
+    /// and is never merged with another (two lights can stand side by side).
+    #[test]
+    fn added_lights_round_trip_and_keep_their_limits() {
+        let light = |radius: f32| Kind::Light {
+            origin: [10.0, -20.0, 64.0],
+            color: [1.0, 0.8, 0.5],
+            radius,
+            intensity: 1.0,
+        };
+        let mut document = Document::new("mp/ffa3", 1);
+        let a = document.add(light(300.0), None);
+        let b = document.add(light(300.0), None);
+        assert_ne!(a, b, "lights are never merged");
+        assert_eq!(document.edits[0].label(), "Light: #ffcc80 r300");
+        let text = serde_json::to_string(&document).unwrap();
+        assert!(
+            text.contains(r#""kind":"light","origin":[10.0,-20.0,64.0],"color":[1.0,0.8,0.5],"radius":300.0,"intensity":1.0"#),
+            "{text}"
+        );
+        assert_eq!(Document::parse(&text, "mp/ffa3", 1).unwrap(), document);
+        // Intensity defaults to 1 when left out.
+        let short = r#"{"map":"mp/ffa3","checksum":1,"edits":[{"id":1,"kind":"light","origin":[0,0,0],"color":[1,1,1],"radius":200}]}"#;
+        let parsed = Document::parse(short, "mp/ffa3", 1).unwrap();
+        assert!(matches!(parsed.edits[0].kind, Kind::Light { intensity, .. } if intensity == 1.0));
+        for bad in [
+            Kind::Light {
+                origin: [f32::INFINITY, 0.0, 0.0],
+                color: [1.0; 3],
+                radius: 200.0,
+                intensity: 1.0,
+            },
+            Kind::Light {
+                origin: [0.0; 3],
+                color: [0.0; 3],
+                radius: 200.0,
+                intensity: 1.0,
+            },
+            Kind::Light {
+                origin: [0.0; 3],
+                color: [1.5, 1.0, 1.0],
+                radius: 200.0,
+                intensity: 1.0,
+            },
+            light(8.0),
+            light(5000.0),
+            Kind::Light {
+                origin: [0.0; 3],
+                color: [1.0; 3],
+                radius: 200.0,
+                intensity: 9.0,
+            },
+        ] {
+            let mut document = Document::new("mp/ffa3", 1);
+            document.add(bad.clone(), None);
+            assert!(document.check().is_err(), "{bad:?}");
+        }
+    }
+
+    /// A lamp edit is one per fixture and scope (turning a moved lamp off keeps one
+    /// edit), names its fixture, and refuses a fixture it cannot read or a wild offset.
+    #[test]
+    fn lamp_edits_are_one_per_fixture() {
+        let lamp = |fixture: &str, off: bool, offset: [f32; 3]| Kind::Lamp {
+            fixture: fixture.into(),
+            name: "textures/kejim/light_panel".into(),
+            off,
+            offset,
+        };
+        let mut document = Document::new("mp/ffa5", 1);
+        let moved = document.add(lamp("surface:1043", false, [0.0, 0.0, 16.0]), None);
+        assert_eq!(
+            document.edits[0].label(),
+            "Lamp moved: light_panel (surface:1043)"
+        );
+        assert_eq!(
+            document.add(lamp("surface:1043", true, [0.0; 3]), None),
+            moved
+        );
+        assert_eq!(document.edits.len(), 1);
+        assert_eq!(
+            document.edits[0].label(),
+            "Lamp off: light_panel (surface:1043)"
+        );
+        document.add(lamp("prop:12:3", true, [0.0; 3]), None);
+        document.add(lamp("effect:40", false, [8.0, 0.0, 0.0]), None);
+        assert_eq!(document.edits.len(), 3);
+        let text = serde_json::to_string(&document).unwrap();
+        assert!(
+            text.contains(r#""kind":"lamp","fixture":"surface:1043""#),
+            "{text}"
+        );
+        assert_eq!(Document::parse(&text, "mp/ffa5", 1).unwrap(), document);
+        for bad in [
+            lamp("surface", true, [0.0; 3]),
+            lamp("wall:3", true, [0.0; 3]),
+            lamp("prop:12", true, [0.0; 3]),
+            lamp("surface:1", false, [f32::NAN, 0.0, 0.0]),
+            lamp("surface:1", false, [0.0, 0.0, LAMP_OFFSET * 2.0]),
+        ] {
+            let mut document = Document::new("mp/ffa5", 1);
+            document.add(bad.clone(), None);
+            assert!(document.check().is_err(), "{bad:?}");
+        }
+    }
+
+    /// A client from before a kind is added refuses the whole document (serde knows no
+    /// such variant): the caveat the docs give for publishing new kinds.
+    #[test]
+    fn an_unknown_kind_refuses_the_whole_document() {
+        let text = r#"{"map":"mp/ffa3","checksum":1,"edits":[
+            {"id":1,"kind":"remap","from":"a/b","to":"c/d"},
+            {"id":2,"kind":"sparkles","amount":3}]}"#;
+        assert!(Document::parse(text, "mp/ffa3", 1).is_err());
     }
 
     #[test]

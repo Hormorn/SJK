@@ -50,6 +50,10 @@ fn fake_game(server: &Server, until: impl Fn() -> bool) {
                         Ok(serde_json::json!({ "change": format!("{change:?}") }))
                     }
                     GameRequest::Brushes => Ok(serde_json::json!({ "kinds": [], "faces": [] })),
+                    GameRequest::Lamps => Ok(serde_json::json!({
+                        "realtime": true,
+                        "fixtures": [{ "id": "surface:12", "kind": "surface", "lamps": 3 }],
+                    })),
                     GameRequest::Link { .. } | GameRequest::Suggest(_) => {
                         Ok(serde_json::json!({ "asked": format!("{:?}", ask.request) }))
                     }
@@ -179,6 +183,52 @@ fn the_page_the_map_and_an_edit_are_served_and_strangers_refused() {
             post("/api/edit", &origin, br#"{"op":"hide_many","faces":[]}"#).0,
             422
         );
+        // The Lights layer: the map's lamp fixtures, a light added and set, a lamp
+        // turned off, and a light out of its limits refused before the game sees it.
+        let (status, lamps) = get(port, "/api/lamps", Some(&token), None);
+        assert_eq!(status, 200);
+        let lamps: serde_json::Value = serde_json::from_slice(&lamps).unwrap();
+        assert_eq!(lamps["fixtures"][0]["id"], "surface:12");
+        assert_eq!(get(port, "/api/lamps", None, None).0, 403);
+        let (status, answer) = post(
+            "/api/edit",
+            &origin,
+            br#"{"op":"add_light","eye":[0,0,64],"dir":[1,0,0],"forward":[1,0,0],"color":[1,0.8,0.6],"radius":320,"intensity":1}"#,
+        );
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(answer).unwrap().contains("mapedit_light"));
+        let (status, answer) = post(
+            "/api/edit",
+            &origin,
+            br#"{"op":"set_light","id":3,"origin":[8,0,64],"color":[1,1,1],"radius":200,"intensity":2}"#,
+        );
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(answer).unwrap().contains("mapedit_light_set"));
+        let (status, answer) = post(
+            "/api/edit",
+            &origin,
+            br#"{"op":"lamp","fixture":"surface:12","action":"off"}"#,
+        );
+        assert_eq!(status, 200);
+        assert!(String::from_utf8(answer).unwrap().contains("mapedit_lamp"));
+        assert_eq!(
+            post(
+                "/api/edit",
+                &origin,
+                br#"{"op":"set_light","id":3,"origin":[8,0,64],"color":[1,1,1],"radius":99999,"intensity":2}"#,
+            )
+            .0,
+            422
+        );
+        assert_eq!(
+            post(
+                "/api/edit",
+                "http://evil.example",
+                br#"{"op":"lamp","fixture":"surface:12","action":"off"}"#,
+            )
+            .0,
+            403
+        );
         // Refused: no token, a wrong one, another host (DNS rebinding), a post from
         // another site.
         assert_eq!(get(port, "/", None, None).0, 403);
@@ -283,6 +333,14 @@ fn serve_the_page_for_a_browser() {
     let select = std::env::var("SJK_MAPEDIT_WEB_SELECT").unwrap_or_default();
     let (mut selection, mut view) = (serde_json::Value::Null, serde_json::Value::Null);
     let mut things = serde_json::json!({ "list": [], "on_server": false, "toy_kinds": ["cat"] });
+    // The Lights layer (08/11/2026): added lights and lamp edits kept here as the game
+    // would, and three made-up lamp fixtures above the demo's floor.
+    let (mut lights, mut lamp_edits, mut fixtures) = (
+        Vec::<serde_json::Value>::new(),
+        Vec::<serde_json::Value>::new(),
+        Vec::<serde_json::Value>::new(),
+    );
+    let mut next_id = 10u32;
     if let (true, Some(bsp)) = (demo, &bsp) {
         let render = bsp.render();
         let floor = render
@@ -317,6 +375,20 @@ fn serve_the_page_for_a_browser() {
             .max_by(|a, b| a.2[2].total_cmp(&b.2[2]));
         if let Some((index, _, [x, y, z])) = floor {
             view = serde_json::json!({ "eye": [x - 300.0, y, z + 260.0], "yaw": 0, "pitch": 40 });
+            for (k, (dx, colour)) in [
+                (-96.0, [1.0, 0.6, 0.3]),
+                (0.0, [0.4, 0.7, 1.0]),
+                (96.0, [1.0, 1.0, 1.0]),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                fixtures.push(serde_json::json!({
+                    "id": format!("surface:{}", 100 + k), "kind": "surface",
+                    "name": "textures/test/light_panel", "position": [x + dx, y + 48.0, z + 96.0],
+                    "color": colour, "power": 2.0, "radius": 400.0, "lamps": 3 + k,
+                }));
+            }
             let model = placed
                 .first()
                 .map_or(serde_json::Value::Null, |p| p["model"].clone());
@@ -480,6 +552,83 @@ fn serve_the_page_for_a_browser() {
                     EditRequest::ApplyMany { faces, .. } => Ok(serde_json::json!({
                         "ok": true, "lines": [format!("(test) {} faces filled", faces.len())],
                     })),
+                    EditRequest::AddLight {
+                        eye,
+                        dir,
+                        color,
+                        radius,
+                        intensity,
+                        ..
+                    } => {
+                        let at = glam::Vec3::from_array(*eye)
+                            + glam::Vec3::from_array(*dir).normalize_or_zero() * 200.0;
+                        next_id += 1;
+                        lights.push(serde_json::json!({
+                            "id": next_id, "origin": at.to_array(), "color": color,
+                            "radius": radius, "intensity": intensity,
+                        }));
+                        Ok(
+                            serde_json::json!({ "ok": true, "lines": [format!("{next_id}: light (test)")] }),
+                        )
+                    }
+                    EditRequest::SetLight {
+                        id,
+                        origin,
+                        color,
+                        radius,
+                        intensity,
+                    } => match lights.iter_mut().find(|l| l["id"] == *id) {
+                        Some(light) => {
+                            *light = serde_json::json!({
+                                "id": id, "origin": origin, "color": color,
+                                "radius": radius, "intensity": intensity,
+                            });
+                            Ok(
+                                serde_json::json!({ "ok": true, "lines": [format!("{id}: light set (test)")] }),
+                            )
+                        }
+                        None => Err(format!("No light {id}")),
+                    },
+                    EditRequest::Lamp {
+                        fixture,
+                        action,
+                        offset,
+                    } => {
+                        let old = lamp_edits
+                            .iter()
+                            .position(|e| e["edit"]["fixture"] == fixture.as_str());
+                        let (mut off, mut moved) = old.map_or((false, [0.0f32; 3]), |at| {
+                            let edit = &lamp_edits[at]["edit"];
+                            let o = |i: usize| edit["offset"][i].as_f64().unwrap_or(0.0) as f32;
+                            (edit["off"] == true, [o(0), o(1), o(2)])
+                        });
+                        match action {
+                            super::LampAction::Off => off = true,
+                            super::LampAction::On => off = false,
+                            super::LampAction::Move => moved = *offset,
+                            super::LampAction::Reset => (off, moved) = (false, [0.0; 3]),
+                        }
+                        if let Some(at) = old {
+                            lamp_edits.remove(at);
+                        }
+                        if off || moved.iter().any(|v| *v != 0.0) {
+                            next_id += 1;
+                            lamp_edits.push(serde_json::json!({
+                                "id": next_id, "label": format!("Lamp: {fixture}"), "describe": "", "active": true,
+                                "edit": { "kind": "lamp", "fixture": fixture, "name": "", "off": off, "offset": moved },
+                            }));
+                        }
+                        Ok(
+                            serde_json::json!({ "ok": true, "lines": [format!("lamp {fixture} (test)")] }),
+                        )
+                    }
+                    EditRequest::Delete { id } => {
+                        lights.retain(|l| l["id"] != *id);
+                        lamp_edits.retain(|e| e["id"] != *id);
+                        Ok(
+                            serde_json::json!({ "ok": true, "lines": [format!("Removed {id} (test)")] }),
+                        )
+                    }
                     EditRequest::Sky { shader, all } => {
                         let from: Vec<String> = match (&bsp, *all) {
                             (Some(bsp), true) => crate::map_edits::faces::map_skies(bsp),
@@ -526,6 +675,10 @@ fn serve_the_page_for_a_browser() {
                 }
             }
             GameRequest::Brushes => brushes.clone().ok_or_else(|| "no map".into()),
+            GameRequest::Lamps => Ok(serde_json::json!({
+                "map": map, "realtime": true, "fixtures": fixtures,
+                "applied": { "off": [], "moved": [] },
+            })),
             GameRequest::Link { brush, side, grow } => match (&bsp, &sides) {
                 (Some(bsp), Some(sides)) => {
                     super::super::caulk::link_json(bsp, sides, *brush, *side, *grow)
@@ -542,7 +695,8 @@ fn serve_the_page_for_a_browser() {
             },
             GameRequest::State => Ok(serde_json::json!({
                 "map": map, "checksum": 1, "editor": true, "enabled": true, "scope": "all",
-                "server": null, "revision": 0, "unpublished": false, "edits": [], "current": null,
+                "server": null, "revision": 0, "unpublished": false, "edits": lamp_edits, "current": null,
+                "lights": lights, "lights_budget": crate::map_edits::lights::BUDGET,
                 "undo": false, "redo": false, "hidden_props": props, "hidden_surfaces": surfaces,
                 "placed": placed, "remaps": remaps, "faces": shown_faces, "selection": selection,
                 "view": view, "things": things, "answer": null, "hub": null,

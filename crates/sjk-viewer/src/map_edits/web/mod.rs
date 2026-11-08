@@ -102,6 +102,7 @@ impl GpuState {
                 let map = self.world_load_map.clone();
                 Ok(self.map_edits.web_cache.brushes(&map, &self.bsp).clone())
             }
+            GameRequest::Lamps => Ok(self.map_edit_web_lamps()),
             GameRequest::Link { brush, side, grow } => {
                 let map = self.world_load_map.clone();
                 let sides = self.map_edits.web_cache.sides(&map, &self.bsp);
@@ -185,6 +186,9 @@ impl GpuState {
                 }
             }
             EditRequest::Place {
+                eye, dir, forward, ..
+            }
+            | EditRequest::AddLight {
                 eye, dir, forward, ..
             } => self
                 .map_edit_web_select(*eye, *dir, *forward, None)
@@ -351,6 +355,18 @@ impl GpuState {
                 })
             })
             .collect();
+        // The added lights drawn now, and the lamp edits the world was built with (the
+        // page compares them with the document's to say what waits for a reload).
+        let lights: Vec<Value> = state
+            .lights
+            .iter()
+            .map(|light| {
+                json!({
+                    "id": light.id, "origin": light.origin, "color": light.color,
+                    "radius": light.radius, "intensity": light.intensity,
+                })
+            })
+            .collect();
         let selection = self.world_notes.waiting_selection().map(|selection| {
             let (hit, _) = selection.aim();
             let (kind, extra) = match selection.edit_target() {
@@ -438,6 +454,8 @@ impl GpuState {
             "hidden_props": state.applied.props,
             "hidden_surfaces": state.applied.surfaces,
             "placed": placed,
+            "lights": lights,
+            "lights_budget": super::lights::BUDGET,
             "remaps": remaps,
             "faces": faces,
             "skies": super::faces::map_skies(&self.bsp),

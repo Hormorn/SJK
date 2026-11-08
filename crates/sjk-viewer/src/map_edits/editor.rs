@@ -43,6 +43,9 @@ const CHANGES: &[&str] = &[
     "mapedit_delete",
     "mapedit_fill",
     "mapedit_weather",
+    "mapedit_light",
+    "mapedit_light_set",
+    "mapedit_lamp",
     super::gizmo::COMMAND,
 ];
 
@@ -269,6 +272,18 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: keep this map's weather: what you see now, or the weather commands given (heavyrain, gustingwind, mist; '-' gives the map its own back)",
     ),
     (
+        "mapedit_light",
+        "Map editor: add a light where you aim, or at x y z (then r g b radius intensity), drawn for every SJK player as a dynamic light",
+    ),
+    (
+        "mapedit_light_set",
+        "Map editor: set an added light exactly: id, x y z, r g b (0 to 1), radius, intensity",
+    ),
+    (
+        "mapedit_lamp",
+        "Map editor: turn one of the map's real-time lamps off or on, move it, or reset it (fixture off|on|move dx dy dz|reset); Experimental only, from the map's next load or vid_restart force",
+    ),
+    (
         "mapedit_scope",
         "Map editor: new edits for all servers or only this server",
     ),
@@ -294,12 +309,12 @@ pub(crate) fn is_command(name: &str) -> bool {
 }
 
 /// What an edit is aimed at.
-struct Aim {
-    target: EditTarget,
-    hit: Vec3,
+pub(super) struct Aim {
+    pub(super) target: EditTarget,
+    pub(super) hit: Vec3,
     /// The view's forward when the selection was made: a placed model faces it.
-    forward: Vec3,
-    summary: String,
+    pub(super) forward: Vec3,
+    pub(super) summary: String,
 }
 
 fn yaw_of(forward: Vec3) -> f32 {
@@ -435,6 +450,9 @@ impl GpuState {
             "mapedit_fill" => self.map_edit_fill(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_weather" => self.map_edit_weather(args),
+            "mapedit_light" => self.map_edit_light(args),
+            "mapedit_light_set" => self.map_edit_light_set(args),
+            "mapedit_lamp" => self.map_edit_lamp(args),
             "mapedit_undo" => self.map_edit_step(true),
             "mapedit_redo" => self.map_edit_step(false),
             "mapedit_delete" => {
@@ -574,7 +592,7 @@ impl GpuState {
     }
 
     /// The server new edits are for, by the scope.
-    fn map_edit_server(&self) -> Result<Option<String>, String> {
+    pub(super) fn map_edit_server(&self) -> Result<Option<String>, String> {
         match self.map_edits.editor.scope {
             Scope::AllServers => Ok(None),
             Scope::ThisServer => self
@@ -704,7 +722,7 @@ impl GpuState {
     }
 
     /// The selection the world-note key made, or what is under the crosshair now.
-    fn map_edit_aim(&mut self) -> Result<Aim, String> {
+    pub(super) fn map_edit_aim(&mut self) -> Result<Aim, String> {
         if self.world_notes.waiting_selection().is_none() {
             self.map_edit_pick();
         }
@@ -722,7 +740,7 @@ impl GpuState {
     }
 
     /// The loaded map's document, begun when it has none.
-    fn map_edit_document(&mut self) -> Result<&mut super::Document, String> {
+    pub(super) fn map_edit_document(&mut self) -> Result<&mut super::Document, String> {
         let (map, checksum) = self
             .map_edits
             .map()
@@ -735,7 +753,7 @@ impl GpuState {
     }
 
     /// Save the document after an edit and answer `line`.
-    fn map_edit_saved(&mut self, line: String) -> Result<Vec<String>, String> {
+    pub(super) fn map_edit_saved(&mut self, line: String) -> Result<Vec<String>, String> {
         let folder = self.map_edits_folder();
         self.map_edits.changed(folder.as_deref())?;
         Ok(vec![line])

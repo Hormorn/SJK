@@ -935,6 +935,22 @@ Limits: T1_Fatal in Experimental on DX12 stopped at the lamp light cache's page 
 (`SJK lamp cache pages` invalid), not a compile, so that case was checked on duel6. fmt,
 the sjk-viewer tests and Clippy.
 
+## Map editor lights
+
+08/11/2026, `personal/mapedit-lights`, based on `main` `52b2d740` (Sol's request: "for
+mapedit_web I want to see lights so I can move them, delete them or add new ones"): two
+map edit kinds ([map-edits.md](map-edits.md#lights)). `light`: point lights staff add, drawn
+as dynamic lights for every SJK player on every preset, 8 at most a frame in slots kept
+apart from the effects' 32 (`PointLightList::reserve`). `lamp`: one of the map's own
+real-time lamps (Experimental only), grouped by fixture (a BSP surface, a prop's model
+surface, a steady effect), turned off or moved; the world's build reads the document, so it
+applies from the map's next load or `vid_restart force`. The browser editor's Lights page
+and view layer (bulbs and lamp cubes, Add light, colour, radius and intensity, the gizmo's
+Move, Turn off, Reset); the in-game panel lists and deletes them on Edits. Baked light never
+changes. Clients before this release ignore a document with these kinds: publish them after
+a release. The hub needs nothing (it does not read the edits). Verified and not: see
+[map-edits.md](map-edits.md#limits).
+
 ## Map editor in game: the page's tools, flight, a clean toggle
 
 04/11/2026, `personal/mapedit-ingame`, based on `main` `7846f944` (Sol's request): the in-game

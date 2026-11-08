@@ -18,7 +18,9 @@
 //! - remaps join the world's remaps as source `edit`, over the map's and the server's;
 //! - shown faces (caulk and nodraw brush sides) are built as small models once and drawn
 //!   each frame ([`faces`]);
-//! - a weather edit's commands replace the map's own weather ([`crate::weather`]).
+//! - a weather edit's commands replace the map's own weather ([`crate::weather`]);
+//! - added lights are drawn as dynamic lights each frame, and lamp edits turn the map's
+//!   own real-time lamps off or move them when its world is built ([`lights`]).
 //!
 //! Staff edit in game ([`editor`], [`panel`]) or in a web browser ([`web`]).
 
@@ -27,6 +29,7 @@ pub(crate) mod editor;
 pub(crate) mod faces;
 pub(crate) mod fly;
 pub(crate) mod gizmo;
+pub(crate) mod lights;
 pub(crate) mod linked;
 pub(crate) mod nearby;
 pub(crate) mod panel;
@@ -69,6 +72,8 @@ pub(crate) struct State {
     applied_for: Option<(u64, Option<std::net::SocketAddr>, bool)>,
     /// The placed models drawn now.
     placed: Vec<Placed>,
+    /// The added lights drawn now ([`lights`]).
+    pub(crate) lights: Vec<lights::EditLight>,
     /// The shown faces drawn now: each one's mesh in `object_meshes` and where it is lit.
     faces: Vec<(usize, ActorInstance)>,
     /// `object_meshes.len()` when [`Self::placed`] last looked their meshes up.
@@ -569,10 +574,18 @@ impl GpuState {
                         ));
                     }
                 }
-                // One for the map, read below.
-                Kind::Weather { .. } => {}
+                // One for the map, read below; lights below; lamps when the world is
+                // built (lights.rs).
+                Kind::Weather { .. } | Kind::Light { .. } | Kind::Lamp { .. } => {}
             }
         }
+        self.map_edits.lights = self
+            .map_edits
+            .document
+            .as_ref()
+            .filter(|_| enabled)
+            .map(|document| lights::lights(document, server))
+            .unwrap_or_default();
         let weather = self
             .map_edits
             .document

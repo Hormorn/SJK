@@ -35,7 +35,7 @@ fn extract_placements(
     let mut cache = ImageCache::new();
     let mut spectra = std::collections::HashMap::new();
     let mut lamps = Vec::new();
-    for entity in entities.iter().filter(|e| steady(e)) {
+    for (entity_number, entity) in entities.iter().enumerate().filter(|(_, e)| steady(e)) {
         let Some(name) = entity.get("fxFile") else {
             continue;
         };
@@ -113,6 +113,7 @@ fn extract_placements(
             radius: (power / 0.004).sqrt().clamp(32., 1024.),
             axis_u: Vec3::ZERO,
             axis_v: Vec3::ZERO,
+            fixture: crate::lamp_lights::Fixture::Effect(entity_number as u32),
         });
     }
     crate::log::progress(format_args!("Steady effect lamps: {}", lamps.len()));

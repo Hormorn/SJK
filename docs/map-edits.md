@@ -16,6 +16,12 @@ the hub copies in [sjk-identity's map_edits](../crates/sjk-identity/src/map_edit
 | `remap` | a shader drawn instead of another wherever the map draws it | |
 | `show_face` | one caulk, nodraw or sky side of a world brush, drawn with a shader | collision, the bake |
 | `weather` | the map's rain, snow, fog and wind, in place of its own ([below](#weather)) | gameplay: weather is drawn only |
+| `light` | a point light staff added, drawn as a dynamic light on every preset ([below](#lights)) | the baked lightmaps: nothing is baked again |
+| `lamp` | one of the map's own real-time lamps (a fixture) turned off or moved, on Experimental only, from the map's next load ([below](#lights)) | the baked lightmaps, the lamp's surface (still drawn, still glowing) |
+
+No edit changes a map's baked light: the lightmaps, the light grid and the vertex light
+are the BSP's own, so a hidden lamp's glow stays baked on the walls round it (as a hidden
+prop's), and an added light only adds to them.
 
 Edits change what is drawn, never collision. The server keeps every brush and entity: a
 hidden prop or surface with clip brushes is an invisible wall, and a placed model can be
@@ -95,6 +101,71 @@ Clients from before this release do not know the kind and ignore the map's whole
 (`map edits ... ignored` in their log), so publish weather once players have the release
 that reads it, and staff should not edit such a map on an older client: it would start
 an empty document and a publish would replace the hub's list.
+
+## Lights
+
+Sol, 08/11/2026: "for mapedit_web I want to see lights so I can move them, delete them or
+add new ones" ([lights.rs](../crates/sjk-viewer/src/map_edits/lights.rs)). Two kinds:
+
+**Added lights** (`light`): `{"kind":"light","origin":[x,y,z],"color":[r,g,b],"radius":320,
+"intensity":1}`, each colour channel 0 to 1 (not all 0), the radius 16 to 2048 units, the
+intensity 0.05 to 8 (the colour is multiplied by it). Every SJK player with `cg_mapEdits`
+on sees them, on every preset: each frame they go into the frame's point-light list, the
+one `r_dynamiclight` lights (sabers, bolts, explosions) go through
+([rendering.md](rendering.md#map-edits-lights)), so `r_dynamiclight 0` turns them off too.
+That list holds 32 lights: at most 8 added lights a frame are drawn, those whose reach comes
+nearest the view, in slots kept for them at the frame's start
+(`PointLightList::reserve`), so effects never push an added light out and added lights
+never push an effect out; a map with fewer added lights keeps fewer slots. They light as a
+dynamic light does: stopped by the static world's walls in real-time lighting
+(`r_dynamicLightShadows`), through walls on the baked presets as in the original game, no
+shadows of actors. Lights are never merged: two can stand side by side. Each applies on
+every server or one, as every edit.
+
+**The map's lamps** (`lamp`): the real-time lighting's local lights, found from the map's
+emissive surfaces, its props' glowing model surfaces, BSP flares and steady effects when
+its world is built ([rendering.md](rendering.md#inferring-fixture-light-from-legacy-materials)).
+Only the Experimental preset finds and draws them; on the others there is nothing to edit
+and a lamp edit shows nothing. A big map has thousands of lamp patches (mp/ffa5 about ten
+thousand), so they are grouped by **fixture**, the thing they come from, named by the BSP's
+own numbers, stable for every load of that BSP: `surface:<n>` (a BSP surface, the patches
+of its triangles; BSP flares too), `prop:<entity>:<n>` (surface `n` of the model of the
+`misc_model_static` entity `entity`) and `effect:<entity>` (a steady `fx_runner`). A lamp
+patch belongs to the surface of its first triangle; the vertex-coloured flare clusters
+span surfaces and are not editable. The edit is
+`{"kind":"lamp","fixture":"surface:1043","name":"textures/kejim/light","off":true,
+"offset":[0,0,0]}`: turned off (its lamps are dropped) or moved by `offset` (each of its
+lamps moved by as much, at most 4096 units along each axis), one edit per fixture and
+scope, `name` its shader, model or effect, kept to name it. The surface or model still
+draws and glows: only its light changes.
+
+The lamps are found while the world is built, and their lookup grid, shadow atlas and
+light cache are made from them then (seconds of a big map's load), so a lamp edit applies
+when the map's world is built again: the next load of the map, or `vid_restart force`
+([rendering.md](rendering.md#graphics-reload)). The build reads the map's document itself
+(`lamp_edits_at_build`): the map's checksum, read as the file is loaded
+(`session_content::load_bsp` notes it, `lights::note_loaded`), names the document, so a
+player joining a server gets its lamp edits on the first load. Editing them live would
+mean rebuilding all of that on every change; the page says which lamp edits wait.
+
+| Command | Does |
+| --- | --- |
+| `mapedit_light [<x y z>] [<r g b> <radius> <intensity>]` | Add a light at the point, or 12 units in front of what is aimed at (the selection, else the crosshair's); a warm 320-unit light by default |
+| `mapedit_light_set <id> <x y z> <r g b> <radius> <intensity>` | Set added light `id` exactly (the page's gizmo and fields), one step to undo |
+| `mapedit_lamp <fixture> off\|on\|move <dx dy dz>\|reset` | Turn a lamp fixture off or on, move it to an offset from where the map has it, or take its edit away; refused for a fixture this world has no lamp of (unless it has an edit) |
+
+`mapedit_delete <id>` removes either kind, and every change is one step to undo. The
+in-game panel lists them on its Edits page (`Light: #ffd9a6 r320`, `Lamp off: light
+(surface:1043)`), where Delete, Undo and Redo work; it has no page of its own for them, and
+the in-game gizmo does not move a light. The browser editor's [Lights](#lights-in-the-page)
+page is where they are seen and edited.
+
+Clients from before this release do not know the kinds and ignore the map's whole document
+(`map edits ... ignored` in their log; `an_unknown_kind_refuses_the_whole_document`), so
+publish light and lamp edits once players have the release that reads them, and staff
+should not edit such a map on an older client (it would start an empty document and a
+publish would replace the hub's list). The hub needs nothing: it keeps the edits as sent
+and checks only their shape and size (hub `PROTOCOL.md`, Map edits).
 
 A remap edit wins over the map's own worldspawn remaps and the server's, so a fix made
 for a server's remaps holds; a console `remapShader` made after them still wins
@@ -192,6 +263,7 @@ map without a server walks with its own movement.
 | `mapedit_link plane\|surface` | The selected caulk, nodraw or sky face and the faces joined to it (Same plane, Connected surface, [as the page's](#the-browser-editor-creator-only-for-now)) become the selection |
 | `mapedit_fill [shader]` | Draw the selected faces with the shader the drawn surfaces round them use (the nearby vote's first), or `shader`; one step to undo |
 | `mapedit_weather [<command>, ...] \| -` | Keep the weather seen now for the map, or the world effect commands named (commas between); `-` gives the map its own weather back ([Weather](#weather)) |
+| `mapedit_light`, `mapedit_light_set`, `mapedit_lamp` | Add and set lights, turn the map's lamps off or move them ([Lights](#lights)) |
 | `mapedit_scope [all\|server]` | New edits for all servers (the default) or only this one |
 | `mapedit_list`, `mapedit_delete <id>` | List, remove one |
 | `mapedit_undo`, `mapedit_redo` | Undo the last change to the map's edits (a hide, a placing, a turn, a move, a remap, a delete), or redo it |
@@ -496,7 +568,8 @@ game data, by a path the game data accepts (no `..`, no absolute path):
 | `GET api/list?kind=dir&dir=&ext=` | the folders and files of a folder, as VisionJK's |
 | `GET api/edits` | the game's state (above) |
 | `GET api/lists` | the models to place, the shaders a remap may draw and `skies` (`{name, picture}`: every shader with `skyParms`, its box's `_ft` image or its first stage's) |
-| `POST api/edit` | `{"op": "select"\|"clear"\|"hide"\|"place"\|"turn"\|"move"\|"scale"\|"remap"\|"sky"\|"scope"\|"current"\|"delete"\|"undo"\|"redo"\|"publish"\|"place_thing"\|"remove_thing"\|"apply_many"\|"hide_many"\|"set"\|"set_thing", ...}`; `sky` takes `shader` and `all` (`mapedit_sky`) |
+| `POST api/edit` | `{"op": "select"\|"clear"\|"hide"\|"place"\|"turn"\|"move"\|"scale"\|"remap"\|"sky"\|"scope"\|"current"\|"delete"\|"undo"\|"redo"\|"publish"\|"place_thing"\|"remove_thing"\|"apply_many"\|"hide_many"\|"set"\|"set_thing"\|"add_light"\|"set_light"\|"lamp", ...}`; `sky` takes `shader` and `all` (`mapedit_sky`) |
+| `GET api/lamps` | `{"map", "realtime", "fixtures": [{id, kind, name, position, color, power, radius, lamps}], "applied": {"off": [id], "moved": [[id, [x, y, z]]]}}`: the lamp fixtures as this world found them (before edits) and the lamp edits it was built with |
 | `GET api/recent` | `{"remember", "shaders", "models"}`: the Recent rows |
 | `POST api/recent` | `{"op": "remember", "on": bool}` or `{"op": "clear"}` |
 | `GET api/brushes` | `{"kinds": [{name, label, colour, mode, selects, count}], "faces": [[kind, brush, side, [x, y, z, ...], normal]]}` |
@@ -508,12 +581,46 @@ id, label, whether it is the player's own, where it stands and its parts (model,
 angles, scale as the game draws it at rest), whether the game is on a server, and the
 hub's toy kinds. `place_thing` takes `thing` (`boombox`, `mystery_box`, `toy`), the ray,
 `kind` for a toy, `server` and `escort`; `remove_thing` takes `thing` and `id` (none for
-the boombox). `select` may name `face` (`[brush, side]`, the brush view's face); `apply_many`
+the boombox). `add_light` takes the ray (`eye`, `dir`, `forward`), `color`, `radius` and
+`intensity`, selects what the ray meets and runs `mapedit_light <r g b> <radius>
+<intensity>`; `set_light` takes `id`, `origin`, `color`, `radius` and `intensity`
+(`mapedit_light_set`); `lamp` takes `fixture`, `action` (`off`, `on`, `move`, `reset`) and
+`offset` (`mapedit_lamp`); each is checked against the document's limits before the game
+sees it. `api/edits` carries `lights` (the added lights drawn now) and `lights_budget`.
+`select` may name `face` (`[brush, side]`, the brush view's face); `apply_many`
 takes `faces` (`[brush, side]` each), `surfaces` and `shader` (`-` takes their face and remap
 edits away), `hide_many` `faces` and `surfaces`, 1024 at most in all. The game checks each
 face again (a caulk or nodraw side of a world brush) and each shader as a remap's. `set` (a
 gizmo's drag) takes `edits`, each `{id, origin, angles, scale}`, 256 at most, and runs
 `mapedit_set` with them; `set_thing` takes `thing` (`boombox` only), `origin` and `yaw`.
+
+### Lights in the page
+
+The Lights page and the view's Lights button (08/11/2026, [Lights](#lights);
+[sjk/lights.js](../crates/sjk-viewer/src/map_edits/web/page/sjk/lights.js)) draw the added
+lights as bulbs in their colour and the map's lamp fixtures as small cubes in theirs (grey
+when off), faint through walls and full where seen, each the same size on screen at any
+distance; the browser keeps the button's state. A click on a marker chooses it (an added
+light before a lamp at the same spot) and opens the page; the chosen one is ringed in gold,
+a light with the circles of its reach. On the page:
+
+- A note on who sees what: added lights every SJK player on every preset, 8 at most at
+  once, the nearest; the map's lamps on the Experimental preset only, a lamp edit from the
+  map's next load or `vid_restart force`; baked lightmaps never change.
+- **Add light** (the next click on the map puts one 12 units in front of what it meets,
+  Esc stops) and **Add at view centre**; the new light is chosen.
+- Added lights: the list (double click flies to one); the chosen one's colour (a colour
+  picker), radius and intensity, each change one `set_light` (one step to undo); Delete
+  (or the Delete key on this page) and Fly to it. The gizmo moves it (Move only: R and T say
+  so), one `set_light` at the end of a drag, as placed models' `set`.
+- Map lamps: the fixtures `api/lamps` lists (searchable by fixture or shader), each with
+  its kind, name, patch count, power, reach and position; Turn off / Turn on, Reset and Fly
+  to it; the gizmo moves it (`lamp` with `move` and the offset from where the map has it, or
+  `reset` when put back). The marker stands where the edit puts it. A fixture whose edit
+  the game's world was not built with is marked "(on reload)", and the page says it waits
+  for the map's next load or `vid_restart force`. Read the lamps again asks the game anew
+  (also when the page opens); without Experimental the list says that lamps are found there
+  only.
 
 **The sky in the page** (04/11/2026): a click on the sky selects its side as the game's
 pick does (the panel names it Sky, with what it is swapped for). Swap the sky lists the
@@ -541,7 +648,10 @@ draws one sky, the map's first (a map with several shows the first one's swap on
 - Only MD3s already in the player's game data can be placed; a custom model needs a pack
   the players have (an SJK hub pack).
 - A hidden prop's lamps and a hidden surface's bake stay; a placed model casts no baked
-  shadow.
+  shadow. No edit changes the baked light; a lamp edit changes only the real-time lamps
+  (Experimental), from the map's next load or `vid_restart force`.
+- At most 8 added lights are drawn at once (the nearest); they are dynamic lights, so
+  `r_dynamiclight 0` hides them and they cast no shadows of actors.
 - Edits are not drawn in the menu world.
 - The hub's side is the hub repository's `map-edits` branch (19/10/2026). Until the live
   hub runs it, it answers 404: Publish says the hub does not keep map edits yet, and
@@ -626,6 +736,23 @@ draws one sky, the map's first (a map with several shows the first one's swap on
   put down as one step (each origin within 0.05 units of its turn about the pivot), the
   outlines following, an undo bringing all three back. Not tried in a running client: the
   keys and drags with the real pointer, and the page's `hide_many` with placed models.
+- Lights (08/11/2026): unit tests of the kinds (round trip in the hub's shape, the limits,
+  one lamp edit per fixture, an unknown kind refusing the whole document), the fixtures
+  (written and read back, the lamps grouped one marker per fixture, turned off and moved),
+  the reserved dynamic-light slots (effects and added lights never evict each other), the
+  nearest 8 drawn, scopes, the BSP fingerprint, the requests and `api/lamps` end to end
+  ([http_e2e.rs](../crates/sjk-viewer/src/map_edits/web/http_e2e.rs)). The world shot
+  `added_light_drawn` on retail duel6 draws a red light 40 units over the floor ahead of the
+  first spawn: 64,913 pixels changed (64,829 redder), 192 left changed once it is taken away.
+  The page in headless Chrome on duel6 with the fake game's lights and three made-up lamp
+  fixtures (`serve_the_page_for_a_browser`, `SJK_MAPEDIT_WEB_DEMO`): the Lights page and its
+  note, Add at view centre choosing the new light, a radius change sent as `set_light`, G X 16
+  Enter moving it 16 units in one `set_light`, a lamp cube clicked and chosen, turned off and
+  marked as waiting for a reload, moved 32 along X by the gizmo, R refused on a light, the
+  Delete key removing it, no script errors. Not tried
+  in a running client: the commands from the panel or the page, a lamp edit applied by a
+  map load or `vid_restart force` on Experimental (no world shot builds a world with them),
+  and the fixtures of a retail map as `api/lamps` lists them.
 - The sky (04/11/2026): unit tests (a sky side picked, checked and met on a synthetic map
   while a sky-flagged liquid is refused; the brush view's `sky` kind and a link that takes
   sky only; sky links never reach caulk; the sky list and its pictures; a sky swap as

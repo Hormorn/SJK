@@ -24,6 +24,7 @@
 				<dt>Click</dt><dd>select; on Place or World: put it there</dd>
 				<dt>Shift+click</dt><dd>add to the selection or take out (Ctrl too)</dd>
 				<dt>B</dt><dd>invisible brushes on or off (as r_showBrushes)</dd>
+				<dt>Lights</dt><dd>added lights (bulbs) and the map's lamps (cubes); click one to choose it</dd>
 				<dt>H</dt><dd>hide the selection</dd>
 				<dt>Ctrl+C</dt><dd>copy the selection</dd>
 				<dt>Ctrl+V</dt><dd>paste at the pointer, or its shader on the selection</dd>
@@ -34,7 +35,7 @@
 			<p id="hudFocus">The keys work while the view has focus: click or drag it.</p>
 		</div>
 	</div>
-	<div id="viewBar"><button id="btnBrushes" type="button" title="Show the invisible brushes as the game's r_showBrushes does (B)">Brushes <kbd>B</kbd></button></div>
+	<div id="viewBar"><button id="btnLights" type="button" title="Show the added lights (bulbs) and the map's real-time lamps (cubes): a click on one chooses it on the Lights page">Lights</button><button id="btnBrushes" type="button" title="Show the invisible brushes as the game's r_showBrushes does (B)">Brushes <kbd>B</kbd></button></div>
 	<div id="brushCard" hidden>
 		<div class="head">Invisible brushes <span id="brushCount" class="count"></span></div>
 		<div id="brushSets" class="buttons"><button data-set="play" title="What r_showBrushes 1 shows: what changes play">Play</button><button data-set="all" title="What r_showBrushes 2 shows">All</button><button data-set="caulk" title="Caulk, nodraw and invisible walls: the faces a click selects">Caulk</button><button data-set="none">None</button></div>
@@ -49,7 +50,7 @@
 		<div class="sub"><span id="mapName"></span> <span id="busy" hidden>&middot; working...</span></div>
 		<div id="problem" class="problem" hidden></div>
 	</header>
-	<nav id="tabs"><button data-tab="selected">Selected</button><button data-tab="place">Place</button><button data-tab="edits">Edits</button><button data-tab="world">World</button></nav>
+	<nav id="tabs"><button data-tab="selected">Selected</button><button data-tab="place">Place</button><button data-tab="edits">Edits</button><button data-tab="world">World</button><button data-tab="lights">Lights</button></nav>
 	<section id="tab-selected">
 		<div class="kind" id="selKind"></div>
 		<div class="summary" id="selSummary"></div>
@@ -130,6 +131,32 @@
 		<label class="switch"><input type="checkbox" id="thingEscort"> Toy shown only where you are</label>
 		<p class="hint" id="thingHint">Choose what to place, then click the floor where it goes. Boxes and toys are the hub's: it places and removes them but cannot move one (remove it and place it again).</p>
 	</section>
+	<section id="tab-lights" hidden>
+		<p class="hint" id="lightsNote"></p>
+		<div class="buttons"><button id="btnAddLight" class="gold" title="The next click on the map puts a light in front of what it meets">Add light</button><button id="btnAddLightHere" title="A light in front of what the middle of the view meets">Add at view centre</button></div>
+		<p class="hint" id="addHint"></p>
+		<h3>Added lights</h3>
+		<div id="lightList" class="list"></div>
+		<div id="lightProps" hidden>
+			<div class="summary" id="lightAt"></div>
+			<div class="fields">
+				<label>Colour <input type="color" id="lightColor"></label>
+				<label>Radius <input type="number" id="lightRadius" min="16" max="2048" step="16"></label>
+				<label>Intensity <input type="number" id="lightIntensity" min="0.05" max="8" step="0.1"></label>
+			</div>
+			<p class="hint">G moves it (the gizmo, Move); each change is one step to undo.</p>
+			<div class="buttons"><button id="btnLightDelete" class="ember">Delete</button><button id="btnLightFly">Fly to it</button></div>
+		</div>
+		<h3>Map lamps <span class="count" id="lampCount"></span></h3>
+		<input id="lampFind" placeholder="Search the lamps (fixture or shader)" spellcheck="false" autocomplete="off">
+		<div id="lampList" class="list"></div>
+		<div id="lampProps" hidden>
+			<dl id="lampFacts" class="facts"></dl>
+			<div class="buttons"><button id="btnLampOff">Turn off</button><button id="btnLampReset" title="Take the edit away: the lamp as the map has it">Reset</button><button id="btnLampFly">Fly to it</button></div>
+			<p class="hint" id="lampPending"></p>
+		</div>
+		<div class="buttons"><button id="btnLampsReload" title="Read the game's lamps again (after vid_restart force or a map load)">Read the lamps again</button></div>
+	</section>
 	<footer>
 		<div id="scope" class="buttons"><span>New edits for</span><button data-scope="all">All servers</button><button data-scope="server" id="scopeServer">This server</button></div>
 		<div id="answer"></div>
@@ -157,6 +184,7 @@
 <!--#include sjk/edits.js -->
 <!--#include sjk/panel.js -->
 <!--#include sjk/brushes.js -->
+<!--#include sjk/lights.js -->
 <!--#include sjk/view.js -->
 <!--#include sjk/gizmo.js -->
 <!--#include sjk/tail.js -->

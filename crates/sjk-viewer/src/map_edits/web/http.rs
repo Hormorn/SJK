@@ -59,6 +59,9 @@ pub(crate) enum GameRequest {
     },
     /// The shaders the drawn surfaces round some faces use (`POST api/suggest`).
     Suggest(SuggestRequest),
+    /// The map's lamp fixtures as the world found them, and the lamp edits it was built
+    /// with (`GET api/lamps`, [`crate::map_edits::lights`]).
+    Lamps,
 }
 
 /// Most faces and surfaces one request names (a link takes 512 at most).
@@ -255,6 +258,42 @@ pub(crate) enum EditRequest {
         #[serde(default)]
         placed: Vec<u32>,
     },
+    /// `mapedit_light <r g b> <radius> <intensity>` in front of what the ray meets.
+    AddLight {
+        eye: [f32; 3],
+        dir: [f32; 3],
+        forward: [f32; 3],
+        color: [f32; 3],
+        radius: f32,
+        intensity: f32,
+    },
+    /// `mapedit_light_set`: added light `id` set exactly (its gizmo's drag, its fields).
+    SetLight {
+        id: u32,
+        origin: [f32; 3],
+        color: [f32; 3],
+        radius: f32,
+        intensity: f32,
+    },
+    /// `mapedit_lamp <fixture> off|on|move <offset>|reset`: one of the map's lamps.
+    Lamp {
+        fixture: String,
+        action: LampAction,
+        #[serde(default)]
+        offset: [f32; 3],
+    },
+}
+
+/// What [`EditRequest::Lamp`] does to the fixture.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum LampAction {
+    Off,
+    On,
+    /// To `offset` from where the map has it.
+    Move,
+    /// As the map has it: the edit taken away.
+    Reset,
 }
 
 /// One placed model of [`EditRequest::Set`].
@@ -348,6 +387,34 @@ impl EditRequest {
                     && (many_ok(faces, surfaces)
                         || (faces.len() + surfaces.len() == 0 && !placed.is_empty()))
             }
+            Self::AddLight {
+                eye,
+                dir,
+                forward,
+                color,
+                radius,
+                intensity,
+            } => {
+                finite(eye)
+                    && finite(dir)
+                    && finite(forward)
+                    && dir.iter().any(|v| *v != 0.0)
+                    && crate::map_edits::document::check_light(
+                        [0.0; 3], *color, *radius, *intensity,
+                    )
+                    .is_ok()
+            }
+            Self::SetLight {
+                origin,
+                color,
+                radius,
+                intensity,
+                ..
+            } => crate::map_edits::document::check_light(*origin, *color, *radius, *intensity)
+                .is_ok(),
+            Self::Lamp {
+                fixture, offset, ..
+            } => crate::lamp_lights::Fixture::parse(fixture).is_some() && finite(offset),
             _ => true,
         };
         if ok {
@@ -371,6 +438,56 @@ impl EditRequest {
             | Self::SetThing { .. }
             | Self::ApplyMany { .. }
             | Self::HideMany { .. } => return None,
+            Self::AddLight {
+                color,
+                radius,
+                intensity,
+                ..
+            } => (
+                "mapedit_light",
+                color
+                    .iter()
+                    .chain([radius, intensity])
+                    .copied()
+                    .map(number)
+                    .collect(),
+            ),
+            Self::SetLight {
+                id,
+                origin,
+                color,
+                radius,
+                intensity,
+            } => (
+                "mapedit_light_set",
+                std::iter::once(id.to_string())
+                    .chain(
+                        origin
+                            .iter()
+                            .chain(color)
+                            .chain([radius, intensity])
+                            .copied()
+                            .map(number),
+                    )
+                    .collect(),
+            ),
+            Self::Lamp {
+                fixture,
+                action,
+                offset,
+            } => {
+                let mut args = vec![fixture.clone()];
+                match action {
+                    LampAction::Off => args.push("off".into()),
+                    LampAction::On => args.push("on".into()),
+                    LampAction::Reset => args.push("reset".into()),
+                    LampAction::Move => {
+                        args.push("move".into());
+                        args.extend(offset.iter().copied().map(number));
+                    }
+                }
+                ("mapedit_lamp", args)
+            }
             Self::Hide { group } => (
                 "mapedit_hide",
                 if *group { vec!["group".into()] } else { vec![] },
@@ -865,6 +982,7 @@ fn handle(request: &Request, context: &Context) -> Response {
             Err(why) => Response::text(422, &why),
         },
         ("GET", "/api/brushes") => ask_game(context, GameRequest::Brushes),
+        ("GET", "/api/lamps") => ask_game(context, GameRequest::Lamps),
         ("GET", "/api/link") => match link_request(request) {
             Some(link) => ask_game(context, link),
             None => Response::text(422, "brush, side and grow (plane or surface)"),
@@ -1224,6 +1342,58 @@ mod tests {
         assert!(parse(r#"{"op":"scope","scope":"everywhere"}"#).is_err());
         assert!(parse(r#"{"op":"select","eye":[0,0,0],"dir":[0,0,0],"forward":[1,0,0]}"#).is_err());
         assert!(parse("not json").is_err());
+    }
+
+    /// The Lights layer's requests: a light added along a ray, one set exactly, a lamp
+    /// turned off, moved and reset; refused out of their limits.
+    #[test]
+    fn light_and_lamp_requests_are_read_into_the_editors_commands() {
+        let parse = |json: &str| EditRequest::parse(json.as_bytes());
+        let words = |line: &[&str]| line.iter().map(|w| (*w).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            parse(r#"{"op":"add_light","eye":[0,0,0],"dir":[1,0,0],"forward":[1,0,0],"color":[1,0.5,0],"radius":300,"intensity":2}"#)
+                .unwrap()
+                .command(),
+            Some(("mapedit_light", words(&["1", "0.5", "0", "300", "2"])))
+        );
+        assert_eq!(
+            parse(r#"{"op":"set_light","id":4,"origin":[1,2,3],"color":[1,1,1],"radius":200,"intensity":1}"#)
+                .unwrap()
+                .command(),
+            Some((
+                "mapedit_light_set",
+                words(&["4", "1", "2", "3", "1", "1", "1", "200", "1"])
+            ))
+        );
+        assert_eq!(
+            parse(r#"{"op":"lamp","fixture":"surface:12","action":"off"}"#)
+                .unwrap()
+                .command(),
+            Some(("mapedit_lamp", words(&["surface:12", "off"])))
+        );
+        assert_eq!(
+            parse(r#"{"op":"lamp","fixture":"prop:3:1","action":"move","offset":[0,0,16]}"#)
+                .unwrap()
+                .command(),
+            Some(("mapedit_lamp", words(&["prop:3:1", "move", "0", "0", "16"])))
+        );
+        assert_eq!(
+            parse(r#"{"op":"lamp","fixture":"effect:9","action":"reset"}"#)
+                .unwrap()
+                .command(),
+            Some(("mapedit_lamp", words(&["effect:9", "reset"])))
+        );
+        for bad in [
+            r#"{"op":"add_light","eye":[0,0,0],"dir":[0,0,0],"forward":[1,0,0],"color":[1,1,1],"radius":300,"intensity":1}"#,
+            r#"{"op":"add_light","eye":[0,0,0],"dir":[1,0,0],"forward":[1,0,0],"color":[2,1,1],"radius":300,"intensity":1}"#,
+            r#"{"op":"set_light","id":4,"origin":[1,2,3],"color":[1,1,1],"radius":1,"intensity":1}"#,
+            r#"{"op":"set_light","id":4,"origin":[1,2,3],"color":[1,1,1],"radius":200,"intensity":100}"#,
+            r#"{"op":"lamp","fixture":"surface:12; quit","action":"off"}"#,
+            r#"{"op":"lamp","fixture":"surface:12","action":"explode"}"#,
+            r#"{"op":"lamp","fixture":"surface:12","action":"off","extra":1}"#,
+        ] {
+            assert!(parse(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

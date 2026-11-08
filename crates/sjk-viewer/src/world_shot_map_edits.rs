@@ -989,3 +989,72 @@ fn sky_swapped() {
         );
     });
 }
+
+/// An added light ([`Kind::Light`], 08/11/2026) drawn as a dynamic light: duel6's floor
+/// ahead of its first spawn seen without it, with a strong red light 40 units over it,
+/// then without it again. On the shot's preset, as on every one: the frame's point-light
+/// list draws it.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn added_light_drawn() {
+    on_big_stack(|| {
+        let map = std::env::var("SJK_SHOT_MAP").unwrap_or_else(|_| "mp/duel6".into());
+        let Some((mut gpu, _profile)) = open(&format!("maps/{map}.bsp"), [1280, 720], None, &[])
+        else {
+            return;
+        };
+        let (spawn, yaw) = assets::initial_camera(&gpu.bsp).expect("a spawn point");
+        let camera = Vec3::from_array(spawn) + Vec3::Z * 32.0;
+        let pitch = -25.0_f32;
+        let forward = Vec3::new(
+            yaw.to_radians().cos() * pitch.to_radians().cos(),
+            yaw.to_radians().sin() * pitch.to_radians().cos(),
+            pitch.to_radians().sin(),
+        );
+        let hit = gpu
+            .decal_surfaces
+            .ray_hit(camera, forward, 4096.0)
+            .expect("the floor ahead");
+        let at = camera + forward * hit.distance;
+        aim(&mut gpu, camera.to_array(), yaw, pitch);
+        let before = frame(&mut gpu, 40);
+        let mut document = Document::new(&map, 1);
+        document.add(
+            Kind::Light {
+                origin: (at + Vec3::Z * 40.0).to_array(),
+                color: [1.0, 0.15, 0.05],
+                radius: 360.0,
+                intensity: 3.0,
+            },
+            None,
+        );
+        gpu.shot_map_edits(Some(document));
+        assert_eq!(gpu.map_edits.lights.len(), 1, "the light is applied");
+        let lit = frame(&mut gpu, 40);
+        gpu.shot_map_edits(None);
+        let after = frame(&mut gpu, 40);
+        let (changed, _) = changed_pixels(&before, &lit, 40);
+        let (restored, _) = changed_pixels(&before, &after, 40);
+        let redder = before
+            .pixels()
+            .zip(lit.pixels())
+            .filter(|(a, b)| i32::from(b.0[0]) - i32::from(a.0[0]) > 24 && b.0[0] > b.0[2])
+            .count();
+        println!(
+            "{map}: light over {at:?}; pixels changed: lit {changed} ({redder} redder), \
+             restored {restored}"
+        );
+        assert!(redder > 5000, "the light reddens the floor round it");
+        assert!(restored < changed / 20, "taking the light away restores it");
+        println!(
+            "{}",
+            sheet(
+                &[before, lit, after],
+                3,
+                960,
+                &format!("added-light-{}", map.replace('/', "_"))
+            )
+            .display()
+        );
+    });
+}
