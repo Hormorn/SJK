@@ -116,6 +116,13 @@ impl GpuState {
                 }
                 self.sync_cursor_policy();
             }
+            ingame_menu::sjk::COLLECTION => {
+                // The Collection page on its own, as from the classic main menu.
+                if let Some(console) = &mut self.console {
+                    console.open_collection_panel();
+                }
+                self.sync_cursor_policy();
+            }
             ingame_menu::sjk::IDENTITY => {
                 if let Some(console) = &mut self.console {
                     console.open_identity_panel();
@@ -130,6 +137,8 @@ impl GpuState {
                 }
                 self.sync_cursor_policy();
             }
+            // Its panel takes the game menu's place, as F8 opens it.
+            ingame_menu::sjk::CAMERA_CONTROL => self.open_shot_panel(),
             _ => self.back_or_close_game_menu(),
         }
     }

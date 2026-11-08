@@ -4819,7 +4819,7 @@ are in [identity.md](identity.md).
   `identity who [slot]` lists known players (with a slot, that player's bio).
 - The Profile page (in the SJK UI the Profile screen's SJK Profile tab, opened by its
   main page's Profile and profile card and the in-game menu's Profile; the classic
-  menu's SJK page and in-game SJK menu; or the `profile` command) shows the player's
+  menu's SJK page and in-game SJK menu, which also open the Collection; or the `profile` command) shows the player's
   profile as others read it on the hub: name, verified, member since, other names,
   medals (on its own only), the bio (written there, up to 6 lines under the hub's
   rules), their record from the achievement counts and how many achievements and

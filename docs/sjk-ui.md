@@ -1541,8 +1541,11 @@ Settings holds the key bindings. The Report a bug button the other looks put at 
 bottom is left out; the row of icons has it.
 
 The classic menus keep their own in-game bar (`classic.rs`): its Join, Vote, Call
-Vote, Profile and SJK pop-up are unchanged, and F8 (or `cameracontrol`) opens Camera
-control there.
+Vote and Profile are unchanged. Its SJK pop-up (`ingame_menu/sjk.rs`) holds
+Changelog, Credits, Profile, Collection, Identity, Report a bug, Report a player,
+SJK chat and Camera control (Collection and Camera control since 08/11/2026, so the
+classic menus reach them without a command or F8); it keeps retail's 30-high rows
+for its nine entries. F8 (or `cameracontrol`) opens Camera control there too.
 
 ## Profile screen
 
@@ -1614,8 +1617,10 @@ the one chosen up close on the right.
 
 It is one console page (like the Profile page), drawn in this look in every menu style:
 in the SJK UI the main page's and the in-game menu's Collection (its way back "Main
-menu" or "Game menu"), else the `collection`, `achievements` and `unlockables`
-commands open it on its own ("Back"); the `holocrons` command opens its Holocrons tab
+menu" or "Game menu"), else (the classic menus) the main menu's SJK > COLLECTION (its SJK page also has
+SJK CHAT, opening the SJK chat page),
+the in-game SJK pop-up's Collection, the Profile page's See the collection and the
+`collection`, `achievements` and `unlockables` commands open it on its own ("Back"); the `holocrons` command opens its Holocrons tab
 (the Holocrons page). It remembers its tab and what is chosen on each
 for the run.
 

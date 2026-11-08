@@ -32,6 +32,8 @@ pub(crate) enum MainDestination {
     /// The Collection (medals, achievements, shaders, toys, nameplates), drawn by the
     /// console over the menu, on the tab it showed last.
     Collection,
+    /// The SJK chat page, drawn by the console over the menu.
+    SjkChat,
     /// Exit to the desktop.
     Quit,
 }
@@ -124,6 +126,10 @@ impl ClientMenu {
             }
             MainDestination::Collection => {
                 console.open_collection_panel();
+                MenuAction::None
+            }
+            MainDestination::SjkChat => {
+                console.open_sjk_chat_panel();
                 MenuAction::None
             }
             MainDestination::Quit => MenuAction::Quit,

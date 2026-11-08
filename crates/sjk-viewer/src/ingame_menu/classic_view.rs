@@ -186,7 +186,7 @@ fn popup(
         info_line(canvas, place, line, [x, top, width]);
         top += INFO_LINE;
     }
-    let row_height = classic::row_height(count);
+    let row_height = classic::row_height(view.page, count);
     let compact = row_height < 30.0;
     let list = view.page.is_vote_page()
         || view.page == Page::Players
