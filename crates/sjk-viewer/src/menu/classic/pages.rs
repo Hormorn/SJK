@@ -65,6 +65,7 @@ const CHANGELOG_HINT: &str = "What changed in each SJK release, and who made it"
 const UPDATE_HINT: &str = "Check for a newer SJK release and install it";
 const IDENTITY_HINT: &str = "Your SJK identity: your key and the SJK hub";
 const SJK_PROFILE_HINT: &str = "Your SJK profile: medals, bio, record and achievements";
+const SJK_CHAT_HINT: &str = "Talk with every SJK player, on any server or in the menus";
 const COLLECTION_HINT: &str = "Medals, achievements, shaders, toys, holocrons and the Forge";
 const BACK_HINT: &str = "Return to the main menu";
 
@@ -409,9 +410,19 @@ const GAMEPLAY: [Slot; 12] = {
         exit,
     ]
 };
+/// Row `index` of SJK's page: a start-playing list row, 30 high and 31 apart
+/// so its seven entries stay clear of the hint line above BACK and EXIT.
+const fn sjk_row(entry: Entry, label: &'static str, hint: &'static str, index: usize) -> Slot {
+    let top = 191.0 + 31.0 * index as f32;
+    let mut slot = centre_row(entry, label, hint, top);
+    slot.center[1] = top + 15.0;
+    slot.height = 30.0;
+    slot
+}
+
 /// SJK's page behind its button: the start-playing list's layout, holding
 /// SJK's own screens.
-const SJK: [Slot; 12] = {
+const SJK: [Slot; 13] = {
     let [play, profile, settings, sjk] = nav_row();
     let [back, exit] = back_exit();
     [
@@ -419,12 +430,13 @@ const SJK: [Slot; 12] = {
         profile,
         settings,
         sjk,
-        centre_row(Entry::Changelog, "CHANGELOG", CHANGELOG_HINT, 191.0),
-        centre_row(Entry::Credits, "CREDITS", CREDITS_HINT, 226.0),
-        centre_row(Entry::Update, "UPDATE", UPDATE_HINT, 261.0),
-        centre_row(Entry::SjkProfile, "PROFILE", SJK_PROFILE_HINT, 296.0),
-        centre_row(Entry::Collection, "COLLECTION", COLLECTION_HINT, 331.0),
-        centre_row(Entry::Identity, "IDENTITY", IDENTITY_HINT, 366.0),
+        sjk_row(Entry::Changelog, "CHANGELOG", CHANGELOG_HINT, 0),
+        sjk_row(Entry::Credits, "CREDITS", CREDITS_HINT, 1),
+        sjk_row(Entry::Update, "UPDATE", UPDATE_HINT, 2),
+        sjk_row(Entry::SjkProfile, "PROFILE", SJK_PROFILE_HINT, 3),
+        sjk_row(Entry::Collection, "COLLECTION", COLLECTION_HINT, 4),
+        sjk_row(Entry::Identity, "IDENTITY", IDENTITY_HINT, 5),
+        sjk_row(Entry::SjkChat, "SJK CHAT", SJK_CHAT_HINT, 6),
         back,
         exit,
     ]

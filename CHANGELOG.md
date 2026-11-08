@@ -32,7 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
-- Classic menus: the Collection has its own entry, SJK > COLLECTION on the main menu and Collection in the in-game SJK pop-up, and the pop-up also opens Camera control, which was only on F8 there _(Slash)_
+- Classic menus: the Collection has its own entry, SJK > COLLECTION on the main menu and Collection in the in-game SJK pop-up; the main menu's SJK page opens the SJK chat too (SJK > SJK CHAT), and the pop-up Camera control, which was only on F8 there _(Slash)_
 - Textures larger than 2048 pixels are halved down to it (`r_maxTextureSize`, Settings: Largest texture; 0 keeps every size): a 4096 one takes a quarter of the video memory and loads faster _(Sol)_
 - A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
 - Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_

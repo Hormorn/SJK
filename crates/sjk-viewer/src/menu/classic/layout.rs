@@ -68,6 +68,8 @@ pub(crate) enum Entry {
     SjkProfile,
     /// SJK: the Collection (medals, achievements, shaders, toys and the rest).
     Collection,
+    /// SJK: the SJK chat page.
+    SjkChat,
     SoloGame,
     JoinServer,
     CreateServer,
@@ -254,6 +256,7 @@ impl Entry {
             Self::Identity => Outcome::Open(MainDestination::Identity),
             Self::SjkProfile => Outcome::Open(MainDestination::Profile),
             Self::Collection => Outcome::Open(MainDestination::Collection),
+            Self::SjkChat => Outcome::Open(MainDestination::SjkChat),
             Self::Back | Self::No => Outcome::Page(Page::Main),
             Self::SetupBack => Outcome::Page(Page::Setup),
             Self::Profile => Outcome::Open(MainDestination::Player),
@@ -573,14 +576,15 @@ mod tests {
             ]
         );
         assert_eq!(
-            entries(Page::Sjk)[4..10],
+            entries(Page::Sjk)[4..11],
             [
                 Entry::Changelog,
                 Entry::Credits,
                 Entry::Update,
                 Entry::SjkProfile,
                 Entry::Collection,
-                Entry::Identity
+                Entry::Identity,
+                Entry::SjkChat
             ]
         );
         // Every sub-page's navigation row: Play, Profile, Settings, SJK.
@@ -718,6 +722,7 @@ mod tests {
             MainDestination::Identity,
             MainDestination::Profile,
             MainDestination::Collection,
+            MainDestination::SjkChat,
         ] {
             assert!(reachable.contains(&destination), "{destination:?}");
         }

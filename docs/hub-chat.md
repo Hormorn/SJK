@@ -322,8 +322,8 @@ feed: the hub took them, so the sound says the message went out.
   this PC ([Muting a player](#blocking-a-player)); for staff, Delete for everyone, Mute at the hub and Unmute
   at the hub (the client does not know a key's mute flag); under them, what the request
   came to (sending, done, or the hub's refusal). It opens from the dock's
-  Open chat, `sjkchat`, `messagemode5` outside a game, the classic in-game SJK menu's
-  SJK chat and the SJK UI in-game menu's SJK chat icon.
+  Open chat, `sjkchat`, `messagemode5` outside a game, the classic main menu's
+  SJK > SJK CHAT (since 08/11/2026), the classic in-game SJK menu's SJK chat and the SJK UI in-game menu's SJK chat icon.
   The page draws a copy of the chat taken under the identity's lock, never the chat
   itself: a lock held while drawing froze the game. The side panel names no key id
   (none shows in the game, [identity.md](identity.md#settings-and-commands)).

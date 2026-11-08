@@ -1600,7 +1600,8 @@ the one chosen up close on the right.
 
 It is one console page (like the Profile page), drawn in this look in every menu style:
 in the SJK UI the main page's and the in-game menu's Collection (its way back "Main
-menu" or "Game menu"), else (the classic menus) the main menu's SJK > COLLECTION,
+menu" or "Game menu"), else (the classic menus) the main menu's SJK > COLLECTION (its SJK page also has
+SJK CHAT, opening the SJK chat page),
 the in-game SJK pop-up's Collection, the Profile page's See the collection and the
 `collection`, `achievements` and `unlockables` commands open it on its own ("Back"); the `holocrons` command opens its Holocrons tab
 (the Holocrons page). It remembers its tab and what is chosen on each
