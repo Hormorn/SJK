@@ -175,6 +175,18 @@ pub trait Hub: Send {
             "this hub client does not send logs".to_owned(),
         ))
     }
+    /// Send `upload` (already [`LogUpload::fitted`]) unasked, with the player's `note`;
+    /// the hub answers with the id it keeps them under (`PROTOCOL.md`, "Log requests").
+    fn send_own_logs(
+        &mut self,
+        _identity: &Identity,
+        _upload: &LogUpload,
+        _note: &str,
+    ) -> Result<i64, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not send logs".to_owned(),
+        ))
+    }
     /// Decline request `id`.
     fn decline_logs(&mut self, _identity: &Identity, _id: i64) -> Result<(), HubError> {
         Err(HubError::Protocol(
@@ -1792,6 +1804,29 @@ impl Hub for HttpHub {
             Some(LOGS_TIMEOUT),
         )
         .map(|_| ())
+    }
+
+    fn send_own_logs(
+        &mut self,
+        identity: &Identity,
+        upload: &LogUpload,
+        note: &str,
+    ) -> Result<i64, HubError> {
+        #[derive(serde::Deserialize)]
+        struct Kept {
+            id: i64,
+        }
+        let body = upload.own_body(note).to_string();
+        let answer: Kept = parse(self.send_with(
+            Some(identity),
+            "POST",
+            "/v1/logs",
+            body.as_bytes(),
+            "application/json",
+            ANSWER_MAX,
+            Some(LOGS_TIMEOUT),
+        )?)?;
+        Ok(answer.id)
     }
 
     fn decline_logs(&mut self, identity: &Identity, id: i64) -> Result<(), HubError> {
