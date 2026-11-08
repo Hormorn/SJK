@@ -741,7 +741,9 @@ the server, which is what the grid's catch-up did. What it costs remains:
   recorded time 16 ms behind the clock gives way to the live stamp).
 
 Going back to the grid on JoF is one entry (`pacing` in `KNOWN`,
-[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs)). For one player,
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs)), and the text of
+`help_tickrate` ([tickrate_help.rs](../crates/sjk-viewer/src/tickrate_help.rs)), which
+tells players all of this, changes with it. For one player,
 `gameplay_fps_nocap 1` with `gameplay_fps 125` does it today (Sol since 08/11/2026);
 it also lifts JoF's floor of 125 commands a second, so the gameplay FPS must stay at 125.
 Not known: whether Heimdall accepts the grid's stamps under 125 FPS. They sit a step

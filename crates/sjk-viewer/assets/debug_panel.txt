@@ -4771,6 +4771,16 @@ test: The last line should show few corrections and a small worst drift.
 test: Watch for a Heimdall timeNudge kick on a long replay (stamps trail by up to 16 ms).
 note: Not tried on a live server yet. Under 60 FPS it merges commands as it did before.
 
+[tickrate-help]
+area: Gameplay
+title: help_tickrate explains the tick rate and how SJK sends commands on JoF
+change: Frames, commands, snapshots; JoF gets one command a frame, why (Heimdall), the way back.
+change: Ends with what your game uses: FPS cap, gameplay FPS, commands, the server's cap.
+test: help_tickrate on the main menu: the text, then "Commands on a server: one every ...".
+test: On JoF: "Commands: at most one a frame, 125 a second on average", "SJK keeps to it".
+test: gameplay_fps_nocap 1 on JoF, help_tickrate: "on the even clock", "you lifted that".
+note: The text says JoF gets one command a frame: change it with server_caps.rs's pacing.
+
 [join-retries]
 area: Gameplay
 title: Joining resends lost packets and never hangs as a floating camera
