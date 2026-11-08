@@ -215,7 +215,13 @@ impl crate::GpuState {
                 | crate::client_state::ClientPhase::ConnectionError
         );
         let password = console.text_value("password").unwrap_or_default().trim();
-        if !waiting || self.live_session.is_some() || password == self.join_password {
+        // A session loading its map (`resident`) is a join that worked: the menu still
+        // says connecting, but there is nothing to try again.
+        if !waiting
+            || self.live_session.is_some()
+            || self.resident.session.is_some()
+            || password == self.join_password
+        {
             return;
         }
         log::progress(format_args!(

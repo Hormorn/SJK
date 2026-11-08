@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 = cg_statusBalloons: Status bubbles: the chat bubble over SJK players shows why it is up: dots while typing, a pause sign in a menu, a moon while alt-tabbed.
+- Joining a server or changing map no longer joins the same server again and again until it refuses you ("Too Many players with the same IP"): with a server password saved from an earlier join, the client took it for a new one after every map load, graphics reload or failed join _(Sol)_
 - SJK chat page: the Online window holds three rows of faces, and its List shows every online player as a row with the icons of the clients they are on (SJK, JoF EJK, the SJK Launcher); the wheel scrolls it, Faces or Escape goes back _(Sol)_
 - JoF EJK players who are in SJK chat now wear the JoF EJK icon on the scoreboard, found by their name (their client does not tell the hub its slot yet); icon only, no tick (`cl_sjkChatClientIcons 0` turns it off) _(Sol)_
 - Players without the SJK Launcher see on the main page that it is out, with a link to its release page; its x hides it for good (`ui_launcherNotice`, Settings > Interface) _(Sol)_

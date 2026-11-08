@@ -9178,3 +9178,13 @@ test: Open the SJK chat page (sjkchat): up to 27 faces, then +N; hover: card say
 test: Click List: a row per online player, icons on the right; the wheel over rows scrolls.
 test: Faces, Escape or clicking a message brings the faces back; Escape again closes the page.
 test: Before the hub deploy: rows show without icons, cards say only Online now.
+
+[rejoin-loop]
+area: Gameplay
+title: No more joining the same server again and again (Too Many players with the same IP)
+change: A saved password looked new after each map load: the client joined again in a loop.
+change: The password a join sent now moves with the session to the next map's world.
+test: With a password saved (seta password ...), join a JoF server: one join, you stay in.
+test: Wait for a map change: the map loads once, no "joining again" in last-client.log.
+test: Change HDR or FXAA in game (map reloads): you stay on the server, no new join.
+test: Join a full or locked server: the failure screen stays, no join every few seconds.
