@@ -9115,3 +9115,12 @@ change: Before, any image decoded meanwhile could drop them and the frame decode
 test: In a match, a second client switches to creyonwolf (or another HD model) several times.
 test: No hitch; last-client.log has no 'model install ... materials' line in the hundreds of ms.
 note: Same path for NPCs, the menu model stage and map models loaded mid-match.
+
+[texture-size-cap]
+area: Performance
+title: Textures capped at 2048 pixels a side (r_maxTextureSize, Settings: Largest texture)
+change: Textures larger than the cap lose their top mip levels, on every r_picmip path.
+change: 0 keeps every size; nopicmip stages and sky boxes take the cap too. From the next map.
+test: Look at creyonwolf (4096 textures) on a map: still sharp up close, not blurry.
+test: Settings: Largest texture 4096, change map: creyonwolf a little sharper; 1024: softer.
+test: A map with a 4096 sky box: the sky at 2048 still looks right.

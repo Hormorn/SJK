@@ -148,6 +148,9 @@ includes:
   (08/11/2026, art by Sol, AI-assisted): a 300-triangle low poly and 38 plates split from
   the high poly's tiles (they breathe over a glowing core), with their colour, glow and
   normal maps baked from the high-poly models;
+- a texture size cap (08/11/2026, Sol's decision): `r_maxTextureSize`, 2048 by default,
+  halves larger map and model textures down to it, after a community player model's
+  4096x4096 textures held a frame 743 ms;
 - tag collections (08/11/2026, Sol's decision): Alpha for SJK's own tags, Community for
   the ones players drew (Blep's EZ, Gonk and Geyon), each under its own heading in
   Collection > Tags;

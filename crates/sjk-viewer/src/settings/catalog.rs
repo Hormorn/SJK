@@ -2066,6 +2066,11 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         },
     },
     Setting {
+        label: "Largest texture, 0 none (next map)",
+        cvar: crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        kind: ValueKind::Choice(&["1024", "2048", "4096", "0"]),
+    },
+    Setting {
         label: "Texture compression (next map)",
         cvar: crate::world_materials::filtering::mips::compress::CVAR,
         kind: ValueKind::Bool,

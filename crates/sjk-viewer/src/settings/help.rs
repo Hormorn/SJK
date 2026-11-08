@@ -1585,6 +1585,10 @@ const HELP: &[(&str, &str)] = &[
         "Each step halves large textures: a quarter of their video memory. For graphics cards of 4 GB or less.",
     ),
     (
+        crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        "Halves larger textures down to this size: a quarter of their video memory each time. 0 keeps every size.",
+    ),
+    (
         crate::world_materials::filtering::mips::compress::CVAR,
         "Keeps map and model textures compressed: a quarter or less of their video memory, a little blockier. Experimental.",
     ),
