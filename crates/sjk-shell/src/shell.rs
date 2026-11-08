@@ -710,16 +710,23 @@ mod key_display_tests {
     #[test]
     fn togglebind_binds_a_key_to_toggle_a_known_cvar() {
         let mut cvars = CvarRegistry::new();
-        for (name, default) in [("cg_drawFPS", "0"), ("cg_fov", "80")] {
-            cvars
-                .register(crate::CvarDefinition::new(
-                    name,
-                    default,
-                    crate::CvarFlags::NONE,
-                    "test",
-                ))
-                .unwrap();
-        }
+        cvars
+            .register(crate::CvarDefinition::new(
+                "cg_drawFPS",
+                0_i64,
+                crate::CvarFlags::NONE,
+                "test",
+            ))
+            .unwrap();
+        // A float cvar reads back as "80.0": the values must still step past it.
+        cvars
+            .register(crate::CvarDefinition::new(
+                "cg_fov",
+                90.0_f64,
+                crate::CvarFlags::NONE,
+                "test",
+            ))
+            .unwrap();
         let mut shell = Shell::new(cvars, BindTable::new());
         assert_eq!(
             shell.execute_line("togglebind f5 cg_drawfps").unwrap(),
@@ -736,7 +743,7 @@ mod key_display_tests {
             .unwrap();
         let command = shell.binds.get("F6").unwrap().to_owned();
         assert_eq!(command, "toggle cg_fov 80 100 120");
-        for expected in ["100", "120", "80"] {
+        for expected in ["80.0", "100.0", "120.0", "80.0"] {
             shell.execute_line(&command).unwrap();
             assert_eq!(shell.cvars.get("cg_fov").unwrap().value.as_text(), expected);
         }

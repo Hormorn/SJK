@@ -60,7 +60,10 @@ impl Shell {
         let [name, values @ ..] = arguments else {
             return Err(ShellError::Usage("toggle <name> [value1 value2 ...]"));
         };
-        // OpenJK cvar.cpp:1005-1036: exact string cycling, first value on no match.
+        // OpenJK cvar.cpp:1005-1036: string cycling, first value on no match. A typed
+        // cvar reads back as its own text (`cg_fov` 80 as "80.0"), which OpenJK's
+        // string cvars do not, so a number matches a value of the same number too;
+        // otherwise `toggle cg_fov 80 100` stayed on 80 (08/11/2026).
         if !values.is_empty() {
             if values.len() < 2 {
                 return Err(ShellError::Usage("toggle needs at least two values"));
@@ -72,7 +75,7 @@ impl Shell {
                 .unwrap_or_default();
             let next = values
                 .iter()
-                .position(|value| *value == current)
+                .position(|value| same_value(value, &current))
                 .map_or(0, |index| (index + 1) % values.len());
             return self.set_command(&[name.clone(), values[next].clone()], CvarFlags::NONE);
         }
@@ -260,4 +263,14 @@ mod tests {
             );
         }
     }
+}
+
+/// Whether `toggle`'s `value` names the cvar's `current` text: the same text, or the
+/// same number however written ("80" and "80.0").
+fn same_value(value: &str, current: &str) -> bool {
+    value == current
+        || matches!(
+            (value.trim().parse::<f64>(), current.trim().parse::<f64>()),
+            (Ok(value), Ok(current)) if value == current
+        )
 }
