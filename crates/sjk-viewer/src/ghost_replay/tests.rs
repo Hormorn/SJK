@@ -97,6 +97,7 @@ fn playing(run: Run) -> Ghost {
             warp: 0,
             cursor: 0,
             consumed: None,
+            sent: None,
             commands_since_warp: 0,
             corrections: 0,
             worst_drift: 0.0,
@@ -194,6 +195,65 @@ fn a_start_off_the_line_is_steered_back_at_every_command_step() {
             "{step} ms: {messages:?}"
         );
     }
+}
+
+#[test]
+fn a_replay_stamps_its_commands_at_their_recorded_times() {
+    // A run standing still with the view turning, spaced unevenly as one command a
+    // frame records it.
+    let mut run = record(40, |_| (0, 0, 0, 0));
+    let gaps = [6, 8, 9, 5, 11, 7];
+    let mut time = 0;
+    for (index, frame) in run.frames.iter_mut().enumerate() {
+        frame.time = time;
+        time += gaps[index % gaps.len()];
+    }
+    let live = |stamp: i32| DueCommands::from_stamps([stamp]);
+    let pose = standing();
+    let mut ghost = playing(run.clone());
+    // Before the run's first command, the live stamps.
+    assert_eq!(ghost.stamps(live(5_000)).as_slice(), [5_000]);
+    ghost.drive(&input(5_000), &pose).unwrap();
+    // The live clock makes a command every 8 ms; the replay sends the recorded
+    // times it has reached, never one fresher.
+    let mut sent = vec![5_000];
+    let mut stamp = 5_000;
+    while sent.len() < 20 {
+        stamp += 8;
+        for &recorded in ghost.stamps(live(stamp)).as_slice() {
+            assert!(recorded <= stamp, "{recorded} after the clock's {stamp}");
+            ghost.drive(&input(recorded), &pose).unwrap();
+            sent.push(recorded);
+        }
+    }
+    let expected: Vec<i32> = run.frames[..sent.len()]
+        .iter()
+        .map(|frame| 5_000 + frame.time)
+        .collect();
+    assert_eq!(sent, expected);
+    // A hitch: the next recorded time trails the clock by more than `STAMP_LAG`, so
+    // the live stamp goes out and the commands passed over merge into it.
+    stamp += 40;
+    assert_eq!(ghost.stamps(live(stamp)).as_slice(), [stamp]);
+    ghost.drive(&input(stamp), &pose).unwrap();
+    let mut last = stamp;
+    // The rest plays on recorded times, and once played out the next live command
+    // ends the replay.
+    'replay: loop {
+        stamp += 8;
+        for &next in ghost.stamps(live(stamp)).as_slice() {
+            assert!(
+                next > last && next <= stamp,
+                "{next} after {last}, clock {stamp}"
+            );
+            last = next;
+            if ghost.drive(&input(next), &pose).is_none() {
+                break 'replay;
+            }
+        }
+        assert!(stamp < 6_000, "never ended");
+    }
+    assert!(ghost.take_messages()[0].contains("played to the end"));
 }
 
 #[test]

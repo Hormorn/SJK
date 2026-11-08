@@ -4,7 +4,9 @@
 //! Movement is deterministic: the same start and the same commands at the same
 //! durations give the same run, whatever the ping, because the server steps each
 //! command by its own timestamp. A replay therefore resends the recorded commands
-//! (view, keys, buttons, weapon, Force) with fresh stamps. The server owns the
+//! (view, keys, buttons, weapon, Force) at their recorded times from its first stamp
+//! ([`Ghost::stamps`]), not on the live command clock, whose spacing follows the frame
+//! rate on some servers (JoF's, `Pacing::OnePerFrame`). The server owns the
 //! position, so drift (a command lost twice, a slightly different start) is corrected
 //! through the inputs alone ([`steer`]), and only on the ground, where it works: the
 //! movement keys turn to take out a sideways speed and close the offset while the view
@@ -19,6 +21,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use sjk_client::command_rate::DueCommands;
 use sjk_game_jka::pmove::MovementState;
 use sjk_protocol::{PlayerState, UserCommand};
 
@@ -69,6 +72,12 @@ const LOST_VERTICAL: f32 = 64.0;
 const MAX_WARP: i32 = 1_000;
 /// Commands between two clock adjustments.
 const WARP_SPACING: u32 = 3;
+/// How far a recorded command's time may trail the live clock's newest stamp, in
+/// milliseconds. Further behind (a hitch, or a frame rate under 60 on a server that
+/// takes one command a frame), the replay sends the live stamp instead and the
+/// commands it passed over merge into it: no burst of old stamps, which JoF's
+/// anti-cheat reads as a time nudge (`command_rate`).
+const STAMP_LAG: i32 = 2 * sjk_client::command_rate::COMMAND_MILLIS;
 /// A replay waits this long after the player took damage.
 const DAMAGE_COOLDOWN: Duration = Duration::from_secs(5);
 /// `BUTTON_WALKING` and `BUTTON_TALK`: set by the client itself, not a key the
@@ -186,6 +195,8 @@ struct Playback {
     /// Frames passed over are merged into the next command; this is the last one sent
     /// or merged.
     consumed: Option<usize>,
+    /// The stamp of the last command sent.
+    sent: Option<i32>,
     commands_since_warp: u32,
     corrections: u32,
     worst_drift: f32,
@@ -242,6 +253,47 @@ impl Ghost {
 
     pub(crate) fn take_messages(&mut self) -> Vec<String> {
         std::mem::take(&mut self.messages)
+    }
+
+    /// The stamps of the commands to make this frame, given `due`, the live command
+    /// clock's (oldest first). While a run plays, its recorded commands' own times
+    /// from its first stamp, every one the clock's newest stamp has reached: the
+    /// server then steps each command over its recorded duration, which the movement
+    /// depends on (velocity rounding, jump arcs), and each command is compared with
+    /// the recorded state at the same time. The live clock's spacing follows the
+    /// frame rate on some servers (`Pacing::OnePerFrame`), so its stamps would cut
+    /// the run into other durations, and on the ground the drift seen between two
+    /// different times would steer the run off its path. No stamp is fresher than
+    /// the clock's; one trailing it by more than [`STAMP_LAG`] gives way to the
+    /// newest live stamp. Otherwise `due` itself.
+    pub(crate) fn stamps(&self, due: DueCommands) -> DueCommands {
+        let Mode::Playing(playback) = &self.mode else {
+            return due;
+        };
+        let (Some(first), Some(&newest)) = (playback.first_stamp, due.as_slice().last()) else {
+            return due;
+        };
+        let after_sent = |stamp: i32| playback.sent.is_none_or(|sent| stamp > sent);
+        let from = playback.consumed.map_or(0, |consumed| consumed + 1);
+        let Some(next) = playback.run.frames.get(from) else {
+            // Played out: the next live command ends the replay.
+            return DueCommands::from_stamps(
+                due.as_slice().iter().copied().filter(|&s| after_sent(s)),
+            );
+        };
+        let recorded = |frame: &Frame| first.wrapping_add(frame.time).wrapping_sub(playback.warp);
+        if newest.wrapping_sub(recorded(next)) > STAMP_LAG {
+            return DueCommands::from_stamps([newest].into_iter().filter(|&s| after_sent(s)));
+        }
+        // A recorded time at or before the last stamp sent (the clock skipped a
+        // command) is merged into the next command by `play_step`.
+        DueCommands::from_stamps(
+            playback.run.frames[from..]
+                .iter()
+                .map(recorded)
+                .take_while(|&stamp| stamp.wrapping_sub(newest) <= 0)
+                .filter(|&stamp| after_sent(stamp)),
+        )
     }
 
     fn stop_with(&mut self, message: String) {
@@ -631,6 +683,7 @@ fn play_step(playback: &mut Playback, input: &UserCommand, pose: &Pose) -> Step 
         }
     }
 
+    playback.sent = Some(input.server_time);
     let command = UserCommand {
         server_time: input.server_time,
         angles: std::array::from_fn(|i| frame.view[i].wrapping_sub(pose.delta_angles[i]) & 0xFFFF),

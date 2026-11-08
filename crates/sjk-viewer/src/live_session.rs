@@ -268,6 +268,9 @@ impl GpuState {
             previous_frame_time,
             previous_frame,
         );
+        // A ghost replay sends its recorded commands at their recorded times
+        // (`ghost_replay`).
+        let due = self.ghost.stamps(due);
         if let Some(console) = &self.console {
             session.set_packet_dup(console.packet_dup());
         }
