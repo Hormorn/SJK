@@ -1295,13 +1295,37 @@ call): on the Staff page's Overview, beside Verify, their own **Make staff** or
 /v1/staff/staff`, logged and undoable by the owner). It never shows on the creator's
 own player, and admin panel access stays the operator's.
 
-Since 23/10/2026 (Sol's call) what gives, takes back, clears or merges is the creator's
-alone too: medals, unlockables, holocrons, credits and shards, clearing achievements,
-taking a picture down, unlinking and merging keys. The hub refuses those requests from
-other staff (an error `creator_only`); on their Staff page those buttons show dimmed,
-Tab skips them and a press does nothing (`owner_only` in `staff_panel.rs`), and the
-status line says the tab is to read. Other staff keep search, verify, chat moderation,
-picture blocks, log requests and the Logs, Crashes and Chat bans tabs.
+Since 23/10/2026 (Sol's call) what takes back, clears or merges is the creator's alone
+too: taking back medals, saber shaders and holocrons, credits and shards (given or taken),
+clearing achievements, taking a picture down, unlinking and merging keys. The hub refuses
+those requests from other staff (an error `creator_only`); on their Staff page those
+buttons show dimmed, Tab skips them and a press does nothing (`owner_only` in
+`staff_panel.rs`), and the Achievements and Keys tabs' status line says the tab is to read.
+
+Since 08/11/2026 (Sol's call) every staff member gives, from the Staff page: medals (and
+their rank), saber shaders, holocrons and kyber crystals (`gift` in `staff_panel.rs`; the
+hub's `PROTOCOL.md`, "Staff"). Three limits keep it from becoming a source of loot, and the
+creator has none of them:
+
+- never to themselves (their own person, by any of their keys): the hub refuses it
+  (`own_gift`), and on their own player the page dims every Give, Rank and Unlock with
+  "Staff cannot give to themselves";
+- only the saber shaders holocrons can bring (`droppable`): a Unique one, a medal's blade
+  or a blade not opened to drops yet stays the creator's to give (`creator_only`); its row
+  says "owner only" and its Unlock is dimmed;
+- a number a day (the hub's `GIFTS_PER_DAY`, 20 to begin with, gifts undone not counted):
+  past it the hub answers `gift_quota` and the page dims the gifts with "No gifts left
+  today". The page reads how many are left the first time one of those two tabs opens
+  after the page does (`StaffQuery::Gifts`) and counts down with each gift; the Medals and shaders tab says it under the medals, the Holocrons
+  tab beside the tier chosen.
+
+Taking back stays the creator's, but a staff member undoes their own gifts for a day, on
+the **My gifts** tab (below): each gift is a row of the hub's staff log, and the undo
+puts the player back as they were, through the same undo the owner uses (refused when
+something changed since, a holocron opened for one). Every gift and every undo stays in
+the staff log, and the owner can still undo everything a staff member did. Other staff keep
+search, verify, chat moderation, picture blocks, log requests and the Logs, Crashes and
+Chat bans tabs.
 
 The JKR creator (since 22/10/2026) is the creator of JKR, the client SJK is built on
 (Bishop): a flag only the hub operator sets (`sjk-hub jkr-creator KEY_ID`), carried by
@@ -1310,10 +1334,22 @@ rights, no tools, no protection. The player card shows it as a rust JKR CREATOR 
 after SJK TEAM or SJK CREATOR when the person has one.
 
 The Staff page ([staff_panel.rs](../crates/sjk-viewer/src/staff_panel.rs), the SJK
-UI's look) finds players down its left (a name or part of one, colour codes ignored; a
-key id; or, with Seen lately, the players the hub saw last; 15 shown, each with their
-flags and when the hub last saw them in a game, "you" on the player's own), and shows
-the chosen one (the player themself until another is chosen, or with Me) on the right:
+UI's look) finds players down its left: a name or part of one (colour codes and symbols
+ignored, any of the 20 names the hub keeps for them) or a key id typed in the search
+pill; Seen lately, the players the hub saw last; and since 08/11/2026 three scope chips
+(`StaffRequest::SearchIn`, `sjk_identity::SearchScope`): **Here**, the SJK players on the
+server this player is on (offered only while the hub sees them on one), **Online**, the
+players in a game now on any server, and **Team**, the SJK team. The chip chosen stays
+lit and the search pill then searches within it ("Find among the players playing now");
+another press on it goes back to everyone. The hub answers 30 at most; the list shows 15
+a page with `<` and `>`. Each row has the name, the flags and a second line: "you" on
+the player's own, "playing here as <name>" (gold) or "playing now on <ip:port>, as
+<name>" for a player in a game now (the search's `playing`), otherwise when the hub last
+saw them in a game; and when a name search matched a name they wore before rather than the
+one shown, "wore <that name>". A search that finds exactly one player chooses them, so
+`staff <name or key id>` in the console opens the page on that player straight away. The
+page shows the chosen one (the player themself until another is chosen, or with Me) on
+the right:
 their picture, name, flags, how many keys and when last seen beside the note field (the note sent with the next
 medal, unlock, holocron, credits or shards, and with a log request, which everyone
 reads), over a row of tabs (reworked 18/10/2026 at Sol's request, "manage all that's
@@ -1333,7 +1369,8 @@ key ("Merged the other player into this one", "Unlinked the key: it starts afres
   and Unmute, `StaffRequest::ChatMute`; Lift chat bans, `StaffRequest::ChatUnban`,
   [hub-chat.md](hub-chat.md)). The hub does not say whether a player's pictures are
   blocked or whether they are muted at the hub, so both ways are offered;
-- **Medals and unlocks**: every medal of the catalogue with what the player holds (its
+- **Medals and shaders** (Medals and unlocks until 08/11/2026): every medal of the
+  catalogue with what the player holds (its
   medallion wearing its rank's device, the rank's name beside the date): a held medal's
   Rank button ("Rank III"; each press sets the next rank, V back to I,
   `StaffRequest::MedalRank`, `POST /v1/staff/medal-rank` with `key_id`, `medal` and
@@ -1342,9 +1379,11 @@ key ("Merged the other player into this one", "Unlinked the key: it starts afres
   28/10/2026, each press picks the rank Give gives it at, shown as "gives at IV", sent as
   `rank` in `POST /v1/staff/award` only above I, back to I once given), Give
   (Give +1 for a repeatable one already held) and Take back (one award; a repeatable one
-  counts down); beside them every unlockable with whether the player holds it (and since
-  when): Unlock (`StaffRequest::Unlock`) and Relock (`StaffRequest::Relock`), in pages of
-  36 with `<` and `>`;
+  counts down); beside them the saber shaders (every unlockable), with a filter over them
+  (since 08/11/2026: a name or part of one, a number such as `42`, `042` or `#42`, a tier
+  such as `mythical`, or the id; the list follows the typing) and **Held only**, each with
+  its number, its tier or since when the player holds it: Unlock (`StaffRequest::Unlock`)
+  and Relock (`StaffRequest::Relock`), in pages with `<` and `>`;
 - **Holocrons and credits**: the player's holocrons and kyber crystals, the four holocron
   tiers and under them the four crystal tiers to choose, Give (`StaffRequest::HolocronGive`)
   and their twelve newest holocrons and crystals with Remove
@@ -1362,12 +1401,19 @@ key ("Merged the other player into this one", "Unlinked the key: it starts afres
   another key into this player ([Players with several keys](#players-with-several-keys));
 - **Logs**: Request logs for the chosen player and the log requests with Open
   ([Log requests](#log-requests));
-- then two tabs set apart, about every player: **Crashes**, every player's crash reports
-  by kind, then one kind's with Open; and **Chat bans**, the SJK chat bans in force,
+- then three tabs set apart, about every player: **Crashes**, every player's crash
+  reports by kind, then one kind's with Open; **Chat bans**, the SJK chat bans in force,
   newest first (`StaffQuery::ChatBans`, `POST /v1/staff/chat-bans`), each with who
   banned them, until when and whether their address is banned too, and Lift
   (`StaffRequest::ChatUnban`; a ban that holds only an address has no key to name and
-  cannot be lifted from here). A lift takes the player's bans off the list.
+  cannot be lifted from here; a lift takes the player's bans off the list); and, since
+  08/11/2026, **My gifts**, the staff member's own gifts of the last day, newest first
+  (`StaffQuery::Gifts`, `POST /v1/staff/gifts`): what (a medal and its rank, a shader by
+  number and name, a holocron or crystal tier), to whom, when and the note, and how many
+  gifts are left today ("no daily limit" for the creator), each with Undo on a second
+  press (`StaffRequest::GiftUndo`, `POST /v1/staff/gift-undo` with the gift's number; the
+  answer is the player's profile, which replaces theirs on the page, and the gift is marked
+  undone).
 
 Each request's answer shows in the status line at the bottom left; one that answers a
 profile replaces the chosen player's, and the player's own when it is theirs.
@@ -1430,7 +1476,9 @@ once.
   screen's SJK Profile tab; `collection` opens the Collection, `achievements` on its
   Achievements tab and `unlockables` on its Shaders tab (in the SJK UI the Collection
   screen, [sjk-ui.md](sjk-ui.md#collection)).
-- `staff` opens the Staff page, for a staff key only.
+- `staff` opens the Staff page, for a staff key only (again: closes it); `staff <name or
+  key id>` opens it searching for that player, and chooses them when the search finds
+  only them.
 - `sjkavatar <file>` reads a picture file and shows it on the Profile page, ready to
   send with Use this picture; `sjkavatar clear` takes the player's picture down;
   `sjkavatar` alone opens the picture panel ([Pictures](#pictures)).

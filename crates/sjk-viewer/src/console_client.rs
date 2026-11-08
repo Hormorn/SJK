@@ -1231,7 +1231,7 @@ impl crate::GpuState {
             }
             crate::console::STAFF_COMMAND => {
                 if let Some(console) = &mut self.console {
-                    console.toggle_staff_panel();
+                    console.staff_command(&args.join(" "));
                 }
                 self.sync_cursor_policy();
             }

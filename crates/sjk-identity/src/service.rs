@@ -2545,7 +2545,16 @@ impl Worker {
     /// says staff (the hub refuses the others too).
     fn staff(&mut self, request: &StaffRequest) {
         let me = lock(&self.snapshot).me.clone();
+        // A search's answer also says where the players found play.
+        let mut found = None;
         let outcome = match (self.hub.as_mut(), self.registered, &me) {
+            (Some(hub), true, Some(me)) if me.staff && request.is_search() => {
+                hub.staff_search(&self.identity, request).map(|answer| {
+                    let players = answer.players.clone();
+                    found = Some(answer);
+                    players
+                })
+            }
             (Some(hub), true, Some(me)) if me.staff => hub.staff(&self.identity, request),
             (Some(_), true, _) => Err(HubError::Rejected {
                 status: 403,
@@ -2573,8 +2582,14 @@ impl Worker {
             Ok(profiles) => {
                 staff.failed = false;
                 staff.message = crate::staff::done(request, profiles.len());
-                if matches!(request, StaffRequest::Search(_)) {
-                    staff.players = profiles;
+                if request.is_gift() {
+                    staff.gave();
+                }
+                if let StaffRequest::GiftUndo { id, .. } = request {
+                    staff.undid(*id);
+                }
+                if let Some(found) = found {
+                    staff.found(request, found);
                 } else if let StaffRequest::ChatUnban { key_id } = request {
                     // Lifted: off the list of bans in force.
                     staff.chat_bans.retain(|ban| ban.key_id != *key_id);
@@ -5618,6 +5633,16 @@ mod tests {
                     ..LogRequestRow::default()
                 })),
                 StaffQuery::Crash(_) => return Err(refused(404, "not_found")),
+                StaffQuery::Gifts => StaffAnswer::Gifts(crate::staff::GiftLog {
+                    gifts: vec![crate::staff::GiftRow {
+                        id: 77,
+                        action: "award".into(),
+                        what: "bug_hunter".into(),
+                        ..Default::default()
+                    }],
+                    per_day: Some(20),
+                    left: Some(19),
+                }),
                 _ => StaffAnswer::LogRequests(Vec::new()),
             })
         }
@@ -5874,6 +5899,11 @@ mod tests {
             Fake::record(self, format!("staff {request:?}"))?;
             Ok(match request {
                 StaffRequest::Search(_) => vec![profile("Found"), profile("Other")],
+                StaffRequest::SearchIn { .. } => vec![profile("Found")],
+                StaffRequest::GiftUndo { key_id, .. } => vec![Profile {
+                    key_id: key_id.clone(),
+                    ..profile("Target")
+                }],
                 StaffRequest::Award { key_id, medal, .. } => vec![Profile {
                     key_id: key_id.clone(),
                     medals: vec![crate::wire::Medal {
@@ -8398,6 +8428,40 @@ mod tests {
         );
         assert_eq!(lock(&snapshot).me.as_ref().unwrap().medals[0].rank, 3);
         assert_eq!(state().message, "Set bug_hunter to rank 3");
+        // A scoped search keeps its scope; the gifts of the day count down with each gift
+        // and up again with an undo.
+        worker.handle(
+            Command::Staff(StaffRequest::SearchIn {
+                query: String::new(),
+                scope: crate::staff::SearchScope::Online,
+            }),
+            t0,
+        );
+        assert_eq!(state().players.len(), 1);
+        assert_eq!(state().message, "1 player playing now");
+        assert_eq!(state().scope, Some(crate::staff::SearchScope::Online));
+        worker.handle(Command::StaffQuery(StaffQuery::Gifts), t0);
+        assert_eq!(state().message, "1 gift today, 19 left");
+        worker.handle(
+            Command::Staff(StaffRequest::HolocronGive {
+                key_id: "fedcba9876543210".into(),
+                tier: "rare".into(),
+                note: String::new(),
+            }),
+            t0,
+        );
+        assert_eq!(state().gifts.unwrap().left, Some(18));
+        worker.handle(
+            Command::Staff(StaffRequest::GiftUndo {
+                id: 77,
+                key_id: "fedcba9876543210".into(),
+            }),
+            t0,
+        );
+        let gifts = state().gifts.unwrap();
+        assert!(gifts.gifts[0].undone);
+        assert_eq!(gifts.left, Some(19));
+        assert_eq!(state().message, "Undid the gift");
         // A key that is not staff is refused here, before the hub hears it.
         lock(&snapshot).me.as_mut().unwrap().staff = false;
         let before = fake.log().len();

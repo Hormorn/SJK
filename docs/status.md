@@ -1,3 +1,28 @@
+## Staff tools: finding players, and staff gifts
+
+08/11/2026, `personal/staff-tools-3` (Sol: "make the staff tools better in game, for search,
+finding people etc", and let staff award medals, holocrons, kyber crystals and shaders). The
+Staff page ([identity.md](identity.md#staff)) finds players by scope as well as by name:
+Here (the SJK players on this server), Online (in a game now, anywhere) and Team, the search
+pill searching within the chip lit; 30 found show 15 a page; each row says where the player
+plays now ("playing here as ...", "playing now on ip:port") or when they were last seen, and
+the old name a search matched ("wore ..."); a search that finds one player chooses them, and
+`staff <name>` opens the page on that player. The saber shaders take a filter (name, number,
+tier) and Held only. Every staff member now gives medals, ranks, shaders, holocrons and
+crystals, never to themselves, only shaders holocrons drop, 20 a day, and undoes their own
+gifts of the day on a new My gifts tab; taking back, credits and shards stay the creator's.
+The hub's side is its `staff-gifts` branch (`POST /v1/staff/search` `scope`/`playing`,
+`/v1/staff/gifts`, `/v1/staff/gift-undo`, the gift gate), not deployed: until it is, the
+scopes, My gifts and staff gifts are refused.
+Verified on Windows 11: `sjk-identity` tests (the scoped search, gift list and gift undo
+bodies and answers, older hubs' answers without `playing`, the service counting gifts down and
+up), the page's tests (scope chips and a second press, one found is chosen, pages of 15, the
+shader filter and Held only, staff gifts dimmed on themselves and past the day's gifts,
+non-droppable shaders the owner's, My gifts' Undo on a second press, every state fits the
+canvas at four sizes), the world shot `duel6_sjk_staff` with the new tabs, looked at; fmt,
+build, clippy (no new warnings) and the workspace tests. The hub branch's own tests pass
+(lib, api, cli, panel). Not verified: in a game or against a hub with the branch.
+
 ## WHEEL OF DOOM (client side)
 
 07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins

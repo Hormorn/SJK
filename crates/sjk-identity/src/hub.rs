@@ -114,6 +114,19 @@ pub trait Hub: Send {
             "this hub client does not send staff requests".to_owned(),
         ))
     }
+    /// A staff search (`StaffRequest::Search` or `SearchIn`): the players found and where
+    /// those in a game are playing. By default the players [`Hub::staff`] answers, playing
+    /// nowhere.
+    fn staff_search(
+        &mut self,
+        identity: &Identity,
+        request: &StaffRequest,
+    ) -> Result<crate::staff::Found, HubError> {
+        Ok(crate::staff::Found {
+            players: self.staff(identity, request)?,
+            playing: Vec::new(),
+        })
+    }
     /// The maps the hub keeps edits for (`PROTOCOL.md`, "Map edits").
     fn map_edits(
         &mut self,
@@ -1463,6 +1476,17 @@ fn open_call(ids: &[u64]) -> (&'static str, Value) {
 fn staff_call(request: &StaffRequest) -> (&'static str, Value) {
     match request {
         StaffRequest::Search(query) => ("/v1/staff/search", json!({ "query": query })),
+        // A hub from before 08/11/2026 refuses `scope`: a plain search sends none.
+        StaffRequest::SearchIn { query, scope } => (
+            "/v1/staff/search",
+            match scope.wire() {
+                (scope, Some(server)) => {
+                    json!({ "query": query, "scope": scope, "server": server })
+                }
+                (scope, None) => json!({ "query": query, "scope": scope }),
+            },
+        ),
+        StaffRequest::GiftUndo { id, .. } => ("/v1/staff/gift-undo", json!({ "id": id })),
         // Rank 1 sends no rank, as before ranks: a hub from before 28/10/2026 refuses one.
         StaffRequest::Award {
             key_id,
@@ -1600,6 +1624,7 @@ fn staff_query_call(query: &StaffQuery) -> (&'static str, Value) {
         StaffQuery::Crashes(signature) => ("/v1/staff/crashes", json!({ "signature": signature })),
         StaffQuery::Crash(id) => ("/v1/staff/crash", json!({ "id": id })),
         StaffQuery::ChatBans => ("/v1/staff/chat-bans", json!({})),
+        StaffQuery::Gifts => ("/v1/staff/gifts", json!({})),
     }
 }
 
@@ -1733,7 +1758,7 @@ impl Hub for HttpHub {
         let (path, body) = staff_call(request);
         let answer = self.send(Some(identity), "POST", path, Some(body))?;
         match request {
-            StaffRequest::Search(_) => {
+            StaffRequest::Search(_) | StaffRequest::SearchIn { .. } => {
                 let found: Players = parse(answer)?;
                 Ok(found.players)
             }
@@ -1745,6 +1770,15 @@ impl Hub for HttpHub {
             | StaffRequest::RemapBlock { .. } => Ok(Vec::new()),
             _ => Ok(vec![parse(answer)?]),
         }
+    }
+
+    fn staff_search(
+        &mut self,
+        identity: &Identity,
+        request: &StaffRequest,
+    ) -> Result<crate::staff::Found, HubError> {
+        let (path, body) = staff_call(request);
+        parse(self.send(Some(identity), "POST", path, Some(body))?)
     }
 
     fn staff_query(
@@ -1778,6 +1812,7 @@ impl Hub for HttpHub {
             }
             StaffQuery::Crash(_) => StaffAnswer::Crash(Box::new(parse::<CrashDetail>(answer)?)),
             StaffQuery::ChatBans => StaffAnswer::ChatBans(parse::<ChatBanRows>(answer)?.bans),
+            StaffQuery::Gifts => StaffAnswer::Gifts(parse::<crate::staff::GiftLog>(answer)?),
         })
     }
 
@@ -2859,6 +2894,71 @@ mod tests {
             (block.slot, block.serverid, block.name.as_str()),
             (5, 77, "^1Troll")
         );
+    }
+
+    #[test]
+    fn scoped_searches_and_gift_undos_send_the_protocols_fields() {
+        use crate::staff::SearchScope;
+        // A plain search sends no scope, so a hub from before scopes still takes it.
+        assert_eq!(
+            staff_call(&StaffRequest::Search("so".into())).1,
+            json!({"query": "so"})
+        );
+        assert_eq!(
+            staff_call(&StaffRequest::SearchIn {
+                query: String::new(),
+                scope: SearchScope::Online,
+            }),
+            ("/v1/staff/search", json!({"query": "", "scope": "online"}))
+        );
+        assert_eq!(
+            staff_call(&StaffRequest::SearchIn {
+                query: "fox".into(),
+                scope: SearchScope::Server("1.2.3.4:29070".into()),
+            })
+            .1,
+            json!({"query": "fox", "scope": "server", "server": "1.2.3.4:29070"})
+        );
+        assert_eq!(
+            staff_call(&StaffRequest::SearchIn {
+                query: String::new(),
+                scope: SearchScope::Staff,
+            })
+            .1,
+            json!({"query": "", "scope": "staff"})
+        );
+        assert_eq!(
+            staff_call(&StaffRequest::GiftUndo {
+                id: 812,
+                key_id: "0123456789abcdef".into(),
+            }),
+            ("/v1/staff/gift-undo", json!({"id": 812}))
+        );
+        assert_eq!(
+            staff_query_call(&StaffQuery::Gifts),
+            ("/v1/staff/gifts", json!({}))
+        );
+        // The answers: where the players found play, and the gifts with what is left.
+        let found: crate::staff::Found = parse(json!({
+            "players": [],
+            "playing": [{"key_id": "0123456789abcdef", "server": "1.2.3.4:29070",
+                         "slot": 3, "name": "^1Fox"}]
+        }))
+        .unwrap();
+        assert_eq!(found.playing[0].slot, 3);
+        let old: crate::staff::Found = parse(json!({"players": []})).unwrap();
+        assert!(old.playing.is_empty(), "an older hub sends no playing");
+        let log: crate::staff::GiftLog = parse(json!({
+            "gifts": [{"id": 9, "action": "award", "key_id": "0123456789abcdef",
+                       "name": "Fox", "what": "bug_hunter", "rank": 2, "note": "",
+                       "created": 1_791_000_000, "undone": false}],
+            "per_day": 20, "left": 19
+        }))
+        .unwrap();
+        assert_eq!((log.per_day, log.left), (Some(20), Some(19)));
+        assert_eq!(log.gifts[0].rank, Some(2));
+        let creator: crate::staff::GiftLog = parse(json!({"gifts": []})).unwrap();
+        assert_eq!(creator.left, None, "the creator has no limit");
     }
 
     #[test]

@@ -472,6 +472,9 @@ Remove on a second press (`StaffRequest::HolocronRemove`, `POST
 /v1/staff/holocron-remove`). A crystal given by staff is a sealed row of source `staff`:
 clearing an achievement never takes it back, and it opens like an earned one. The hub's answer is the
 target's profile and replaces the chosen player's, and the player's own when it is theirs.
+Since 08/11/2026 every staff member gives holocrons and crystals, never to themselves and a
+number a day, and undoes their own gifts of the day on the My gifts tab; Remove stays the
+creator's ([identity.md](identity.md#staff)).
 
 ### `debug_holocron`
 

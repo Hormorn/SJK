@@ -1547,8 +1547,8 @@ test: Get hit while limp: "Ouch! You got up". In a duel: "No ragdoll in a duel".
 
 [staff-owner-actions]
 area: Menus & settings
-title: Staff page: giving, taking back and merging are the owner's
-change: Non-creator staff see medal/unlock/holocron/credit/clear/merge/unlink dimmed.
+title: Staff page: taking back, credits, clearing and merging are the owner's
+change: Non-creator staff see take back/credits/shards/clear/merge/unlink dimmed (08/11: gifts open).
 change: Tab skips them, a press does nothing; the hub refuses them too (creator_only).
 test: As Sol: every Staff page button works as before.
 test: As other staff: those buttons dimmed, the tab says it is to read; mute still works.
@@ -9157,3 +9157,16 @@ test: A JoF EJK player in SJK chat on your server: Tab shows the EJK icon on the
 test: Their row has no tick even if verified; their player card is unchanged.
 test: Two players with that name on the server: neither row gets the icon.
 test: cl_sjkChatClientIcons 0: the row gets no mark at all (not SJK's emblem).
+
+[staff-tools-3]
+area: Menus & settings
+title: Staff page: Here/Online/Team lists, pages, shader filter, staff gifts and My gifts
+change: Here (SJK players on your server), Online, Team chips; 15 a page; playing now or seen.
+change: Staff give medals, ranks, shaders, holocrons, crystals: not to themselves, 20 a day.
+change: Shader filter (name, number, tier), Held only; My gifts tab with Undo; staff <name>.
+test: On a server with another SJK player: staff, Here lists them, "playing here as <name>".
+test: Online and Team list players; a second press on the lit chip lists everyone again.
+test: staff <part of a name>: the page opens on that player when the search finds only them.
+test: Medals and shaders: type moon, then 42, then mythical: the list follows; Held only too.
+test: Give a rare holocron to a test player, then My gifts: listed; Undo twice: it goes again.
+note: Needs the hub's staff-gifts branch deployed; until then Here/Online/Team and My gifts fail.
