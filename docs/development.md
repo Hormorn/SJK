@@ -147,6 +147,7 @@ Contributions reach `main` through pull requests, one topic per pull request.
   the game or an off-screen world shot (`world_shot` tests) both do. Sol posts the
   good ones to the Discord `#screenshots` channel, so pick clear, full-frame shots
   with no personal details in them.
+- Reviews and merges follow [reviewing.md](reviewing.md).
 - Assistants push only to the contributor's fork or a branch they were
   authorized to use, never to `main` of this repository. Once review has started,
   add commits rather than rewriting the branch unless a reviewer asks for a rebase.

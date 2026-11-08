@@ -183,6 +183,7 @@ impl NativeGame {
             self.map.as_ref(),
             self.gametype,
             self.map_generation,
+            self.mod_movement.legacy_fixes,
         );
         // `SP_worldspawn` always writes the level's start time, a map or none.
         let start = (CS_LEVEL_START_TIME, server_time.to_string().into_bytes());

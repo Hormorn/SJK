@@ -295,17 +295,19 @@ fn generated_color(input: VertexOutput) -> vec4<f32> {
     var diffuse = input.lighting_diffuse.rgb;
     // Bit 0: `r_modelPixelLight`; bits 1..3: `r_toonModels`, which needs each pixel's
     // own normal (bands drawn per vertex would follow the triangles).
-    if point_lights.metadata.y != 0u && input.light_ambient.a != 0.0 &&
+    // A model normal map lights each pixel through its own bent normal as well.
+    if (point_lights.metadata.y != 0u || model_normal_on) && input.light_ambient.a != 0.0 &&
         (rgb_kind == 4 || rgb_kind == 9) {
         var light = EntityLight(input.light_ambient.rgb,
             input.light_directed, input.light_direction);
         if (point_lights.metadata.y & 1u) != 0u && model_grid.bounds.w != 0u {
             light = spatial_model_light(input.world_position);
         }
+        let normal = model_shading_normal(input.world_normal);
         if toon_models() {
-            diffuse = toon_diffuse(input.world_position, input.world_normal, light);
+            diffuse = toon_diffuse(input.world_position, normal, light);
         } else {
-            diffuse = diffuse_light(input.world_normal, light);
+            diffuse = diffuse_light(normal, light);
         }
     }
     if rgb_kind == 1 { color = vec4(vec3(1.0), color.a); }
@@ -362,6 +364,10 @@ fn animated_image_frame(animation: vec4<f32>, index: i32) -> i32 {
 }
 fn stage_fragment(input: VertexOutput) -> vec4<f32> {
     fragment_point_mask = finite_point_mask(input.world_position);
+    // Before any branch on a varying: the frame takes screen-space derivatives. The
+    // flag is the stage's, so the whole draw takes the same side.
+    model_normal_on = false;
+    if (u32(stage.wave_functions.w) & 16u) != 0u { model_normal_prepare(input); }
     let uv = input.stage_uv;
     // Uploaded BSP lightmaps (including the fallback) have alpha one. In these
     // modes the composition hook replaces their RGB, so sampling them is wasted.
@@ -411,6 +417,49 @@ fn stage_fragment(input: VertexOutput) -> vec4<f32> {
         output = vec4(output.rgb * (vec3(1.0) + dynamic_light_modulation(input)), output.a);
     }
     return output;
+}
+
+// A model's normal map (SJK; `models` in the material maps module): the stage's second
+// slot holds it, linear, and `secondary_animation.xy` its `normalScale`. MD3 and Ghoul2
+// vertices carry no tangents, so the frame comes from the screen-space derivatives of the
+// position and the picture coordinates (Schuler's cotangent frame), its t axis the
+// picture's downward one, as the world's maps read it. Two-sided faces seen from behind
+// turn toward the viewer.
+var<private> model_normal: vec3<f32>;
+var<private> model_normal_on: bool;
+
+fn model_normal_prepare(input: VertexOutput) {
+    let uv = input.stage_uv;
+    let uv_dx = dpdx(uv);
+    let uv_dy = dpdy(uv);
+    let p_dx = dpdx(input.world_position);
+    let p_dy = dpdy(input.world_position);
+    let texel = textureSampleGrad(secondary_images, secondary_sampler, uv, 0, uv_dx, uv_dy);
+    var geometric = normalize(input.world_normal);
+    if dot(geometric, camera.camera_position - input.world_position) < 0.0 {
+        geometric = -geometric;
+    }
+    let across_dy = cross(p_dy, geometric);
+    let across_dx = cross(geometric, p_dx);
+    let tangent = across_dy*uv_dx.x + across_dx*uv_dy.x;
+    let bitangent = across_dy*uv_dx.y + across_dx*uv_dy.y;
+    let lengths = vec2(dot(tangent, tangent), dot(bitangent, bitangent));
+    model_normal = geometric;
+    model_normal_on = true;
+    if min(lengths.x, lengths.y) > 1e-20 {
+        // rend2 `CalcNormal`, with `r_normalMapStrength` as the world's maps take it.
+        let strength = f32((((point_lights.metadata.z >> 16u) + 64u) & 255u))/64.0;
+        var n = texel.rgb - vec3(0.5);
+        n = vec3(n.xy*stage.secondary_animation.xy*strength, 0.0);
+        n.z = sqrt(clamp((0.25 - n.x*n.x) - n.y*n.y, 0.0, 1.0));
+        model_normal = normalize(n.x*tangent*inverseSqrt(lengths.x)
+            + n.y*bitangent*inverseSqrt(lengths.y) + n.z*geometric);
+    }
+}
+
+// The normal a model pixel is lit by: its bent one when the stage has a normal map.
+fn model_shading_normal(normal: vec3<f32>) -> vec3<f32> {
+    return select(normal, model_normal, model_normal_on);
 }
 
 // The sRGB display value of linear `c`, as the stage's sRGB image held it.

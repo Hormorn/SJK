@@ -938,6 +938,11 @@ impl Predictor {
         self.fake_noclip_boost = boost.filter(|boost| boost.is_finite() && *boost > 0.0);
     }
 
+    /// The movement policy in force, which [`Self::set_config`] replaces.
+    pub fn config(&self) -> MovementConfig {
+        self.config
+    }
+
     /// Refresh movement policy without discarding the replay state.
     pub fn set_config(&mut self, config: MovementConfig) {
         self.config = config;
@@ -2582,6 +2587,7 @@ mod dual_jump_hull_tests;
 
 #[path = "pmove_wall_moves.rs"]
 mod wall_moves;
+pub(crate) use wall_moves::back_flip as in_back_flip;
 pub use wall_moves::{in_wall_rebound, wall_hold_yaw};
 
 #[path = "pmove_saber_base.rs"]

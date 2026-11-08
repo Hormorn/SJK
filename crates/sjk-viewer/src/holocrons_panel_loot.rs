@@ -70,8 +70,12 @@ const KYBER_NOTES_CHARS: usize = 150;
 const BACK_Y: f32 = 988.0;
 const BACK_WIDTH: f32 = 150.0;
 
+/// Sol's rule for editions (06/11/2026, [`crate::editions`]; the hub applies it), as the
+/// notes say it.
+const EDITION_NOTE: &str = "Alpha holocrons bring Alpha things only; Beta ones, Beta or Alpha.";
+
 /// The notes on how the rolls are made, and the rarest card.
-fn notes() -> [String; 6] {
+fn notes() -> [String; 7] {
     let (rarity, finish, chance) = loot::rarest();
     let table = crate::loot_odds::current();
     [
@@ -87,12 +91,13 @@ fn notes() -> [String; 6] {
         "The card is picked evenly among the cards of its rarity; a rarity with no card yet stays sealed.".to_owned(),
         "Gifts from the SJK team are given, not found; they open the same way.".to_owned(),
         format!("Bonus banner, on top: {} / {} / {} / {} (Uncommon to Mythical).", loot::percent(f64::from(table.banner[0])/1000.0), loot::percent(f64::from(table.banner[1])/1000.0), loot::percent(f64::from(table.banner[2])/1000.0), loot::percent(f64::from(table.banner[3])/1000.0)),
+        EDITION_NOTE.to_owned(),
     ]
     .map(crate::terms::say_owned)
 }
 
 /// The notes on how a kyber crystal's shader is picked, and its pity.
-fn kyber_notes(pity: Option<crate::kyber::Pity>) -> [String; 5] {
+fn kyber_notes(pity: Option<crate::kyber::Pity>) -> [String; 6] {
     let every = crate::kyber::current().pity_every;
     [
         "The shader's tier is rolled with the crystal's odds, then the shader is picked among the droppable shaders of that tier, the ones you do not hold yet first. Holding them all, any of them comes and the copy stacks.".to_owned(),
@@ -103,6 +108,7 @@ fn kyber_notes(pity: Option<crate::kyber::Pity>) -> [String; 5] {
         ),
         "Each achievement brings its crystal once, when it unlocks: its reward shows on the Achievements tab.".to_owned(),
         "Crystals are never dropped by play, bought, sold, traded or broken down.".to_owned(),
+        "A crystal brings only shaders of its own edition or an older one: an Alpha crystal Alpha ones only, a Beta one Beta or Alpha.".to_owned(),
     ]
     .map(crate::terms::say_owned)
 }

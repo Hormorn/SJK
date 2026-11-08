@@ -6,10 +6,11 @@
 //! time ([`super::editor::escape_step`]) and the key bound to `mapedit` leaves, whatever
 //! has the keyboard.
 //!
-//! Three pages: Selected (hide it, remap its shader to one found by a search; on a caulk,
+//! Four pages: Selected (hide it, remap its shader to one found by a search; on a caulk,
 //! nodraw or sky face: Same plane, Connected and Fill), Place (an MD3 from the game data,
-//! then turn, lift, nudge, scale or grab the placed model) and Edits (the map's edits;
-//! delete one, undo and redo; the Recent rows' switch); under them the scope of new edits,
+//! then turn, lift, nudge, scale or grab the placed model), Edits (the map's edits;
+//! delete one, undo and redo; the Recent rows' switch) and Weather (rain, a storm, snow,
+//! fog and wind kept for the map, [`weather_choice`]); under them the scope of new edits,
 //! the last command's answer (the hub's to Publish too), Publish and Editor off. The
 //! shader and model lists start with the Recent rows the browser editor shares
 //! ([`super::recent`]). Every button runs the editor's own command ([`super::editor`]),
@@ -33,6 +34,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 pub(crate) const TAB_SELECTED: u16 = 1;
 pub(crate) const TAB_PLACE: u16 = 2;
 pub(crate) const TAB_EDITS: u16 = 3;
+pub(crate) const TAB_WEATHER: u16 = 4;
 /// Selected: hide it (or remove a placed model), its whole compiled model, a copy of it.
 pub(crate) const HIDE: u16 = 10;
 pub(crate) const HIDE_GROUP: u16 = 11;
@@ -81,6 +83,16 @@ pub(crate) const EDITOR_OFF: u16 = 44;
 /// Edits: the Recent rows' switch, and forgetting them.
 pub(crate) const REMEMBER: u16 = 45;
 pub(crate) const FORGET: u16 = 46;
+/// Weather: the four presets (as `r_weatherForce` 1 to 4), fog and wind on or off, what
+/// is seen now, the map's own.
+pub(crate) const WEATHER_DRIZZLE: u16 = 50;
+pub(crate) const WEATHER_RAIN: u16 = 51;
+pub(crate) const WEATHER_STORM: u16 = 52;
+pub(crate) const WEATHER_SNOW: u16 = 53;
+pub(crate) const WEATHER_FOG: u16 = 54;
+pub(crate) const WEATHER_WIND: u16 = 55;
+pub(crate) const WEATHER_SEEN: u16 = 56;
+pub(crate) const WEATHER_OWN: u16 = 57;
 /// The model list's rows on show are `MODEL_ROW..MODEL_ROW + MODEL_ROWS`, the edits'
 /// `EDIT_ROW..`, the shaders' `SHADER_ROW..`.
 pub(crate) const MODEL_ROW: u16 = 100;
@@ -105,16 +117,123 @@ pub(crate) enum Tab {
     Selected,
     Place,
     Edits,
+    Weather,
 }
 
 impl Tab {
+    /// Every page, in the tabs' order.
+    pub(crate) const ALL: [Self; 4] = [Self::Selected, Self::Place, Self::Edits, Self::Weather];
+
     pub(crate) fn token(self) -> u16 {
         match self {
             Self::Selected => TAB_SELECTED,
             Self::Place => TAB_PLACE,
             Self::Edits => TAB_EDITS,
+            Self::Weather => TAB_WEATHER,
         }
     }
+}
+
+/// A button of the Weather page.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WeatherChoice {
+    /// What `r_weatherForce` 1 to 4 make: drizzle, rain, a storm, snow.
+    Preset(u32),
+    /// The light ground fog on or off.
+    Fog,
+    /// The wind on or off.
+    Wind,
+    /// Keep the weather seen now.
+    Seen,
+    /// Give the map its own weather back.
+    Own,
+}
+
+/// The first word of a weather command, lower case.
+fn weather_word(command: &str) -> String {
+    command
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
+const FALLING: &[&str] = &[
+    "lightrain",
+    "rain",
+    "acidrain",
+    "heavyrain",
+    "snow",
+    "sand",
+    "spacedust",
+];
+const FOGS: &[&str] = &["mist", "fog", "heavyrainfog", "light_fog"];
+const WINDS: &[&str] = &["wind", "constantwind", "gustingwind"];
+
+/// Whether the weather `kept` has a command of `words`.
+pub(crate) fn weather_has(kept: &[String], words: &[&str]) -> bool {
+    kept.iter()
+        .any(|command| words.contains(&weather_word(command).as_str()))
+}
+
+/// Whether the weather `kept` has fog, and wind.
+pub(crate) fn weather_fog_and_wind(kept: &[String]) -> (bool, bool) {
+    (weather_has(kept, FOGS), weather_has(kept, WINDS))
+}
+
+/// The weather commands a Preset, Fog or Wind button keeps, from those kept now (`kept`,
+/// none for the map's own): a preset is `r_weatherForce`'s weather with the fog kept;
+/// Fog adds `mist` or takes every fog out; Wind adds `wind` or takes every wind out.
+/// Empty: the map's own weather again.
+pub(crate) fn weather_choice(kept: &[String], choice: WeatherChoice) -> Vec<String> {
+    let keep_others = |words: &[&str]| -> Vec<String> {
+        kept.iter()
+            .filter(|command| !words.contains(&weather_word(command).as_str()))
+            .cloned()
+            .collect()
+    };
+    match choice {
+        WeatherChoice::Preset(level) => {
+            let mut commands: Vec<String> = crate::weather::settings::forced_commands(level)
+                .iter()
+                .map(|command| (*command).to_owned())
+                .collect();
+            commands.extend(
+                kept.iter()
+                    .filter(|command| FOGS.contains(&weather_word(command).as_str()))
+                    .cloned(),
+            );
+            commands
+        }
+        WeatherChoice::Fog if weather_has(kept, FOGS) => keep_others(FOGS),
+        WeatherChoice::Fog => {
+            let mut commands = kept.to_vec();
+            commands.push(crate::weather::effects::MIST.to_owned());
+            commands
+        }
+        WeatherChoice::Wind if weather_has(kept, WINDS) => keep_others(WINDS),
+        WeatherChoice::Wind => {
+            let mut commands = kept.to_vec();
+            commands.push("wind".to_owned());
+            commands
+        }
+        WeatherChoice::Seen | WeatherChoice::Own => Vec::new(),
+    }
+}
+
+/// The preset `kept` amounts to (1 drizzle to 4 snow), if it is one: its falling weather.
+pub(crate) fn weather_preset(kept: &[String]) -> Option<u32> {
+    let falling: Vec<String> = kept
+        .iter()
+        .map(|command| weather_word(command))
+        .filter(|word| FALLING.contains(&word.as_str()))
+        .collect();
+    (1..=crate::weather::settings::FORCE_MAX as u32).find(|&level| {
+        crate::weather::settings::forced_commands(level)
+            .iter()
+            .filter(|command| FALLING.contains(command))
+            .eq(falling.iter())
+    })
 }
 
 /// What a click or key asks the editor for.
@@ -157,6 +276,8 @@ pub(crate) enum Action {
     /// The Recent rows' switch, and forgetting them.
     Remember,
     Forget,
+    /// A button of the Weather page.
+    Weather(WeatherChoice),
 }
 
 /// What the selection is, as the panel names it.
@@ -239,6 +360,13 @@ pub(crate) struct Facts {
     pub(crate) can_redo: bool,
     /// Why the last look at the hub's map edits fell short, when it did.
     pub(crate) hub_problem: Option<String>,
+    /// The weather an edit keeps here (its commands), and whether that edit is for this
+    /// server only; `None`: the map's own.
+    pub(crate) weather: Option<(Vec<String>, bool)>,
+    /// The map's own weather, as the server (or the map) names it.
+    pub(crate) map_weather: Vec<String>,
+    /// The player forces weather (`r_weatherForce`), which replaces the kept one here.
+    pub(crate) forced: bool,
 }
 
 /// The panel's state.
@@ -824,6 +952,15 @@ impl Panel {
             TAB_SELECTED => self.show(Tab::Selected),
             TAB_PLACE => self.show(Tab::Place),
             TAB_EDITS => self.show(Tab::Edits),
+            TAB_WEATHER => self.show(Tab::Weather),
+            WEATHER_DRIZZLE => return Some(Action::Weather(WeatherChoice::Preset(1))),
+            WEATHER_RAIN => return Some(Action::Weather(WeatherChoice::Preset(2))),
+            WEATHER_STORM => return Some(Action::Weather(WeatherChoice::Preset(3))),
+            WEATHER_SNOW => return Some(Action::Weather(WeatherChoice::Preset(4))),
+            WEATHER_FOG => return Some(Action::Weather(WeatherChoice::Fog)),
+            WEATHER_WIND => return Some(Action::Weather(WeatherChoice::Wind)),
+            WEATHER_SEEN => return Some(Action::Weather(WeatherChoice::Seen)),
+            WEATHER_OWN => return Some(Action::Weather(WeatherChoice::Own)),
             HIDE => return Some(Action::Hide),
             HIDE_GROUP => return Some(Action::HideGroup),
             COPY => return Some(Action::Copy),
@@ -949,10 +1086,15 @@ impl Panel {
             KeyCode::ArrowLeft | KeyCode::ArrowRight if !event.repeat => {
                 let right = key == KeyCode::ArrowRight;
                 match self.focus {
-                    TAB_SELECTED | TAB_PLACE | TAB_EDITS => {
-                        let tabs = [Tab::Selected, Tab::Place, Tab::Edits];
+                    TAB_SELECTED | TAB_PLACE | TAB_EDITS | TAB_WEATHER => {
+                        let tabs = Tab::ALL;
+                        let count = tabs.len();
                         let at = tabs.iter().position(|tab| *tab == self.tab).unwrap_or(0);
-                        let next = if right { (at + 1) % 3 } else { (at + 2) % 3 };
+                        let next = if right {
+                            (at + 1) % count
+                        } else {
+                            (at + count - 1) % count
+                        };
                         self.show(tabs[next]);
                     }
                     SCOPE_ALL | SCOPE_SERVER => {
@@ -1323,6 +1465,29 @@ impl GpuState {
             Action::Scope(Scope::ThisServer) => ("mapedit_scope", text(&["server"])),
             Action::Publish => ("mapedit_publish", vec![]),
             Action::EditorOff => ("mapedit", text(&["off"])),
+            Action::Weather(WeatherChoice::Seen) => ("mapedit_weather", vec![]),
+            Action::Weather(choice) => {
+                let kept = self
+                    .map_edits
+                    .panel
+                    .facts
+                    .weather
+                    .as_ref()
+                    .map_or(&[][..], |(commands, _)| commands.as_slice());
+                let commands = weather_choice(kept, choice);
+                if commands.is_empty() && kept.is_empty() {
+                    self.map_edits
+                        .panel
+                        .answer(Ok(vec!["The map has its own weather already".into()]));
+                    return;
+                }
+                let words = if commands.is_empty() {
+                    "-".to_owned()
+                } else {
+                    commands.join(", ")
+                };
+                ("mapedit_weather", vec![words])
+            }
         };
         let result = self.map_edit_command(name, &args);
         let ok = result.is_ok();
@@ -1505,6 +1670,15 @@ impl GpuState {
                 .collect()
         });
         let (can_undo, can_redo) = state.history.can();
+        let weather = document.and_then(|document| {
+            let kept = document.weather(server.as_deref())?;
+            let own = document
+                .active(server.as_deref())
+                .any(|edit| edit.server.is_some() && matches!(edit.kind, Kind::Weather { .. }));
+            Some((kept.to_vec(), own))
+        });
+        let map_weather = self.weather.map_commands().to_vec();
+        let forced = self.context.weather.force() != 0;
         let hub_problem = match &state.hub_note {
             Some(Err(problem)) => Some(problem.clone()),
             _ => None,
@@ -1535,6 +1709,9 @@ impl GpuState {
             can_undo,
             can_redo,
             hub_problem,
+            weather,
+            map_weather,
+            forced,
         };
         let vfs = self.vfs.clone();
         let panel = &mut self.map_edits.panel;
@@ -1716,6 +1893,42 @@ impl GpuState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn words(commands: &[&str]) -> Vec<String> {
+        commands
+            .iter()
+            .map(|command| (*command).to_owned())
+            .collect()
+    }
+
+    /// The Weather page's buttons: a preset keeps the fog, Fog and Wind switch theirs,
+    /// and taking everything away gives the map its own weather back.
+    #[test]
+    fn weather_buttons_build_the_commands_kept() {
+        let storm = weather_choice(&[], WeatherChoice::Preset(3));
+        assert_eq!(storm, words(&["heavyrain", "gustingwind"]));
+        assert_eq!(weather_preset(&storm), Some(3));
+        let foggy = weather_choice(&storm, WeatherChoice::Fog);
+        assert_eq!(foggy, words(&["heavyrain", "gustingwind", "mist"]));
+        assert_eq!(weather_fog_and_wind(&foggy), (true, true));
+        let snow = weather_choice(&foggy, WeatherChoice::Preset(4));
+        assert_eq!(snow, words(&["snow", "wind", "mist"]), "the fog stays");
+        assert_eq!(weather_preset(&snow), Some(4));
+        let calm = weather_choice(&snow, WeatherChoice::Wind);
+        assert_eq!(calm, words(&["snow", "mist"]));
+        assert_eq!(
+            weather_choice(&calm, WeatherChoice::Wind),
+            words(&["snow", "mist", "wind"])
+        );
+        let clear = weather_choice(&words(&["mist"]), WeatherChoice::Fog);
+        assert!(clear.is_empty(), "nothing left: the map's own");
+        assert_eq!(
+            weather_preset(&words(&["constantwind ( 0 9 0 )", "fog"])),
+            None
+        );
+        assert_eq!(weather_preset(&words(&["lightrain", "light_fog"])), Some(1));
+        assert!(weather_choice(&storm, WeatherChoice::Own).is_empty());
+    }
 
     #[test]
     fn only_md3s_outside_the_player_models_are_placed() {

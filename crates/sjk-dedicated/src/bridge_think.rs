@@ -462,6 +462,46 @@ impl NativeGame {
         }
     }
 
+    /// Whether the running mod refuses the `kill` command now (JA+'s `Cmd_Kill_f`, VisionJK
+    /// `g_cmds.c:548-559`: in a duel, and in a team game without `jp_allowTeamKill`),
+    /// saying nothing. `killother` is not refused: it calls `G_Kill` itself.
+    pub(super) fn kill_refused(&self, client: usize) -> bool {
+        let duelling = self
+            .peer(client)
+            .is_some_and(|peer| peer.state.duel_in_progress());
+        self.mod_combat.kill.refuses_kill(duelling, self.gametype)
+    }
+
+    /// `player_die`'s choice of the attacker for a suicide (`MOD_SUICIDE`: `kill`,
+    /// `killother`, a power duel's or a team change's) under a mod that credits it
+    /// (JA+, VisionJK `g_combat.c:2432-2438`): the player or the world killed it, and
+    /// somebody pushed or hit it within the last five seconds (`ps.otherKiller`), so it
+    /// is that one's frag, as a fall to death is in the base game. Only a player or an NPC
+    /// still there is credited.
+    pub(super) fn credit_suicide(&self, client: usize, request: &mut DeathRequest) {
+        if !self.mod_combat.kill.credits_last_attacker(
+            client as u16,
+            request.means,
+            request.attacker,
+            request.npc_attacker,
+        ) {
+            return;
+        }
+        let Some(credited) = self
+            .peer(client)
+            .and_then(|peer| peer.wounds.other_killer.credited(request.level_time))
+        else {
+            return;
+        };
+        let player = usize::from(credited) < self.players.places()
+            && usize::from(credited) != client
+            && self.peer(usize::from(credited)).is_some();
+        if player || self.npcs.roster.is_npc(credited) {
+            request.attacker = Some(credited);
+            request.npc_attacker = !player;
+        }
+    }
+
     /// `Cmd_Kill_f`: a living player kills itself; a spectator or a corpse cannot.
     pub(super) fn kill(&mut self, client: usize, server_time: i32) {
         let Some(peer) = self.peer_mut(client) else {

@@ -42,6 +42,7 @@ const CHANGES: &[&str] = &[
     "mapedit_sky",
     "mapedit_delete",
     "mapedit_fill",
+    "mapedit_weather",
     super::gizmo::COMMAND,
 ];
 
@@ -264,6 +265,10 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: draw the selected faces with the texture the surfaces round them use (or the shader given), one step to undo",
     ),
     (
+        "mapedit_weather",
+        "Map editor: keep this map's weather: what you see now, or the weather commands given (heavyrain, gustingwind, mist; '-' gives the map its own back)",
+    ),
+    (
         "mapedit_scope",
         "Map editor: new edits for all servers or only this server",
     ),
@@ -429,6 +434,7 @@ impl GpuState {
             "mapedit_link" => self.map_edit_link(args),
             "mapedit_fill" => self.map_edit_fill(args),
             "mapedit_scope" => self.map_edit_scope(args),
+            "mapedit_weather" => self.map_edit_weather(args),
             "mapedit_undo" => self.map_edit_step(true),
             "mapedit_redo" => self.map_edit_step(false),
             "mapedit_delete" => {
@@ -1169,6 +1175,52 @@ impl GpuState {
         self.map_edit_saved(format!(
             "Edit {id} removed: the face is drawn as nothing again"
         ))
+    }
+
+    /// `mapedit_weather [<command>, ...] | -`: the map's weather for the scope, in place of
+    /// its own: the world effect commands given (`r_we`'s, separated by commas), or with
+    /// none the weather seen now (forced, typed with `r_we`, the `r_weatherFog 2` fog);
+    /// `-` gives the map its own weather back.
+    fn map_edit_weather(&mut self, args: &[String]) -> Result<Vec<String>, String> {
+        let server = self.map_edit_server()?;
+        let text = args.join(" ");
+        let text = text.trim();
+        if text == "-" {
+            let document = self.map_edit_document()?;
+            let id = document
+                .edits
+                .iter()
+                .find(|edit| edit.server == server && matches!(edit.kind, Kind::Weather { .. }))
+                .map(|edit| edit.id)
+                .ok_or("No weather edit for this scope: the map has its own weather")?;
+            document.remove(id);
+            return self.map_edit_saved("Weather: the map's own again".into());
+        }
+        let commands: Vec<String> = if text.is_empty() {
+            self.weather
+                .seen_commands(&self.context.weather)
+                .ok_or("No weather to keep here: force some (r_weatherForce, r_we) or name it: mapedit_weather heavyrain, gustingwind, mist")?
+        } else {
+            text.split(',')
+                .map(|command| command.split_whitespace().collect::<Vec<_>>().join(" "))
+                .filter(|command| !command.is_empty())
+                .collect()
+        };
+        for command in &commands {
+            crate::weather::check_command(command)
+                .map_err(|_| format!("{command}: not a weather command (r_we names them)"))?;
+        }
+        super::document::check_weather(&commands)?;
+        let forced = self.context.weather.force() != 0;
+        let line = commands.join(", ");
+        let id = self
+            .map_edit_document()?
+            .add(Kind::Weather { commands }, server);
+        let mut answer = format!("{id}: weather {line}");
+        if forced {
+            answer.push_str(" (r_weatherForce replaces it for you: 0 shows what players see)");
+        }
+        self.map_edit_saved(answer)
     }
 
     /// `mapedit_sky <shader> [all]`: draw sky shader `shader` instead of the selected

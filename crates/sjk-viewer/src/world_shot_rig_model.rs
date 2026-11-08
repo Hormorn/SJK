@@ -41,7 +41,8 @@ fn rig_model_on_a_demo() {
         let _ = frame(&mut gpu, 10);
         let appearance = Appearance {
             model: format!("models/players/{rig}"),
-            variant: "default".to_owned(),
+            // SJK_TEST_VARIANT: one of the model's variants (sjk_rig_<variant>.cfg).
+            variant: std::env::var("SJK_TEST_VARIANT").unwrap_or_else(|_| "default".to_owned()),
         };
         let entity = EntityId::new(u64::from(target) + 1);
         let names = [Some("single_1".to_owned()), None];

@@ -15,6 +15,8 @@ pub(super) struct Editor {
     /// The list of the players who whispered you, opened from the recipient's name
     /// (`chat/view/recipient.rs`).
     pub(super) pm_list: bool,
+    /// The row's + or cog menu, when one is open (`chat/row_tools.rs`).
+    pub(super) menu: Option<super::row_tools::RowMenu>,
     pub(super) layout: super::editing::DraftLayout,
     /// Dead key shown at the caret until its composition arrives.
     pub(super) dead: DeadKey,
@@ -28,6 +30,7 @@ impl Editor {
             channel,
             recipient: None,
             pm_list: false,
+            menu: None,
             layout: super::editing::DraftLayout::default(),
             dead: DeadKey::default(),
         }

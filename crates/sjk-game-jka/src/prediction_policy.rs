@@ -91,6 +91,13 @@ const GRAPPLE_ANIMS: [&str; 9] = [
     "BOTH_PLAYER_PA_3",
 ];
 
+/// `BG_InGrappleMove` for one animation: by name (one lookup), as the view asks it every
+/// frame.
+pub(crate) fn in_grapple_move(animation: u16) -> bool {
+    crate::legacy_animation_name(usize::from(animation))
+        .is_some_and(|name| GRAPPLE_ANIMS.contains(&name))
+}
+
 /// Whether the server holds the player's view this snapshot: a melee grapple or throw, a
 /// saber lock (`PM_SetPMViewAngle` while `saberLockTime` runs) and, on a JA+ server
 /// (`japlus`, the session's rules, asked only when it matters), [`japlus_view_locked`]'s
@@ -112,11 +119,7 @@ pub fn server_holds_view(player: &PlayerState, japlus: impl FnOnce() -> JaPlusRu
     if player.movement_type() == PM_FREEZE {
         return false;
     }
-    // By name (one lookup each), as this is asked every frame.
-    let grapple = |animation: u16| {
-        crate::legacy_animation_name(usize::from(animation))
-            .is_some_and(|name| GRAPPLE_ANIMS.contains(&name))
-    };
+    let grapple = in_grapple_move;
     if THROWN_HAND_EXTENDS.contains(&player.force_hand_extend())
         || grapple(player.leg_animation())
         || grapple(player.torso_animation())

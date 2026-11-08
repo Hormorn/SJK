@@ -1,3 +1,277 @@
+## WHEEL OF DOOM (client side)
+
+07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins
+for credits, `toy_wheelofdoom` (Collection > Toys, the quick wheel, a bind): a first press
+shows the price, a second spins; the hub (its `wheel-of-doom` branch, `GET /v1/wheel-of-doom`,
+`POST /v1/wheel-of-doom/spin`) takes the price, keeps the 5 minute cooldown and rolls one of
+16 segments. A placeholder wheel stands before the spinner and spins 6 s onto it, for every SJK
+player near (the hub's toy event `wheel_of_doom` `spin_<outcome>`); the spinner gets one of
+twelve effects on their own input or view for 15 to 30 s (reversed keys, inverted mouse,
+mirror, upside down, blind, drunk, tiny or huge FOV, no saber, quack, walk, bunny), the
+mystery box's blast and `kill`, a curse, nothing, or a Mythical holocron
+([wheel-of-doom.md](wheel-of-doom.md)). Settings > Sound > Toys, `s_toyWheelOfDoomSound`.
+Verified on Windows 11: unit tests (segments and the stop under the pointer, the slowing spin,
+the ticks, stop, laugh, fanfare and blast, unknown outcomes, the refusals, each effect's input
+and view transform, timers and clearing, the curse; the identity side's answers, event and
+refusals with the cooldown's seconds), off-screen world shots of the wheel on duel6, fmt, build,
+clippy. Not verified: in a game or against the hub; the Mirror pass on a live surface, the
+pinhole, the saber toggle on real servers, the wheel's placement against walls. The model is a
+placeholder for Sol's.
+
+## Rig chains feel the player's movement, and can keep out of the arms
+
+06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only
+the animation, so hair and capes did not trail behind a running player, and arms passed
+through hair. New `dynamic` options: `drag <n>`, air on the chain from the player's velocity
+and turn through the world, and `arms`, which keeps the chain out of the upper arms and
+forearms, measured only for a rig with a chain that asks
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Without them nothing changes.
+A teleport or a change of the origin's source (the free camera's switch between prediction
+and interpolation, another body on a reused mesh) starts the movement again at rest, facing
+included; only a rig with a chain that has `drag` follows it; an actor whose origin is not read
+stops at once.
+Verified on Windows 10: unit tests (trailing, every facing, teleports with a snapped facing, a
+change of source, a paused clock, the yaw's wrap, arm exemption), fmt, build, clippy, workspace tests. Measured in release on local
+rigs, a whole pose per actor while running: 19.5 to 22.1 us (55 chain joints, drag and arms),
+37.8 to 39.8 us (120), 22.4 to 22.4 us (63, drag only); no allocation per frame. Measured again
+with the review's changes, the old and new code run in turn with the options on: 22.3 to 22.0 us
+(55), 41.1 to 41.5 us (120), 21.7 to 22.4 us (63), the same within the runs' spread. Hair vertices
+in the arms' capsules on one rig: 46 to 0 on the empty-handed run, 27 to 5 on a saber swing.
+A cost: arms pushing hair move it faster on the empty-handed run, its largest step in 8 ms
+going from 1.3 units to 2.2 with drag and 4.1 without, so the two go together; saber swings
+and the saber run did not jump more. A cape's outer columns should not take `arms`: the arm swings
+with the stride and shoved them, their hem rising and falling 13.6 units per stride (2.5 without)
+and following the knees, so a local cape keeps it on its middle columns only. Played in game on
+Windows 10 with `main` merged and the review's changes: hair and capes trail as they should, the
+collisions hold, the speed shows, and it runs well. Not verified: in a game on Linux and macOS, other machines or other rigs; the arm can show through
+a column without `arms`.
+
+## Rig cloth: limits, clearance, layers, levers and eased tilts
+
+06/11/2026, `feat/rig-dynamics-cloth` from `fix/rig-dynamics-forked-chains`. Hair, capes
+and soft parts on rig models could not be tuned to behave: the spring's lag is in game
+units, so short bones swung far on a small step; a long bone passed through a leg its two
+ends missed; layered chains crossed; single-joint strands could not move; and a change of
+animation made a long chain's tip jump. New `dynamic` options `limit` and `clearance`, a
+`layer <outer> over <inner>` line, swinging about a pivot for stacked single joints, and
+pushes and tilts eased in over a few frames for limited chains
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Collision of a bone's middle
+applies to every colliding chain, with its own at-rest exemption, and a push on the middle
+moves the joint twice as far; the rest needs the new options. The log names `layer` lines that
+do nothing. Verified on Windows 10:
+unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
+tests. Played in game on this client with `main` merged and the review's changes, together with
+the motion options ("Rig chains feel the player's movement" above): it works and runs well.
+Not verified: in a game on Linux and macOS, other machines or other rigs; arms
+and head are not capsules and the mesh itself is not checked, so a sharp pose can show
+cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
+
+## Commands carry the previous frame's server time, as stock
+
+07/11/2026, `fix/command-stamp-previous-frame` from `main` `92623e3b`. A frame's commands
+now carry the clock as the frame before read it (`ServerClock::command_time`), as stock's
+and JoF EJK's do (`CL_SendCmd` stamps `cl.serverTime` before `CL_SetCGameTime` reads the
+next one), on every server but SJK's own (`server_caps::FRESH_STAMPS`, Sol's choice: no
+anti-cheat there, so its players keep the fresher stamp) and with both pacings; what the
+frame draws and predicts keeps its own reading. SJK's stamps were a frame fresher than every other client's (8 ms at
+125 FPS), and on JoF since 02/11 fresher still (no rounding down to the grid). Milamber,
+who maintains Heimdall, found that it reads stamps ahead of a stock client's as a
+negative `cl_timeNudge`, the one it kicks for, and stamps that trail as a positive one,
+which it does not kick: the 23/10, 02/11 and 04/11 changes worked on trailing stamps and
+repeated commands (which a server drops before running), and the idle kicks with steady
+timing of 06/11 fit a steady offset. A new timeline forgets the previous reading, and a
+hitch's commands trail the reading by at most 50 ms ([networking.md](networking.md)). The
+server view's command ages read about a frame higher. Verified on Windows 11: unit tests
+(each frame's commands carry the previous frame's reading with 8, 7, 4 and 3 ms frames;
+at most 50 ms behind after a 1.3 s hitch; a restart, a 500 ms reset and a new connection
+never carry the old timeline's time; the hitch tests stamp as the client now does), fmt,
+build, clippy, workspace tests. Not verified: in a game, or that Heimdall kicks less.
+
+## JoF takes `cl_packetdup` as set again
+
+06/11/2026, `personal/jof-packetdup-back` from `main` `48ccdbf2`, Sol's request after
+Milamber, who maintains Heimdall, confirmed that the default is right: the JoF-only cap
+of 04/11 (no repeated commands, "No repeated commands on JoF" below) is reverted, with
+its `cl_packetdup_nocap` cvar, so packets repeat the one before (`cl_packetdup` 1), as
+JoF EJK's always do. Sol was kicked twice on 06/11 with the cap on while idle, and the
+server view lines ([networking.md](networking.md)) showed steady timing before both
+kicks (command ages 51 to 58 ms each second, no gap or frame over 40 ms), so the cause
+is still unknown. Verified on Windows 11: fmt, build, clippy, workspace tests. Not
+verified: in a game, or that Heimdall kicks less.
+
+## Rig chains that fork or stack joints no longer jump
+
+06/11/2026, `fix/rig-dynamics-forked-chains` from `main` `26526290`. A dynamic chain whose
+rig stacks joints on one spot or forks threw its bones about: a near-zero bone aimed its
+parent along the bind matrices' rounding, and a fork's branches aimed from where their
+parent had been before it turned. A single pass, parents first, now places each joint
+from where its parent stands, and a bone under `MIN_BONE` turns nothing
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Verified on Windows 10: a
+unit test of such a fork (fails on `main`, 22.8 degrees in a frame), the ignored sway test
+on a local hair rig (largest turn in a frame 137 degrees before, 13 after), fmt, build,
+clippy, workspace tests. Not verified: in a game on this branch alone; the rig's short
+bones still stray far from their animated direction under a hard sway.
+
+## Chat row tools: x, + and a cog
+
+06/11/2026, `personal/chat-tab-tools` from `main` `6b317e9f`, Sol's request: the open
+chat composer's row gets an × on a hovered button to take it off, a + to put a hidden
+chat back, and a cog for quick settings (only this chat or every chat while typing,
+Tab skipping the chosen chat, opening on the last chat), each writing the Settings >
+Chat setting it stands for ([client.md](client.md)). Verified on Windows 11: unit
+tests (the × only on hover and never on All, closing the chosen chat moves to All, the
++ lists only usable hidden chats and closes when empty, the cog's switches and what
+the frame saves, Escape and a press elsewhere closing the menus), the chat tests,
+world shots of the three states, fmt, clippy, the startup stack check. Not verified:
+in a game.
+
+## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
+
+06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`
+the saber deals JA+ 2.4 B7's damage, after VisionJK's rebuild of its module
+(`w_saber.c`, `g_combat.c`, `g_cmds.c`): `jp_alterDMG` and JA+'s per-move table (the
+`jp_*Attack` settings), `jp_SaberThrowScaleDMG`, `jp_reduceSaberBlock`,
+`jp_allowSaberTouchDMG`, the specials' weights, no cuts from under the chat bubble, the
+halved blow at a saber wielder; and a suicide right after a push or hit is the pusher's
+frag, `/kill` refused in duels and (without `jp_allowTeamKill`) team games. The rules
+reach the shared damage as a `Copy` struct from a new `ServerMod::combat` hook
+([server.md](server.md#ja-mode) lists what runs). Verified on Windows 11: unit tests of
+the move table and ramp with numbers worked from VisionJK, of one damage trace (the base
+game's 15 unchanged with the rules off and under `jp_alterDMG 0`, 165 from the table,
+82 at a saber, the throw scaled to 7, the touch, the chat bubble, the block chance's
+draw), of the settings read and of the `/kill` rules; and a headless `sjk-server` on
+loopback (`g_mod japlus`, `jp_alterDMG 1`, `jp_reduceSaberBlock 30`,
+`jp_allowSaberTouchDMG 1`, eight bots, sabers only) for four minutes: 17 saber kills, no
+panic. Not verified: against a running JA+ or VisionJK server (no damage numbers were
+compared in a game), the `/kill` credit and refusal in a game (bots never type `kill`),
+NPC blades under the rules; the ramp follows SSE `float`, one point above the original
+Linux module where a product is exactly on an integer (110 at 0.7). Left out:
+`jp_saberNoForceDrain` (clients predict the Force cost), `jp_flipkickScaleDMG` (no flip
+kick damage on the server yet), JA+'s own moves, `d_saberSPStyleDamage 0`.
+
+## Create game picks the server mod
+
+06/11/2026, `personal/create-game-server-mod` from `main` `d473a66b`, Sol's request after
+JA+ mode step 1 (below): Create game gets a Server mod row under "Server", Base game
+(the default) or JA+, kept in `ui_hostServerMod` by id, and the hosted `sjk-server` is
+always started with `--set g_mod <id>`. The choices are one table,
+`local_server::SERVER_MODS` (id and name), checked by a test against the server's
+`server_mods::SERVER_MODS` and `BASE`. The screen is the SJK UI's in both menu styles,
+so the one row serves the classic style too; `devmap` keeps the base game
+([sjk-ui.md](sjk-ui.md#create-game), [client.md](client.md)). Verified on Windows 11:
+unit tests (the command line carries `g_mod japlus` or `base` and nothing else changes,
+the row cycles and reaches the settings, the choice survives a restart and an unknown
+id falls back to the base game, the client's table matches the server's, the screen
+still lays out at 1080p, 4K and 4:3). Not verified: the screen was not looked at (the
+world shots were not run) and no game was hosted with JA+ from the client.
+
+## SJK's server as a JA+ server: JA+'s Force rules
+
+06/11/2026, `personal/japlus-force` from `main` `d473a66b`, Sol's request (JA+ server mode,
+the Force changes). The Force code the server runs, the NPCs' too, takes a rule struct
+from the running mod (`sjk_game_jka::force_rules`, the new `ServerMod::force` hook, the
+base game's by default): with `g_mod japlus`, `jp_pushPullKnockDown`, push and pull on
+teammates with `g_friendlyFire`, `jp_fixAbsorb`, `jp_pushAll` (items flung, back in 30
+seconds), `jp_gripOpenSaber`, the grip in a roll with `jp_fixRoll` and `jp_cloakFuel`, after
+VisionJK's `w_force.c` ([server.md](server.md#ja-mode)). `jp_gripSpeedScale` now runs on
+the server and SJK's prediction reads it from a JA+ server's info, as VisionJK's cgame does
+([networking.md](networking.md#ja-movement-rules)); the mod's latched settings
+(`jp_pushAll`) take effect at the next map. Verified on Windows 11: unit tests of the rule
+struct, the throw (teammates, knocked-down players, items, absorb), the grip's weapon
+check, the gripped saber, the cloak battery, the item fling and return, the grip speed
+from server info, the JA+ crate's rules at its defaults and after changes, and the server
+(the base game's rules unchanged whatever JA+ settings say, JA+'s following their
+settings at once, the latch); a headless `sjk-server +set g_mod japlus` with five bots on
+loopback ran 90 seconds without a fault. Not verified: any client joined, so neither the
+rules in play nor the grip speed prediction were seen; no comparison with a running JA+ or
+VisionJK server. Left: `jp_forceCombo` (push and pull grabs, rage with speed), the
+flamethrower, `jp_saberNoForceDrain` (saber code), NPCs flinging items.
+
+## JA+ duels on SJK's server (`g_mod japlus`)
+
+06/11/2026, `personal/japlus-duels` from `main` `d473a66b`, the next step of the JA+
+server mode: JA+'s private duels from VisionJK's rebuild (`g_cmds.c` `Cmd_EngageDuel_f`,
+`g_active.c` duel think, `japlus/g_japlus_dim.c`), as plain rule values the shared duel
+code reads (`sjk_game_jka::duel::DuelRules`, new `ServerMod::duels` and
+`ServerMod::command` hooks). Duellists and the others pass through each other with
+`jp_DuelAlpha` 0 or more (every trace of a player leaves them out); the JA+ challenge,
+start refill, bow, unlit sabers, `engage_FullForceDuel`, no distance limit and the
+winner's report run as [server.md](server.md#ja-mode) lists; SJK's client now predicts
+JA+ isolation only where the server plays it ([networking.md](networking.md)). Verified
+on Windows 11: unit tests of the shared rules (base game unchanged, JA+ challenge,
+start, think, winner report, full force), of the JA+ settings, of the client's
+prediction rule, and server tests with three bots on a mapless server (base game
+collides and duels as before; JA+ isolation on and off with `jp_DuelAlpha`; refill and
+bow; full-force damage; base game without `engage_FullForceDuel`). Not verified: a duel
+in a real game with a client, on a map, against EternalJK or the JA+ plugin; no
+comparison with a running JA+ or VisionJK server. Left out: the 3 seconds of walking
+through players after a duel (no JA+ client predicts it), the saber throw in a
+full-force duel, pushing a duellist's missiles, the alternate dimension.
+
+## SJK's server as a JA+ server (`g_mod japlus`), step 1
+
+06/11/2026, `personal/japlus-mode` from `main` `a1ca867a`, Sol's request: remake JA+'s
+server side as a mode of SJK's server, with VisionJK's rebuild of the JA+ 2.4 B7 module
+as the reference. Sol chose (06/11): the server announces itself as JA+, admins log in
+with SJK identity keys (JA+ passwords opt-in), the gameplay core comes first, and the
+code lives in its own crate behind server mod hooks. Step 1 is the hooks
+(`sjk-server-mod`), the JA+ crate (`sjk-server-mod-japlus`) and `g_mod`: JA+'s identity
+and its 187 settings, `jp_cinfo` holding only the rules the server plays, and the shared
+movement's JA+ rules for every player, chosen from those bits
+([server.md](server.md#ja-mode) lists what runs and what does not). Verified on
+Windows 11: unit tests of both crates and of the server (identity, `jp_cinfo` at JA+'s
+defaults and after changes, every player's movement rules, no legacy fixes, `g_mod`
+latched, the base game unchanged), and a headless `sjk-server +set g_mod japlus` on
+loopback whose `getinfo` reported `game japlus` and whose `getstatus` held `gamename JA+
+Mod v2.4 B7`, `V 2.4B7` and `jp_cinfo 19`. Not verified: any client joined, so the
+prediction of SJK, EternalJK or the JA+ plugin on it was never seen; no comparison
+with a running JA+ or VisionJK server.
+
+## Clan chats: each clan its own
+
+05/11/2026, `personal/clan-chat-own` from `main` `fcf82fc9`, with hub branch
+`clan-chat-own` (Sol's report: a JoF player could join S and an S player JoF). The hub
+now lets a verified JoF player read and write JoF only and an S player S only; staff
+and Sol keep both, gold and other ticks have neither
+([hub-chat.md](hub-chat.md#clan-chats)). The client already showed only what the hub
+lists, so only its Settings help and the composer's note change. Verified: the hub's
+unit and API tests (writing, the feed, reactions across clans refused). Not verified:
+in a game or against the live hub (not deployed).
+
+## The model picker loads models off the render thread
+
+05/11/2026, `personal/picker-worker` from `main` `7c84f0ab`, Sol's choice after the
+Heimdall leads (below): the menu stage built each model it shows inside one frame,
+100 to 485 ms a model in Turin's log while he scrolled the picker in a match, frames in
+which no command leaves. [menu_stage/load.rs](../crates/sjk-viewer/src/menu_stage/load.rs)
+reads it on a worker as players' models are read in a match, uploads a texture a
+frame and compiles its pipelines on a second worker
+([rendering.md](rendering.md)); the model shown stays until the new one is ready, and
+one worker reads at a time. Verified on Windows 11: unit tests of the worker policy
+(one at a time, another model's result dropped, failures only the wanted model's),
+fmt, build, clippy, workspace tests, the startup stack check. Not verified: in a game,
+the frame times while scrolling the picker, or that kicks drop.
+
+## The server's view of our commands in the log (Heimdall kicks)
+
+05/11/2026, `personal/heimdall-trace` from `main` `55c07d82`. Players keep being
+kicked by Heimdall ("Set /cl_timeNudge 0") on 2026.1103.2 and 1105.1 (Turin, Senek),
+after all three guesses (23/10, 02/11, 04/11 below), and no log so far held the kick.
+Turin's log (04/11) shows what is left: 20 frames over 33 ms in a minute, the worst
+462 and 485 ms, while he browsed the model picker in game (`view+menu+audio`, player
+previews loading on the main thread), plus 45 to 150 ms when players joined or changed
+model. Commands are only made at the start of a frame, so each of those is a gap the
+server sees; JoF EJK has the same gaps on its own freezes, so this is a lead, not a
+finding. Also found: stock stamps commands with the previous frame's clock and puts
+`cl_timeNudge` in the stamps ([networking.md](networking.md) said otherwise). Changed:
+[server_view.rs](../crates/sjk-viewer/src/server_view.rs) logs how old our newest
+command was at the server per snapshot (`serverTime - ps.commandTime`), its round
+trip, and frame and packet gaps over 40 ms: a line a minute while playing and the last
+10 seconds when a server drops the player. Verified on Windows 11: unit tests (a 125
+FPS client on a 30 snapshots a second server, smooth and with a 480 ms freeze; the
+minute line; other time lines left out). Not verified: in a game, or how close the
+age comes to what Heimdall measures.
+
 ## Shared remap blocks (`cg_remapsShared`)
 
 05/11/2026, `personal/remap-sync` from `main` `28ac9379`. Sol asked for a list of
@@ -1665,6 +1939,180 @@ this PC; and off screen with the game data: the nameplate snapshot
 duellist, a player who does not share, the own plate over a large shield) and the Collection
 tab, both shared and not. Not verified: in a match (pictures from a live hub, head icons of
 real players' models, the duel badge drawn, the far fade in motion), or on a GPU at 4K.
+## The Moon blade
+
+26/10/2026, `feat/moon-blade` (Creyon's fork), based on `main` `685edded` (Creyon's idea: Sol
+has his Sun, Creyon his Moon; Creyon's character is a wolf): blade 270 (169 until Sol's Mystery took that number, 1/11/2026), `saber_moon`, the Moon blade, a Mythical
+signature and chroma ([unlockables.md](unlockables.md), "Moon"; `blade_signatures/moon.glsl`)
+over its own file: a silver moonlit blade with the moon's seas in its core, glitter and a purple
+moonstone sheen on its glow, thousands of glistening glints with soft tails streaming slowly off it in true depth along
+rising curves from ignition, out to about 7 units and fading into the open (purple spirit sparks
+in the eclipse; cells on nine sheets round the axis and five discs across it, one look each a pixel), moonlit veils on its sides, Sol's mist from its file (his motes and the afterimages dropped,
+Creyon found them cheap); its
+own effects, a detailed living moon circling the blade, lit by the blade so it waxes and wanes,
+its moonbeam and a stream of purple moonlight pouring from it to the blade and spiralling round
+it down to the hilt and up to the tip, and the Lunar
+Eclipse, a 39 s cycle (14 s moonlit, 5 s in, 14 s total, 6 s out; 34 s with 10 s total at first) in which the Earth's shadow covers the moon (grey penumbra, a purple
+umbra) and creeps down the blade into a black core (`sig_solid`) in a white sheath, purple and
+silver waves running along it, the glitter drawn into the blade and bursting back out after,
+the sky blazing; a full night sky, moondust its swings and its wearer's movement shed into the
+world (`"kind": "moon"` and the new `moving` in `saber_petals.rs`), a nightfall ignition with a
+moonrise at the tip and three purple claw slashes on a clash. It drops from holocrons and
+Creyon's card (SJK Alpha 002) brings it (`unlockables::CARD_BLADES`). Its own sounds
+(`sound/sjk/creyon/moon/`, synthesized: two wolves howling and glistening moondust on ignition)
+and the hub's side (the catalogue entry, which its tests pin, the card file's `grants`, the
+blade's file and sounds in the pack) are a separate hub change.
+
+See-through moon (Creyon's report): the shared blade test (`bladeSeen`, `behindBlade`) hides
+whatever a view ray passes near the blade's axis behind; seen from first person every ray starts
+near the hilt, so the moon faded to see-through. The moon now uses its own test (`mo_hidden`):
+only the blade's core itself, above the emitter, hides it, and it is otherwise fully solid.
+
+Frame cost: Creyon saw 125 FPS fall to 30 zoomed in on an earlier version (about 200 particles
+looped over in every pixel of the blade's quad). The stars are now grid cells (a couple of
+cell looks a pixel), the glitter one cell on each of its sheets, the moon stream is skipped where the ray passes far from it, the
+falling shards and the marched mist are gone. On a software GPU (llvmpipe, the Blade Lab's
+`sig3d.py`, 1200 px first-person frames filled by the blade) a frame costs about a quarter of
+the earlier version's and about half the Sun's there; not yet measured in game. Creyon's next
+in-game video (26/10/2026) showed the glitter, then a flat picture, hugging the blade (about 3
+units out on a 40-unit blade) and the sides empty: a signature's quad fades from 0.6 of its
+extent (`sig_edge`), so with `@room 10` everything faded from about 7 units. For a round the
+Moon had 16 units of room and its glitter, tailed glints drifting slowly out, reached about 14
+units in depth round the blade (later brought back to 7 units and `@room 10`, see below), the
+moon's stream became two visible spiral ribbons (Creyon: it read as a straight fall). In the same round, on a chroma every purple
+thing (the sheen, stream, veils, claws, the moon's eclipse shadow) and the
+swing's coloured moondust (`PetalSpec::turn`, set from the skin's chroma where the blade sheds)
+take the wearer's colour; an enchantment on the blade (two winding strands and rising
+crescents, later taken out for the moonstone); and softer swing sounds. Creyon's video of that (26/10/2026, "the right way, but
+far too extreme"): the glitter a snowstorm hiding the blade, and racing when the eclipse came.
+Now about two fifths as many at rest and kept off the glow, many more on a swing (and more swing
+and movement moondust: `per_unit` 0.6, `moving` 0.8, `life` 3.4), constant speeds, each glint
+turning colour at its own moment and star flashes through the transition, and the eclipse's
+veils stronger; and a bigger clash (a ring of moonlight and a burst of tailed glints).
+Creyon's next round (screenshot from above, 26/10/2026): the spirals angular and not joined to
+the stream, nothing from above, and a wish for something new in place of the afterimages and
+for each of the two changes its own effects. Now the stream's grains ride on from its curve
+round the spirals; the glints flow off the blade moonlit and are drawn in to it in the eclipse
+(purple stars as it comes, a silver flood as it goes), on nine discs across the blade as well
+for views along it, each glint's light fading before its cell's edges (zoomed in, cut star rays
+showed as faint rectangles); the flat pictures sit where the ray passes closest to the axis
+(from above they lay edge on); and new: the moonflood and the phase wave on the blade, the
+tidal whirl round the moon and the wolf constellation in the eclipse; the afterimages are
+gone. Creyon's screenshot of that (27/10/2026): the effects fought each other, the whirl looked
+wrong, the spirals barely showed, and it was so wide it reached into other players' faces. The
+whirl, the moonflood and the phase wave are out; everything round the blade is about half as
+wide again (glitter to about 7 units, sky, veils and clash with it, `@room 10` again, so
+signatures keep the 10-unit cap), the constellation smaller, the spirals' grains bigger and
+brighter with a soft glow along them. Then (Creyon, 27/10/2026): the wolf's eyes out, and in the
+eclipse the glitter is drawn into the blade by the shadow (one flow squeezed toward the axis per
+height, no second purple flow), the stream and veils fading, so only the blade, moon and sky are
+left, and it floods back out sparkling to its places as the moonlight returns. The
+constellation out as well (Creyon); calm sounds throughout (the hum got irritating after a
+while); and no gap at the hilt in the eclipse (the silver core and the glow under the black core
+were taken away below where the black core starts, just past the emitter; Creyon saw it in the
+card preview and in game). Then (Creyon's video and screenshots, 27/10/2026: the spirals
+should be clearer in the eclipse, the draw-in smoother, something odd over the top as the glitter
+came back, the moon see-through, the tip odd, and next to his other mythicals it lacked something
+of its own): the blade is now a moonstone, a real round crystal round its light (`mo_stone`, a capsule with a
+round tip, its six faces painted on as lines; a first six-sided one with a point Creyon found
+too sharp), a crystal of light moonlit and
+solid black glass in the eclipse; the spirals stay in the eclipse, brighter; the draw-in is eased
+and above the tip follows the tip; the stone and moon hide what is behind them; the moon's eclipse
+shadow darker. A first-person frame on
+llvmpipe costs about 1.3 times the Sun's. His sounds had not changed because older loose copies
+in his test install's `base/sound/sjk/creyon/moon` came before the test pack. Then (Creyon:
+"not yet a mythical saber"; round tips, the spirals' glow drawn in and out too, the black pure
+black, the sounds too heavy): the stone is a round capsule with its end inside the blade's tip;
+the spirals and their glow are drawn in with the glitter; the black glass is pure black; the
+moonshatter is new (cracks beating through totality, the moon bursting into 22 glowing
+splinters that drift round and fuse back, `mo_since_shatter`); and the sounds are lighter (a
+110 Hz hum under an airy major pad). Then (Creyon's video with two sabers: they went out of step;
+"more beautiful" sounds; no stones out of the saber; as exciting as the Abyssal Eye; a choice to
+keep the black or the white blade): the cycle no longer takes each blade's seed; the sounds are
+a harp (Karplus-Strong plucks) and a soft pad moving between A minor 9 and F major 7; only
+moondust is shed; and the "Moon stream" part became "Moonlight" (off: the eclipse held), the
+stream going with the living moon. Then (Creyon: the solid tube and the lightning out; smaller
+pieces and more dust round the blade; the glow drawn into the black; a change with two lines
+round the blade): the moonstone is no longer drawn (an unseen core-sized capsule still hides what
+is behind the core); no arcs; the glow narrows to a fine edge round the black core with the
+shadow; two lines wind round the blade at the shadow's front through each change; and the
+shatter blows 28 small splinters and 72 specks of dust out round the whole blade on their own
+paths before they fuse back. Then (Creyon: the timing): the moon cracks in the last three seconds
+before totality and explodes as it comes, its pieces stay out round the blade through the 14 s
+of totality (brighter, breathing) and are drawn home over the 6 s of the moonlight's return; the
+stars are drawn into the blade in the eclipse too, and the night sky moves (its fields rise at
+different speeds, the bright stars wheel round the blade). Last (Creyon): a soft purple glow round
+the black tip and a few pieces round it, and quieter, more peaceful sounds (no wolf, a softer
+harp, about a third of the loudness). Then (Creyon): the purple at both ends in depth (the glow
+round the tip had barely shown); the pieces on their paths within about a second; the burst's
+flash kept inside the effects' room (a straight edge showed); the moon's glow kept low and its
+face never brighter than white (it read as see-through, its glow washing over it); the unseen
+body that hides what is behind the blade as narrow as the core; a calm glimmer in the swings;
+and the glitter calmer at rest (about three fifths as many; Creyon: too busy on the saber).
+Frame cost (Creyon: Sol had just made the Sun about 40 % cheaper, and this blade must not drop
+frames): timed with Sol's `signature_gpu_cost_against_stock` (here on a software GPU, llvmpipe,
+so only the ratios mean anything), the Moon first cost 1.6 (close), 2.0 (along) and 1.6 (game)
+times the new Sun; the moon stream's grains were most of it (each worked the eclipse out again
+through `mo_pull`, and all were drawn wherever the ray was near the blade). Now the shadow's front
+is worked out once (`mo_front`, `mo_pull_at`), the stream looks only at the pieces and grains at
+the ray's heights near the blade, with a quick distance test first and 32 grains (was 80), the
+glitter has nine sheets and five discs (was twelve and nine), no sheets for a ray along the
+blade, and a hash for each glint's reach in place of a noise look, and the sky's band, haze and
+sheen take one noise look where they took three. Timed after: 132 ms close, 111 along and 231
+game against the Sun's 127, 83 and 213 (1.04, 1.33 and 1.09 times); to be timed on a real GPU.
+Last (Creyon's close-up video by the hilt): the silver and purple waves at the eclipse's moments
+are shaped round the core (scaled by the file's glow, which runs to the quad's edge, they made a
+band with a hard straight edge); the white core goes out within the first half of the shadow's
+front (half-dark it flashed as a flat grey band); the glow's glitter fades in and out at its
+ends; and the swings are only air and glimmer, on and off a cascade of glimmer, clearly heard.
+Then (Creyon: still flickering in the eclipse, a hard line, a blocky spiral, too much glow): the
+glow's glitter is gone under the shadow and the file's glow moves calmly (its granulation,
+flares, tongues and fringe slower and weaker), the moonlit veils are out (their vertical
+curtains read as lines), the spirals' glow has about sixteen pieces a turn (it had six), and the
+glow and the moonlight round the blade are about two thirds and half as bright. Last (Creyon:
+"the rest is good"): the moon is hidden by the blade only when it is behind it as a whole, in a
+narrow soft band (per pixel the blade as drawn, bent by its swing, did not match the straight
+axis and cut a see-through band through the moon in front); the pieces are kept a unit out from
+the blade; the black core starts at the emitter (the white core and glow below it flickered);
+and in `saber.wgsl` a signature's solid parts, once the blade is all out, are cut only past its
+rounded tip (the cut began a unit below the tip, leaving the Moon's black tip half see-through;
+this applies to every signature's solid parts at the tip). The unseen body that hides what is behind the
+blade is as wide as the black core (0.46; at 0.24 the moon's pieces behind the black blade still
+showed over it, Creyon's video). Then (Creyon: still the blade through the moon; 37 fps zoomed
+in, 125 from afar): the moon is never hidden by the blade, drawn whole over it (every way of
+working out the hiding showed a band through it); and with the camera near the blade
+(`mo_near`) the glitter has five sheets and no discs, the stream 20 grains and fewer spiral
+pieces, the moon's dust half its specks and the sky one field fewer. Timed after: close 0.95,
+along 1.21 and game 1.05 times the Sun.
+
+Then, 28/10/2026 (Creyon, after Sol's word that the blade must be special and Sol's Sun trails;
+"the Sun has 9 effects"): rebased onto `main` `db63b4f5`. A trail of its own for every wearer,
+moonlight (style 7), and three extras a Solar copy of Creyon's card (SJK Alpha 002) unlocks, as
+a Solar copy of Sol's unlocks the Sun's: the Eclipse trail (8), the Starfall trail (9) and a
+Moonlit wake (the shared wake), so it has nine choices like the Sun (`blade_extras.rs`,
+`saber_trail.wgsl`; the trail colour is now lilac, so the trail takes the wearer's colour on a
+chroma). Frame cost (Creyon: Sol's Sun steady at 125 fps): the stream's spiral glow works out one
+point a piece (it worked out two), the body test and the moonbeam only where they can show, and
+a far blade (beyond about 160 units) is drawn with the fewer pieces a near one is, and a pixel
+more than about 9 units from the blade (and from the moon) skips the volume and orbit passes at
+once (the quad holds 10 units of room). Timed: game 214, close 118, along 101 ms against the
+Sun's 211, 127 and 83 (1.01, 0.93 and 1.22 times). Swings: a
+clear soft whoosh with a light tone and the glimmer (the whoosh had been too faint). Checked:
+the trail styles rendered in a stand-alone harness from the shader's own functions (not yet in a
+world shot or in game). Last (Creyon: "the blade looks so amazing"): lit during the eclipse, the whole moon
+showed a moment before its pieces (the shatter waited for the lighting's nightfall); it now
+follows the switches alone.
+
+Rebased onto `main` `685edded` (27/10/2026): the petals now sit beside the Sun's swing embers
+(`moon_dust` after `ember`; the moon's shard picture, no longer shed, left out). Verified on
+x86_64 Linux: `cargo fmt --all --check`, the locked workspace build, tests (3099) and
+all-target Clippy (no errors), `scripts/blade_signatures.py --check`, and off-screen renders
+with the Blade Lab's `sig3d.py` (moonlit, the change with its two lines, the cracks, the
+explosion, the pieces round the blade, their return, the moving sky, the tip, a swing, a
+clash). The tests that used `saber_moon` as an unknown id use `saber_starfall`. Seen in game
+by Creyon round by round (his videos and screenshots); not verified: the last round in game,
+the frame rate in game, the hub's side (catalogue entry, card grant, the blade's file and
+sounds in its pack).
 
 ## Tag toy
 
@@ -2005,6 +2453,10 @@ and sjk-identity 199 passed, with `a_kyber_crystal_is_given_from_the_second_row_
 Not verified in game: a crystal given at the live hub, then opened.
 
 ## Support SJK on the main page
+
+Shelved 07/11/2026 (`personal/shelve-support-links`, Sol's request): the line no longer
+shows for anyone (`support_links::SHELVED`) and its Settings row is gone; the code stays
+for a revival ([sjk.md](sjk.md#donations)).
 
 26/10/2026, `personal/support-links`, Sol's request: a small line at the top left of the
 SJK UI's main page, "Support SJK" with outlined GitHub Sponsors and Ko-fi pills that open

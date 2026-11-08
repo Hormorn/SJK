@@ -1,12 +1,61 @@
 //! Reused collision and splash scratch for the level's entities.
 use super::*;
 
+/// Whether `peer`, player `other`, is left out of player `client`'s traces, `mine` being
+/// [`NativeGame::duel_isolation`] for `client`. `G_TempUnlink` leaves out the living only
+/// (VisionJK `g_japlus_dim.c:150-152`).
+pub(super) fn isolated_from(
+    mine: Option<Option<u16>>,
+    client: usize,
+    other: usize,
+    peer: &Peer,
+) -> bool {
+    mine.is_some_and(|mine| {
+        peer.health >= 1
+            && peer.state.stats[0] as i32 >= 1
+            && sjk_game_jka::duel::isolated(
+                mine,
+                other as u16,
+                peer.state.duel_in_progress(),
+                usize::from(peer.state.duel_index()) == client,
+            )
+    })
+}
+
 impl NativeGame {
+    /// The duel isolation for player `client`'s traces: `None` when there is none (the
+    /// base game, the setting off, another game type, an NPC or no one), else the
+    /// opponent it duels, if any ([`isolated_from`]).
+    pub(super) fn duel_isolation(&self, client: usize) -> Option<Option<u16>> {
+        if !self.duel_rules.isolates(self.gametype) {
+            return None;
+        }
+        self.peer(client)
+            .map(|peer| sjk_game_jka::duel::duel_of(&peer.state))
+    }
+
     /// Everyone `client` can run into: the other playing peers, each a body in the box of
     /// its last move, where it last thought (`r.currentOrigin`). In the players' order; the
     /// reference's order is its sector tree's, which only decides between stops at the
     /// very same fraction.
+    ///
+    /// With a server mod that isolates private duels (JA+'s `jp_DuelAlpha` 0 or more,
+    /// `sjk_game_jka::duel::DuelRules::isolates`), the players `client` may not touch are
+    /// left out: every trace and move of a player passes through them, as JA+'s
+    /// `JP_Trace` with `G_TempUnlink`'s list (VisionJK `g_japlus_dim.c:137-188`,
+    /// `g_active.c:3100-3102`), and its missiles fly through them (`g_missile.c:908-924`).
     pub(super) fn gather_obstacles(&mut self, client: usize) {
+        self.gather_obstacles_isolated(client, true);
+    }
+
+    /// [`Self::gather_obstacles`], leaving out the players `client` may not touch only
+    /// with `isolate` (the duel challenge's line, a plain `trap->Trace`, does not).
+    pub(super) fn gather_obstacles_isolated(&mut self, client: usize, isolate: bool) {
+        let mine = if isolate {
+            self.duel_isolation(client)
+        } else {
+            None
+        };
         let Self {
             server,
             world,
@@ -49,6 +98,7 @@ impl NativeGame {
                         && peer.begun
                         && peer.body_active()
                         && usize::from(peer.riding.owner) != client
+                        && !isolated_from(mine, client, other, peer)
                 });
             if let Some(peer) = peer {
                 let (mut bounds, mut contents) = (peer.movement.box_bounds(), peer.riding.contents);

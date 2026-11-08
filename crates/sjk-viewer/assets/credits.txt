@@ -77,6 +77,10 @@ did: Kyber crystals: a reward for every achievement, always a saber shader
 did: Fourteen more achievements, a secret one among them, and Surveyor retired
 did: Achievements announced with their kyber crystal once the SJK hub unlocks them
 did: The Mythical holocron's engram: gold plates breathing round a glowing core
+did: The Sith pyramid sculpted anew, art by Sol (AI-assisted), with model normal maps
+did: The Jedi cube and the engram sculpted anew too, art by Sol (AI-assisted)
+did: Textures capped at 2048 pixels, and big model textures loaded without a hitch
+did: Tag collections: Alpha, and Community for the tags players drew
 did: Blade cards craft their saber shader for less, and lead to it from the Cards tab
 did: Perk marks on cards: a badge for each thing a card brings
 did: The Forge: shop, crafting and breaking any saber shader down, in one tab
@@ -203,6 +207,12 @@ did: Collection marks: worn, favourite, locked and New saber shaders, the lock h
 did: Toon models: cartoon-style banded shading with a bright rim, an option off by default
 did: 3D sound: sounds muffled behind walls and doors, rooms that ring (after VisionJK)
 did: White edge on dark text: black names and chat in a white outline, an option
+did: Weather in map edits: rain, storms, snow, fog and wind kept for a map, synced to every player
+did: Rain and wind sounds: the game's own loops, as strong as the weather, quieter under a roof
+did: Puddles that mirror the world at ultra weather quality (after VisionJK)
+did: Lighter rain and fog: the fog at half size, about three times cheaper, glowing towards the sun
+did: Lightning in storms with thunder and gusts, and rain running down walls and slopes
+did: JA+ server mode: SJK's server runs as a JA+ 2.4 B7 server with g_mod japlus (after VisionJK)
 link: https://github.com/Sol-Vulpes/SJK
 link: https://sol-vulpes.github.io/SJK/
 
@@ -210,7 +220,7 @@ link: https://sol-vulpes.github.io/SJK/
 
 [Creyon]
 github: Creyon94
-role: Contributor and tester: 77 merged pull requests, EternalJK parity
+role: Contributor and tester: 78 merged pull requests, EternalJK parity
 medal: early_contributor
 did: #2 #7 Duel challenges from names with symbols, centre prints kept whole
 did: #3 The third-person camera damped per frame as EternalJK (cg_cameraFPS)
@@ -270,6 +280,7 @@ did: #328 Shaders chosen by a click; new ones wear a New sticker and gold outlin
 did: #317 Client numbers on SJK's scoreboard; rank by score minus deaths
 did: #321 A finished trade's toast says what it gave, names in full
 did: #236 JoF hats as in JoF EJK, from the old EternalJK folder
+did: #370 130 new blades from his Star Wars round, Common to Mythical (blades 170 to 299)
 link: Creyon's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ACreyon94
 
 [Lumaya]
@@ -503,8 +514,25 @@ role: Contributor: 1 merged pull request
 did: #333 JA+ dual jump attack: feet lift only over a player ahead, as the server does
 did: Inspiration: VisionJK's boombox, standing on the floor, gave SJK's boombox its place on the floor (boombox_place)
 did: VisionJK's 3D sound (v_spatial), the idea behind SJK's 3D sound (s_spatial)
+did: VisionJK's puddle mirror (wet.frag), the march SJK's puddles mirror the world with
 did: VisionJK's web admin page (GPL-2.0, with his approval) draws the map in SJK's browser map editor (mapedit_web)
+did: VisionJK's rebuild of the JA+ 2.4 B7 server module, the reference for SJK's JA+ server mode (g_mod japlus)
 link: Blackwolf1337's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ABlackwolf1337
+
+[Kushina]
+github: kushinaSJK
+role: Contributor: 3 merged pull requests; ideas for SJK
+did: #373 Rig model hair and other forked chains no longer jump about
+did: #374 Rig chains: limit, clearance, layer lines and levers; a bone's middle collides
+did: #377 Rig hair and capes trail behind a running player and keep out of the arms
+did: The Varykino Blossom blade: a blossom-pink blade, lavender mist, a flowering branch and blossoms shed as it swings
+did: Favourite and locked saber shaders: stars listed first, locks kept from break down and trades
+did: Plugin options as Settings switches, in place of typing a cp_pluginDisable number
+did: JoF EJK's saber hit sparks, mouse 4/5 repeat and lagometer modes 2 and 3 for players coming from EJK
+did: The Banana peel toy: drop peels that players who have it on slip on, cartoon style
+did: Prediction as in 2026.1028.1, a Settings choice for players who preferred it
+did: Reported the JoF Shuttle ship drawn black and its younglings grey
+link: Kushina's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AkushinaSJK
 
 == Art
 
@@ -513,16 +541,6 @@ role: Artist: the Solfox player model
 did: Made Solfox, Sol's fox player model, which every SJK player gets through the hub
 
 == Ideas
-
-[Kushina]
-role: Ideas for SJK
-did: The Varykino Blossom blade: a blossom-pink blade, lavender mist, a flowering branch and blossoms shed as it swings
-did: Favourite and locked saber shaders: stars listed first, locks kept from break down and trades
-did: Plugin options as Settings switches, in place of typing a cp_pluginDisable number
-did: JoF EJK's saber hit sparks, mouse 4/5 repeat and lagometer modes 2 and 3 for players coming from EJK
-did: The Banana peel toy: drop peels that players who have it on slip on, cartoon style
-did: Prediction as in 2026.1028.1, a Settings choice for players who preferred it
-did: Reported the JoF Shuttle ship drawn black and its younglings grey
 
 [Atrosex]
 role: Ideas for SJK

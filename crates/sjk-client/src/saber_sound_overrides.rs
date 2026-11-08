@@ -74,7 +74,7 @@ enum Toggle {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SaberSoundOverrides {
     sets: Vec<EventSet>,
-    clients: [Option<u8>; SABER_SOUND_CLIENTS],
+    clients: [Option<u16>; SABER_SOUND_CLIENTS],
     /// Whether any client wears a set, so stock events skip every check.
     active: bool,
     /// `s_saberSkinSounds 2`: a worn set's sounds replace the stock ones instead of
@@ -148,7 +148,7 @@ impl SaberSoundOverrides {
         self.set_clients(&clients);
     }
 
-    fn set_clients(&mut self, clients: &[Option<u8>; SABER_SOUND_CLIENTS]) {
+    fn set_clients(&mut self, clients: &[Option<u16>; SABER_SOUND_CLIENTS]) {
         self.clients = clients.map(|set| set.filter(|&set| usize::from(set) < self.sets.len()));
         self.active = self.clients.iter().any(Option::is_some);
     }
@@ -319,7 +319,7 @@ impl LegacySoundAdapter {
 
     /// Which registered set each client slot wears (`None`: the stock sounds). Cheap
     /// (two 32-entry copies); the viewer calls it every frame.
-    pub fn set_saber_sound_overrides(&mut self, clients: &[Option<u8>; SABER_SOUND_CLIENTS]) {
+    pub fn set_saber_sound_overrides(&mut self, clients: &[Option<u16>; SABER_SOUND_CLIENTS]) {
         if *clients == self.saber_overrides.clients {
             return;
         }
@@ -343,7 +343,7 @@ impl LegacySoundAdapter {
     }
 
     /// The set each client slot wears, after registration's checks.
-    pub fn saber_sound_overrides(&self) -> &[Option<u8>; SABER_SOUND_CLIENTS] {
+    pub fn saber_sound_overrides(&self) -> &[Option<u16>; SABER_SOUND_CLIENTS] {
         &self.saber_overrides.clients
     }
 }

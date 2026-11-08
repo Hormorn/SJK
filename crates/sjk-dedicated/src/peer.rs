@@ -83,6 +83,12 @@ pub struct Peer {
     pub(crate) state: PlayerState,
     /// Server time at which spawn protection ends (`invulnerableTimer`).
     pub(crate) invulnerable_until: i32,
+    /// A JA+ full-force duel challenged or fought (`pers.jp.fullForceDuel`,
+    /// `sjk_game_jka::duel::Duellist::full_force`); never set on the base game.
+    pub(crate) full_force_duel: bool,
+    /// No JA+ challenge before this time (`fd.privateDuelTime`); never set on the base
+    /// game.
+    pub(crate) duel_rest_until: i32,
     /// What the other clients are shown of the player, and whether they are: a
     /// spectator's entity is not linked into the world, so no snapshot lists it.
     pub(crate) entity: PlayerEntity,
@@ -245,6 +251,8 @@ impl Peer {
             session,
             state,
             invulnerable_until: 0,
+            full_force_duel: false,
+            duel_rest_until: 0,
             entity: PlayerEntity::new(client as u16),
             link: ClusterLink::default(),
             begun: false,

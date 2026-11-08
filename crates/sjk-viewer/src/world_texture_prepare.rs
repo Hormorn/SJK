@@ -75,6 +75,8 @@ pub(super) fn upload(
         {
             if !forge.texture_cache.contains_key(key)
                 && !key.starts_with(super::videos::KEY_PREFIX)
+                // A model's normal map is uploaded linear by the forge itself.
+                && !key.starts_with(super::material_maps::models::KEY_PREFIX)
                 && seen.insert(key)
             {
                 // The last map's world, still alive during a map change, may hold it.

@@ -62,14 +62,17 @@ fn model_sun_color(input: VertexOutput, original: vec3<f32>) -> vec3<f32> {
     // a two-sided face seen from its back matches that texel, not the authored normal.
     let normal = surface_normal(input.world_position, normalize(input.world_normal),
         camera.camera_position);
+    // The light buffer is matched by the face's own normal; a model normal map bends
+    // the highlight, the sky rim and the local lamps.
     let sun = buffered_light(input.position, normal);
+    let bent = model_shading_normal(normal);
     let gloss = select(stage.emission.w, 0.0, (u32(shadow.realtime.w) & 512u) != 0u);
-    let highlight = shadow.realtime.x*(sun_specular(input.world_position, normal, sun.a, gloss)
-        + sky_reflection(input.world_position, normal, gloss));
+    let highlight = shadow.realtime.x*(sun_specular(input.world_position, bent, sun.a, gloss)
+        + sky_reflection(input.world_position, bent, gloss));
     let local = finish_model_light(input.world_position,
         EntityLight(vec3(0.0), vec3(0.0), vec3(0.0)));
-    var lit = sun.rgb + highlight + max(dot(normal, local.direction), 0.0)*local.directed;
-    if toon_models() { lit = toon_lit(input.world_position, normal, lit); }
+    var lit = sun.rgb + highlight + max(dot(bent, local.direction), 0.0)*local.directed;
+    if toon_models() { lit = toon_lit(input.world_position, bent, lit); }
     if rgb == 9 { lit *= input.entity_color.rgb; }
     return lit;
 }

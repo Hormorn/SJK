@@ -63,6 +63,8 @@ pub(crate) struct Sky {
     pub(crate) storm: f32,
     /// Global wind, units per second.
     pub(crate) wind: [f32; 3],
+    /// A lightning flash, 0..1 (`weather_lightning.rs`): lights the clouds from within.
+    pub(crate) flash: f32,
 }
 
 /// The uniform for one frame. `flow` is the drift so far.
@@ -93,7 +95,12 @@ pub(crate) fn uniform(
             sun[2],
             (FAIR_COVER + STORM_COVER * storm).min(0.95),
         ],
-        ambient: [sky_light[0], sky_light[1], sky_light[2], storm],
+        ambient: [
+            sky_light[0] * (1.0 + 6.0 * sky.flash),
+            sky_light[1] * (1.0 + 6.0 * sky.flash),
+            sky_light[2] * (1.0 + 6.5 * sky.flash),
+            storm,
+        ],
         flow: [
             flow[0] as f32,
             flow[1] as f32,
@@ -272,6 +279,7 @@ mod tests {
             Sky {
                 storm: 1.0,
                 wind: [0.0; 3],
+                ..Sky::default()
             },
             [0.0; 2],
             32,

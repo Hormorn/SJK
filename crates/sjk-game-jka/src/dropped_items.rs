@@ -126,6 +126,7 @@ pub fn launch(item: usize, origin: [f32; 3], velocity: [f32; 3], level_time: i32
         random: 0.0,
         dropped: Some(dropped),
         allow_npc: false,
+        home: None,
     }
 }
 
@@ -336,8 +337,16 @@ pub fn run(
     trace: &mut dyn FnMut([f32; 3], [f32; 3], [f32; 3], [f32; 3], u32) -> MovementTrace,
     contents: &dyn Fn([f32; 3]) -> u32,
 ) -> DroppedRun {
-    let Some(dropped) = pickup.dropped else {
-        return DroppedRun::Stays;
+    // A placed item a push flung (`crate::item_push`) flies as a dropped one, with no
+    // time of its own: its respawn brings it back.
+    let dropped = match pickup.dropped {
+        Some(dropped) => dropped,
+        None if crate::item_push::flung(pickup) => Dropped {
+            free_at: i32::MAX,
+            count: 0,
+            taken: false,
+        },
+        None => return DroppedRun::Stays,
     };
     if dropped.taken {
         return DroppedRun::Freed;

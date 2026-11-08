@@ -34,6 +34,8 @@ const BUTTON: f32 = 40.0;
 const GAP: f32 = 8.0;
 const FIELD: f32 = 44.0;
 const LIST_ROW: f32 = 34.0;
+/// Between two tabs: four of them fill the column.
+const TAB_GAP: f32 = 28.0;
 /// Characters of Exo 2 at 16 the column holds on a line.
 const LINE_CHARS: usize = 44;
 
@@ -63,6 +65,7 @@ pub(super) fn build(panel: &mut Panel, ui: &mut MenuCanvas, viewport: [f32; 2]) 
         Tab::Selected => selected(ui, &frame, panel),
         Tab::Place => place(ui, &frame, panel),
         Tab::Edits => edits(ui, &frame, panel),
+        Tab::Weather => weather(ui, &frame, panel),
     }
     foot(ui, &frame, panel);
     keys(ui, &frame, panel);
@@ -163,6 +166,7 @@ fn header(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
         (Tab::Selected, "Selected"),
         (Tab::Place, "Place"),
         (Tab::Edits, "Edits"),
+        (Tab::Weather, "Weather"),
     ] {
         let token = tab.token();
         // Rajdhani at 26 is about 12 pixels a character.
@@ -198,7 +202,7 @@ fn header(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
             );
         }
         ui.hit_region(token, frame.rect(x - 8.0, TABS_Y - 4.0, width + 16.0, 46.0));
-        x += width + 40.0;
+        x += width + TAB_GAP;
     }
 }
 
@@ -916,6 +920,137 @@ fn edits(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     );
 }
 
+/// A row of buttons as [`buttons`], each also marked (the choice in force) or not:
+/// (token, label, enabled, marked).
+fn marked_buttons(
+    ui: &mut MenuCanvas,
+    frame: &Frame,
+    panel: &Panel,
+    y: f32,
+    row: &[(u16, &str, bool, bool)],
+) {
+    let count = row.len() as f32;
+    let width = (COLUMN_WIDTH - GAP * (count - 1.0)) / count;
+    for (index, (token, label, enabled, marked)) in row.iter().enumerate() {
+        kit::button(
+            ui,
+            frame,
+            [COLUMN_X + index as f32 * (width + GAP), y, width, BUTTON],
+            label,
+            *marked,
+            *enabled,
+            panel.focus == *token,
+            *token,
+        );
+    }
+}
+
+/// The Weather page: the map's own weather, what an edit keeps here, and the buttons that
+/// choose it (each runs `mapedit_weather`).
+fn weather(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
+    let facts = &panel.facts;
+    let mut y = PAGE_Y;
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "This map's weather");
+    y += 40.0;
+    let own = if facts.map_weather.is_empty() {
+        "none".to_owned()
+    } else {
+        facts.map_weather.join(", ")
+    };
+    for part in wrap(&format!("Map's own: {own}"), LINE_CHARS).take(2) {
+        line(ui, frame, y, part, color::MUTED);
+        y += 26.0;
+    }
+    let kept = facts
+        .weather
+        .as_ref()
+        .map_or(&[][..], |(commands, _)| commands.as_slice());
+    let words = match &facts.weather {
+        Some((commands, true)) => format!("Kept for this server: {}", commands.join(", ")),
+        Some((commands, false)) => format!("Kept: {}", commands.join(", ")),
+        None => "Kept: nothing, the map's own shows".to_owned(),
+    };
+    let colour = if kept.is_empty() {
+        color::TEXT
+    } else {
+        color::GOLD_BRIGHT
+    };
+    for part in wrap(&words, LINE_CHARS).take(3) {
+        line(ui, frame, y, part, colour);
+        y += 26.0;
+    }
+    if facts.forced {
+        for part in wrap(
+            "Your Force weather setting replaces it on your screen (r_weatherForce 0 shows what players see)",
+            LINE_CHARS,
+        )
+        .take(2)
+        {
+            line(ui, frame, y, part, color::EMBER);
+            y += 26.0;
+        }
+    }
+    y += 12.0;
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Choose");
+    y += 24.0;
+    let preset = (!kept.is_empty()).then(|| weather_preset(kept)).flatten();
+    marked_buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (WEATHER_DRIZZLE, "Drizzle", true, preset == Some(1)),
+            (WEATHER_RAIN, "Rain", true, preset == Some(2)),
+            (WEATHER_STORM, "Storm", true, preset == Some(3)),
+            (WEATHER_SNOW, "Snow", true, preset == Some(4)),
+        ],
+    );
+    y += BUTTON + GAP;
+    let (fog, wind) = weather_fog_and_wind(kept);
+    marked_buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (
+                WEATHER_FOG,
+                if fog { "Fog: on" } else { "Fog: off" },
+                true,
+                fog,
+            ),
+            (
+                WEATHER_WIND,
+                if wind { "Wind: on" } else { "Wind: off" },
+                true,
+                wind,
+            ),
+        ],
+    );
+    y += BUTTON + GAP;
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (WEATHER_SEEN, "Keep what I see", true),
+            (WEATHER_OWN, "Map's own", !kept.is_empty()),
+        ],
+    );
+    y += BUTTON + 16.0;
+    for part in wrap(
+        "Kept weather replaces the map's own for every SJK player once published, on maps with sky; their own Force weather and Weather off still win.",
+        LINE_CHARS,
+    )
+    .take(4)
+    {
+        line(ui, frame, y, part, color::MUTED);
+        y += 24.0;
+    }
+}
+
 /// Where new edits apply, the last answer, then Publish and Editor off.
 fn foot(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
     let s = frame.s;
@@ -1197,6 +1332,7 @@ mod tests {
             ("entity", panel(Tab::Selected, Some(Picked::Entity))),
             ("place", panel(Tab::Place, None)),
             ("edits", panel(Tab::Edits, None)),
+            ("weather", panel(Tab::Weather, None)),
             ("face", panel(Tab::Selected, Some(Picked::Face))),
             ("sky", panel(Tab::Selected, Some(Picked::Sky))),
             ("models", models_panel(Tab::Selected, 3, 3)),
@@ -1401,7 +1537,7 @@ mod tests {
                 .sum::<f32>()
                 + 20.0 * hints.len().saturating_sub(1) as f32
         };
-        for tab in [Tab::Selected, Tab::Place, Tab::Edits] {
+        for tab in Tab::ALL {
             for (transforming, flying, focus) in [
                 (false, false, tab.token()),
                 (true, false, tab.token()),

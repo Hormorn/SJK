@@ -41,7 +41,8 @@ impl NativeGame {
     /// The items' respawns at `server_time` (`RespawnItem`): a trigger and drawn again,
     /// with `EV_ITEM_RESPAWN` on itself.
     pub(super) fn run_items(&mut self, server_time: i32) {
-        // `G_RunItem` for the dropped ones: their flight through the map, their end.
+        // `G_RunItem` for the dropped ones and those a push flung (JA+'s `jp_pushAll`):
+        // their flight through the map, their end.
         let previous_time = self.previous_frame_time;
         let flag_game = bridge_ctf::flag_game(self.gametype);
         let mut gone_flags = Vec::new();
@@ -49,7 +50,7 @@ impl NativeGame {
             items, pool, map, ..
         } = self;
         items.retain_mut(|(number, pickup)| {
-            if pickup.dropped.is_none() {
+            if pickup.dropped.is_none() && !sjk_game_jka::item_push::flung(pickup) {
                 return true;
             }
             let run = match map {
