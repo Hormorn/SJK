@@ -7831,6 +7831,16 @@ change: Joining an emote starts your music where the leader's is.
 test: A starts an emote with music; B uses Sync emote: B's music plays, in step.
 test: A stops: B's music keeps playing without a jump.
 
+[solfox-rig-hub]
+area: Rendering & effects
+title: Solfox on the hub is Sol's new rig model (default and cloth looks)
+change: Hub pack sjk_solfox now holds SolFox5 under models/players/solfox (glTF rig, 2 looks).
+change: Reyced's GLM is gone from the hub; Creyon's wolf still credits him.
+test: After the hub deploy, start: log says sjk_solfox downloaded (new size, 8.3 MB).
+test: Character list: Solfox and Solfox cloth show with their portraits; pick each.
+test: Run, crouch, turn the head: no gap at the neck, cape and skirt swing.
+test: A second SJK client on the same server sees you as the new Solfox.
+
 [solfox-pack]
 area: Rendering & effects
 title: Solfox player model from the hub (Reyced's model, for every SJK player)
