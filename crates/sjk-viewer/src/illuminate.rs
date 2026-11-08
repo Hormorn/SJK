@@ -694,10 +694,14 @@ mod tests {
                 .windows(2)
                 .all(|pair| { pair[0].0 < pair[1].0 && pair[0].1 < pair[1].1 })
         );
-        // The engram's sheen is read by the view, so its gold plates flash as it turns;
-        // the sculpted forms' lit faces name their baked normal maps.
+        // The engram's plates breathe (their walls with them, in the parts' shader) and
+        // their sheen is read by the view, so the plates flash as they turn; the sculpted
+        // forms' lit faces name their baked normal maps.
         let mythical = definitions.last().unwrap();
-        assert!(mythical.deforms.is_empty());
+        assert!(matches!(
+            mythical.deforms.as_slice(),
+            [sjk_shader::Deform::Wave { .. }]
+        ));
         for (tier, definition) in TIERS.iter().zip(&definitions) {
             let named = definition.stages[0].material.normal_map.as_deref();
             let sculpted = SCULPTED.contains(tier);
@@ -806,11 +810,13 @@ mod tests {
             let tier = form.id;
             for part in form.parts {
                 for shader in names(part.model) {
-                    // The form's face, its light, the Sith pyramid's sculpted cap,
-                    // or the shared steel.
+                    // The form's face, its light, the engram's seams and core, the
+                    // Sith pyramid's sculpted cap, or the shared steel.
                     let own = [
                         format!("models/sjk/holocron_{tier}"),
                         format!("models/sjk/holocron_{tier}_light"),
+                        format!("models/sjk/holocron_{tier}_seam"),
+                        format!("models/sjk/holocron_{tier}_core"),
                         format!("models/sjk/holocron_{tier}_cap"),
                         "models/sjk/holocron_steel".to_owned(),
                     ];

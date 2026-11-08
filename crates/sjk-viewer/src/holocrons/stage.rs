@@ -3,8 +3,8 @@
 //! It turns and bobs as Illuminate's does ([`crate::illuminate`]) and is the holocron of
 //! the tier chosen in the list, each tier an object of its own (`docs/holocrons.md`, "The
 //! four holocrons"): the Jedi cube, the Great Holocron with its turning halo, the Sith
-//! pyramid with its floating cap and eye, the gold engram with its glowing seams and
-//! sparks, and a point light in the tier's colour. It also draws the four kyber
+//! pyramid with its floating cap and eye, the gold engram with its breathing plates,
+//! glowing seams and core and its sparks, and a point light in the tier's colour. It also draws the four kyber
 //! crystals (`kyber_<tier>`: a crystal in its sheath, tumbling rings, motes), asked by the
 //! hub's tier id ([`Request::of`]). For a tier the player holds none of
 //! it is the locked look: the same shape drained and dark, its parts at rest, with a faint
@@ -390,12 +390,12 @@ mod tests {
             !all.contains(&crate::illuminate::MODEL),
             "Illuminate's stays its own"
         );
-        // The four holocrons: a still cube, a halo, a cap and an eye, the engram with
-        // eight sparks round it; then the kyber crystals, plainer the commoner: one ring
-        // and four motes, six, both rings and eight, ten.
+        // The four holocrons: a still cube, a halo, a cap and an eye, the engram's shell
+        // of plates with eight sparks round its core; then the kyber crystals, plainer the
+        // commoner: one ring and four motes, six, both rings and eight, ten.
         let lengths: Vec<_> = FORMS.iter().map(|form| form.parts.len()).collect();
-        assert_eq!(lengths, [1, 2, 3, 9, 7, 9, 12, 14]);
-        assert_eq!(all.len(), 2 * (1 + 2 + 3 + 2 + 4 + 4 + 5 + 5));
+        assert_eq!(lengths, [1, 2, 3, 10, 7, 9, 12, 14]);
+        assert_eq!(all.len(), 2 * (1 + 2 + 3 + 3 + 4 + 4 + 5 + 5));
     }
 
     /// A part's pose follows its table: the Sith pyramid's cap floats over the body and
@@ -410,7 +410,7 @@ mod tests {
         assert!((later.z - rest.z).abs() > 0.1, "it bobs");
         assert!(turned.angle_between(Quat::IDENTITY) > 0.1, "it turns");
         // An engram's spark, then a kyber crystal's mote.
-        for mote in [FORMS[3].parts[1], FORMS[7].parts[4]] {
+        for mote in [FORMS[3].parts[2], FORMS[7].parts[4]] {
             let heights = [0.0, 1.0, 2.0].map(|t| mote.pose(t).0.z);
             assert!(heights.iter().all(|z| (z - heights[0]).abs() < 1e-5));
             let radii = [0.0, 1.0, 2.0].map(|t| mote.pose(t).0.truncate().length());

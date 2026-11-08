@@ -145,8 +145,9 @@ includes:
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
   the high-poly model, and normal maps on models whose shader names one (`normalMap`);
 - the Uncommon holocron's Jedi cube and the Mythical holocron's engram sculpted anew
-  (08/11/2026, art by Sol, AI-assisted): low polys of 300 and 400 triangles with their
-  colour, glow and normal maps baked from the high-poly models;
+  (08/11/2026, art by Sol, AI-assisted): a 300-triangle low poly and 38 plates split from
+  the high poly's tiles (they breathe over a glowing core), with their colour, glow and
+  normal maps baked from the high-poly models;
 - tag collections (08/11/2026, Sol's decision): Alpha for SJK's own tags, Community for
   the ones players drew (Blep's EZ, Gonk and Geyon), each under its own heading in
   Collection > Tags;

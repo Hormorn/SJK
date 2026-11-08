@@ -29,12 +29,12 @@ Per form `<id>` it writes the parts' models (`holocron_<id>.md3`, the body, and
 `holocron_<id>_<part>.md3`, each also as `..._locked.md3`), the face picture
 `holocron_<id>.jpg` with its `_glow.jpg` and `_locked.jpg`, the lit parts' picture
 `holocron_<id>_light.jpg`, and the UI icons `holocron_<id>.png` (256x256, drawn from the
-parts) and `holocron_<id>_small.png` (64x64); the engram also its reflection
-`holocron_mythical_env.jpg`. Shared: the steel
+parts) and `holocron_<id>_small.png` (64x64); the engram also its seams' and core's
+pictures (and locked) and its reflection `holocron_mythical_env.jpg`. Shared: the steel
 (`holocron_steel.jpg`, and locked), the locked
 light, the sheen, four shaders (`holocron_tiers.shader`: the holocrons' faces;
 `holocron_kyber.shader`: the crystals' faces and lights; `holocron_parts.shader`: steel,
-the Sith pyramid's cap and the holocrons' lights;
+the Sith pyramid's cap, the holocrons' lights and the engram's seams and core;
 `holocron_locked.shader`: the locked look, every material drained and dark, without
 glow), and two Rust tables the client includes (`holocron_parts.rs`: every form's parts
 and motion; `holocron_files.rs`: every file above at its game path). The Great
@@ -494,6 +494,25 @@ def engram_env(tier: Tier) -> np.ndarray:
     return (sky[..., None] * pale + 0.75 * streaks[..., None] * white).clip(0, 255)
 
 
+# The plate's triangle's incentre down the picture (its tip at 0, its foot at 1).
+ENGRAM_INCENTRE = 2 * math.sqrt(1.25) / (1 + 2 * math.sqrt(1.25))
+
+
+def engram_extras(tier: Tier) -> dict:
+    """The engram's other pictures: the seams' glow, the core's facet (white-hot in its
+    middle, gold at its edges)."""
+    pale = np.array(tier.ramp[2], float)
+    white = np.array(tier.ramp[3], float)
+    mid = np.array(tier.ramp[1], float)
+    seam = (0.55 * mid + 0.45 * pale) * (1.0 + 0.04 * noise_field(64, 23, 3.0))[..., None]
+    n = 128
+    ys, xs = (np.mgrid[0:n, 0:n] + 0.5) / n
+    from_middle = np.hypot(xs - 0.5, ys - ENGRAM_INCENTRE)
+    heat = np.clip(1.0 - from_middle / 0.55, 0, 1)[..., None]
+    core = mid * (1.0 - heat) + white * heat
+    return {"seam": seam.clip(0, 255), "core": core.clip(0, 255)}
+
+
 def sculpt_picture(folder: str, name: str) -> np.ndarray:
     """A picture baked from one of Sol's sculpted models (`art/<folder>/`), float RGB."""
     return np.asarray(Image.open(forms.ART / folder / f"{name}.jpg").convert("RGB")).astype(float)
@@ -506,7 +525,7 @@ def sculpt_picture(folder: str, name: str) -> np.ndarray:
 SCULPTS = {
     "uncommon": (forms.JEDI_CUBE, 0.5),
     "legendary": ("sith_pyramid", 0.55),
-    "mythical": (forms.GOLD_ENGRAM, 0.7),
+    "mythical": (forms.GOLD_ENGRAM, 0.35),
 }
 # The sculpted forms' tangent-space normal maps: the shader's material, then the
 # picture in `art/` it is baked into (`<material>_n.png`, `normalMap` in the shader).
@@ -604,6 +623,8 @@ def face_shader(tier: Tier, sheen_lines=(), sheen_name=SHEEN_NAME) -> list:
     glow, then the sheen's stage when given."""
     name = f"models/sjk/holocron_{tier.id}"
     lines = [name, "{", "\tq3map_nolightmap"]
+    if tier.id == "mythical":
+        lines.append(f"\tdeformVertexes wave {ENGRAM_BREATH}")
     lines += stage(f"map {name}", *normal_map_line(name.removeprefix("models/sjk/")), "rgbGen lightingDiffuse")
     # The engram's plates are metal: barely a light of their own, so the seams are
     # what glows.
@@ -615,6 +636,10 @@ def face_shader(tier: Tier, sheen_lines=(), sheen_name=SHEEN_NAME) -> list:
     return lines + ["}"]
 
 
+# How the engram's plates breathe: `deformVertexes wave` with a spread so wide every
+# plate moves as one (its vertices carry the plate's normal), out by 0 to 0.4 units, so
+# the core shows between them at the top of the breath.
+ENGRAM_BREATH = "1000 sin 0.2 0.2 0 0.35"
 # The engram's plates' own light (the face's second stage), far under the tier's.
 ENGRAM_OWN_GLOW = (0.35, 0.08, 0.25, 0.35)
 
@@ -625,7 +650,8 @@ def tier_shader() -> str:
         "// cube, the Great Holocron's pentagons, the Sith pyramid, the engram). Lit (through",
         "// its baked normal map when sculpted), also glowing faintly of itself, and its lit",
         "// parts kept bright and in the dynamic glow, breathing; the tiers climb in how",
-        "// bright. The engram's plates also flash with a sheen read by the view as it turns.",
+        "// bright. The engram's plates also breathe out and back (deformVertexes) and flash",
+        "// with a sheen read by the view as they turn.",
         "// Made by scripts/holocron_assets.py from its TIERS table: edit that, not this.",
     ]
     for tier in TIERS:
@@ -682,7 +708,8 @@ def parts_shader() -> str:
         "// The holocrons' other materials (SJK; see README.md): steel (the kyber crystals'",
         "// sheaths and rings), the Sith pyramid's sculpted cap, each tier's light (edges,",
         "// halo, eye, motes, sparks): full bright, breathing in the glow as the tier's face",
-        "// does.",
+        "// does; and the engram's seams (pulsing, breathing with the plates) and its",
+        "// white-hot core (pulsing in the glow).",
         "// Made by scripts/holocron_assets.py: edit that, not this.",
     ]
     lines += lit_shader(f"models/sjk/{forms.STEEL}", 0.3)
@@ -690,6 +717,19 @@ def parts_shader() -> str:
     lines += lit_shader(f"models/sjk/{cap}", SITH_CAP_OWN, normal_map_line(cap))
     for tier in TIERS:
         lines += light_shader(tier)
+    name = "models/sjk/holocron_mythical"
+    lines += (
+        [f"{name}_seam", "{", "\tq3map_nolightmap", f"\tdeformVertexes wave {ENGRAM_BREATH}"]
+        + stage(f"map {name}_seam", "rgbGen identity")
+        + stage(f"map {name}_seam", "blendFunc GL_ONE GL_ONE", "rgbGen wave sin 0.2 0.18 0 0.8", "glow")
+        + ["}"]
+    )
+    lines += (
+        [f"{name}_core", "{", "\tq3map_nolightmap"]
+        + stage(f"map {name}_core", "rgbGen identity")
+        + stage(f"map {name}_core", "blendFunc GL_ONE GL_ONE", "rgbGen wave sin 0.6 0.4 0.5 0.8", "glow")
+        + ["}"]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -844,7 +884,14 @@ def tiers(output: Path, art: dict) -> None:
             picture(f"{name}_cap_locked", locked_face(cap))
             looks[f"{name}_cap"] = forms.Look(cap, own_light=SITH_CAP_OWN * 0.5)
         if tier.id == "mythical":
+            extras = engram_extras(tier)
+            for part, rgb in extras.items():
+                picture(f"{name}_{part}", rgb)
+                # The locked seams and core are dim, not lit.
+                picture(f"{name}_{part}_locked", locked_face(rgb) * 0.45)
             picture(ENGRAM_ENV, engram_env(tier))
+            looks[f"{name}_seam"] = forms.Look(extras["seam"], lit=False)
+            looks[f"{name}_core"] = forms.Look(extras["core"], lit=False)
         files += [("icon", name), ("icon", f"{name}_small")]
     for tier in ALL_TIERS:
         icon_picture = tier_icon(tier, looks)

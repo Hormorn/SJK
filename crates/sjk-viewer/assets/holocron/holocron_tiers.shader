@@ -2,7 +2,8 @@
 // cube, the Great Holocron's pentagons, the Sith pyramid, the engram). Lit (through
 // its baked normal map when sculpted), also glowing faintly of itself, and its lit
 // parts kept bright and in the dynamic glow, breathing; the tiers climb in how
-// bright. The engram's plates also flash with a sheen read by the view as it turns.
+// bright. The engram's plates also breathe out and back (deformVertexes) and flash
+// with a sheen read by the view as they turn.
 // Made by scripts/holocron_assets.py from its TIERS table: edit that, not this.
 models/sjk/holocron_uncommon
 {
@@ -66,6 +67,7 @@ models/sjk/holocron_legendary
 models/sjk/holocron_mythical
 {
 	q3map_nolightmap
+	deformVertexes wave 1000 sin 0.2 0.2 0 0.35
 	{
 		map models/sjk/holocron_mythical
 		normalMap models/sjk/holocron_mythical_n
