@@ -1663,6 +1663,57 @@ like this one.",
                 created: 1_791_720_000,
                 until: 1_791_806_400,
             }],
+            // Creyon on the server the preview plays on, Lumaya on another.
+            playing: vec![
+                sjk_identity::Playing {
+                    key_id: "9a0c51e2b7d34f80".to_owned(),
+                    server: "203.0.113.7:29070".to_owned(),
+                    slot: 2,
+                    name: "^5Creyon".to_owned(),
+                },
+                sjk_identity::Playing {
+                    key_id: "1f2e3d4c5b6a7980".to_owned(),
+                    server: "198.51.100.4:29071".to_owned(),
+                    slot: 5,
+                    name: "^3Lumaya".to_owned(),
+                },
+            ],
+            gifts: Some(sjk_identity::GiftLog {
+                gifts: vec![
+                    sjk_identity::GiftRow {
+                        id: 812,
+                        action: "holocron_give".to_owned(),
+                        key_id: "0b1c2d3e4f5a6b7c".to_owned(),
+                        name: "Padawan^1Fox".to_owned(),
+                        what: "rare".to_owned(),
+                        note: "for the fog bug".to_owned(),
+                        created: 1_791_720_000,
+                        ..Default::default()
+                    },
+                    sjk_identity::GiftRow {
+                        id: 809,
+                        action: "award".to_owned(),
+                        key_id: "1f2e3d4c5b6a7980".to_owned(),
+                        name: "^3Lumaya".to_owned(),
+                        what: "bug_hunter".to_owned(),
+                        rank: Some(2),
+                        created: 1_791_716_000,
+                        ..Default::default()
+                    },
+                    sjk_identity::GiftRow {
+                        id: 801,
+                        action: "unlock".to_owned(),
+                        key_id: "9a0c51e2b7d34f80".to_owned(),
+                        name: "^5Creyon".to_owned(),
+                        what: "saber_sun".to_owned(),
+                        created: 1_791_710_000,
+                        undone: true,
+                        ..Default::default()
+                    },
+                ],
+                per_day: None,
+                left: None,
+            }),
             ..sjk_identity::StaffState::default()
         };
         on_big_stack(move || {
@@ -1724,6 +1775,17 @@ like this one.",
                 console.staff_merge("0b1c2d3e4f5a6b7c", true);
             }
             println!("{}", shoot(&mut gpu, 6, "duel6-staff-merge").display());
+            // The giver's own gifts of the day, one undone.
+            if let Some(console) = gpu.console.as_mut() {
+                console.staff_tab(crate::console::staff_panel::ShotTab::Gifts);
+            }
+            println!("{}", shoot(&mut gpu, 6, "duel6-staff-gifts").display());
+            // The saber shaders found by a word.
+            if let Some(console) = gpu.console.as_mut() {
+                console.staff_tab(crate::console::staff_panel::ShotTab::Rewards);
+                console.staff_shader_filter("moon");
+            }
+            println!("{}", shoot(&mut gpu, 6, "duel6-staff-shaders").display());
         });
     }
 

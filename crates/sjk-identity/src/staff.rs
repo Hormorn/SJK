@@ -1,13 +1,123 @@
 //! Staff requests (`PROTOCOL.md`, "Staff"): what a key the hub's operator made staff
-//! may do from inside the game: find players, verify them, give and take back medals and
-//! unlockables, give and take back holocrons, clear achievements, moderate the SJK chat
-//! and players' pictures, merge two players into one and unlink a key from a player. The
-//! hub refuses every one from a key that is not staff; the client only offers them to
-//! a player whose own profile says `staff`.
+//! may do from inside the game: find players (by name or key, among those playing now, on
+//! one server or among staff), verify them, give medals, unlockables, holocrons and kyber
+//! crystals (since 08/11/2026 every staff member, within a daily number, and never to
+//! themselves; taking back stays the creator's), undo their own gifts of the day, clear
+//! achievements, moderate the SJK chat and players' pictures, merge two players into one
+//! and unlink a key from a player. The hub refuses every one from a key that is not staff;
+//! the client only offers them to a player whose own profile says `staff`.
 
 use crate::logs::{CrashDetail, CrashGroup, CrashSummary, LogRequestRow};
 use crate::wire::Profile;
 use serde::Deserialize;
+
+/// Where a scoped staff search looks (`PROTOCOL.md`, "Staff", since 08/11/2026); the
+/// query, when there is one, still has to match a name or the key.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SearchScope {
+    /// The players the hub sees in a game right now, on any server.
+    Online,
+    /// The players the hub sees on one game server (`ip:port`, as claims name it).
+    Server(String),
+    /// The SJK team: every staff player, the creator among them.
+    Staff,
+}
+
+impl SearchScope {
+    /// The body's `scope`, and `server` for [`Self::Server`].
+    pub(crate) fn wire(&self) -> (&'static str, Option<&str>) {
+        match self {
+            Self::Online => ("online", None),
+            Self::Server(server) => ("server", Some(server)),
+            Self::Staff => ("staff", None),
+        }
+    }
+
+    /// Where it looked, after a count of players ("3 players playing now").
+    fn words(&self) -> &'static str {
+        match self {
+            Self::Online => "playing now",
+            Self::Server(_) => "on this server",
+            Self::Staff => "in the SJK team",
+        }
+    }
+}
+
+/// Where a player found is playing right now, as the hub's search answers it
+/// (`PROTOCOL.md`, "Staff", `playing`; older hubs send none).
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct Playing {
+    /// The player's id, as their profile's `key_id`.
+    #[serde(default)]
+    pub key_id: String,
+    /// The game server, `ip:port`.
+    #[serde(default)]
+    pub server: String,
+    /// Their slot there.
+    #[serde(default)]
+    pub slot: u8,
+    /// The name they wear there.
+    #[serde(default)]
+    pub name: String,
+}
+
+/// `POST /v1/staff/search`'s answer.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct Found {
+    /// The players found.
+    #[serde(default)]
+    pub players: Vec<Profile>,
+    /// Where those of them in a game are playing.
+    #[serde(default)]
+    pub playing: Vec<Playing>,
+}
+
+/// One of the staff member's own gifts of the last day, as `POST /v1/staff/gifts`
+/// answers them (`PROTOCOL.md`, "Staff").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct GiftRow {
+    /// Its number in the hub's staff log, which Undo names.
+    #[serde(default)]
+    pub id: i64,
+    /// `award`, `medal-rank`, `unlock` or `holocron_give`.
+    #[serde(default)]
+    pub action: String,
+    /// Who got it: their id.
+    #[serde(default)]
+    pub key_id: String,
+    /// Their display name now.
+    #[serde(default)]
+    pub name: String,
+    /// The medal's, unlockable's or holocron (or crystal) tier's id.
+    #[serde(default)]
+    pub what: String,
+    /// The medal's rank, for a medal or a rank.
+    #[serde(default)]
+    pub rank: Option<u8>,
+    /// The note sent with it.
+    #[serde(default)]
+    pub note: String,
+    /// When, unix seconds.
+    #[serde(default)]
+    pub created: i64,
+    /// Undone since.
+    #[serde(default)]
+    pub undone: bool,
+}
+
+/// `POST /v1/staff/gifts`'s answer.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct GiftLog {
+    /// The gifts, newest first.
+    #[serde(default)]
+    pub gifts: Vec<GiftRow>,
+    /// How many gifts a day a staff member may give; `None` for the creator (no limit).
+    #[serde(default)]
+    pub per_day: Option<u32>,
+    /// How many are left today; `None` for the creator.
+    #[serde(default)]
+    pub left: Option<u32>,
+}
 
 /// One staff request.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -15,6 +125,14 @@ pub enum StaffRequest {
     /// Find players: 16 hex digits for one key, a part of a name, or empty for the
     /// players seen most recently.
     Search(String),
+    /// Find players within a scope (since 08/11/2026): those playing now, on one server or
+    /// in the SJK team, matching `query` when it is not empty.
+    SearchIn {
+        /// A key id or part of a name, or empty for everyone in the scope.
+        query: String,
+        /// Where to look.
+        scope: SearchScope,
+    },
     /// Give a medal.
     Award {
         /// The key that gets it.
@@ -191,6 +309,33 @@ pub enum StaffRequest {
         /// Why, shown with it; may be empty.
         note: String,
     },
+    /// Undo one of the staff member's own gifts of the last day (since 08/11/2026): a
+    /// medal, rank, unlockable, holocron or crystal given by mistake goes again.
+    GiftUndo {
+        /// The gift's number in the hub's staff log ([`GiftRow::id`]).
+        id: i64,
+        /// Who got it, whose profile the answer is.
+        key_id: String,
+    },
+}
+
+impl StaffRequest {
+    /// Whether it is a search, which the hub answers with players found.
+    pub fn is_search(&self) -> bool {
+        matches!(self, Self::Search(_) | Self::SearchIn { .. })
+    }
+
+    /// Whether it gives something (a medal, a rank, an unlockable, a holocron or a
+    /// crystal): what counts towards a staff member's gifts of the day.
+    pub fn is_gift(&self) -> bool {
+        matches!(
+            self,
+            Self::Award { .. }
+                | Self::MedalRank { .. }
+                | Self::Unlock { .. }
+                | Self::HolocronGive { .. }
+        )
+    }
 }
 
 impl StaffRequest {
@@ -198,6 +343,7 @@ impl StaffRequest {
     pub fn target(&self) -> Option<&str> {
         match self {
             Self::Search(_)
+            | Self::SearchIn { .. }
             | Self::ChatDelete { .. }
             | Self::MapBlock { .. }
             | Self::RemapBlock { .. } => None,
@@ -218,7 +364,8 @@ impl StaffRequest {
             | Self::Merge { key_id, .. }
             | Self::Unlink { key_id }
             | Self::Credits { key_id, .. }
-            | Self::Shards { key_id, .. } => Some(key_id),
+            | Self::Shards { key_id, .. }
+            | Self::GiftUndo { key_id, .. } => Some(key_id),
         }
     }
 }
@@ -246,6 +393,8 @@ pub enum StaffQuery {
     Crash(i64),
     /// The SJK chat bans in force, newest first (`PROTOCOL.md`, "Chat bans").
     ChatBans,
+    /// The staff member's own gifts of the last day, and how many are left today.
+    Gifts,
 }
 
 /// What the hub answered a [`StaffQuery`].
@@ -263,6 +412,8 @@ pub enum StaffAnswer {
     Crash(Box<CrashDetail>),
     /// The chat bans in force.
     ChatBans(Vec<ChatBanRow>),
+    /// The staff member's own gifts of the last day.
+    Gifts(GiftLog),
 }
 
 /// A chat ban in force, as the hub lists them to staff (`PROTOCOL.md`, "Chat bans",
@@ -317,6 +468,14 @@ pub struct StaffState {
     pub serial: u64,
     /// The players the last search found, updated by later answers about them.
     pub players: Vec<Profile>,
+    /// Where those of them in a game were playing when it answered.
+    pub playing: Vec<Playing>,
+    /// The scope of the last search, `None` for everyone.
+    pub scope: Option<SearchScope>,
+    /// Counts the searches answered, so a reader can tell a new list of players.
+    pub searches: u64,
+    /// The staff member's own gifts of the last day, once read (`StaffQuery::Gifts`).
+    pub gifts: Option<GiftLog>,
     /// What the last request came to: done, or why not.
     pub message: String,
     /// Whether the last request failed.
@@ -339,6 +498,43 @@ pub struct StaffState {
 }
 
 impl StaffState {
+    /// Where the player `key_id` (their id) was playing when the search answered.
+    pub fn playing_of(&self, key_id: &str) -> Option<&Playing> {
+        self.playing.iter().find(|entry| entry.key_id == key_id)
+    }
+
+    /// Take in a search's answer.
+    pub fn found(&mut self, request: &StaffRequest, found: Found) {
+        self.searches += 1;
+        self.players = found.players;
+        self.playing = found.playing;
+        self.scope = match request {
+            StaffRequest::SearchIn { scope, .. } => Some(scope.clone()),
+            _ => None,
+        };
+    }
+
+    /// A gift went through: one fewer left today, until the list is read again.
+    pub fn gave(&mut self) {
+        if let Some(left) = self.gifts.as_mut().and_then(|log| log.left.as_mut()) {
+            *left = left.saturating_sub(1);
+        }
+    }
+
+    /// Gift `id` was undone: marked so, and its place is free again.
+    pub fn undid(&mut self, id: i64) {
+        let Some(log) = self.gifts.as_mut() else {
+            return;
+        };
+        let Some(row) = log.gifts.iter_mut().find(|row| row.id == id && !row.undone) else {
+            return;
+        };
+        row.undone = true;
+        if let (Some(left), Some(per_day)) = (log.left.as_mut(), log.per_day) {
+            *left = (*left + 1).min(per_day);
+        }
+    }
+
     /// Put `profile`, the hub's answer about a key, in place of that key's entry.
     pub fn replace(&mut self, profile: &Profile) {
         if let Some(entry) = self
@@ -408,6 +604,17 @@ impl StaffState {
                     count => format!("{count} chat bans in force"),
                 }
             }
+            StaffAnswer::Gifts(log) => {
+                let count = log.gifts.iter().filter(|row| !row.undone).count();
+                let message = match (count, log.left) {
+                    (1, Some(left)) => format!("1 gift today, {left} left"),
+                    (count, Some(left)) => format!("{count} gifts today, {left} left"),
+                    (1, None) => "1 gift today".to_owned(),
+                    (count, None) => format!("{count} gifts today"),
+                };
+                self.gifts = Some(log);
+                message
+            }
         };
     }
 
@@ -469,6 +676,24 @@ pub(crate) fn done(request: &StaffRequest, count: usize) -> String {
             1 => "1 player found".to_owned(),
             count => format!("{count} players found"),
         },
+        StaffRequest::SearchIn { query, scope } => {
+            let found = if query.trim().is_empty() {
+                ""
+            } else {
+                " found"
+            };
+            // On a server the hub knows only SJK players: the others are there too.
+            let player = match scope {
+                SearchScope::Server(_) => "SJK player",
+                _ => "player",
+            };
+            match count {
+                0 if player == "player" => format!("Nobody{found} {}", scope.words()),
+                0 => format!("No {player}{found} {}", scope.words()),
+                1 => format!("1 {player}{found} {}", scope.words()),
+                count => format!("{count} {player}s{found} {}", scope.words()),
+            }
+        }
         StaffRequest::Award { medal, rank: 1, .. } => format!("Gave {medal}"),
         StaffRequest::Award { medal, rank, .. } => format!("Gave {medal} at rank {rank}"),
         StaffRequest::Unaward { medal, .. } => format!("Took back {medal}"),
@@ -516,6 +741,7 @@ pub(crate) fn done(request: &StaffRequest, count: usize) -> String {
             format!("Took {} kyber shards", delta.unsigned_abs())
         }
         StaffRequest::Shards { delta, .. } => format!("Gave {delta} kyber shards"),
+        StaffRequest::GiftUndo { .. } => "Undid the gift".to_owned(),
         StaffRequest::MapBlock { blocked: true, .. } => {
             "Blocked for everyone on this map".to_owned()
         }

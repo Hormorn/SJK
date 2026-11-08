@@ -63,7 +63,10 @@ pub use service::{
     RevealOutcome, Service, Settings, ShopState, Snapshot, Status, TagOutcome, TagTrade, Trade,
     TradeOutcome, TradesClock,
 };
-pub use staff::{ChatBanRow, OpenedText, StaffAnswer, StaffQuery, StaffRequest, StaffState};
+pub use staff::{
+    ChatBanRow, Found, GiftLog, GiftRow, OpenedText, Playing, SearchScope, StaffAnswer, StaffQuery,
+    StaffRequest, StaffState,
+};
 pub use trades::{
     PlayerTrade, TradeAnswer, TradeEvent, TradeItem, TradePartner, TradeRules, TradeSide,
     TradeStep, TradeToday, TradesAnswer,

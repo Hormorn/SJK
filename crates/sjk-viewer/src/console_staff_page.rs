@@ -1,6 +1,7 @@
 //! Console side of the Staff page (see `staff_panel.rs`): opening it for a staff
-//! key, sending what it asks to the hub, and routing keys and pointer events to it,
-//! as for the Profile page. Clearing the player's own achievements also resets this
+//! key (`staff` alone, or `staff <name or key id>` to look a player up at once), sending
+//! what it asks to the hub, and routing keys and pointer events to it, as for the
+//! Profile page. Clearing the player's own achievements also resets this
 //! client's counts for them (`achievements::forget`), so they can be unlocked again.
 
 use super::staff_panel::{Inputs, PanelAction};
@@ -10,20 +11,30 @@ use sjk_ui::InputEvent;
 
 /// The `staff` command.
 pub(crate) const STAFF_COMMAND: &str = "staff";
-pub(crate) const STAFF_HELP: &str = "Open the SJK staff tools (staff keys only)";
+pub(crate) const STAFF_HELP: &str =
+    "Open the SJK staff tools (staff keys only); staff <name> finds a player";
 
 impl ViewerConsole {
-    /// `staff`: show the page, or close it; a key that is not staff is told so.
-    pub(crate) fn toggle_staff_panel(&mut self) {
-        if self.open && self.staff_panel.is_open() {
+    /// `staff`: show the page, or close it; `staff <name or key id>` shows it searching
+    /// for that player (a search that finds one chooses them). A key that is not staff is
+    /// told so.
+    pub(crate) fn staff_command(&mut self, args: &str) {
+        let query = args.trim().trim_matches('"').trim();
+        if query.is_empty() && self.open && self.staff_panel.is_open() {
             self.close_staff_panel();
             return;
         }
-        self.open_staff_panel();
+        self.open_staff_panel_searching(query);
     }
 
     /// Show the page (the Profile page's Staff tools), and list the players seen lately.
     pub(crate) fn open_staff_panel(&mut self) {
+        self.open_staff_panel_searching("");
+    }
+
+    /// Show the page searching for `query` (a name or a key id; empty for the players
+    /// seen lately).
+    fn open_staff_panel_searching(&mut self, query: &str) {
         if !crate::player_identity::is_staff() {
             self.push_log("^3staff: only SJK staff keys can open the staff tools");
             return;
@@ -45,7 +56,9 @@ impl ViewerConsole {
         self.sjk_chat_panel.close();
         self.dead_key.settle();
         self.staff_panel.open(owns_console);
-        crate::player_identity::staff(StaffRequest::Search(String::new()));
+        // The page waits for the search's answer to choose a lone player found.
+        let search = self.staff_panel.opening_search(query);
+        crate::player_identity::staff(search);
     }
 
     /// Closing the page closes the console too (it was opened from the Profile page,
@@ -127,6 +140,7 @@ impl ViewerConsole {
             let inputs = Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: Some("203.0.113.7:29070".to_owned()),
             };
             self.staff_panel.append_sjk(&inputs, target, viewport);
             self.staff_panel.preview = Some((me, staff));
@@ -140,6 +154,10 @@ impl ViewerConsole {
         let inputs = Inputs {
             me: snapshot.as_ref().and_then(|snapshot| snapshot.me.as_ref()),
             staff: &staff,
+            server: snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.server)
+                .map(|server| server.to_string()),
         };
         self.staff_panel.append_sjk(&inputs, target, viewport);
     }
@@ -191,6 +209,12 @@ impl ViewerConsole {
     #[cfg(test)]
     pub(crate) fn staff_choose(&mut self, key_id: &str) {
         self.staff_panel.choose_for_shot(key_id);
+    }
+
+    /// Type `filter` in the open page's saber shader filter, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn staff_shader_filter(&mut self, filter: &str) {
+        self.staff_panel.shader_filter_for_shot(filter);
     }
 
     /// Show the page's Keys and merge view with `from` to merge in, confirming it when

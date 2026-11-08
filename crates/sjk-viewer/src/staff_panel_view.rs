@@ -1,6 +1,8 @@
 //! The Staff page's drawing, in the SJK UI's look: the search pill in the top bar,
-//! the players found down the left, and on the right the chosen player's picture and
-//! name beside the note sent with the next gift, over a row of tabs:
+//! the players found down the left (Me, Seen lately and the scope chips Here, Online and
+//! Team over them, a page of 15 at a time, each with where they play now or when they
+//! were last seen, and the old name a search matched), and on the right the chosen
+//! player's picture and name beside the note sent with the next gift, over a row of tabs:
 //!
 //! Key ids never show (nor anywhere in the game): players go by name, a key id typed or
 //! pasted into the search or the merge field shows as dots, linked keys are numbered.
@@ -9,8 +11,8 @@
 //!   they wore)
 //!   with Verify, and moderation: their picture (Take down, Block pictures, Allow
 //!   pictures) and the SJK chat (Mute at the hub, Unmute, Lift chat bans);
-//! - Medals and unlocks: the medals with Give and Take back, the unlockables with
-//!   Unlock and Relock;
+//! - Medals and shaders: the medals with Rank, Give and Take back, the saber shaders
+//!   (found by name, number or tier, or only those held) with Unlock and Relock;
 //! - Holocrons and credits: a holocron or kyber crystal tier to choose, Give, and their
 //!   holocrons and crystals with Remove;
 //!   their credits and kyber shards with an amount, Give and Take;
@@ -18,7 +20,9 @@
 //! - Keys: their keys with Unlink and merging another player into them;
 //! - Logs: asking the player for their game's logs, the requests with Open;
 //! - Crashes and Chat bans, of every player: the crash reports by kind, then one
-//!   kind's with Open; the SJK chat bans in force, each with Lift.
+//!   kind's with Open; the SJK chat bans in force, each with Lift;
+//! - My gifts: the staff member's own gifts of the last day, each with Undo, and how many
+//!   are left today.
 
 use super::*;
 use crate::achievements;
@@ -112,6 +116,83 @@ fn cut(text: &str, chars: usize) -> String {
     format!("{kept}...")
 }
 
+/// Most players a search answers (the hub's `SEARCH_MAX`).
+const SEARCH_ANSWERS: usize = 30;
+
+/// A found player's second line: "you", where they play now ("playing here as Fox",
+/// "playing now on 1.2.3.4:29070, as Fox") or when the hub last saw them in a game,
+/// and, when the search matched a name they wore before rather than the one shown,
+/// "wore <that name>". Never their key id.
+fn about_line(
+    player: &Profile,
+    playing: Option<&sjk_identity::Playing>,
+    server: Option<&str>,
+    you: bool,
+    wanted: &str,
+) -> String {
+    let mut line = match playing {
+        _ if you => "you".to_owned(),
+        Some(playing) if Some(playing.server.as_str()) == server => {
+            format!("playing here as {}", cut(&plain(&playing.name), 18))
+        }
+        Some(playing) => format!(
+            "playing now on {}, as {}",
+            playing.server,
+            cut(&plain(&playing.name), 14)
+        ),
+        None => match crate::medals::date_text(last_seen(player)) {
+            seen if seen.is_empty() => "not seen in a game yet".to_owned(),
+            seen => format!("seen {seen}"),
+        },
+    };
+    if !wanted.is_empty()
+        && !sjk_identity::normal_form(&player.name).contains(wanted)
+        && let Some(worn) = player
+            .names
+            .iter()
+            .find(|worn| sjk_identity::normal_form(&worn.name).contains(wanted))
+    {
+        line.push_str(&format!(" \u{b7} wore {}", cut(&plain(&worn.name), 18)));
+    }
+    line
+}
+
+/// What a gift was, as My gifts names it ("Bug Hunter, rank II", "Shader 042 Sun",
+/// "Rare Holocron"), and its colour.
+fn gift_words(gift: &sjk_identity::GiftRow) -> (String, Color) {
+    let rank = gift
+        .rank
+        .map(|rank| crate::medals::Rank::from_wire(rank).numeral());
+    match gift.action.as_str() {
+        "award" | "medal-rank" => {
+            let name = Medal::from_id(&gift.what)
+                .map_or(gift.what.clone(), |medal| medal.name().to_owned());
+            let words = match (gift.action.as_str(), rank) {
+                ("medal-rank", Some(rank)) => format!("{name} to rank {rank}"),
+                (_, Some(rank)) if rank != "I" => format!("{name}, rank {rank}"),
+                _ => name,
+            };
+            (words, color::GOLD_BRIGHT)
+        }
+        "unlock" => match crate::unlockables::find(&gift.what) {
+            Some(unlockable) => (
+                format!("Shader {} {}", unlockable.number_text(), unlockable.name),
+                unlockable.tier.colour(),
+            ),
+            None => (format!("Shader {}", gift.what), color::GOLD_BRIGHT),
+        },
+        _ => match crate::holocrons::any(&gift.what) {
+            Some(tier) => (tier.title().into_owned(), tier.colour),
+            None => (gift.what.clone(), color::GOLD_BRIGHT),
+        },
+    }
+}
+
+/// `name` without its colour codes.
+fn plain(name: &str) -> String {
+    crate::medals::plain_note(name)
+}
+
 impl Panel {
     /// Draw the page with what `inputs` says.
     pub(crate) fn append_sjk(
@@ -140,6 +221,16 @@ impl Panel {
         } else {
             hide_key(&self.query)
         };
+        self.shown.server.clone_from(&inputs.server);
+        if self.scope == Scope::Here && self.shown.server.is_none() {
+            self.scope = Scope::Everyone;
+        }
+        let prompt = match self.scope {
+            Scope::Everyone => "Find a player by name or key id",
+            Scope::Here => "Find among the SJK players on this server",
+            Scope::Online => "Find among the players playing now",
+            Scope::Team => "Find in the SJK team",
+        };
         top_bar(
             &mut self.ui,
             &frame,
@@ -149,13 +240,24 @@ impl Panel {
             Some(SearchPill {
                 query: &query,
                 active: self.focus == SEARCH_TOKEN,
-                prompt: "Find a player by name or key id",
+                prompt,
                 found: (!inputs.staff.players.is_empty()).then_some(inputs.staff.players.len()),
                 token: SEARCH_TOKEN,
             }),
         );
         self.order.push(SEARCH_TOKEN);
         self.shown.me = inputs.me.map(|me| me.key_id.clone());
+        // A search answered that found one player chooses them.
+        if let Some(sent) = self.awaiting_search
+            && !inputs.staff.busy
+            && inputs.staff.searches > sent
+        {
+            self.awaiting_search = None;
+            if let [only] = inputs.staff.players.as_slice() {
+                self.selected = Some(only.key_id.clone());
+            }
+        }
+        self.searches_seen = inputs.staff.searches;
         self.players(&frame, inputs);
         let target = self.target(inputs).cloned();
         self.shown.target = target.as_ref().map(|profile| profile.key_id.clone());
@@ -172,6 +274,23 @@ impl Panel {
         });
         self.shown.staff = target.as_ref().is_some_and(|profile| profile.staff);
         self.shown.creator = inputs.me.is_some_and(|me| me.creator);
+        // Staff give to anyone but themselves, a number a day; the creator always may.
+        self.shown.gifts_left = inputs.staff.gifts.as_ref().and_then(|log| log.left);
+        self.shown.gift_block = match (&target, inputs.me) {
+            _ if self.shown.creator => None,
+            (Some(target), Some(me))
+                if target.key_id == me.key_id
+                    || target.has_key(&me.key_id)
+                    || me.has_key(&target.key_id) =>
+            {
+                Some("Staff cannot give to themselves")
+            }
+            _ if self.shown.gifts_left == Some(0) => {
+                Some("No gifts left today: undo one on My gifts, or wait")
+            }
+            _ => None,
+        };
+        self.shown.gift_rows.clear();
         self.shown.linked.clear();
         self.shown.log_rows.clear();
         self.shown.crash_groups.clear();
@@ -226,10 +345,14 @@ impl Panel {
                 View::Logs => self.logs(&frame, profile, inputs.staff),
                 View::Crashes => self.crashes(&frame, inputs.staff),
                 View::ChatBans => self.chat_bans(&frame, inputs.staff),
+                View::Gifts => self.gifts(&frame, inputs.staff),
             }
         }
         if !self.shown.creator {
             self.order.retain(|token| !super::owner_only(*token));
+        }
+        if self.shown.gift_block.is_some() {
+            self.order.retain(|token| !super::gift(*token));
         }
         self.status(&frame, inputs.staff);
         self.keys(&frame);
@@ -239,30 +362,53 @@ impl Panel {
         self.ui.finish(self.focus);
     }
 
-    /// The players found, with Me and Recent over them.
+    /// The players found, a page at a time, with Me, Seen lately and the scope chips
+    /// over them.
     fn players(&mut self, frame: &Frame, inputs: &Inputs<'_>) {
         let s = frame.s;
-        for (index, (label, token)) in [("Me", ME_TOKEN), ("Seen lately", RECENT_TOKEN)]
-            .into_iter()
-            .enumerate()
-        {
-            let width = if index == 0 { 90.0 } else { 160.0 };
-            let x = LEFT_X + index as f32 * 104.0;
+        let here = self.shown.server.is_some();
+        let mut x = LEFT_X;
+        for (label, width, token, lit, enabled) in [
+            ("Me", 64.0, ME_TOKEN, false, true),
+            ("Seen lately", 136.0, RECENT_TOKEN, false, true),
+            ("Here", 86.0, HERE_TOKEN, self.scope == Scope::Here, here),
+            (
+                "Online",
+                100.0,
+                ONLINE_TOKEN,
+                self.scope == Scope::Online,
+                true,
+            ),
+            ("Team", 84.0, TEAM_TOKEN, self.scope == Scope::Team, true),
+        ] {
+            // The scope chips sit a little apart from Me and Seen lately.
+            if token == HERE_TOKEN {
+                x += 14.0;
+            }
             kit::button(
                 &mut self.ui,
                 frame,
                 [x, TOP - 2.0, width, 42.0],
                 label,
-                false,
-                true,
+                lit,
+                enabled,
                 self.focus == token,
                 token,
             );
-            self.order.push(token);
+            if enabled {
+                self.order.push(token);
+            }
+            x += width + 8.0;
         }
         self.shown.players.clear();
+        let found = &inputs.staff.players;
+        self.shown.players_found = found.len();
+        self.player_page = self.player_page.min(self.player_pages() - 1);
+        let first = self.player_page * PLAYERS_SHOWN;
         let selected = self.shown_selection(inputs);
-        for (index, player) in inputs.staff.players.iter().take(PLAYERS_SHOWN).enumerate() {
+        // The name a search matched when it is not the one shown, from the query sent.
+        let wanted = sjk_identity::normal_form(self.query.trim());
+        for (index, player) in found.iter().skip(first).take(PLAYERS_SHOWN).enumerate() {
             let token = PLAYER_BASE + index as u16;
             let y = PLAYERS_TOP + index as f32 * PLAYER_ROW;
             let row = [LEFT_X, y, LEFT_WIDTH, PLAYER_ROW - 4.0];
@@ -284,21 +430,26 @@ impl Panel {
                 FontWeight::Regular,
                 TextAlign::Start,
             );
-            // When the hub last saw them in a game, never their key id.
-            let seen = crate::medals::date_text(last_seen(player));
-            let you = self.shown.me.as_deref() == Some(player.key_id.as_str());
-            let about = match (you, seen.is_empty()) {
-                (true, _) => "you".to_owned(),
-                (false, true) => "not seen in a game yet".to_owned(),
-                (false, false) => format!("seen {seen}"),
-            };
+            // Where they play now or when the hub last saw them in a game, never their
+            // key id; and the old name the search matched.
+            let about = about_line(
+                player,
+                inputs.staff.playing_of(&player.key_id),
+                self.shown.server.as_deref(),
+                self.shown.me.as_deref() == Some(player.key_id.as_str()),
+                &wanted,
+            );
             text(
                 &mut self.ui,
                 TextFamily::Body,
                 format_args!("{about}"),
-                frame.rect(LEFT_X + 18.0, y + 26.0, 260.0, 18.0),
+                frame.rect(LEFT_X + 18.0, y + 26.0, LEFT_WIDTH - 170.0, 18.0),
                 13.0 * s,
-                color::QUIET,
+                if inputs.staff.playing_of(&player.key_id).is_some() {
+                    color::GOLD_BRIGHT
+                } else {
+                    color::QUIET
+                },
                 FontWeight::Regular,
                 TextAlign::Start,
             );
@@ -324,20 +475,51 @@ impl Panel {
             self.order.push(token);
             self.shown.players.push(player.key_id.clone());
         }
-        if inputs.staff.players.len() > PLAYERS_SHOWN {
+        let pages = self.player_pages();
+        if pages > 1 {
+            let y = PLAYERS_TOP + PLAYERS_SHOWN as f32 * PLAYER_ROW + 4.0;
+            let page = self.player_page;
+            for (token, label, x, enabled) in [
+                (PLAYERS_PREV_TOKEN, "<", LEFT_X, page > 0),
+                (PLAYERS_NEXT_TOKEN, ">", LEFT_X + 132.0, page + 1 < pages),
+            ] {
+                kit::button(
+                    &mut self.ui,
+                    frame,
+                    [x, y, 44.0, 32.0],
+                    label,
+                    false,
+                    enabled,
+                    self.focus == token,
+                    token,
+                );
+                if enabled {
+                    self.order.push(token);
+                }
+            }
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{} / {pages}", page + 1),
+                frame.rect(LEFT_X + 44.0, y + 6.0, 88.0, 20.0),
+                14.0 * s,
+                color::QUIET,
+                FontWeight::Regular,
+                TextAlign::Center,
+            );
             text(
                 &mut self.ui,
                 TextFamily::Body,
                 format_args!(
-                    "and {} more: refine the search",
-                    inputs.staff.players.len() - PLAYERS_SHOWN
+                    "{} found{}",
+                    found.len(),
+                    if found.len() >= SEARCH_ANSWERS {
+                        ": the hub answers 30 at most, refine the search"
+                    } else {
+                        ""
+                    }
                 ),
-                frame.rect(
-                    LEFT_X + 18.0,
-                    PLAYERS_TOP + PLAYERS_SHOWN as f32 * PLAYER_ROW,
-                    LEFT_WIDTH,
-                    22.0,
-                ),
+                frame.rect(LEFT_X + 190.0, y + 6.0, LEFT_WIDTH - 190.0, 20.0),
                 14.0 * s,
                 color::QUIET,
                 FontWeight::Regular,
@@ -545,7 +727,7 @@ impl Panel {
                     [right - 312.0, y + 10.0, 92.0, 40.0],
                     &format!("Rank {}", rank.numeral()),
                     false,
-                    self.shown.creator,
+                    self.shown.gift_block.is_none(),
                     self.focus == step,
                     step,
                 );
@@ -561,7 +743,7 @@ impl Panel {
                     "Give"
                 },
                 true,
-                can_give && self.shown.creator,
+                can_give && self.shown.gift_block.is_none(),
                 self.focus == give,
                 give,
             );
@@ -582,10 +764,35 @@ impl Panel {
                 self.order.push(take);
             }
         }
+        let y = SECTION_TOP + Medal::COUNT as f32 * MEDAL_ROW + 6.0;
+        let line = self.gift_line();
+        self.column_wrapped(frame, MIDDLE_X, y, &line);
     }
 
-    /// Every unlockable of the catalogue, held or not, with Unlock and Relock, beside the
-    /// medals.
+    /// What the staff member may give now, under the gifts: why not, or how many are
+    /// left today and that taking back is the owner's.
+    fn gift_line(&self) -> String {
+        match (self.shown.gift_block, self.shown.gifts_left) {
+            _ if self.shown.creator => {
+                "The note goes with each gift. Your gifts of the day are on My gifts.".to_owned()
+            }
+            (Some(why), _) => format!("{why}."),
+            (None, Some(1)) => {
+                "1 gift left today. Only the owner takes back; undo your own on My gifts."
+                    .to_owned()
+            }
+            (None, Some(left)) => format!(
+                "{left} gifts left today. Only the owner takes back; undo your own on My gifts."
+            ),
+            (None, None) => {
+                "Staff give a number a day. Only the owner takes back; undo your own on My gifts."
+                    .to_owned()
+            }
+        }
+    }
+
+    /// The saber shaders of the catalogue the filter shows (a name, a number or a tier;
+    /// with Held only, those the player holds), with Unlock and Relock, beside the medals.
     fn unlockables(&mut self, frame: &Frame, profile: &Profile) {
         let s = frame.s;
         let top = SECTION_TOP - 20.0;
@@ -595,14 +802,91 @@ impl Panel {
             RIGHT_X,
             top,
             RIGHT_WIDTH,
-            "Unlockables",
+            "Saber shaders",
         );
+        // The filter and Held only.
+        let field = [RIGHT_X, top + 18.0, RIGHT_WIDTH - 140.0, 36.0];
+        let focused = self.focus == UNLOCK_FILTER_TOKEN;
+        let caret = focused && (self.epoch.elapsed().as_millis() / 500).is_multiple_of(2);
+        let filter = if self.unlock_filter.is_empty() && !focused {
+            "Find: a name, a number or a tier".to_owned()
+        } else {
+            format!("{}{}", self.unlock_filter, if caret { "|" } else { "" })
+        };
+        kit::field(
+            &mut self.ui,
+            frame,
+            field,
+            format_args!("{filter}"),
+            focused,
+            false,
+        );
+        self.ui.hit_region(
+            UNLOCK_FILTER_TOKEN,
+            frame.rect(field[0], field[1], field[2], field[3]),
+        );
+        self.order.push(UNLOCK_FILTER_TOKEN);
+        kit::button(
+            &mut self.ui,
+            frame,
+            [RIGHT_X + RIGHT_WIDTH - 132.0, top + 18.0, 132.0, 36.0],
+            "Held only",
+            self.unlock_held,
+            true,
+            self.focus == UNLOCK_HELD_TOKEN,
+            UNLOCK_HELD_TOKEN,
+        );
+        self.order.push(UNLOCK_HELD_TOKEN);
+        let list_top = top + 62.0;
+        // Worked out again only when the filter, Held only or what is held changes, not
+        // every frame.
+        let held_count = self.shown.unlocks.iter().filter(|held| **held).count();
+        let fresh =
+            self.shown
+                .unlock_rows_for
+                .as_ref()
+                .is_some_and(|(filter, held, key, count)| {
+                    *filter == self.unlock_filter
+                        && *held == self.unlock_held
+                        && *key == profile.key_id
+                        && *count == held_count
+                });
+        if !fresh {
+            self.shown.unlock_rows.clear();
+            for (index, unlockable) in crate::unlockables::ALL.iter().enumerate() {
+                let held = self.shown.unlocks.get(index).copied().unwrap_or(false);
+                if (!self.unlock_held || held)
+                    && super::filter_matches(unlockable, &self.unlock_filter)
+                {
+                    self.shown.unlock_rows.push(index);
+                }
+            }
+            self.shown.unlock_rows_for = Some((
+                self.unlock_filter.clone(),
+                self.unlock_held,
+                profile.key_id.clone(),
+                held_count,
+            ));
+        }
         let cell = (RIGHT_WIDTH - UNLOCK_GAP) * 0.5;
-        let rows = ((KEYS_Y - 16.0 - (top + 18.0)) / UNLOCK_ROW).floor() as usize;
+        let rows = ((KEYS_Y - 16.0 - list_top) / UNLOCK_ROW).floor() as usize;
         let per_page = (rows * 2).max(2);
         self.shown.unlock_per_page = per_page;
-        let pages = crate::unlockables::ALL.len().div_ceil(per_page);
+        let shown_count = self.shown.unlock_rows.len();
+        let pages = shown_count.div_ceil(per_page).max(1);
         self.unlock_page = self.unlock_page.min(pages - 1);
+        if shown_count == 0 {
+            self.column_line(
+                frame,
+                RIGHT_X,
+                list_top + 4.0,
+                if self.unlock_held {
+                    "No held shader matches."
+                } else {
+                    "No shader matches."
+                },
+            );
+        }
         if pages > 1 {
             let page = self.unlock_page;
             let buttons = [
@@ -646,16 +930,18 @@ impl Panel {
             );
         }
         let first = self.unlock_page * per_page;
-        let last = (first + per_page).min(crate::unlockables::ALL.len());
-        for (index, unlockable) in crate::unlockables::ALL
+        let page_rows: Vec<usize> = self
+            .shown
+            .unlock_rows
             .iter()
-            .enumerate()
-            .take(last)
+            .copied()
             .skip(first)
-        {
-            let slot = index - first;
+            .take(per_page)
+            .collect();
+        for (slot, index) in page_rows.into_iter().enumerate() {
+            let unlockable = &crate::unlockables::ALL[index];
             let x = RIGHT_X + (slot % 2) as f32 * (cell + UNLOCK_GAP);
-            let y = top + 18.0 + (slot / 2) as f32 * UNLOCK_ROW;
+            let y = list_top + (slot / 2) as f32 * UNLOCK_ROW;
             let held = self.shown.unlocks.get(index).copied().unwrap_or(false);
             // Held: gold, with the day it was given; not held: muted.
             let granted = profile
@@ -678,10 +964,15 @@ impl Panel {
                 FontWeight::Semibold,
                 TextAlign::Start,
             );
+            // Its number and tier when not held (and when only the owner gives it, so),
+            // else since when.
+            let givable = self.shown.creator || super::staff_may_unlock(unlockable);
+            let number = unlockable.number_text();
             let line = match (held, granted) {
-                (false, _) => "Not held".to_owned(),
-                (true, Some(date)) => format!("Since {date}"),
-                (true, None) => "Held".to_owned(),
+                (false, _) if givable => format!("#{number} {}", unlockable.tier.label()),
+                (false, _) => format!("#{number} {}, owner only", unlockable.tier.label()),
+                (true, Some(date)) => format!("#{number} since {date}"),
+                (true, None) => format!("#{number} held"),
             };
             text(
                 &mut self.ui,
@@ -699,17 +990,24 @@ impl Panel {
             } else {
                 UNLOCK_BASE + index as u16
             };
+            let enabled = if held {
+                self.shown.creator
+            } else {
+                givable && self.shown.gift_block.is_none()
+            };
             kit::button(
                 &mut self.ui,
                 frame,
                 [x + cell - 88.0, y + 3.0, 88.0, 30.0],
                 if held { "Relock" } else { "Unlock" },
                 !held,
-                self.shown.creator,
+                enabled,
                 self.focus == token,
                 token,
             );
-            self.order.push(token);
+            if held || givable {
+                self.order.push(token);
+            }
         }
     }
 
@@ -815,20 +1113,29 @@ impl Panel {
             ],
             "Give",
             true,
-            self.shown.creator,
+            self.shown.gift_block.is_none(),
             self.focus == HOLOCRON_GIVE_TOKEN,
             HOLOCRON_GIVE_TOKEN,
         );
         self.order.push(HOLOCRON_GIVE_TOKEN);
         let chosen = slot(self.holocron_tier);
-        let gives = if chosen.is_kyber() {
-            format!(
+        let gives = match (
+            chosen.is_kyber(),
+            self.shown.gift_block,
+            self.shown.gifts_left,
+        ) {
+            (_, Some(why), _) => why.to_owned(),
+            (true, None, _) => format!(
                 "Give: {} {}, opened to a saber shader",
                 chosen.article(),
                 chosen.name
-            )
-        } else {
-            format!("Give: {} {}", chosen.article(), chosen.name)
+            ),
+            (false, None, Some(left)) if !self.shown.creator => format!(
+                "Give: {} {} \u{b7} {left} gifts left today",
+                chosen.article(),
+                chosen.name
+            ),
+            (false, None, _) => format!("Give: {} {}", chosen.article(), chosen.name),
         };
         let rows_y = chips_y + row_step + TIER_CHIP[1] + 8.0;
         text(
@@ -1640,31 +1947,28 @@ impl Panel {
     fn tabs(&mut self, frame: &Frame) {
         let mut x = MIDDLE_X;
         for (label, width, view, token) in [
-            ("Overview", 116.0, View::Overview, OVERVIEW_TAB_TOKEN),
+            ("Overview", 104.0, View::Overview, OVERVIEW_TAB_TOKEN),
+            ("Medals, shaders", 158.0, View::Rewards, REWARDS_TAB_TOKEN),
             (
-                "Medals and unlocks",
-                186.0,
-                View::Rewards,
-                REWARDS_TAB_TOKEN,
-            ),
-            (
-                "Holocrons and credits",
-                200.0,
+                "Holocrons, credits",
+                176.0,
                 View::Economy,
                 ECONOMY_TAB_TOKEN,
             ),
             (
                 "Achievements",
-                140.0,
+                136.0,
                 View::Achievements,
                 ACHIEVEMENTS_TAB_TOKEN,
             ),
-            ("Keys", 74.0, View::Keys, KEYS_TAB_TOKEN),
-            ("Logs", 72.0, View::Logs, LOGS_TAB_TOKEN),
-            ("Crashes", 104.0, View::Crashes, CRASHES_TAB_TOKEN),
-            ("Chat bans", 112.0, View::ChatBans, CHAT_BANS_TAB_TOKEN),
+            ("Keys", 66.0, View::Keys, KEYS_TAB_TOKEN),
+            ("Logs", 66.0, View::Logs, LOGS_TAB_TOKEN),
+            ("Crashes", 96.0, View::Crashes, CRASHES_TAB_TOKEN),
+            ("Chat bans", 104.0, View::ChatBans, CHAT_BANS_TAB_TOKEN),
+            ("My gifts", 96.0, View::Gifts, GIFTS_TAB_TOKEN),
         ] {
-            // Crashes and Chat bans are every player's: a gap sets them apart.
+            // Crashes, Chat bans and My gifts are not the chosen player's: a gap sets
+            // them apart.
             if token == CRASHES_TAB_TOKEN {
                 x += 14.0;
             }
@@ -2310,6 +2614,121 @@ impl Panel {
         self.order.push(MERGE_CANCEL_TOKEN);
     }
 
+    /// The My gifts tab: the staff member's own gifts of the last day, newest first, each
+    /// with Undo (a second press) until undone, and how many are left today.
+    fn gifts(&mut self, frame: &Frame, staff: &StaffState) {
+        let s = frame.s;
+        let mut y = SECTION_TOP + 6.0;
+        kit::button(
+            &mut self.ui,
+            frame,
+            [MIDDLE_X + PANE_WIDTH - 140.0, y, 140.0, 38.0],
+            "Refresh",
+            false,
+            true,
+            self.focus == GIFTS_REFRESH_TOKEN,
+            GIFTS_REFRESH_TOKEN,
+        );
+        self.order.push(GIFTS_REFRESH_TOKEN);
+        let log = staff.gifts.as_ref();
+        let heading = match log.map(|log| (log.left, log.per_day)) {
+            Some((Some(left), Some(per_day))) => {
+                format!("Your gifts of the last day: {left} of {per_day} left today")
+            }
+            Some(_) => "Your gifts of the last day (no daily limit)".to_owned(),
+            None => "Your gifts of the last day".to_owned(),
+        };
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("{heading}"),
+            frame.rect(MIDDLE_X, y + 4.0, PANE_WIDTH - 150.0, 30.0),
+            20.0 * s,
+            color::TEXT,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        y += 54.0;
+        let Some(log) = log else {
+            self.right_line(frame, y, "Reading them from the hub...", color::MUTED);
+            return;
+        };
+        if log.gifts.is_empty() {
+            self.right_line(
+                frame,
+                y,
+                "No gift in the last day. Undo works on your own gifts for a day.",
+                color::MUTED,
+            );
+        }
+        for (row, gift) in log.gifts.iter().take(GIFT_ROWS_SHOWN).enumerate() {
+            let token = GIFT_UNDO_BASE + row as u16;
+            let row_y = y + row as f32 * LOG_ROW;
+            self.shown.gift_rows.push((gift.id, gift.key_id.clone()));
+            let (what, colour) = gift_words(gift);
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!("{}", cut(&what, 30)),
+                frame.rect(MIDDLE_X, row_y + 2.0, 300.0, 26.0),
+                17.0 * s,
+                if gift.undone { color::QUIET } else { colour },
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            let to = if gift.name.is_empty() {
+                "a player".to_owned()
+            } else {
+                cut(&plain(&gift.name), 18)
+            };
+            let note = if gift.note.is_empty() {
+                String::new()
+            } else {
+                format!(", \u{201c}{}\u{201d}", cut(&plain(&gift.note), 20))
+            };
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!(
+                    "to {to}, {}{note}{}",
+                    sjk_identity::ban::local_day_time(gift.created),
+                    if gift.undone { ", undone" } else { "" }
+                ),
+                frame.rect(MIDDLE_X + 306.0, row_y + 4.0, PANE_WIDTH - 430.0, 24.0),
+                14.0 * s,
+                color::QUIET,
+                FontWeight::Regular,
+                TextAlign::Start,
+            );
+            let label = if self.confirming(token) {
+                "Press again"
+            } else {
+                "Undo"
+            };
+            kit::button(
+                &mut self.ui,
+                frame,
+                [MIDDLE_X + PANE_WIDTH - 116.0, row_y - 1.0, 116.0, 30.0],
+                label,
+                false,
+                !gift.undone,
+                self.focus == token,
+                token,
+            );
+            if !gift.undone {
+                self.order.push(token);
+            }
+        }
+        if log.gifts.len() > GIFT_ROWS_SHOWN {
+            self.right_line(
+                frame,
+                y + GIFT_ROWS_SHOWN as f32 * LOG_ROW,
+                &format!("and {} more", log.gifts.len() - GIFT_ROWS_SHOWN),
+                color::QUIET,
+            );
+        }
+    }
+
     /// What the last request came to, bottom left.
     fn status(&mut self, frame: &Frame, staff: &StaffState) {
         let s = frame.s;
@@ -2319,14 +2738,10 @@ impl Panel {
             (cut(&crate::terms::say(&staff.message), 90), color::EMBER)
         } else if staff.message.is_empty()
             && !self.shown.creator
-            && matches!(
-                self.view,
-                View::Rewards | View::Economy | View::Achievements | View::Keys
-            )
+            && matches!(self.view, View::Achievements | View::Keys)
         {
             (
-                "Only the owner gives, takes back, clears or merges; this tab is to read."
-                    .to_owned(),
+                "Only the owner clears, unlinks or merges; this tab is to read.".to_owned(),
                 color::MUTED,
             )
         } else {
@@ -2352,7 +2767,7 @@ impl Panel {
         let s = frame.s;
         let enter = match self.focus {
             SEARCH_TOKEN => "search",
-            NOTE_TOKEN | MERGE_FIELD_TOKEN | AMOUNT_TOKEN => "",
+            NOTE_TOKEN | MERGE_FIELD_TOKEN | AMOUNT_TOKEN | UNLOCK_FILTER_TOKEN => "",
             _ => "do",
         };
         let mut keys: Vec<(&[&str], &str)> = vec![(&["Tab"], "next")];
@@ -2454,6 +2869,46 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_found_player_says_where_they_play_and_the_old_name_matched() {
+        let mut fox = profile("bbbbbbbbbbbbbbbb", "^1Fox");
+        fox.names = vec![sjk_identity::WornName {
+            name: "^5Old^7Wolf".into(),
+            first_seen: 1_791_000_000,
+            last_seen: 1_791_000_000,
+        }];
+        let here = sjk_identity::Playing {
+            key_id: fox.key_id.clone(),
+            server: "1.2.3.4:29070".into(),
+            slot: 3,
+            name: "^1Fox^7!".into(),
+        };
+        let server = Some("1.2.3.4:29070");
+        assert_eq!(
+            about_line(&fox, Some(&here), server, false, ""),
+            "playing here as Fox!"
+        );
+        assert_eq!(
+            about_line(&fox, Some(&here), Some("5.6.7.8:29070"), false, ""),
+            "playing now on 1.2.3.4:29070, as Fox!"
+        );
+        // Matched by a name worn before: said, never for the name shown.
+        assert_eq!(
+            about_line(&fox, None, server, false, "wolf"),
+            format!(
+                "seen {} \u{b7} wore OldWolf",
+                crate::medals::date_text(1_791_000_000)
+            )
+        );
+        assert!(!about_line(&fox, None, server, false, "fox").contains("wore"));
+        assert_eq!(about_line(&fox, Some(&here), server, true, ""), "you");
+        let new = profile("cccccccccccccccc", "New");
+        assert_eq!(
+            about_line(&new, None, None, false, ""),
+            "not seen in a game yet"
+        );
+    }
+
     /// Every unlockable of the catalogue has its row, with Relock when held and Unlock
     /// when not.
     #[test]
@@ -2468,6 +2923,7 @@ mod tests {
             &Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: None,
             },
             &inter.font,
             [1920.0, 1080.0],
@@ -2492,6 +2948,7 @@ mod tests {
                 &Inputs {
                     me: Some(&me),
                     staff: &staff,
+                    server: None,
                 },
                 &inter.font,
                 [1920.0, 1080.0],
@@ -2514,6 +2971,7 @@ mod tests {
             &Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: None,
             },
             &inter.font,
             [1920.0, 1080.0],
@@ -2602,6 +3060,36 @@ mod tests {
                     until: 1_791_806_400,
                 })
                 .collect(),
+            playing: players
+                .iter()
+                .map(|player| sjk_identity::Playing {
+                    key_id: player.key_id.clone(),
+                    server: "255.255.255.255:65535".to_owned(),
+                    slot: 31,
+                    name: long.clone(),
+                })
+                .collect(),
+            gifts: Some(sjk_identity::GiftLog {
+                gifts: (0..60)
+                    .map(|index| sjk_identity::GiftRow {
+                        id: index,
+                        action: ["award", "medal-rank", "unlock", "holocron_give"]
+                            [index as usize % 4]
+                            .to_owned(),
+                        key_id: format!("{index:016x}"),
+                        name: long.clone(),
+                        what: ["bug_hunter", "early_tester", "saber_sun", "kyber_mythical"]
+                            [index as usize % 4]
+                            .to_owned(),
+                        rank: Some(5),
+                        note: "n".repeat(200),
+                        created: 1_791_720_000,
+                        undone: index % 3 == 0,
+                    })
+                    .collect(),
+                per_day: Some(20),
+                left: Some(0),
+            }),
             ..StaffState::default()
         };
         for staff in [full, StaffState::default()].into_iter().flat_map(|staff| {
@@ -2615,6 +3103,7 @@ mod tests {
                 (staff.clone(), View::Keys, true),
                 (staff.clone(), View::Logs, false),
                 (staff.clone(), View::Crashes, false),
+                (staff.clone(), View::Gifts, false),
                 (staff, View::Crashes, true),
             ]
         }) {
@@ -2639,6 +3128,7 @@ mod tests {
             let inputs = Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: Some("255.255.255.255:65535".to_owned()),
             };
             let font = &inter.font;
             panel.build(&inputs, font, [1920.0, 1080.0]);

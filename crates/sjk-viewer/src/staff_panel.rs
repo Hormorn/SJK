@@ -1,11 +1,16 @@
 //! The Staff page: for a player the hub's operator made staff, the SJK team's tools
-//! in the game (`docs/identity.md`, "Staff"): find a player, then, on the chosen
-//! player's tabs, verify them and moderate their picture and SJK chat (Overview), give
-//! or take back their medals and unlockables (Medals and unlocks), their holocrons,
-//! credits and kyber shards (Holocrons and credits), clear their achievements, list
-//! their keys and unlink one or merge another player into them (a player who reset
-//! their key), and ask them for their game's logs; two more tabs read every player's
-//! crash reports and the SJK chat bans in force, with Lift. Key ids never show on the
+//! in the game (`docs/identity.md`, "Staff"): find a player (by name or key id, among
+//! the SJK players on this server, those playing now anywhere or the SJK team; a search
+//! that finds one player chooses them), then, on the chosen player's tabs, verify them
+//! and moderate their picture and SJK chat (Overview), give or take back their medals
+//! and saber shaders (Medals and shaders, the shaders found by name, number or tier),
+//! their holocrons, kyber crystals, credits and kyber shards (Holocrons and credits),
+//! clear their achievements, list their keys and unlink one or merge another player into
+//! them (a player who reset their key), and ask them for their game's logs; three more
+//! tabs read every player's crash reports, the SJK chat bans in force (with Lift) and the
+//! staff member's own gifts of the day (with Undo). Since 08/11/2026 every staff member
+//! gives medals, ranks, shaders, holocrons and crystals, a number a day and never to
+//! themselves; taking back stays the creator's. Key ids never show on the
 //! page (nor anywhere in the game): players go by name, a pasted key id shows as dots,
 //! and linked keys are numbered. Every action is a
 //! request signed by the player's own key (`sjk_identity::StaffRequest`,
@@ -15,11 +20,12 @@
 //! Opened by the Profile page's Staff tools button or the `staff` command. Like the
 //! Profile page it lives in the console and has the SJK UI's look ([`view`]). Tab
 //! and Shift+Tab walk every control; Enter or Space works the one focused; the
-//! search pill, the note and the merge field take typing; Up and Down move through the
-//! players found; Escape goes back (or lets go of a merge being confirmed or picked).
+//! search pill, the note, the shader filter and the merge field take typing; Up and Down
+//! move through the players found; Escape goes back (or lets go of a merge being
+//! confirmed or picked).
 
 use crate::menu_widgets::{BACK_TOKEN, MenuCanvas};
-use sjk_identity::{Profile, StaffQuery, StaffRequest, StaffState};
+use sjk_identity::{Profile, SearchScope, StaffQuery, StaffRequest, StaffState};
 use sjk_ui::{InputEvent, UiEventKind};
 use std::time::{Duration, Instant};
 use winit::event::{ElementState, KeyEvent};
@@ -118,6 +124,24 @@ const SHARDS_TAKE_TOKEN: u16 = 1_513;
 const CHAT_BANS_REFRESH_TOKEN: u16 = 1_514;
 const BAN_LIFT_BASE: u16 = 1_520;
 const BAN_ROWS_SHOWN: usize = 14;
+/// The scope chips over the players (`sjk_identity::SearchScope`): the SJK players on this
+/// server, those playing now on any server, the SJK team.
+const HERE_TOKEN: u16 = 9_000;
+const ONLINE_TOKEN: u16 = 9_001;
+const TEAM_TOKEN: u16 = 9_002;
+/// The players found, a page back and a page on (the hub answers up to 30).
+const PLAYERS_PREV_TOKEN: u16 = 9_003;
+const PLAYERS_NEXT_TOKEN: u16 = 9_004;
+/// The saber shaders' filter (a name, a number or a tier) and Held only.
+const UNLOCK_FILTER_TOKEN: u16 = 9_005;
+const UNLOCK_HELD_TOKEN: u16 = 9_006;
+/// The My gifts tab, its Refresh, and Undo, one token per gift listed.
+const GIFTS_TAB_TOKEN: u16 = 9_007;
+const GIFTS_REFRESH_TOKEN: u16 = 9_008;
+const GIFT_UNDO_BASE: u16 = 9_010;
+const GIFT_ROWS_SHOWN: usize = 16;
+/// Longest shader filter.
+const FILTER_MAX: usize = 32;
 /// Longest amount of credits or shards, in digits.
 const AMOUNT_MAX: usize = 6;
 /// Longest text the merge field takes (a pasted key id with spaces round it).
@@ -127,19 +151,19 @@ const QUERY_MAX: usize = 64;
 /// Longest note with a medal or an unlock, as the hub takes it.
 const NOTE_MAX: usize = 200;
 /// How long the buttons that take something away (Clear all, Unlink, Remove, Take
-/// credits, Take shards, Make or Remove staff) wait for their second press.
+/// credits, Take shards, Make or Remove staff, Undo a gift) wait for their second press.
 const CONFIRM_FOR: Duration = Duration::from_secs(3);
 
 /// Whether `token` is one of the buttons only SJK's creator may use (the hub's
-/// `PROTOCOL.md`, "Creator", since 23/10/2026): what gives, takes back, clears or merges.
-/// Other staff see them dimmed; Tab skips them and a press does nothing.
+/// `PROTOCOL.md`, "Creator", since 23/10/2026): what takes back, clears, merges or makes
+/// value out of nothing (credits and shards). Other staff see them dimmed; Tab skips them
+/// and a press does nothing. Giving is every staff member's since 08/11/2026 ([`gift`]).
 fn owner_only(token: u16) -> bool {
     let within = |base: u16, count: usize| (base..base + count as u16).contains(&token);
     matches!(
         token,
         PICTURE_DOWN_TOKEN
             | CLEAR_ALL_TOKEN
-            | HOLOCRON_GIVE_TOKEN
             | AMOUNT_TOKEN
             | CREDITS_GIVE_TOKEN
             | CREDITS_TAKE_TOKEN
@@ -149,15 +173,63 @@ fn owner_only(token: u16) -> bool {
             | MERGE_PICK_TOKEN
             | MERGE_TOKEN
             | MERGE_CONFIRM_TOKEN
-    ) || within(RANK_BASE, crate::medals::Medal::COUNT)
-        || within(GIVE_BASE, crate::medals::Medal::COUNT)
-        || within(TAKE_BASE, crate::medals::Medal::COUNT)
-        || within(UNLOCK_BASE, crate::unlockables::ALL.len())
+    ) || within(TAKE_BASE, crate::medals::Medal::COUNT)
         || within(RELOCK_BASE, crate::unlockables::ALL.len())
-        || within(HOLOCRON_TIER_BASE, crate::holocrons::SLOTS)
         || within(HOLOCRON_REMOVE_BASE, HOLOCRONS_SHOWN)
         || within(CLEAR_BASE, crate::achievements::ALL.len())
         || within(UNLINK_BASE, LINKED_SHOWN)
+}
+
+/// Whether `token` gives something: a medal's Give and Rank, a shader's Unlock and the
+/// holocrons' Give (the hub's `PROTOCOL.md`, "Staff", since 08/11/2026). Every staff
+/// member may, except to themselves and past the day's number of gifts
+/// ([`Shown::gift_block`]); the creator always may.
+fn gift(token: u16) -> bool {
+    let within = |base: u16, count: usize| (base..base + count as u16).contains(&token);
+    token == HOLOCRON_GIVE_TOKEN
+        || within(RANK_BASE, crate::medals::Medal::COUNT)
+        || within(GIVE_BASE, crate::medals::Medal::COUNT)
+        || within(UNLOCK_BASE, crate::unlockables::ALL.len())
+}
+
+/// Whether staff who are not the creator may give `unlockable`: only what holocrons can
+/// bring anyway (`droppable`). A Unique one, a medal's blade or a blade not opened to
+/// drops yet stays the creator's to give (the hub refuses it, `creator_only`).
+fn staff_may_unlock(unlockable: &crate::unlockables::Unlockable) -> bool {
+    unlockable.droppable
+}
+
+/// Where the list of players looks: everyone (a name or key id, or the players seen
+/// lately), or a scope ([`SearchScope`]).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum Scope {
+    #[default]
+    Everyone,
+    /// The SJK players on the server this player is on.
+    Here,
+    /// The players the hub sees in a game now, on any server.
+    Online,
+    /// The SJK team.
+    Team,
+}
+
+/// Whether `unlockable` is one the shader filter `filter` asks for: its name or id
+/// containing it, its number ("42", "042" or "#42") or its tier's name ("mythical").
+fn filter_matches(unlockable: &crate::unlockables::Unlockable, filter: &str) -> bool {
+    let filter = filter.trim();
+    if filter.is_empty() {
+        return true;
+    }
+    let digits = filter.strip_prefix('#').unwrap_or(filter);
+    if !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return digits.parse::<u16>().ok() == Some(unlockable.number);
+    }
+    let normal = sjk_identity::normal_form;
+    let wanted = normal(filter);
+    !wanted.is_empty()
+        && (normal(unlockable.name).contains(&wanted)
+            || normal(unlockable.id).contains(&wanted)
+            || normal(unlockable.tier.label()) == wanted)
 }
 
 /// What the console does after the page handled an event.
@@ -180,6 +252,7 @@ pub(crate) enum ShotTab {
     Economy,
     Achievements,
     ChatBans,
+    Gifts,
 }
 
 /// What the page knows this frame.
@@ -187,6 +260,8 @@ pub(crate) struct Inputs<'a> {
     /// The player's own profile, once the hub sent it.
     pub(crate) me: Option<&'a Profile>,
     pub(crate) staff: &'a StaffState,
+    /// The game server the hub sees this player on (`ip:port`), for Here.
+    pub(crate) server: Option<String>,
 }
 
 /// What the tabs show.
@@ -207,6 +282,8 @@ enum View {
     Crashes,
     /// The SJK chat bans in force, of every player, with Lift.
     ChatBans,
+    /// The staff member's own gifts of the last day, with Undo.
+    Gifts,
 }
 
 /// A merge waiting for its confirmation: who is kept and who goes.
@@ -248,9 +325,27 @@ fn merge_key(text: &str) -> String {
 /// What the last frame showed, for keys and clicks.
 #[derive(Debug, Default)]
 struct Shown {
-    /// The players' keys in the list, in order.
+    /// The players' keys in the list, in order (the page shown).
     players: Vec<String>,
+    /// How many players were found, on every page.
+    players_found: usize,
     me: Option<String>,
+    /// The server the hub sees this player on, which Here lists.
+    server: Option<String>,
+    /// Why gifts cannot be given to the chosen player now, `None` when they can: the
+    /// staff member themselves, or no gift left today. Never for the creator.
+    gift_block: Option<&'static str>,
+    /// How many gifts the staff member has left today, once the hub said.
+    gifts_left: Option<u32>,
+    /// The gifts of the day were asked for since the page opened: the tabs that give ask
+    /// once.
+    gifts_read: bool,
+    /// Which unlockables of the catalogue the filter shows, in its order, and for what
+    /// (the filter, Held only, the player and how many they hold).
+    unlock_rows: Vec<usize>,
+    unlock_rows_for: Option<(String, bool, String, usize)>,
+    /// The gifts listed with Undo, by number, with who got them.
+    gift_rows: Vec<(i64, String)>,
     /// The chosen player's key, how many of each medal they hold and which
     /// unlockables.
     target: Option<String>,
@@ -324,6 +419,18 @@ pub(crate) struct Panel {
     pending_merge: Option<PendingMerge>,
     /// The crash group whose reports the Crashes view lists, or none for the groups.
     crash_group: Option<String>,
+    /// Where the list of players looks.
+    scope: Scope,
+    /// The page of players shown, from 0.
+    player_page: usize,
+    /// The saber shaders' filter, as typed, and whether only those held show.
+    unlock_filter: String,
+    unlock_held: bool,
+    /// A search sent: when the hub's answer (a later [`StaffState::searches`] than this)
+    /// finds exactly one player, they are chosen.
+    awaiting_search: Option<u64>,
+    /// [`StaffState::searches`] as the last frame read it.
+    searches_seen: u64,
     shown: Shown,
     epoch: Instant,
     /// What a world shot shows in place of the live profile and answers.
@@ -372,6 +479,12 @@ impl Panel {
             picking: false,
             pending_merge: None,
             crash_group: None,
+            scope: Scope::Everyone,
+            player_page: 0,
+            unlock_filter: String::new(),
+            unlock_held: false,
+            awaiting_search: None,
+            searches_seen: 0,
             shown: Shown::default(),
             epoch: Instant::now(),
             #[cfg(test)]
@@ -391,6 +504,55 @@ impl Panel {
         self.confirm = None;
         self.picking = false;
         self.pending_merge = None;
+        self.shown.gifts_read = false;
+    }
+
+    /// The search the page sends as it opens: `query` among everyone (a name or a key id;
+    /// empty for the players seen lately). A search that finds one player chooses them.
+    pub(crate) fn opening_search(&mut self, query: &str) -> StaffRequest {
+        self.scope = Scope::Everyone;
+        self.query.clear();
+        type_into(&mut self.query, query, QUERY_MAX);
+        self.search()
+    }
+
+    /// The search the list's scope and the search pill ask for, from the first page.
+    fn search(&mut self) -> StaffRequest {
+        self.player_page = 0;
+        self.awaiting_search = Some(self.searches_seen);
+        let query = self.query.trim().to_owned();
+        let scope = match self.scope {
+            Scope::Everyone => None,
+            Scope::Here => match self.shown.server.clone() {
+                Some(server) => Some(SearchScope::Server(server)),
+                // No longer on a server the hub knows: everyone.
+                None => {
+                    self.scope = Scope::Everyone;
+                    None
+                }
+            },
+            Scope::Online => Some(SearchScope::Online),
+            Scope::Team => Some(SearchScope::Staff),
+        };
+        match scope {
+            Some(scope) => StaffRequest::SearchIn { query, scope },
+            None => StaffRequest::Search(query),
+        }
+    }
+
+    /// A scope chip: its scope (another press goes back to everyone), and the search.
+    fn choose_scope(&mut self, scope: Scope) -> PanelAction {
+        self.scope = if self.scope == scope {
+            Scope::Everyone
+        } else {
+            scope
+        };
+        PanelAction::Request(self.search())
+    }
+
+    /// How many pages of players there are.
+    fn player_pages(&self) -> usize {
+        self.shown.players_found.div_ceil(PLAYERS_SHOWN).max(1)
     }
 
     /// Closing the page closes the console too.
@@ -477,6 +639,9 @@ impl Panel {
         if owner_only(token) && !self.shown.creator {
             return PanelAction::None;
         }
+        if gift(token) && self.shown.gift_block.is_some() {
+            return PanelAction::None;
+        }
         self.focus = token;
         if self.confirm.is_some_and(|(pressed, _)| pressed != token) {
             self.confirm = None;
@@ -488,8 +653,42 @@ impl Panel {
         }
         let target = self.shown.target.clone();
         match token {
-            SEARCH_TOKEN => {
-                PanelAction::Request(StaffRequest::Search(self.query.trim().to_owned()))
+            SEARCH_TOKEN => PanelAction::Request(self.search()),
+            HERE_TOKEN if self.shown.server.is_some() => self.choose_scope(Scope::Here),
+            HERE_TOKEN => PanelAction::None,
+            ONLINE_TOKEN => self.choose_scope(Scope::Online),
+            TEAM_TOKEN => self.choose_scope(Scope::Team),
+            PLAYERS_PREV_TOKEN => {
+                self.player_page = self.player_page.saturating_sub(1);
+                PanelAction::None
+            }
+            PLAYERS_NEXT_TOKEN => {
+                self.player_page = (self.player_page + 1).min(self.player_pages() - 1);
+                PanelAction::None
+            }
+            UNLOCK_FILTER_TOKEN => PanelAction::None,
+            UNLOCK_HELD_TOKEN => {
+                self.unlock_held = !self.unlock_held;
+                self.unlock_page = 0;
+                PanelAction::None
+            }
+            GIFTS_TAB_TOKEN | GIFTS_REFRESH_TOKEN => {
+                self.view = View::Gifts;
+                self.shown.gifts_read = true;
+                PanelAction::Query(StaffQuery::Gifts)
+            }
+            token if (GIFT_UNDO_BASE..GIFT_UNDO_BASE + GIFT_ROWS_SHOWN as u16).contains(&token) => {
+                match self
+                    .shown
+                    .gift_rows
+                    .get(usize::from(token - GIFT_UNDO_BASE))
+                    .cloned()
+                {
+                    Some((id, key_id)) if self.second_press(token) => {
+                        PanelAction::Request(StaffRequest::GiftUndo { id, key_id })
+                    }
+                    _ => PanelAction::None,
+                }
             }
             ME_TOKEN => {
                 self.selected.clone_from(&self.shown.me);
@@ -529,13 +728,20 @@ impl Panel {
                 self.view = View::Overview;
                 PanelAction::None
             }
-            REWARDS_TAB_TOKEN => {
-                self.view = View::Rewards;
-                PanelAction::None
-            }
-            ECONOMY_TAB_TOKEN => {
-                self.view = View::Economy;
-                PanelAction::None
+            // The tabs that give read how many gifts are left today, once, for staff who
+            // have a limit (the creator has none).
+            REWARDS_TAB_TOKEN | ECONOMY_TAB_TOKEN => {
+                self.view = if token == REWARDS_TAB_TOKEN {
+                    View::Rewards
+                } else {
+                    View::Economy
+                };
+                if self.shown.creator || self.shown.gifts_read {
+                    PanelAction::None
+                } else {
+                    self.shown.gifts_read = true;
+                    PanelAction::Query(StaffQuery::Gifts)
+                }
             }
             CHAT_BANS_TAB_TOKEN | CHAT_BANS_REFRESH_TOKEN => {
                 self.view = View::ChatBans;
@@ -710,7 +916,8 @@ impl Panel {
             }
             RECENT_TOKEN => {
                 self.query.clear();
-                PanelAction::Request(StaffRequest::Search(String::new()))
+                self.scope = Scope::Everyone;
+                PanelAction::Request(self.search())
             }
             NOTE_TOKEN => PanelAction::None,
             PICTURE_DOWN_TOKEN => match target {
@@ -815,8 +1022,12 @@ impl Panel {
                     .contains(&token) =>
             {
                 let index = usize::from(token - UNLOCK_BASE);
+                let allowed =
+                    self.shown.creator || staff_may_unlock(&crate::unlockables::ALL[index]);
                 match target {
-                    Some(key_id) if !self.shown.unlocks.get(index).copied().unwrap_or(false) => {
+                    Some(key_id)
+                        if allowed && !self.shown.unlocks.get(index).copied().unwrap_or(false) =>
+                    {
                         PanelAction::Request(StaffRequest::Unlock {
                             key_id,
                             unlock: crate::unlockables::ALL[index].id.to_owned(),
@@ -897,12 +1108,20 @@ impl Panel {
             ShotTab::Economy => View::Economy,
             ShotTab::Achievements => View::Achievements,
             ShotTab::ChatBans => View::ChatBans,
+            ShotTab::Gifts => View::Gifts,
         };
         if tab == ShotTab::Economy {
             self.amount = "50".to_owned();
             // A rare kyber crystal chosen, from the chips' second row.
             self.holocron_tier = crate::holocrons::COUNT + 1;
         }
+    }
+
+    /// Type `filter` in the saber shader filter, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn shader_filter_for_shot(&mut self, filter: &str) {
+        self.unlock_filter = filter.to_owned();
+        self.unlock_page = 0;
     }
 
     /// Choose the player with `key_id`, for a world shot.
@@ -964,7 +1183,7 @@ impl Panel {
         };
         let typing = matches!(
             self.focus,
-            SEARCH_TOKEN | NOTE_TOKEN | MERGE_FIELD_TOKEN | AMOUNT_TOKEN
+            SEARCH_TOKEN | NOTE_TOKEN | MERGE_FIELD_TOKEN | AMOUNT_TOKEN | UNLOCK_FILTER_TOKEN
         );
         let in_list = (PLAYER_BASE..PLAYER_BASE + PLAYERS_SHOWN as u16).contains(&self.focus);
         if typing && !event.repeat {
@@ -972,9 +1191,13 @@ impl Panel {
                 SEARCH_TOKEN => &mut self.query,
                 MERGE_FIELD_TOKEN => &mut self.merge_from,
                 AMOUNT_TOKEN => &mut self.amount,
+                UNLOCK_FILTER_TOKEN => &mut self.unlock_filter,
                 _ => &mut self.note,
             };
             if crate::text_entry::before_edit(field, key, event.text.as_deref(), shift, control) {
+                if self.focus == UNLOCK_FILTER_TOKEN {
+                    self.unlock_page = 0;
+                }
                 return PanelAction::None;
             }
         }
@@ -987,7 +1210,7 @@ impl Panel {
             KeyCode::Escape => return PanelAction::Close,
             KeyCode::Tab => self.step(!shift),
             KeyCode::ArrowDown | KeyCode::ArrowUp if in_list => {
-                let count = self.shown.players.len().min(PLAYERS_SHOWN);
+                let count = self.shown.players.len();
                 if count > 0 {
                     let at = usize::from(self.focus - PLAYER_BASE);
                     let next = if key == KeyCode::ArrowDown {
@@ -1007,9 +1230,13 @@ impl Panel {
                     SEARCH_TOKEN => &mut self.query,
                     MERGE_FIELD_TOKEN => &mut self.merge_from,
                     AMOUNT_TOKEN => &mut self.amount,
+                    UNLOCK_FILTER_TOKEN => &mut self.unlock_filter,
                     _ => &mut self.note,
                 };
                 field.pop();
+                if self.focus == UNLOCK_FILTER_TOKEN {
+                    self.unlock_page = 0;
+                }
             }
             _ if typing && !event.repeat => {
                 let pasted;
@@ -1028,6 +1255,10 @@ impl Panel {
                     AMOUNT_TOKEN => {
                         let digits: String = text.chars().filter(char::is_ascii_digit).collect();
                         type_into(&mut self.amount, &digits, AMOUNT_MAX)
+                    }
+                    UNLOCK_FILTER_TOKEN => {
+                        self.unlock_page = 0;
+                        type_into(&mut self.unlock_filter, text, FILTER_MAX)
                     }
                     _ => type_into(&mut self.note, text, NOTE_MAX),
                 };
@@ -1048,7 +1279,10 @@ impl Panel {
         match event.token {
             Some(BACK_TOKEN) => PanelAction::Close,
             // A click in a field puts the keyboard there; it searches on Enter.
-            Some(token @ (SEARCH_TOKEN | NOTE_TOKEN | MERGE_FIELD_TOKEN | AMOUNT_TOKEN)) => {
+            Some(
+                token @ (SEARCH_TOKEN | NOTE_TOKEN | MERGE_FIELD_TOKEN | AMOUNT_TOKEN
+                | UNLOCK_FILTER_TOKEN),
+            ) => {
                 self.focus = token;
                 PanelAction::None
             }
@@ -1133,6 +1367,7 @@ mod tests {
             &Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: None,
             },
             &fonts.font,
             [1920.0, 1080.0],
@@ -1183,6 +1418,7 @@ mod tests {
         let inputs = Inputs {
             me: Some(&me),
             staff: &staff,
+            server: None,
         };
         panel.build(&inputs, &fonts.font, [1920.0, 1080.0]);
         // One request open for this player: no second one; only sent logs open.
@@ -1222,6 +1458,7 @@ mod tests {
         let inputs = Inputs {
             me: Some(&me),
             staff: &staff,
+            server: None,
         };
         assert_eq!(panel.target(&inputs).unwrap().key_id, me.key_id);
         assert_eq!(panel.activate(PLAYER_BASE), PanelAction::None);
@@ -1254,6 +1491,7 @@ mod tests {
             &Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: None,
             },
             &fonts.font,
             [1920.0, 1080.0],
@@ -1344,7 +1582,7 @@ mod tests {
                 rank: 1,
             })
         );
-        assert!(owner_only(RANK_BASE));
+        assert!(gift(RANK_BASE) && !owner_only(RANK_BASE));
     }
 
     #[test]
@@ -1384,6 +1622,7 @@ mod tests {
             &Inputs {
                 me: Some(&held),
                 staff: &staff,
+                server: None,
             },
             &fonts.font,
             [1920.0, 1080.0],
@@ -1492,6 +1731,7 @@ mod tests {
             &Inputs {
                 me: Some(&held),
                 staff: &staff,
+                server: None,
             },
             &fonts.font,
             [1920.0, 1080.0],
@@ -1554,6 +1794,7 @@ mod tests {
             &Inputs {
                 me: Some(me),
                 staff: &staff,
+                server: None,
             },
             &fonts.font,
             [1920.0, 1080.0],
@@ -1645,48 +1886,6 @@ mod tests {
         let _ = panel.activate(ME_TOKEN);
         redraw(&mut panel, &creator, Vec::new());
         assert!(!panel.order.contains(&SET_STAFF_TOKEN));
-    }
-
-    #[test]
-    fn staff_read_what_only_the_creator_gives_takes_back_or_merges() {
-        let other = profile("bbbbbbbbbbbbbbbb", "Fox");
-        let (mut panel, me, _) = drawn(vec![other.clone()]);
-        let me = Profile {
-            creator: false,
-            ..me
-        };
-        let _ = panel.activate(PLAYER_BASE);
-        panel.amount = "50".to_owned();
-        let _ = panel.activate(ECONOMY_TAB_TOKEN);
-        redraw(&mut panel, &me, vec![other.clone()]);
-        assert!(!panel.order.iter().any(|token| owner_only(*token)));
-        assert_eq!(panel.activate(CREDITS_GIVE_TOKEN), PanelAction::None);
-        assert_eq!(panel.activate(HOLOCRON_GIVE_TOKEN), PanelAction::None);
-        assert_eq!(panel.activate(GIVE_BASE), PanelAction::None);
-        // The day-to-day moderation stays theirs.
-        assert_eq!(
-            panel.activate(HUB_MUTE_TOKEN),
-            PanelAction::Request(StaffRequest::ChatMute {
-                key_id: other.key_id.clone(),
-                muted: true
-            })
-        );
-        let creator = Profile {
-            staff: true,
-            creator: true,
-            ..me
-        };
-        let _ = panel.activate(ECONOMY_TAB_TOKEN);
-        redraw(&mut panel, &creator, vec![other.clone()]);
-        assert!(panel.order.contains(&CREDITS_GIVE_TOKEN));
-        assert_eq!(
-            panel.activate(CREDITS_GIVE_TOKEN),
-            PanelAction::Request(StaffRequest::Credits {
-                key_id: other.key_id,
-                delta: 50,
-                note: String::new()
-            })
-        );
     }
 
     #[test]
@@ -1913,6 +2112,7 @@ mod tests {
             &Inputs {
                 me: Some(&me),
                 staff: &staff,
+                server: None,
             },
             &fonts.font,
             [1920.0, 1080.0],
@@ -1952,5 +2152,385 @@ mod tests {
         let mut long = String::new();
         type_into(&mut long, &"x".repeat(300), NOTE_MAX);
         assert_eq!(long.len(), NOTE_MAX);
+    }
+
+    /// `panel` laid out again with `staff` and `me`, on `server` when given.
+    fn rebuild(panel: &mut Panel, me: &Profile, staff: &StaffState, server: Option<&str>) {
+        let fonts = crate::text::load_modern(1.0, None).expect("Inter");
+        panel.build(
+            &Inputs {
+                me: Some(me),
+                staff,
+                server: server.map(str::to_owned),
+            },
+            &fonts.font,
+            [1920.0, 1080.0],
+        );
+    }
+
+    /// The player's own as SJK's creator ([`me`]), where a test's `me` is someone else.
+    fn the_creator() -> Profile {
+        me()
+    }
+
+    /// The player's own, staff but not the creator.
+    fn helper() -> Profile {
+        Profile {
+            creator: false,
+            ..me()
+        }
+    }
+
+    #[test]
+    fn staff_give_but_only_the_creator_takes_back_or_makes_credits() {
+        let other = profile("bbbbbbbbbbbbbbbb", "Fox");
+        let (mut panel, _, _) = drawn(vec![other.clone()]);
+        let me = helper();
+        let _ = panel.activate(PLAYER_BASE);
+        panel.amount = "50".to_owned();
+        let _ = panel.activate(ECONOMY_TAB_TOKEN);
+        redraw(&mut panel, &me, vec![other.clone()]);
+        assert!(!panel.order.iter().any(|token| owner_only(*token)));
+        assert!(panel.order.contains(&HOLOCRON_GIVE_TOKEN));
+        assert_eq!(panel.activate(CREDITS_GIVE_TOKEN), PanelAction::None);
+        assert_eq!(
+            panel.activate(HOLOCRON_GIVE_TOKEN),
+            PanelAction::Request(StaffRequest::HolocronGive {
+                key_id: other.key_id.clone(),
+                tier: "uncommon".into(),
+                note: String::new(),
+            })
+        );
+        assert_eq!(
+            panel.activate(GIVE_BASE),
+            PanelAction::Request(StaffRequest::Award {
+                key_id: other.key_id.clone(),
+                medal: "early_tester".into(),
+                note: String::new(),
+                rank: 1,
+            })
+        );
+        // The day-to-day moderation stays theirs; taking back does not.
+        assert_eq!(
+            panel.activate(HUB_MUTE_TOKEN),
+            PanelAction::Request(StaffRequest::ChatMute {
+                key_id: other.key_id.clone(),
+                muted: true
+            })
+        );
+        assert!(owner_only(TAKE_BASE) && owner_only(RELOCK_BASE));
+        assert!(owner_only(HOLOCRON_REMOVE_BASE) && !owner_only(HOLOCRON_GIVE_TOKEN));
+        let creator = the_creator();
+        let _ = panel.activate(ECONOMY_TAB_TOKEN);
+        redraw(&mut panel, &creator, vec![other.clone()]);
+        assert_eq!(
+            panel.activate(CREDITS_GIVE_TOKEN),
+            PanelAction::Request(StaffRequest::Credits {
+                key_id: other.key_id,
+                delta: 50,
+                note: String::new()
+            })
+        );
+    }
+
+    #[test]
+    fn the_tabs_that_give_read_the_days_gifts_once_for_staff() {
+        let (mut panel, _, _) = drawn(Vec::new());
+        let me = helper();
+        redraw(&mut panel, &me, Vec::new());
+        assert_eq!(
+            panel.activate(REWARDS_TAB_TOKEN),
+            PanelAction::Query(StaffQuery::Gifts)
+        );
+        assert_eq!(panel.activate(ECONOMY_TAB_TOKEN), PanelAction::None);
+        // Again after the page opens again.
+        panel.open(true);
+        assert_eq!(
+            panel.activate(ECONOMY_TAB_TOKEN),
+            PanelAction::Query(StaffQuery::Gifts)
+        );
+        // The creator has no limit to read.
+        let (mut panel, _, _) = drawn(Vec::new());
+        assert_eq!(panel.activate(REWARDS_TAB_TOKEN), PanelAction::None);
+    }
+
+    #[test]
+    fn staff_never_give_to_themselves_nor_past_the_days_gifts() {
+        let other = profile("bbbbbbbbbbbbbbbb", "Fox");
+        let (mut panel, _, _) = drawn(vec![other.clone()]);
+        let me = helper();
+        // Their own player, by their id or a linked key: nothing to give.
+        let _ = panel.activate(REWARDS_TAB_TOKEN);
+        redraw(&mut panel, &me, vec![other.clone()]);
+        assert_eq!(
+            panel.shown.gift_block,
+            Some("Staff cannot give to themselves")
+        );
+        assert!(!panel.order.iter().any(|token| gift(*token)));
+        assert_eq!(panel.activate(GIVE_BASE + 2), PanelAction::None);
+        assert_eq!(panel.activate(UNLOCK_BASE), PanelAction::None);
+        // Another player, but no gift left today.
+        let _ = panel.activate(PLAYER_BASE);
+        let spent = StaffState {
+            players: vec![other.clone()],
+            gifts: Some(sjk_identity::GiftLog {
+                gifts: Vec::new(),
+                per_day: Some(20),
+                left: Some(0),
+            }),
+            ..StaffState::default()
+        };
+        rebuild(&mut panel, &me, &spent, None);
+        assert!(panel.shown.gift_block.is_some());
+        assert_eq!(panel.activate(GIVE_BASE + 2), PanelAction::None);
+        // Gifts left: given.
+        let mut left = spent.clone();
+        left.gifts.as_mut().unwrap().left = Some(5);
+        rebuild(&mut panel, &me, &left, None);
+        assert_eq!(panel.shown.gift_block, None);
+        assert!(matches!(
+            panel.activate(GIVE_BASE + 2),
+            PanelAction::Request(StaffRequest::Award { .. })
+        ));
+        // The creator gives to themselves, without a limit.
+        let _ = panel.activate(ME_TOKEN);
+        rebuild(&mut panel, &the_creator(), &spent, None);
+        assert_eq!(panel.shown.gift_block, None);
+    }
+
+    #[test]
+    fn staff_unlock_only_the_shaders_holocrons_drop() {
+        let other = profile("bbbbbbbbbbbbbbbb", "Fox");
+        let (mut panel, _, _) = drawn(vec![other.clone()]);
+        let me = helper();
+        let _ = panel.activate(PLAYER_BASE);
+        let _ = panel.activate(REWARDS_TAB_TOKEN);
+        let kept = crate::unlockables::ALL
+            .iter()
+            .position(|unlockable| !unlockable.droppable)
+            .expect("a shader holocrons do not drop");
+        // Found with the filter, by its number, so it is on the page.
+        panel.unlock_filter = crate::unlockables::ALL[kept].number_text();
+        redraw(&mut panel, &me, vec![other.clone()]);
+        let token = UNLOCK_BASE + kept as u16;
+        assert!(!panel.order.contains(&token), "dimmed for staff");
+        assert_eq!(panel.activate(token), PanelAction::None);
+        // The creator gives it.
+        redraw(&mut panel, &the_creator(), vec![other.clone()]);
+        assert!(panel.order.contains(&token));
+        assert!(matches!(
+            panel.activate(token),
+            PanelAction::Request(StaffRequest::Unlock { .. })
+        ));
+        // A shader holocrons drop is staff's to give.
+        panel.unlock_filter = "sun blade".into();
+        redraw(&mut panel, &me, vec![other.clone()]);
+        assert!(crate::unlockables::ALL[0].droppable);
+        assert_eq!(
+            panel.activate(UNLOCK_BASE),
+            PanelAction::Request(StaffRequest::Unlock {
+                key_id: other.key_id,
+                unlock: "saber_sun".into(),
+                note: String::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn the_shader_filter_finds_by_name_number_and_tier_and_held_only() {
+        let sun = &crate::unlockables::ALL[0];
+        for filter in [
+            "",
+            "sun",
+            "SUN BLADE",
+            "1",
+            "001",
+            "#1",
+            "mythical",
+            "saber_sun",
+        ] {
+            assert!(filter_matches(sun, filter), "{filter}");
+        }
+        for filter in ["2", "moon", "rare", "^1"] {
+            assert!(!filter_matches(sun, filter), "{filter}");
+        }
+        let (mut panel, me, _) = drawn(Vec::new());
+        let _ = panel.activate(REWARDS_TAB_TOKEN);
+        panel.unlock_filter = "mythical".into();
+        redraw(&mut panel, &me, Vec::new());
+        assert!(!panel.shown.unlock_rows.is_empty());
+        assert!(panel.shown.unlock_rows.iter().all(|index| {
+            crate::unlockables::ALL[*index].tier == crate::unlockables::Rarity::Mythical
+        }));
+        // Held only: the player holds none.
+        panel.unlock_filter.clear();
+        let _ = panel.activate(UNLOCK_HELD_TOKEN);
+        redraw(&mut panel, &me, Vec::new());
+        assert!(panel.shown.unlock_rows.is_empty());
+        assert!(
+            !panel
+                .order
+                .iter()
+                .any(|token| (UNLOCK_BASE..UNLOCK_BASE + 299).contains(token))
+        );
+    }
+
+    #[test]
+    fn scope_chips_search_within_and_a_second_press_goes_back() {
+        let (mut panel, me, staff) = drawn(Vec::new());
+        // Not on a server the hub knows: no Here.
+        assert!(!panel.order.contains(&HERE_TOKEN));
+        assert_eq!(panel.activate(HERE_TOKEN), PanelAction::None);
+        rebuild(&mut panel, &me, &staff, Some("1.2.3.4:29070"));
+        assert!(panel.order.contains(&HERE_TOKEN));
+        assert_eq!(
+            panel.activate(HERE_TOKEN),
+            PanelAction::Request(StaffRequest::SearchIn {
+                query: String::new(),
+                scope: SearchScope::Server("1.2.3.4:29070".into()),
+            })
+        );
+        panel.query = " fox ".into();
+        assert_eq!(
+            panel.activate(ONLINE_TOKEN),
+            PanelAction::Request(StaffRequest::SearchIn {
+                query: "fox".into(),
+                scope: SearchScope::Online,
+            })
+        );
+        // The search pill searches within the scope chosen.
+        assert_eq!(
+            panel.activate(SEARCH_TOKEN),
+            PanelAction::Request(StaffRequest::SearchIn {
+                query: "fox".into(),
+                scope: SearchScope::Online,
+            })
+        );
+        // Another press on the lit chip: everyone again.
+        assert_eq!(
+            panel.activate(ONLINE_TOKEN),
+            PanelAction::Request(StaffRequest::Search("fox".into()))
+        );
+        assert_eq!(
+            panel.activate(TEAM_TOKEN),
+            PanelAction::Request(StaffRequest::SearchIn {
+                query: "fox".into(),
+                scope: SearchScope::Staff,
+            })
+        );
+        // Seen lately clears the search and the scope.
+        assert_eq!(
+            panel.activate(RECENT_TOKEN),
+            PanelAction::Request(StaffRequest::Search(String::new()))
+        );
+        assert_eq!(panel.scope, Scope::Everyone);
+    }
+
+    #[test]
+    fn a_search_that_finds_one_player_chooses_them() {
+        let (mut panel, me, _) = drawn(Vec::new());
+        assert_eq!(
+            panel.opening_search("fox"),
+            StaffRequest::Search("fox".into())
+        );
+        assert_eq!(panel.query, "fox");
+        let fox = profile("bbbbbbbbbbbbbbbb", "Fox");
+        // Still on its way: nothing chosen yet.
+        let waiting = StaffState {
+            busy: true,
+            ..StaffState::default()
+        };
+        rebuild(&mut panel, &me, &waiting, None);
+        assert_eq!(panel.selected, None);
+        let answered = StaffState {
+            players: vec![fox.clone()],
+            searches: 1,
+            ..StaffState::default()
+        };
+        rebuild(&mut panel, &me, &answered, None);
+        assert_eq!(panel.selected.as_deref(), Some(fox.key_id.as_str()));
+        // Only once: choosing someone else afterwards sticks.
+        let _ = panel.activate(ME_TOKEN);
+        rebuild(&mut panel, &me, &answered, None);
+        assert_eq!(panel.selected.as_deref(), Some(me.key_id.as_str()));
+        // Two found: nobody is chosen for the staff member.
+        let _ = panel.activate(SEARCH_TOKEN);
+        let two = StaffState {
+            players: vec![fox, profile("cccccccccccccccc", "Foxy")],
+            searches: 2,
+            ..StaffState::default()
+        };
+        rebuild(&mut panel, &me, &two, None);
+        assert_eq!(panel.selected.as_deref(), Some(me.key_id.as_str()));
+    }
+
+    #[test]
+    fn thirty_players_found_show_fifteen_a_page() {
+        let players: Vec<Profile> = (0..30)
+            .map(|index| profile(&format!("{index:016x}"), &format!("Player {index}")))
+            .collect();
+        let (mut panel, me, _) = drawn(players.clone());
+        assert_eq!(panel.shown.players.len(), PLAYERS_SHOWN);
+        assert!(panel.order.contains(&PLAYERS_NEXT_TOKEN));
+        assert!(!panel.order.contains(&PLAYERS_PREV_TOKEN));
+        let _ = panel.activate(PLAYERS_NEXT_TOKEN);
+        redraw(&mut panel, &me, players.clone());
+        assert_eq!(panel.shown.players[0], players[15].key_id);
+        assert_eq!(panel.activate(PLAYER_BASE), PanelAction::None);
+        assert_eq!(panel.selected.as_deref(), Some(players[15].key_id.as_str()));
+        let _ = panel.activate(PLAYERS_NEXT_TOKEN);
+        assert_eq!(panel.player_page, 1, "stops at the last page");
+        let _ = panel.activate(PLAYERS_PREV_TOKEN);
+        redraw(&mut panel, &me, players.clone());
+        assert_eq!(panel.shown.players[0], players[0].key_id);
+        // A new search starts from the first page.
+        let _ = panel.activate(PLAYERS_NEXT_TOKEN);
+        let _ = panel.activate(SEARCH_TOKEN);
+        assert_eq!(panel.player_page, 0);
+    }
+
+    #[test]
+    fn my_gifts_are_read_and_undone_on_a_second_press() {
+        let (mut panel, me, _) = drawn(Vec::new());
+        assert_eq!(
+            panel.activate(GIFTS_TAB_TOKEN),
+            PanelAction::Query(StaffQuery::Gifts)
+        );
+        let row = |id, undone| sjk_identity::GiftRow {
+            id,
+            action: "holocron_give".into(),
+            key_id: "bbbbbbbbbbbbbbbb".into(),
+            name: "Fox".into(),
+            what: "rare".into(),
+            created: 1_791_720_000,
+            undone,
+            ..Default::default()
+        };
+        let staff = StaffState {
+            gifts: Some(sjk_identity::GiftLog {
+                gifts: vec![row(12, false), row(11, true)],
+                per_day: Some(20),
+                left: Some(19),
+            }),
+            ..StaffState::default()
+        };
+        rebuild(&mut panel, &me, &staff, None);
+        assert!(panel.order.contains(&GIFT_UNDO_BASE));
+        assert!(
+            !panel.order.contains(&(GIFT_UNDO_BASE + 1)),
+            "already undone"
+        );
+        assert_eq!(panel.activate(GIFT_UNDO_BASE), PanelAction::None);
+        assert_eq!(
+            panel.activate(GIFT_UNDO_BASE),
+            PanelAction::Request(StaffRequest::GiftUndo {
+                id: 12,
+                key_id: "bbbbbbbbbbbbbbbb".into(),
+            })
+        );
+        assert_eq!(
+            panel.activate(GIFTS_REFRESH_TOKEN),
+            PanelAction::Query(StaffQuery::Gifts)
+        );
     }
 }
