@@ -558,13 +558,23 @@ impl Panel {
                         } else if self.marks.kept {
                             keys.push((&["F"], "star"));
                         }
-                        if section == forge::Section::Break && self.forge.data.all {
+                        let picking = section == forge::Section::Break && self.forge.selecting;
+                        if picking {
+                            // Picking (05/11/2026): what picks, the copies, and the send.
+                            keys.push((&["Space"], "pick"));
+                            keys.push((&["+", "-"], "copies"));
+                        } else if section == forge::Section::Break && self.forge.data.all {
                             keys.push((&["B"], "all duplicates"));
+                        }
+                        if section == forge::Section::Break && self.forge.data.many {
+                            keys.push((&["S"], if picking { "stop" } else { "select" }));
                         }
                         keys.push((
                             &["Enter"],
                             if section == forge::Section::Craft {
                                 "craft"
+                            } else if picking {
+                                "break down selected"
                             } else {
                                 "break down"
                             },

@@ -565,6 +565,21 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Shatter the copies `items` names, several shaders at once, last copies too when
+    /// `last` (`POST /v1/unlocks/shatter-many`, 05/11/2026, hubs whose economy says
+    /// `shatter_many`). A refusal comes with the shader the hub stopped at, when it said.
+    fn shatter_many(
+        &mut self,
+        _identity: &Identity,
+        _items: &[(String, u32)],
+        _last: bool,
+    ) -> Result<crate::wire::ShatterAllAnswer, (HubError, Option<String>)> {
+        Err((
+            HubError::Protocol("this hub client does not shatter shaders".to_owned()),
+            None,
+        ))
+    }
+
     /// Craft shader `id` with kyber shards (`POST /v1/unlocks/craft`, 17/10/2026).
     fn craft_unlock(
         &mut self,
@@ -1003,6 +1018,8 @@ pub struct HttpHub {
     agent: ureq::Agent,
     /// Added to the local clock to get the hub's, learned from a `clock` refusal.
     clock_offset: i64,
+    /// The shader the last refusal named (`id`, a `shatter-many` one since 05/11/2026).
+    refused_id: Option<String>,
 }
 
 impl HttpHub {
@@ -1033,6 +1050,7 @@ impl HttpHub {
             base,
             agent,
             clock_offset: 0,
+            refused_id: None,
         })
     }
 
@@ -1142,6 +1160,7 @@ impl HttpHub {
     /// should go again.
     fn refusal(&mut self, status: u16, value: &Value, may_retry: bool) -> Option<HubError> {
         let code = value["error"].as_str().unwrap_or("error").to_owned();
+        self.refused_id = value["id"].as_str().map(str::to_owned);
         if code == "clock"
             && may_retry
             && let Some(server_time) = value["server_time"].as_i64()
@@ -1970,6 +1989,28 @@ impl Hub for HttpHub {
             "/v1/unlocks/shatter-duplicates",
             Some(json!({})),
         )?)
+    }
+
+    fn shatter_many(
+        &mut self,
+        identity: &Identity,
+        items: &[(String, u32)],
+        last: bool,
+    ) -> Result<crate::wire::ShatterAllAnswer, (HubError, Option<String>)> {
+        let items: Vec<_> = items
+            .iter()
+            .map(|(id, copies)| json!({ "id": id, "copies": copies }))
+            .collect();
+        self.refused_id = None;
+        let answer = self.send(
+            Some(identity),
+            "POST",
+            "/v1/unlocks/shatter-many",
+            Some(json!({ "items": items, "last": last })),
+        );
+        answer
+            .and_then(parse)
+            .map_err(|error| (error, self.refused_id.take()))
     }
 
     fn craft_unlock(

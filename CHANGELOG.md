@@ -47,6 +47,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Spawn list (`spawn_panel`): every NPC and vehicle of your game data and a few cheats (noclip, god, give all, remove all NPCs) in a list to filter by typing, spawned or run with Enter or a click instead of typed in the console; it needs a game with cheats on, such as `devmap mp/ffa3` _(Slash, PR #368)_
 - Fishing counts as play for holocrons: standing at the water earns while you hook the bites (within 5 minutes of the last one); pressing Use without a bite still scares the fish off _(Slash, PR #362, after headshotsmcgee117's question in #ideas)_
 - Fishing: bites come every 15 to 40 seconds (were 20 to 60), and Old Whiskers bites more often the longer you go without it. Echo Angler needs 5 Echoes (was 10). Two new achievements: Beachcomber (every kind of junk) and Steady Hand (10 bites hooked in a row) _(Slash, PR #361)_
+- The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), choose how many copies of each with + and - (or the buttons beside Break down selected), and Break down selected turns them all into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; if one cannot go, the line under the button names it and nothing is broken down. Locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, PR #367, after Atrosex's idea)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
