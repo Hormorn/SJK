@@ -16,11 +16,7 @@ impl HudOverlay {
             12 => &self.weapon_value,
             14 => &self.ammo_value,
             15 => &self.style_value,
-            200 => &self.vote_heading,
-            201 => &self.vote_text,
-            202 => &self.vote_keys,
-            203 => &self.team_vote_heading,
-            204 => &self.team_vote_text,
+            value @ 200..=vote::TEXT_LAST => self.vote_text(value),
             310 => &self.crosshair_name,
             311 => &self.match_timer,
             312 => &self.warmup_text,
@@ -72,7 +68,7 @@ pub(super) fn retail_font(id: TextId) -> Option<RetailFont> {
     match id.0 {
         310..=312 | 318 | 319 | 324 => Some(RetailFont::Medium),
         325..=327 | 1000..=1022 | 1100..=1111 => Some(RetailFont::Small),
-        200..=204 | 313 | 316 => Some(RetailFont::Console),
+        313 | 316 => Some(RetailFont::Console),
         _ => None,
     }
 }
@@ -85,8 +81,9 @@ mod retail_font_tests {
     fn crosshair_name_uses_the_medium_font_and_status_values_their_own() {
         assert_eq!(retail_font(TextId(310)), Some(RetailFont::Medium));
         assert_eq!(retail_font(TextId(1003)), Some(RetailFont::Small));
-        assert_eq!(retail_font(TextId(201)), Some(RetailFont::Console));
-        // Health, ammo, the selector headings and the kill feed stay on the HUD font.
+        assert_eq!(retail_font(TextId(316)), Some(RetailFont::Console));
+        // Health, ammo, the selector headings, the vote card and the kill feed stay on the
+        // HUD font.
         for id in [
             0,
             6,
@@ -94,6 +91,9 @@ mod retail_font_tests {
             100,
             1200,
             1201,
+            200,
+            201,
+            vote::TEXT_LAST,
             kill_feed::TEXT_FIRST,
             kill_feed::TEXT_LAST,
         ] {

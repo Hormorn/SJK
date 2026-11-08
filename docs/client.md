@@ -3959,6 +3959,24 @@ flag comes from its player state, as the server never sends a client its own ent
 so it shows in third person
 ([flag_carrier.rs](../crates/sjk-viewer/src/flag_carrier.rs)).
 
+## Vote panel
+
+While a vote runs (`cg_drawVote`, on by default) the HUD shows it at the top centre, in every HUD
+style ([vote.rs](../crates/sjk-viewer/src/hud/vote.rs), geometry in
+[menu_widgets/vote.rs](../crates/sjk-viewer/src/menu_widgets/vote.rs)): a 560-pixel (1080-line)
+card, centred on the panel's anchor, with a thin bar of the 30 seconds left
+along its top, VOTE (or TEAM VOTE) and the seconds left, the proposal in large centred text,
+a bar of the YES / NO share of the votes cast, the YES count in green at the left and the NO
+count in red at the right, and under each the keys bound to `vote yes` / `vote no` (the console
+command when nothing is bound). A team vote's card stands under the global one. It is drawn as SJK's
+menu cards are (navy plate, holo edge, gold mark and time bar), in the HUD's font even under
+`ui_gameFont`, and stands under the match timer. The HUD edit mode drags it during a vote.
+
+`testvote` shows a made-up vote on the panel for 30 seconds, its counts growing, for
+seeing and moving the panel where no vote can run (alone on a devmap a vote passes at
+once, as bots do not vote); `testvote team` adds a team vote's card, `testvote off` ends it.
+Only the HUD draws it: nothing is sent to the server, and a real vote keeps its card.
+
 ## Kill feed
 
 `cg_killfeed` (on by default, Settings > HUD > "Kill feed") lists the last kills

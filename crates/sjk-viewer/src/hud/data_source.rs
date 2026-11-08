@@ -41,6 +41,8 @@ pub(super) struct WidgetData<'a> {
     pub(super) vote_active: bool,
     /// team vote active binding supplied by the owning HUD.
     pub(super) team_vote_active: bool,
+    /// The vote cards' time left and counts.
+    pub(super) votes: super::vote::Meters,
     /// crosshair name binding supplied by the owning HUD.
     pub(super) crosshair_name: bool,
     /// timer binding supplied by the owning HUD.

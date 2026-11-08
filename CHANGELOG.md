@@ -40,6 +40,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Server browser: the sort mark stands just after the sorted column's name; it covered the name's first letters (Players, Ping) or its last ones _(Kushina, PR #389)_
 - Classic menus: the Collection has its own entry, SJK > COLLECTION on the main menu and Collection in the in-game SJK pop-up; the main menu's SJK page opens the SJK chat too (SJK > SJK CHAT), and the pop-up Camera control, which was only on F8 there _(Slash, PR #386)_
 - Characters you build yourself are easy to find: Profile > Character lists the game's species first, under Customizable, each tile marked; pick one to choose its head, torso, legs and skin colour, as in single player; after the skin colours, Custom gives red, green and blue sliders for any colour you like _(Slash, PR #375, after Blep's idea)_
+- The vote panel is easier to read: a centred SJK card under the match timer with the proposal in large text, the seconds left with a shrinking bar, the YES and NO counts in green and red with a bar of their share, and the keys to vote under them (`/vote yes` / `/vote no` when no key is bound); `testvote` shows a made-up vote to see it _(Slash, PR #379)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
