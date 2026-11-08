@@ -1,6 +1,6 @@
-//! World shots of a blade skin that burns its saber kills away (`disintegrate`,
+//! World shots of the Disintegrate finisher burning saber kills away (`crate::finishers`,
 //! [`crate::disintegration::Forced`]): on a local game of duel6 with a bot (its server
-//! named by `JKA_DEDICATED`), the player wears a Saber Lab blade that does and cuts the
+//! named by `JKA_DEDICATED`), the player wears the finisher with a Saber Lab blade and cuts the
 //! bot down, standing before it and swinging; the bot burns away as a disruptor's kill
 //! does, and once it respawns no body is left where it fell. Off-screen renders, ignored
 //! like the other world shots: they need a GPU adapter, the installed game data named by
@@ -28,18 +28,13 @@ const SWING: f32 = 52.0;
 fn saber_kill_disintegrates() {
     on_big_stack(|| {
         let size = [1280, 720];
-        // The lab blade: the test sample, its saber kills burnt away.
+        // The lab blade (the test sample), worn with the Disintegrate finisher.
         let folder = tempfile::tempdir().unwrap();
         let blades = folder.path().join(crate::blade_skin_file::FOLDER);
         std::fs::create_dir_all(&blades).unwrap();
         std::fs::write(
             blades.join("saber_lab.bladeskin"),
             crate::blade_skin_file::tests::SAMPLE,
-        )
-        .unwrap();
-        std::fs::write(
-            blades.join("saber_lab.bladeextra6"),
-            r#"{"disintegrate": {"delay": 0.0}}"#,
         )
         .unwrap();
         crate::saber_lab::start(folder.path()).expect("the lab's folder");
@@ -49,6 +44,7 @@ fn saber_kill_disintegrates() {
             ("ui_menuStyle", "sjk"),
             (crate::settings::quick::HIDE_CVAR, "1"),
             (crate::unlockables::SABER_SKIN_CVAR, crate::saber_lab::ID),
+            (crate::finishers::CVAR, "finisher_disintegrate"),
         ];
         let Some((mut gpu, _profile)) = open("maps/mp/duel6.bsp", size, Some(menu), &cvars) else {
             return;
@@ -67,6 +63,7 @@ fn saber_kill_disintegrates() {
             capturelimit: 0,
             allow_lan: false,
             cheats: true,
+            server_mod: crate::connection::local_server::BASE_SERVER_MOD,
         });
         until(&mut gpu, &mut parked, size, 120, "joined duel6", |gpu| {
             gpu.live_map_installed && gpu.live_session.is_some()

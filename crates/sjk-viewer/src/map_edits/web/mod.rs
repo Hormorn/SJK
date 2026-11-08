@@ -10,10 +10,9 @@
 //! stops it, and so does quitting. A map change keeps it; the page sees the new map in
 //! its next look at `api/edits` and loads it.
 
-mod caulk;
+pub(crate) mod caulk;
 pub(crate) mod http;
 pub(crate) mod page;
-pub(crate) mod recent;
 mod things;
 
 pub(crate) use caulk::Cache;
@@ -91,15 +90,13 @@ impl GpuState {
                 let edit = edit.clone();
                 Ok(self.map_edit_web_edit(&edit))
             }
-            GameRequest::Recent => Ok(self.map_edit_web_recent_json()),
+            GameRequest::Recent => Ok(self.map_edit_recent_json()),
             GameRequest::SetRecent(change) => {
-                let recent = self.map_edit_web_recent();
-                match change {
-                    RecentRequest::Remember { on } => recent.set_remember(*on),
-                    RecentRequest::Clear {} => recent.clear(),
-                }
-                self.map_edit_web_recent_save();
-                Ok(self.map_edit_web_recent_json())
+                self.map_edit_set_recent(match change {
+                    RecentRequest::Remember { on } => Some(*on),
+                    RecentRequest::Clear {} => None,
+                });
+                Ok(self.map_edit_recent_json())
             }
             GameRequest::Brushes => {
                 let map = self.world_load_map.clone();
@@ -121,68 +118,6 @@ impl GpuState {
             }
         };
         ask.answer(answer);
-    }
-
-    /// The Recent rows' lists, read from their file the first time.
-    fn map_edit_web_recent(&mut self) -> &mut recent::Recent {
-        if self.map_edits.web_recent.is_none() {
-            let loaded = self
-                .map_edits_folder()
-                .map(|folder| recent::Recent::load(&folder))
-                .unwrap_or_default();
-            self.map_edits.web_recent = Some(loaded);
-        }
-        self.map_edits
-            .web_recent
-            .get_or_insert_with(Default::default)
-    }
-
-    fn map_edit_web_recent_save(&mut self) {
-        let (Some(folder), Some(recent)) = (self.map_edits_folder(), &self.map_edits.web_recent)
-        else {
-            return;
-        };
-        if let Err(error) = recent.save(&folder) {
-            crate::log::progress(format_args!("map edits: recent list not saved: {error}"));
-        }
-    }
-
-    fn map_edit_web_recent_json(&mut self) -> Value {
-        serde_json::to_value(&*self.map_edit_web_recent()).unwrap_or(Value::Null)
-    }
-
-    /// After editor command `name` (with `args`) did its work: a remap's or a shown
-    /// face's shader and a placed model go first in the Recent rows.
-    pub(super) fn map_edit_web_remember(&mut self, name: &str, args: &[String]) {
-        let used = match (name, args.first()) {
-            ("mapedit_remap" | "mapedit_sky", Some(shader)) if shader != "-" => {
-                Some((true, shader.clone()))
-            }
-            ("mapedit_place", _) => {
-                let current = self.map_edits.editor.current();
-                self.map_edits
-                    .document
-                    .as_ref()
-                    .and_then(|document| document.edits.iter().find(|e| Some(e.id) == current))
-                    .and_then(|edit| match &edit.kind {
-                        Kind::Place { model, .. } => Some((false, model.clone())),
-                        _ => None,
-                    })
-            }
-            _ => None,
-        };
-        let Some((shader, used)) = used else {
-            return;
-        };
-        let recent = self.map_edit_web_recent();
-        let changed = if shader {
-            recent.used_shader(&used)
-        } else {
-            recent.used_model(&used)
-        };
-        if changed {
-            self.map_edit_web_recent_save();
-        }
     }
 
     /// An edit the page asked for, run as the in-game editor's command; its answer is
@@ -210,8 +145,26 @@ impl GpuState {
                 faces,
                 surfaces,
                 shader,
-            } => self.map_edit_many(faces, surfaces, Some(shader)),
-            EditRequest::HideMany { faces, surfaces } => self.map_edit_many(faces, surfaces, None),
+            } => {
+                let many = crate::map_edits::editor::Members {
+                    faces: faces.clone(),
+                    surfaces: surfaces.clone(),
+                    placed: Vec::new(),
+                };
+                self.map_edit_many(&many, Some(shader))
+            }
+            EditRequest::HideMany {
+                faces,
+                surfaces,
+                placed,
+            } => {
+                let many = crate::map_edits::editor::Members {
+                    faces: faces.clone(),
+                    surfaces: surfaces.clone(),
+                    placed: placed.clone(),
+                };
+                self.map_edit_many(&many, None)
+            }
             EditRequest::Current { id } => {
                 let placed = self.map_edits.document.as_ref().is_some_and(|document| {
                     document

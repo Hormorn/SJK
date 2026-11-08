@@ -197,13 +197,12 @@ pub(crate) enum Section {
     Unrest,
     Flash,
     Crackle,
-    Disintegrate,
 }
 
 impl Section {
     /// Each a bit of the instance's mask, two 32-bit words (`saber.wgsl` `off.x` and
     /// `off.y`): room for 64.
-    pub(crate) const ALL: [Self; 40] = [
+    pub(crate) const ALL: [Self; 39] = [
         Self::Arcs,
         Self::Motes,
         Self::Hue,
@@ -243,7 +242,6 @@ impl Section {
         Self::Unrest,
         Self::Flash,
         Self::Crackle,
-        Self::Disintegrate,
     ];
 
     /// Its field's name in the file.
@@ -288,7 +286,6 @@ impl Section {
             Self::Unrest => "unrest",
             Self::Flash => "flash",
             Self::Crackle => "crackle",
-            Self::Disintegrate => "disintegrate",
         }
     }
 
@@ -363,7 +360,6 @@ impl BladeSkinDef {
             Section::Unrest => self.unrest.is_some(),
             Section::Flash => self.flash.is_some(),
             Section::Crackle => self.crackle.is_some(),
-            Section::Disintegrate => self.disintegrate.is_some(),
         }
     }
 

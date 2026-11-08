@@ -97,6 +97,14 @@ impl GpuState {
         {
             console.force_repeat_button_up(key);
         }
+        // While the map editor flies every button is its own: the right one's release
+        // ends the flight, and none attacks.
+        if self.map_edit_flying() {
+            if button == MouseButton::Right && state == ElementState::Released {
+                self.map_edit_fly_stop();
+            }
+            return;
+        }
         // An open quick wheel takes the left and right buttons: they change its
         // page, and neither attacks.
         let side = match button {
@@ -171,6 +179,13 @@ impl GpuState {
                 .scrolled(delta.y, std::time::Instant::now());
             return;
         }
+        // While the map editor flies the wheel sets the flight's speed.
+        if self.map_edit_flying() {
+            if let Some(up) = wheel_binding_direction(delta.y) {
+                self.map_edit_fly_wheel(up);
+            }
+            return;
+        }
         // A model the map editor grabbed turns with the wheel instead of changing weapon.
         if let Some(up) = wheel_binding_direction(delta.y)
             && !self.map_edit_panel_open()
@@ -209,6 +224,8 @@ impl GpuState {
         self.cursor_policy.set_focus(focused);
         self.gameplay_input.focus(focused);
         if !focused {
+            // The window that took the focus takes the right button's release too.
+            self.map_edit_fly_stop();
             // The window that took the focus takes the slider's release too.
             if let Some(menu) = &mut self.client_menu {
                 menu.cancel_slider_peek();
@@ -510,6 +527,7 @@ impl GpuState {
         }
         if self.chat.is_typing() {
             self.chat.pointer(event);
+            self.save_chat_settings();
             return true;
         }
         false

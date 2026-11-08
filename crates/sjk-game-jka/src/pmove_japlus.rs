@@ -20,7 +20,7 @@ use sjk_protocol::{GameState, InfoString, JaPlusCapabilities, ServerDialect, Ser
 const WP_MELEE: u8 = 2;
 
 /// The JA+ rules in force for one session.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct JaPlusRules {
     /// The server runs JA+ (`cgs.serverMod == SVMOD_JAPLUS`).
     pub enabled: bool,
@@ -43,10 +43,30 @@ pub struct JaPlusRules {
     /// keeps the original game's collision boxes, so the dual forward jump attack raises
     /// its feet whether or not a player is in front.
     pub old_collision: bool,
+    /// `jp_gripSpeedScale`, a serverinfo setting of every JA+ server (default 0.8): the
+    /// run speed kept while gripping, within 0.4 and 1.01 ([`Self::grip_speed_scale`]).
+    /// Only read on JA+.
+    pub grip_speed: f32,
+}
+
+impl Default for JaPlusRules {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            flip_kick: false,
+            head_slide: false,
+            yellow_dfa: false,
+            free_knockdown_view: false,
+            old_collision: false,
+            grip_speed: JP_GRIP_SPEED_SCALE,
+        }
+    }
 }
 
 /// The `dmflags` bit with which a JA+ server keeps the original collision boxes.
 const JP_DF_OLD_COLLISION: i32 = 256;
+/// `jp_gripSpeedScale`'s default (VisionJK `codemp/game/japlus/g_japlus_xcvar.h:102`).
+pub const JP_GRIP_SPEED_SCALE: f32 = 0.8;
 
 impl JaPlusRules {
     /// The rules a parsed dialect selects: JA+ ones only for a JA+ server.
@@ -61,6 +81,7 @@ impl JaPlusRules {
             yellow_dfa: capabilities.contains(JaPlusCapabilities::YELLOW_DFA),
             free_knockdown_view: false,
             old_collision: false,
+            grip_speed: JP_GRIP_SPEED_SCALE,
         }
     }
 
@@ -76,6 +97,12 @@ impl JaPlusRules {
                     // `cgs.dmflags`, `atoi` of the serverinfo key (`cg_servercmds.c`).
                     old_collision: rules.enabled
                         && info.get_i32("dmflags").unwrap_or_default() & JP_DF_OLD_COLLISION != 0,
+                    // `atof` of the serverinfo key, as VisionJK's cgame reads it
+                    // (`codemp/cgame/cg_servercmds.c:160`). A JA+ server always publishes
+                    // it (`CVAR_SERVERINFO`); without it the module's default stands.
+                    grip_speed: info
+                        .get("jp_gripSpeedScale")
+                        .map_or(JP_GRIP_SPEED_SCALE, atof),
                     ..rules
                 }
             })
@@ -87,11 +114,15 @@ impl JaPlusRules {
         !self.enabled || self.head_slide
     }
 
-    /// The run speed kept while gripping (`bg_pmove.c:10063-10073`): JA+'s
-    /// `jp_gripSpeedScale` default 0.8, stock 0.4. The server's own value is not
-    /// published, so a changed scale cannot be predicted.
+    /// The run speed kept while gripping (`bg_pmove.c:10063-10073`): stock 0.4; on JA+
+    /// the server's `jp_gripSpeedScale`, held within 0.4 and 1.01 (VisionJK
+    /// `codemp/game/bg/bg_pmove.c:8883-8886`).
     pub(crate) fn grip_speed_scale(self) -> f32 {
-        if self.enabled { 0.8 } else { 0.4 }
+        if self.enabled {
+            self.grip_speed.clamp(0.4, 1.01)
+        } else {
+            0.4
+        }
     }
 
     /// Whether an attack pressed with the holdable button cancels both
@@ -141,6 +172,39 @@ impl JaPlusRules {
     pub(crate) fn wall_runs_from_force_flips(self) -> bool {
         self.enabled
     }
+}
+
+/// C's `atof`: the longest leading decimal number (after blanks), 0 for none.
+fn atof(text: &str) -> f32 {
+    let text = text.trim_start();
+    let bytes = text.as_bytes();
+    let mut end = 0;
+    if matches!(bytes.first(), Some(b'+' | b'-')) {
+        end = 1;
+    }
+    let digits = |from: usize| {
+        bytes[from..]
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count()
+    };
+    end += digits(end);
+    if bytes.get(end) == Some(&b'.') {
+        end += 1 + digits(end + 1);
+    }
+    let mut number = &text[..end];
+    // An exponent counts only with its digits.
+    if matches!(bytes.get(end), Some(b'e' | b'E')) {
+        let mut at = end + 1;
+        if matches!(bytes.get(at), Some(b'+' | b'-')) {
+            at += 1;
+        }
+        let exponent = digits(at);
+        if exponent > 0 {
+            number = &text[..at + exponent];
+        }
+    }
+    number.parse().unwrap_or(0.0)
 }
 
 #[cfg(test)]
@@ -196,6 +260,40 @@ mod tests {
         assert!(!rules(&format!(r"{japlus}\dmflags\8")).old_collision);
         assert!(rules(&format!(r"{japlus}\dmflags\264")).old_collision);
         assert!(!rules(r"\gamename\basejka\dmflags\256").old_collision);
+    }
+
+    #[test]
+    fn the_grip_speed_is_the_ja_plus_servers_own() {
+        let rules = |serverinfo: &str| {
+            let mut game = GameState::empty_local(0);
+            game.replace_config_string(0, serverinfo.as_bytes().to_vec())
+                .unwrap();
+            JaPlusRules::from_game_state(&game).grip_speed_scale()
+        };
+        let japlus = r"\gamename\JA+ Mod v2.4 B7\jp_cinfo\19";
+        let with = |scale: &str| rules(&format!(r"{japlus}\jp_gripSpeedScale\{scale}"));
+        // Not published: the module's default.
+        assert_eq!(rules(japlus), 0.8);
+        assert_eq!(with("0.8"), 0.8);
+        assert_eq!(with("1"), 1.0);
+        // Held within 0.4 and 1.01, as `atof` reads it.
+        assert_eq!(with("0.1"), 0.4);
+        assert_eq!(with("3"), 1.01);
+        assert_eq!(with("0.65xyz"), 0.65);
+        assert_eq!(with("none"), 0.4);
+        // Anywhere else, stock's 0.4 whatever the key says.
+        assert_eq!(rules(r"\gamename\basejka\jp_gripSpeedScale\1"), 0.4);
+    }
+
+    #[test]
+    fn atof_reads_as_c_does() {
+        assert_eq!(atof(" 0.5"), 0.5);
+        assert_eq!(atof("-2"), -2.0);
+        assert_eq!(atof(".25x"), 0.25);
+        assert_eq!(atof("1e1"), 10.0);
+        assert_eq!(atof("1e"), 1.0);
+        assert_eq!(atof(""), 0.0);
+        assert_eq!(atof("-"), 0.0);
     }
 
     /// No world: every trace misses.

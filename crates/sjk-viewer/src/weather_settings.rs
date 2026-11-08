@@ -16,6 +16,8 @@ pub(crate) const FORCE_CVAR: &str = "r_weatherForce";
 pub(crate) const FOG_CVAR: &str = "r_weatherFog";
 /// Volumetric clouds over open sky.
 pub(crate) const CLOUDS_CVAR: &str = "r_clouds";
+/// Lightning in storms (`weather_lightning.rs`).
+pub(crate) const LIGHTNING_CVAR: &str = super::lightning::CVAR;
 
 /// SJK's default density: twice the reference's particles.
 const DEFAULT_DENSITY: f32 = 2.0;
@@ -27,6 +29,7 @@ const QUALITY: usize = 2;
 const FORCE: usize = 3;
 const FOG: usize = 4;
 const CLOUDS: usize = 5;
+const LIGHTNING: usize = 6;
 
 /// The highest `r_weatherForce`.
 pub(crate) const FORCE_MAX: i64 = 4;
@@ -66,7 +69,7 @@ impl Quality {
                 splashes: true,
                 splash_share: 0.4,
                 far_share: 0.0,
-                fog_steps: 8,
+                fog_steps: 10,
                 cloud_steps: 16,
                 wet: 1,
             },
@@ -74,7 +77,7 @@ impl Quality {
                 splashes: true,
                 splash_share: 0.6,
                 far_share: 1.5,
-                fog_steps: 12,
+                fog_steps: 16,
                 cloud_steps: 24,
                 wet: 2,
             },
@@ -82,7 +85,7 @@ impl Quality {
                 splashes: true,
                 splash_share: 0.9,
                 far_share: 2.5,
-                fog_steps: 20,
+                fog_steps: 24,
                 cloud_steps: 40,
                 wet: 3,
             },
@@ -103,7 +106,7 @@ pub(crate) fn forced_commands(force: u32) -> &'static [&'static str] {
 
 /// Live values; every read is one relaxed load.
 #[derive(Clone)]
-pub(crate) struct Settings(Arc<[AtomicU32; 6]>);
+pub(crate) struct Settings(Arc<[AtomicU32; 7]>);
 
 impl Default for Settings {
     fn default() -> Self {
@@ -113,7 +116,8 @@ impl Default for Settings {
             AtomicU32::new(DEFAULT_QUALITY),
             AtomicU32::new(0),
             AtomicU32::new(1),
-            AtomicU32::new(1),
+            AtomicU32::new(0),
+            AtomicU32::new(0),
         ]))
     }
 }
@@ -122,7 +126,7 @@ impl Settings {
     /// Register the archived cvars and follow their changes.
     pub(crate) fn bind(cvars: &mut CvarRegistry) -> Result<Self, CvarError> {
         let settings = Self::default();
-        let integers: [(&str, i64, i64, i64, usize, &str); 5] = [
+        let integers: [(&str, i64, i64, i64, usize, &str); 6] = [
             (
                 CVAR,
                 1,
@@ -157,11 +161,19 @@ impl Settings {
             ),
             (
                 CLOUDS_CVAR,
-                1,
+                0,
                 0,
                 1,
                 CLOUDS,
-                "Volumetric clouds over open sky",
+                "Volumetric clouds over open sky (off by default, under every preset)",
+            ),
+            (
+                LIGHTNING_CVAR,
+                0,
+                0,
+                1,
+                LIGHTNING,
+                "Lightning in storms: flashes through the rain and fog, thunder with s_weatherSounds",
             ),
         ];
         for (name, default, low, high, slot, help) in integers {
@@ -237,6 +249,10 @@ impl Settings {
     pub(crate) fn clouds(&self) -> bool {
         self.0[CLOUDS].load(Ordering::Relaxed) != 0
     }
+
+    pub(crate) fn lightning(&self) -> bool {
+        self.0[LIGHTNING].load(Ordering::Relaxed) != 0
+    }
 }
 
 #[cfg(test)]
@@ -247,7 +263,10 @@ mod tests {
     fn values_are_clamped_and_follow_the_console() {
         let mut cvars = CvarRegistry::default();
         let settings = Settings::bind(&mut cvars).unwrap();
-        assert!(settings.enabled() && settings.clouds());
+        assert!(
+            settings.enabled() && !settings.clouds(),
+            "clouds are off by default"
+        );
         assert_eq!(settings.quality(), Quality::level(2));
         assert_eq!((settings.force(), settings.fog()), (0, 1));
         settings.set_integer(QUALITY, &CvarValue::Integer(9), 0, 3);

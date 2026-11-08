@@ -9,6 +9,7 @@ and changed together. Begin with the status page, then the architecture.
 | [Status and priorities](status.md) | Current scope, verification and open work |
 | [Architecture](architecture.md) | Crate ownership and compatibility boundaries |
 | [Development](development.md) | Build, validation and contribution workflow |
+| [Reviewing and merging](reviewing.md) | How maintainers and their assistants review and merge pull requests: the golden rules (stock JKA first, economy care), own pull requests, the questions to ask, the merge steps |
 | [Distributable packages](packages.md) | Windows/Linux ZIP layout, builds and startup checks |
 | [Client](client.md) | Launch, configuration, content and common commands |
 | [Dedicated server](server.md) | Hosting, configuration and local testing |
@@ -26,6 +27,7 @@ and changed together. Begin with the status page, then the architecture.
 | [Sith cloud](sith-cloud.md) | The S community's maps, skins and extras from their own server, into the game's base (`sith.downloads`), opt in |
 | [Rig models](rig-models.md) | glTF player models with their own skeleton, driven by the game's animations: manifest, bone maps, limits |
 | [Mystery boxes](mystery-boxes.md) | Boxes SJK's creator places on maps, opened by players for credits: the hub's roll, the reach, the creator's commands |
+| [WHEEL OF DOOM](wheel-of-doom.md) | The toy players spin for credits: the hub's spin, the sixteen outcomes and their effects on the spinner, the sounds, the model contract for Sol's wheel |
 | [The Toy Master](toy-master.md) | Secret toys SJK's creator hides on maps: what the hub sends, presses and shows, the "?" and the hidden achievements, the creator's commands |
 | [Map edits](map-edits.md) | SJK's own map fixes drawn by SJK clients: hidden props and surfaces, placed models, remaps, per server; the staff editor, the browser editor and the hub copies |
 | [Profile banners](profile-banners.md) | Collectible profile covers, Echo rewards, equip/unequip and compatibility |

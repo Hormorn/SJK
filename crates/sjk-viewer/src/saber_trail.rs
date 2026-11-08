@@ -13,8 +13,8 @@ pub(crate) const MAX_SEGMENTS: usize = 4_096;
 pub(crate) const WAKE: u32 = 0x100;
 /// The vertex style's low byte: the style itself.
 pub(crate) const STYLE: u32 = 0xff;
-/// How many times longer a plasma, flare or wake trail lives than the blur: the plasma's
-/// cooling and the heat's shimmer need time to be seen.
+/// How many times longer a plasma, flare, moonlight (and its eclipse and starfall) or wake
+/// trail lives than the blur: their cooling, dust and shimmer need time to be seen.
 const LONG_LIFE: u16 = 3;
 /// How far (units) the flare trail's flames reach past the tip.
 pub(crate) const FLARE_REACH: f32 = 10.0;
@@ -89,7 +89,14 @@ impl Trail {
         if style > 1 || now <= self.last_time + 2 {
             return None;
         }
-        let Edge { base, tip } = edge;
+        let Edge { base, mut tip } = edge;
+        // A new blade's own trail stops short of its point, where its body narrows: it drew a thin line of
+        // the blade's colour past the tip in a swing (Creyon, 4/11/2026).
+        if vertex_style(style, color) & STYLE >= 10 {
+            for axis in 0..3 {
+                tip[axis] = base[axis] + (tip[axis] - base[axis]) * 0.84;
+            }
+        }
         let diff = now.saturating_sub(self.last_time);
         let quad = (enabled && self.initialized && now < self.last_time + 2_000)
             .then(|| {
@@ -390,7 +397,7 @@ pub(crate) fn trail_duration(authored_duration: u16) -> u16 {
 /// trail, 1 the sword trail), except a black blade's blur trail (2, alpha-blended) and a
 /// blade skin's (`SkinColor::trail_kind`: 3, the blur trail whose white core takes the
 /// skin's trail colour too, so the trail reads as the blade's colour rather than white; 4
-/// comic speed lines; 5 plasma; 6 the flare), with [`WAKE`] when the skin's trail bends
+/// comic speed lines; 5 plasma; 6 the flare; 7 moonlight; 8 the eclipse; 9 the starfall), with [`WAKE`] when the skin's trail bends
 /// what is behind it.
 pub(crate) fn vertex_style(style: u8, color: BladeColor) -> u32 {
     match (style, color) {
@@ -426,7 +433,15 @@ fn build_quad(
     let rgb = if style == 1 {
         [32.0 / 255.0; 3]
     } else {
-        color.trail_rgb()
+        match color {
+            // Rakata Infinite's surge (`rakata_infinite.glsl`, `gk_surge`) turns its trail too.
+            BladeColor::Skin(skin)
+                if skin.trail_kind == crate::blade_extras::TrailKind::Infinite =>
+            {
+                skin.trail_color_surging(crate::saber::animation_seconds())
+            }
+            _ => color.trail_rgb(),
+        }
     };
     // The flare's flames lick off past the tip: its slice reaches `FLARE_REACH` further,
     // the texture's V going below 0 there (the tip stays at 0).

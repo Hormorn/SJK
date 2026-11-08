@@ -70,10 +70,11 @@ impl GpuState {
         // The look the hub relays is what the player holds; `debug_collectibles` changes
         // only the blade drawn here (the hub refuses a skin the player lacks).
         let mut sent = None;
-        let (saber_skin, options_off, second, options_off2, sounds) = if due {
+        let (saber_skin, options_off, second, options_off2, sounds, finisher) = if due {
             let setting = text(crate::unlockables::SABER_SKIN_CVAR);
             let second_setting = text(crate::looks::SECOND_CVAR);
             let sounds = text(crate::saber_sound_choice::CVAR);
+            let finisher = text(crate::finishers::CVAR);
             #[cfg(test)]
             let shot = self.looks.shot_owns_unlocks;
             #[cfg(not(test))]
@@ -86,7 +87,8 @@ impl GpuState {
             });
             let held = Worn::own(&setting, &held_options, owned, lit)
                 .with_second(&second_setting, &held_options, owned)
-                .with_sounds(&sounds, owned);
+                .with_sounds(&sounds, owned)
+                .with_finisher(&finisher, owned);
             let debug = self
                 .console
                 .as_ref()
@@ -96,12 +98,14 @@ impl GpuState {
                 Worn::own(&setting, &options, |_| true, lit)
                     .with_second(&second_setting, &options, |_| true)
                     .with_sounds(&sounds, |_| true)
+                    .with_finisher(&finisher, |_| true)
             } else if crate::saber_lab::active() {
                 // The Saber Lab's skins are worn here only; `held` is what is sent.
                 let lab = |id: &str| owned(id) || crate::saber_lab::owns(id);
                 Worn::own(&setting, &options, lab, lit)
                     .with_second(&second_setting, &options, lab)
                     .with_sounds(&sounds, lab)
+                    .with_finisher(&finisher, owned)
             } else {
                 held
             };
@@ -123,6 +127,7 @@ impl GpuState {
                 own.second,
                 own.options_off2,
                 own.sounds,
+                own.finisher,
             )
         } else {
             let own = self.looks.own();
@@ -132,6 +137,7 @@ impl GpuState {
                 own.second,
                 own.options_off2,
                 own.sounds,
+                own.finisher,
             )
         };
         let own = Worn {
@@ -142,6 +148,7 @@ impl GpuState {
             second,
             options_off2,
             sounds,
+            finisher,
         }
         .with_toy(crate::cardboard_box::TOY, self.cardboard_box.on())
         .with_toy(crate::order66::TOY, self.order66.on())

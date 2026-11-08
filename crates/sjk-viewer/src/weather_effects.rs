@@ -176,7 +176,11 @@ pub(crate) struct Effects {
 pub(crate) const HELP: &str = "Weather Effect: Please enter a valid command: die, clear, \
     freeze, zone (mins) (maxs), wind, constantwind (velocity), gustingwind, lightrain, rain, \
     acidrain, heavyrain, snow, spacedust <count>, sand, fog, heavyrainfog, light_fog, \
-    outsideshake, outsidepain";
+    outsideshake, outsidepain (SJK also has mist)";
+
+/// SJK's own command: the light ground fog `r_weatherFog 2` lays on a map without fog of
+/// its own ([`Mist::DEFAULT`]), so a map edit can keep it.
+pub(crate) const MIST: &str = "mist";
 
 impl Effects {
     /// Apply the commands in order, from nothing: what a map's effect names amount to.
@@ -190,7 +194,6 @@ impl Effects {
     }
 
     /// Nothing to draw and no wind.
-    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.clouds.is_empty() && self.winds.is_empty()
     }
@@ -311,6 +314,8 @@ impl Effects {
                     height: 180.0,
                 },
             ),
+            // SJK's own: the light ground fog `r_weatherFog 2` lays, for a map edit to keep.
+            MIST => Cloud::mist(60, 70.0, [0.2; 4], [10.0, 30.0], Mist::DEFAULT),
             "light_fog" => Cloud::mist(
                 40,
                 100.0,

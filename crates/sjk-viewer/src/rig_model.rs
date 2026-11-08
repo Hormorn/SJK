@@ -192,12 +192,14 @@ pub(crate) struct Manifest {
     /// Joints whose chains below move on their own (`dynamic` lines), each with its
     /// chain's settings.
     pub(crate) dynamic: Vec<(String, dynamics::Settings)>,
+    /// `layer` lines: the chain under the first joint stays outside that under the second.
+    pub(crate) layers: Vec<(String, String)>,
 }
 
 /// The driver's bones whose rig joints (from their bone map entry to the joint it
 /// aims at) become the capsules dynamic chains are kept out of: the trunk and the
-/// legs, which a tail or a cape hangs against. Arms and head are left out (a cape
-/// rests on the shoulders, the hands pass through a tail anyway).
+/// legs, which a tail or a cape hangs against. The head is left out (hair grows from it)
+/// and the arms are [`ARM_BONES`].
 const COLLISION_BONES: &[&str] = &[
     "pelvis",
     "lower_lumbar",
@@ -209,8 +211,13 @@ const COLLISION_BONES: &[&str] = &[
     "rtibia",
 ];
 
+/// The same for the arms, measured only for a rig with a chain that asks (`arms` on its
+/// `dynamic` line): they move fast, and a cape rests on the shoulders.
+const ARM_BONES: &[&str] = &["lhumerus", "rhumerus", "lradius", "rradius"];
+
 /// A `dynamic` line's words after the joint: `[gravity] [gravity <n>] [wag <n>]
-/// [stiffness <n>] [damping <n>] [nocollide]`, any order after the bare gravity.
+/// [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [drag <n>] [arms]
+/// [nocollide]`, any order after the bare gravity.
 fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
     let mut settings = dynamics::Settings::default();
     let number = |word: &str| word.parse::<f32>().ok().filter(|n| n.is_finite());
@@ -226,10 +233,55 @@ fn dynamic_settings(words: &[&str]) -> Option<dynamics::Settings> {
             "wag" => settings.wag = number(words.next()?)?,
             "stiffness" => settings.stiffness = number(words.next()?).filter(|n| *n > 0.0)?,
             "damping" => settings.damping = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "limit" => {
+                settings.limit =
+                    number(words.next()?).filter(|n| (0.0..=dynamics::NO_LIMIT).contains(n))?;
+            }
+            "clearance" => settings.clearance = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "drag" => settings.drag = number(words.next()?).filter(|n| *n >= 0.0)?,
+            "arms" => settings.arms = true,
             _ => return None,
         }
     }
     Some(settings)
+}
+
+/// What is wrong with `layer` lines (outer and inner joint), `anchors` being the joints
+/// on `dynamic` lines: such a line loads, and does nothing or something odd, so a pack's
+/// author needs telling.
+fn layer_problems<'a>(
+    layers: &[(usize, usize)],
+    anchors: &[usize],
+    name: impl Fn(usize) -> &'a str,
+) -> Vec<String> {
+    let mut problems = Vec::new();
+    for &(outer, inner) in layers {
+        let line = format!("layer {} over {}", name(outer), name(inner));
+        if outer == inner {
+            problems.push(format!("{line}: a chain cannot lie over itself"));
+            continue;
+        }
+        for joint in [outer, inner] {
+            if !anchors.contains(&joint) {
+                problems.push(format!("{line}: {} has no dynamic line", name(joint)));
+            }
+        }
+        // A way back from the inner joint to the outer one, over the other lines.
+        let mut reached = vec![inner];
+        let mut next = 0;
+        while let Some(&from) = reached.get(next) {
+            next += 1;
+            for &(over, under) in layers {
+                if over == from && over != under && !reached.contains(&under) {
+                    reached.push(under);
+                }
+            }
+        }
+        if reached.contains(&outer) {
+            problems.push(format!("{line}: the layer lines go round in a circle"));
+        }
+    }
+    problems
 }
 
 impl Manifest {
@@ -243,6 +295,7 @@ impl Manifest {
             lift: 0.0,
             map: Vec::new(),
             dynamic: Vec::new(),
+            layers: Vec::new(),
         };
         for (number, line) in text.lines().enumerate() {
             let line = line.split("//").next().unwrap_or("").trim();
@@ -275,6 +328,9 @@ impl Manifest {
                 ["dynamic", joint, rest @ ..] => manifest
                     .dynamic
                     .push(((*joint).to_owned(), dynamic_settings(rest).ok_or_else(bad)?)),
+                ["layer", outer, "over", inner] => manifest
+                    .layers
+                    .push(((*outer).to_owned(), (*inner).to_owned())),
                 ["map", joint, bone] => manifest.map.push(entry(joint, bone, Align::Rest)),
                 ["map", joint, bone, "as", other] => {
                     manifest
@@ -309,13 +365,34 @@ impl Manifest {
     }
 }
 
-/// The manifest of the model in `directory`, when it is a rig model.
+/// The manifest of a rig model's variant (`/model <folder>/<variant>`), beside
+/// [`MANIFEST`]: `sjk_rig_<variant>.cfg`. `default` (or an empty name) is
+/// [`MANIFEST`] itself.
+pub(crate) fn variant_manifest(variant: &str) -> Option<String> {
+    let variant = variant.trim();
+    (!variant.is_empty() && !variant.eq_ignore_ascii_case("default"))
+        .then(|| format!("sjk_rig_{}.cfg", variant.to_ascii_lowercase()))
+}
+
+/// The manifest of the model in `directory` worn as `variant`, when it is a rig
+/// model: the variant's own manifest ([`variant_manifest`]) when the folder has one,
+/// else [`MANIFEST`] (a variant without its own looks like the default, as a stock
+/// model's unknown skin does).
 pub(crate) fn manifest(
     vfs: &VirtualFileSystem,
     directory: &str,
+    variant: &str,
 ) -> Result<Option<Manifest>, Box<dyn Error>> {
-    let Some(asset) = vfs.read(&format!("{directory}/{MANIFEST}"))? else {
-        return Ok(None);
+    let own = match variant_manifest(variant) {
+        Some(file) => vfs.read(&format!("{directory}/{file}"))?,
+        None => None,
+    };
+    let asset = match own {
+        Some(asset) => asset,
+        None => match vfs.read(&format!("{directory}/{MANIFEST}"))? {
+            Some(asset) => asset,
+            None => return Ok(None),
+        },
     };
     Ok(Some(Manifest::parse(&String::from_utf8_lossy(
         &asset.bytes,
@@ -375,17 +452,57 @@ struct Feet {
     rig_ankle: f32,
     /// The rig's lowest point in its bind pose (where a clip's soles are).
     rig_sole: f32,
+    /// The soles' lowest points, which plant the rig when both models have them
+    /// ([`RigModel::with_soles`]); without, the ankles do.
+    soles: Option<Soles>,
 }
+
+/// Each foot's lowest vertices, each carried rigidly by its strongest bone
+/// (the driver's) or joint (the rig's), to plant the rig's lowest sole point on the
+/// driver's every frame. Matching ankles instead lets a foot built otherwise float or
+/// sink as it tips: a digitigrade foot turns about a heel standing high above the
+/// ground, so solfox5 rose 1.5 units twice a step (05/11/2026).
+#[derive(Clone, Debug, Default)]
+struct Soles {
+    /// Per foot (as [`ANKLES`]): driver bone and the point's base-pose place.
+    driver: Vec<Vec<(usize, Vec3A)>>,
+    /// Per foot: rig joint and the point's bind-pose place.
+    rig: Vec<Vec<(usize, Vec3A)>>,
+}
+
+/// Each foot's vertices this far (in driver units) above its lowest one plant the rig
+/// ([`Soles`]): the whole sole, heel to toes and claws, as a tipped foot stands on its
+/// toes (its eight lowest alone, the flat of the pad, left a pointed paw a unit and a
+/// half off the ground).
+const SOLE_DEPTH: f32 = 1.5;
+
+/// How fast the planted rise follows its target ([`RigModel::pose_after`]): the time of
+/// an exponential ease, in seconds. A rig whose legs reach otherwise than the driver's
+/// lands a step at another moment: solfox5's longer legs touched the ground 2.5 units
+/// under the driver's foot at the end of a run's swing, so planting each frame exactly
+/// jolted the body that much in a frame; eased, at most 0.85 (a foot a unit off the
+/// ground for a moment instead), the walk's 0.4 (05/11/2026).
+const PLANT_EASE: f32 = 0.05;
+
+/// At most this many of each foot's lowest vertices plant the rig ([`Soles`]).
+const SOLE_POINTS: usize = 64;
 
 /// The least share of the joints a clip moves that a rig must have (by name) to
 /// borrow it.
 const BORROW_SHARE: f32 = 0.6;
 
 /// Rig models loaded only to lend their clips, by folder; `None` for one that did not
-/// load. Kept for the session: a model re-exported while the game runs is read again
-/// after a restart.
+/// load. Kept until `rig_reload` ([`forget_sources`]) reads the packs again.
 static SOURCES: LazyLock<Mutex<HashMap<String, Option<Arc<RigModel>>>>> =
     LazyLock::new(Mutex::default);
+
+/// Drop the clip lenders [`SOURCES`] keeps, so the next load reads them again.
+pub(crate) fn forget_sources() {
+    SOURCES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clear();
+}
 
 /// The rig model in `directory`, without its surfaces, fitted to `driver`.
 fn source_rig(vfs: &VirtualFileSystem, directory: &str, driver: &Gla) -> Option<Arc<RigModel>> {
@@ -397,7 +514,7 @@ fn source_rig(vfs: &VirtualFileSystem, directory: &str, driver: &Gla) -> Option<
         return known.clone();
     }
     let load = || -> Result<RigModel, Box<dyn Error>> {
-        let manifest = manifest(vfs, directory)?.ok_or("not a rig model")?;
+        let manifest = manifest(vfs, directory, "default")?.ok_or("not a rig model")?;
         let file = manifest
             .model
             .clone()
@@ -497,8 +614,8 @@ pub(crate) struct RigModel {
 }
 
 /// The capsules dynamic chains are kept out of: one per bone map entry on a
-/// [`COLLISION_BONES`] bone that aims at another joint, round the bind-pose vertices
-/// whose strongest joint is that one (or an unmapped joint under it, such as a twist
+/// [`COLLISION_BONES`] bone (and [`ARM_BONES`] if a chain asks) that aims at another
+/// joint, round the bind-pose vertices whose strongest joint is that one (or an unmapped joint under it, such as a twist
 /// bone), the chains' own vertices left out.
 fn body_capsules(
     map: &[MapEntry],
@@ -508,14 +625,19 @@ fn body_capsules(
     surfaces: &[Surface],
     joint_index: impl Fn(&str) -> Option<usize>,
 ) -> Vec<dynamics::Capsule> {
-    let spans: Vec<(usize, usize)> = map
+    let arms = chains.wants_arms();
+    let spans: Vec<(usize, usize, bool)> = map
         .iter()
-        .filter(|entry| COLLISION_BONES.contains(&entry.bone.as_str()))
-        .filter_map(|entry| match &entry.align {
-            Align::Toward { joint_end, .. } => {
-                Some((joint_index(&entry.joint)?, joint_index(joint_end)?))
+        .filter_map(|entry| {
+            let bone = entry.bone.as_str();
+            let arm = ARM_BONES.contains(&bone);
+            if !COLLISION_BONES.contains(&bone) && !(arms && arm) {
+                return None;
             }
-            _ => None,
+            let Align::Toward { joint_end, .. } = &entry.align else {
+                return None;
+            };
+            Some((joint_index(&entry.joint)?, joint_index(joint_end)?, arm))
         })
         .collect();
     // Each vertex on the nearest mapped joint at or above its strongest one.
@@ -545,7 +667,10 @@ fn body_capsules(
     spans
         .iter()
         .zip(&carried)
-        .filter_map(|(&(from, to), points)| dynamics::Capsule::measure(joints, from, to, points))
+        .filter_map(|(&(from, to, arm), points)| {
+            let capsule = dynamics::Capsule::measure(joints, from, to, points)?;
+            Some(dynamics::Capsule { arm, ..capsule })
+        })
         .collect()
 }
 
@@ -585,6 +710,15 @@ fn frame(direction: Vec3A) -> Option<Mat3A> {
 }
 
 impl RigModel {
+    /// The highest joint of the bind pose, in game units (tests compare scales by it).
+    #[cfg(test)]
+    pub(crate) fn top(&self) -> f32 {
+        self.joints
+            .iter()
+            .map(|joint| joint.bind.translation.z)
+            .fold(f32::MIN, f32::max)
+    }
+
     /// Load the glTF named by `manifest` from `directory` and fit it to `driver`,
     /// its feet planted on those of `driver_mesh` (the driver's GLM).
     pub(crate) fn load(
@@ -607,8 +741,9 @@ impl RigModel {
             .to_owned();
         let bytes = read(&path).ok_or_else(|| format!("rig model {path:?} was not found"))?;
         let model = parse(&bytes, |uri| read(&join(&base, uri)))?;
-        let mut rig =
-            Self::fit(model, &base, manifest, driver)?.with_feet(driver, sole(driver_mesh));
+        let mut rig = Self::fit(model, &base, manifest, driver)?
+            .with_feet(driver, sole(driver_mesh))
+            .with_soles(driver, driver_mesh);
         rig.borrow_clips(vfs, directory, driver);
         Ok(rig)
     }
@@ -781,7 +916,91 @@ impl RigModel {
                 rig_sole,
                 ankles,
                 joints,
+                soles: None,
             })
+        });
+        self
+    }
+
+    /// [`Soles`] from the driver's GLM and this rig's surfaces: for each foot, its
+    /// lowest vertices ([`SOLE_DEPTH`], [`SOLE_POINTS`]) whose strongest bone (joint) is
+    /// its ankle or one under it (toes). Without feet, or a foot without vertices, the
+    /// ankles plant.
+    fn with_soles(mut self, driver: &Gla, mesh: &Glm) -> Self {
+        let Some(feet) = self.feet.as_mut() else {
+            return self;
+        };
+        let lowest = |mut points: Vec<(f32, usize, Vec3A)>| {
+            points.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let bottom = points.first().map_or(0.0, |point| point.0);
+            points.truncate(SOLE_POINTS);
+            points.retain(|point| point.0 <= bottom + SOLE_DEPTH);
+            points.into_iter().map(|(_, index, at)| (index, at))
+        };
+        // Which foot (its place in the ankle lists) a bone or joint hangs from.
+        let foot_of =
+            |mut index: usize, ankles: &[usize], parent: &dyn Fn(usize) -> Option<usize>| {
+                for _ in 0..256 {
+                    if let Some(foot) = ankles.iter().position(|&ankle| ankle == index) {
+                        return Some(foot);
+                    }
+                    index = parent(index)?;
+                }
+                None
+            };
+        let driver_ankles: Vec<usize> = feet.ankles.iter().map(|(bone, _)| *bone).collect();
+        let bone_parent = |bone: usize| driver.bones.get(bone)?.parent;
+        let mut driver_feet = vec![Vec::new(); driver_ankles.len()];
+        if let Some(lod) = mesh.lods.first() {
+            for surface in &lod.surfaces {
+                let drawn = mesh
+                    .hierarchy
+                    .get(surface.hierarchy_index)
+                    .is_some_and(|h| {
+                        h.flags & 0x3 == 0 && !h.name.starts_with('*') && !h.name.contains("_cap_")
+                    });
+                if !drawn {
+                    continue;
+                }
+                for vertex in &surface.vertices {
+                    let Some(strongest) = vertex
+                        .weights
+                        .iter()
+                        .max_by(|a, b| a.weight.total_cmp(&b.weight))
+                    else {
+                        continue;
+                    };
+                    let Some(&bone) = surface.bone_references.get(strongest.bone_reference) else {
+                        continue;
+                    };
+                    if let Some(foot) = foot_of(bone, &driver_ankles, &bone_parent) {
+                        let at = Vec3A::from_array(vertex.position);
+                        driver_feet[foot].push((at.z, bone, at));
+                    }
+                }
+            }
+        }
+        let joint_parent = |joint: usize| self.joints.get(joint)?.parent;
+        let mut rig_feet = vec![Vec::new(); feet.joints.len()];
+        for vertex in self.surfaces.iter().flat_map(|surface| &surface.vertices) {
+            let joint = usize::from(vertex.joints[0]);
+            if let Some(foot) = foot_of(joint, &feet.joints, &joint_parent) {
+                let at = Vec3A::from_array(vertex.position);
+                rig_feet[foot].push((at.z, joint, at));
+            }
+        }
+        if driver_feet.iter().chain(&rig_feet).any(Vec::is_empty) {
+            return self;
+        }
+        feet.soles = Some(Soles {
+            driver: driver_feet
+                .into_iter()
+                .map(|foot| lowest(foot).collect())
+                .collect(),
+            rig: rig_feet
+                .into_iter()
+                .map(|foot| lowest(foot).collect())
+                .collect(),
         });
         self
     }
@@ -857,6 +1076,24 @@ impl RigModel {
             })
             .collect();
         let mut chains = dynamics::Chains::under(&joints, &order, &dynamic_anchors);
+        let layers: Vec<(usize, usize)> = manifest
+            .layers
+            .iter()
+            .filter_map(|(outer, inner)| {
+                let found = joint_index(outer).zip(joint_index(inner));
+                if found.is_none() {
+                    crate::log::progress(format_args!(
+                        "rig model {base}: {MANIFEST}: no joints for layer {outer:?} over {inner:?}"
+                    ));
+                }
+                found
+            })
+            .collect();
+        let on_lines: Vec<usize> = dynamic_anchors.iter().map(|(joint, _)| *joint).collect();
+        for problem in layer_problems(&layers, &on_lines, |joint| joints[joint].name.as_str()) {
+            crate::log::progress(format_args!("rig model {base}: {MANIFEST}: {problem}"));
+        }
+        chains.layer(&joints, &layers);
         // Alignments first (an `As` entry reads another's), then the driven joints.
         let mut aligned: Vec<Option<Mat3A>> = vec![None; joints.len()];
         for entry in &map {
@@ -979,6 +1216,20 @@ impl RigModel {
                 joint_index(name)
             });
             chains.collide_with(&joints, capsules);
+            chains.swing_from(
+                &joints,
+                surfaces
+                    .iter()
+                    .flat_map(|surface| &surface.vertices)
+                    .flat_map(|vertex| {
+                        let position = Vec3A::from_array(vertex.position);
+                        vertex
+                            .joints
+                            .into_iter()
+                            .zip(vertex.weights)
+                            .map(move |(joint, weight)| (usize::from(joint), position, weight))
+                    }),
+            );
         }
         crate::log::progress(format_args!(
             "rig model {base}: {} joints ({mapped} driven by {:?}), {} surfaces, {} clips{}, scale {scale:.2}",
@@ -1076,6 +1327,11 @@ impl RigModel {
     /// Pose every joint from the driver's evaluated `bones` (one model-space matrix
     /// per GLA bone, as the GLM is skinned with), with `play`'s clip over it, into
     /// `scratch.palette`.
+    /// Whether a chain feels the air, so [`Scratch::observe_motion`] is worth calling.
+    pub(crate) fn wants_drag(&self) -> bool {
+        self.chains.wants_drag()
+    }
+
     pub(crate) fn pose(
         &self,
         bones: &[[[f32; 4]; 3]],
@@ -1091,7 +1347,7 @@ impl RigModel {
     }
 
     /// [`Self::pose`], `step` seconds after the actor's last pose (`None`: the first)
-    /// for the dynamic joints.
+    /// for the dynamic joints and the eased feet planting.
     pub(crate) fn pose_after(
         &self,
         bones: &[[[f32; 4]; 3]],
@@ -1106,6 +1362,7 @@ impl RigModel {
             palette,
             blended,
             dynamics: chain_state,
+            plant,
             last: _,
         } = scratch;
         pose.clear();
@@ -1114,30 +1371,24 @@ impl RigModel {
             let parent = self.joints[index].parent.map(|parent| pose[parent]);
             pose[index] = self.place(index, parent, bones);
         }
-        // Where the driver's soles are now, from its lower ankle.
-        let ground = self.feet.as_ref().and_then(|feet| {
-            let ankle = feet
-                .ankles
-                .iter()
-                .filter_map(|(bone, base)| {
-                    bones
-                        .get(*bone)
-                        .map(|matrix| affine(matrix).transform_point3a(*base).z)
-                })
-                .fold(f32::MAX, f32::min);
-            (ankle < f32::MAX).then_some(ankle - feet.driver_ankle)
+        // Stand the rig's soles where the driver's are now, eased from the last pose's.
+        let planted = self
+            .feet
+            .as_ref()
+            .and_then(|feet| self.planted(feet, bones, pose));
+        let eased = planted.map(|(_, target)| match (*plant, step) {
+            (Some(last), Some(step)) if (0.0..=0.1).contains(&step) => {
+                target + (last - target) * (-step / PLANT_EASE).exp()
+            }
+            _ => target,
         });
-        if let (Some(feet), Some(ground)) = (&self.feet, ground) {
-            let ankle = feet
-                .joints
-                .iter()
-                .map(|&joint| pose[joint].translation.z)
-                .fold(f32::MAX, f32::min);
-            let shift = ground + feet.rig_ankle - ankle;
+        *plant = eased;
+        if let Some(shift) = eased {
             for joint in pose.iter_mut() {
                 joint.translation.z += shift;
             }
         }
+        let ground = planted.map(|(ground, _)| ground);
         *blended = false;
         if let Some(play) = play.filter(|play| play.weight > 0.0)
             && let Some(source) = self.clips.get(play.clip)
@@ -1181,6 +1432,37 @@ impl RigModel {
                 .zip(&self.joints)
                 .map(|(pose, joint)| rows(&(*pose * joint.inverse_bind))),
         );
+    }
+
+    /// Where the driver's soles are now (its lowest sole point) and how far the rig in
+    /// `pose` rises to stand its lowest sole point there ([`Soles`]); without soles,
+    /// the lower ankle stands as far above the driver's ground as in the bind pose.
+    fn planted(
+        &self,
+        feet: &Feet,
+        bones: &[[[f32; 4]; 3]],
+        pose: &[Affine3A],
+    ) -> Option<(f32, f32)> {
+        let lowest = |values: &mut dyn Iterator<Item = f32>| values.fold(f32::MAX, f32::min);
+        let found = |value: f32| value < f32::MAX / 2.0;
+        let driver_point = |(bone, base): &(usize, Vec3A)| {
+            bones
+                .get(*bone)
+                .map(|matrix| affine(matrix).transform_point3a(*base).z)
+        };
+        let Some(soles) = &feet.soles else {
+            let ankle = lowest(&mut feet.ankles.iter().filter_map(driver_point));
+            let ground = ankle - feet.driver_ankle;
+            let rig = lowest(&mut feet.joints.iter().map(|&joint| pose[joint].translation.z));
+            return (found(ankle) && found(rig)).then_some((ground, ground + feet.rig_ankle - rig));
+        };
+        let ground = lowest(&mut soles.driver.iter().flatten().filter_map(driver_point));
+        let rig = lowest(&mut soles.rig.iter().flatten().map(|(joint, bind)| {
+            (pose[*joint] * self.joints[*joint].inverse_bind)
+                .transform_point3a(*bind)
+                .z
+        }));
+        (found(ground) && found(rig)).then_some((ground, ground - rig))
     }
 
     /// Joint `index` posed under its parent's `parent` pose.
@@ -1354,7 +1636,31 @@ pub(crate) struct Scratch {
     pub(crate) palette: Vec<[[f32; 4]; 3]>,
     /// The actor's dynamic joints, and when it was last posed.
     dynamics: dynamics::State,
+    /// The rise the feet planting gave the last pose ([`PLANT_EASE`]).
+    plant: Option<f32>,
     last: Option<std::time::Instant>,
+}
+
+impl Scratch {
+    /// The actor stands at `origin` facing `yaw_degrees` at `time_ms`: the air on its
+    /// dynamic chains answers this.
+    pub(crate) fn observe_motion(
+        &mut self,
+        origin: [f32; 3],
+        yaw_degrees: f32,
+        time_ms: i64,
+        source: dynamics::MotionSource,
+    ) {
+        self.dynamics
+            .motion
+            .observe(origin, yaw_degrees, time_ms, source);
+    }
+
+    /// Nobody will tell it of the actor's movement for now, so it stops: no last gust goes on
+    /// acting on a body whose origin is not followed.
+    pub(crate) fn halt_motion(&mut self) {
+        self.dynamics.motion = dynamics::Motion::default();
+    }
 }
 
 /// `vertex` skinned with `palette` (the CPU path): position and unit normal.

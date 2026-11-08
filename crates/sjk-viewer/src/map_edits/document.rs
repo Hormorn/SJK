@@ -10,8 +10,10 @@ use serde::{Deserialize, Serialize};
 
 /// Most edits one map keeps, as the hub allows.
 pub(crate) const MAX_EDITS: usize = 2048;
-/// Longest shader or model path an edit names.
+/// Longest shader or model path an edit names, and longest weather command.
 const MAX_PATH: usize = 160;
+/// Most world effect commands one weather edit runs.
+pub(crate) const MAX_WEATHER: usize = 16;
 
 /// One map's edits.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -80,6 +82,10 @@ pub(crate) enum Kind {
         shader: String,
         to: String,
     },
+    /// The map's weather: world effect commands (`r_we`'s: `heavyrain`, `gustingwind`,
+    /// `mist`, ...) run in place of the map's own, as `r_weatherForce` replaces them. One
+    /// per scope; on a server, its own weather edit wins over the every-server one.
+    Weather { commands: Vec<String> },
 }
 
 fn unit_scale() -> [f32; 3] {
@@ -118,6 +124,7 @@ impl Edit {
             Kind::ShowFace { shader, to, .. } => {
                 format!("Shown face: {} -> {}", last(shader), last(to))
             }
+            Kind::Weather { commands } => format!("Weather: {}", commands.join(", ")),
         };
         match &self.server {
             Some(server) => format!("{what}, {server} only"),
@@ -156,6 +163,7 @@ impl Edit {
                 shader,
                 to,
             } => format!("show brush {brush} side {side} ({shader}) as {to}"),
+            Kind::Weather { commands } => format!("weather {}", commands.join(", ")),
         };
         let scope = self
             .server
@@ -216,6 +224,11 @@ impl Document {
                 }
                 Kind::Remap { from, to } => &[from, to],
                 Kind::ShowFace { shader, to, .. } => &[shader, to],
+                Kind::Weather { commands } => {
+                    check_weather(commands)
+                        .map_err(|why| format!("edit {}: bad weather: {why}", edit.id))?;
+                    &[]
+                }
             };
             if paths
                 .iter()
@@ -263,6 +276,49 @@ impl Document {
             .iter()
             .filter(move |edit| edit.applies_on(server))
     }
+
+    /// The weather commands that apply on `server`: its own weather edit's, else the
+    /// every-server one's; none when the map keeps its own weather.
+    pub(crate) fn weather<'a>(&'a self, server: Option<&'a str>) -> Option<&'a [String]> {
+        let mut found: Option<&Edit> = None;
+        for edit in self.active(server) {
+            if matches!(edit.kind, Kind::Weather { .. })
+                && (found.is_none() || edit.server.is_some())
+            {
+                found = Some(edit);
+            }
+        }
+        found.map(|edit| match &edit.kind {
+            Kind::Weather { commands } => commands.as_slice(),
+            _ => &[],
+        })
+    }
+}
+
+/// The limits a weather edit's commands keep: 1 to [`MAX_WEATHER`] of them, each a
+/// plausible world effect command ([`weather_command`]).
+pub(crate) fn check_weather(commands: &[String]) -> Result<(), String> {
+    if commands.is_empty() {
+        return Err("no commands".into());
+    }
+    if commands.len() > MAX_WEATHER {
+        return Err(format!("more than {MAX_WEATHER} commands"));
+    }
+    match commands.iter().find(|command| !weather_command(command)) {
+        Some(command) => Err(format!("{command:?} is not a weather command")),
+        None => Ok(()),
+    }
+}
+
+/// Whether `command` is a plausible world effect command to keep: 1 to [`MAX_PATH`]
+/// printable ASCII characters, none of the console's separators. What it does is the
+/// weather's to read (an unknown one is skipped there).
+fn weather_command(command: &str) -> bool {
+    (1..=MAX_PATH).contains(&command.len())
+        && command
+            .bytes()
+            .all(|byte| (b' '..=b'~').contains(&byte) && !b";\"".contains(&byte))
+        && !command.trim().is_empty()
 }
 
 /// Whether two edits act on the same thing (so the newer replaces the older).
@@ -279,6 +335,7 @@ fn same_subject(a: &Kind, b: &Kind) -> bool {
                 brush: b, side: d, ..
             },
         ) => a == b && c == d,
+        (Kind::Weather { .. }, Kind::Weather { .. }) => true,
         _ => false,
     }
 }
@@ -441,6 +498,63 @@ mod tests {
         assert_eq!(document.edits[1].label(), "Remap: yavin -> night");
         let back = serde_json::to_string(&document).unwrap();
         assert_eq!(Document::parse(&back, "mp/ffa3", 1).unwrap(), document);
+    }
+
+    /// One weather edit per scope; on a server its own wins over the every-server one.
+    #[test]
+    fn weather_is_one_edit_per_scope_and_the_servers_own_wins() {
+        let weather = |commands: &[&str]| Kind::Weather {
+            commands: commands
+                .iter()
+                .map(|command| (*command).to_owned())
+                .collect(),
+        };
+        let mut document = Document::new("t2_rogue", 1);
+        let all = document.add(weather(&["rain"]), None);
+        assert_eq!(document.add(weather(&["heavyrain", "mist"]), None), all);
+        let here = Some("1.2.3.4:29070");
+        assert_eq!(
+            document.weather(here),
+            Some(["heavyrain".to_owned(), "mist".to_owned()].as_slice())
+        );
+        document.add(weather(&["snow"]), here.map(str::to_owned));
+        assert_eq!(document.weather(here), Some(["snow".to_owned()].as_slice()));
+        assert_eq!(document.weather(Some("5.6.7.8:1")).map(<[_]>::len), Some(2));
+        assert_eq!(document.weather(None).map(<[_]>::len), Some(2));
+        assert_eq!(
+            document.edits[0].label(),
+            "Weather: heavyrain, mist",
+            "the label lists the commands"
+        );
+        let text = serde_json::to_string(&document).unwrap();
+        assert!(
+            text.contains(r#""kind":"weather","commands":["heavyrain","mist"]"#),
+            "{text}"
+        );
+        assert_eq!(Document::parse(&text, "t2_rogue", 1).unwrap(), document);
+        assert!(Document::new("t2_rogue", 1).weather(here).is_none());
+    }
+
+    #[test]
+    fn weather_without_commands_or_with_a_separator_is_refused() {
+        for commands in [
+            vec![],
+            vec!["rain; quit".to_owned()],
+            vec![" ".to_owned()],
+            vec!["rain".to_owned(); MAX_WEATHER + 1],
+        ] {
+            let mut document = Document::new("t2_rogue", 1);
+            document.add(Kind::Weather { commands }, None);
+            assert!(document.check().is_err());
+        }
+        let mut document = Document::new("t2_rogue", 1);
+        document.add(
+            Kind::Weather {
+                commands: vec!["constantwind ( -5000 0 0 )".into(), "rain".into()],
+            },
+            None,
+        );
+        assert!(document.check().is_ok());
     }
 
     #[test]

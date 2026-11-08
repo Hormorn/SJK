@@ -407,6 +407,49 @@ fn duel6_sjk_collection() {
 /// `duel6-rarity-grid-<n>`), the list at two moments, and the Holocrons tab.
 /// The Loadouts card over the Collection (Lex's idea, 03/11/2026), two slots kept, at
 /// 1080 lines and 4:3; the Shaders tab's Loadouts button under the tally first.
+/// The Shaders tab's Finishers page (Sol, 04/11/2026): Disintegrate held and worn, at
+/// 1080 lines and 4:3.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_sjk_finishers() {
+    on_big_stack(|| {
+        let cvars = [
+            ("ui_menuStyle", "sjk"),
+            (crate::settings::quick::HIDE_CVAR, "1"),
+            ("name", "^1Sol^7Vulpes"),
+            (crate::discord_presence::CVAR, "0"),
+            (crate::finishers::CVAR, "finisher_disintegrate"),
+        ];
+        let disintegrate = sjk_identity::Unlock {
+            id: "finisher_disintegrate".to_owned(),
+            ..sun()
+        };
+        for size in [[1920, 1080], [1440, 1080]] {
+            let suffix = if size[0] == 1920 { "" } else { "-4x3" };
+            let Some((mut gpu, _profile)) = open(
+                "maps/mp/duel6.bsp",
+                size,
+                Some(menu::ClientMenu::new(true, String::new())),
+                &cvars,
+            ) else {
+                return;
+            };
+            gpu.looks.shot_owns_unlocks = true;
+            let _ = frame(&mut gpu, 10);
+            if let Some(console) = gpu.console.as_mut() {
+                console.preview_profile(preview());
+                console.preview_collection(Some(vec![sun(), disintegrate.clone()]), 0.8);
+                console.open_profile_hub_page(Tab::Shaders, ReturnTarget::MainMenu);
+                console.preview_finishers();
+            }
+            gpu.ui_epoch -= std::time::Duration::from_millis(3_000);
+            let name = format!("duel6-collection-finishers{suffix}");
+            println!("{}", shoot(&mut gpu, 120, &name).display());
+            assert!(!overflowed(&gpu), "{suffix}");
+        }
+    });
+}
+
 #[test]
 #[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
 fn duel6_sjk_loadouts() {

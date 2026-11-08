@@ -189,6 +189,7 @@ function sjkItemOf(sel) {
 const sjkSelKey = sel => sel ? sel.kind + JSON.stringify([sel.target && sel.target.surface, sel.target && sel.target.brush, sel.target && sel.target.side, sel.target && sel.target.entity, sel.target && sel.target.placed]) : '';
 const sjkSetFaces = () => sjk.multi.filter(m => m.kind === 'face').map(m => [m.brush, m.side]);
 const sjkSetSurfaces = () => sjk.multi.filter(m => m.kind === 'surface').map(m => m.surface);
+const sjkSetPlaced = () => sjk.multi.filter(m => m.kind === 'placed').map(m => m.placed);
 const sjkMany = () => sjk.multi.length > 1;
 
 // a state from the game: a selection made elsewhere (in the game, by an edit) starts the set again
@@ -241,7 +242,8 @@ function sjkApplyShader(shader) {
 	return sjkEdit({ op: 'remap', shader });
 }
 function sjkHideSelection() {
-	if (sjkMany()) return sjkEdit({ op: 'hide_many', faces: sjkSetFaces(), surfaces: sjkSetSurfaces() });
+	// the set's placed models are removed with the rest, one step (the game's Hide does the same)
+	if (sjkMany()) return sjkEdit({ op: 'hide_many', faces: sjkSetFaces(), surfaces: sjkSetSurfaces(), placed: sjkSetPlaced() });
 	return sjkEdit({ op: 'hide' });
 }
 
@@ -325,9 +327,10 @@ async function sjkSuggest() {
 
 // the panel's part of all this: the set's count, the link buttons, the suggestion and Fill
 function sjkRenderMulti() {
-	const many = sjkMany(), faces = sjk.multi.filter(m => m.kind === 'face').length, surfaces = sjk.multi.length - faces;
+	const many = sjkMany(), faces = sjk.multi.filter(m => m.kind === 'face').length, placed = sjkSetPlaced().length, surfaces = sjk.multi.length - faces - placed;
 	$('multiBox').hidden = !many;
-	sjkText('multiCount', many ? sjk.multi.length + ' selected (' + faces + (faces === 1 ? ' face, ' : ' faces, ') + surfaces + (surfaces === 1 ? ' surface)' : ' surfaces)') : '');
+	const parts = [[faces, 'face'], [surfaces, 'surface'], [placed, 'model']].filter(([n]) => n).map(([n, w]) => n + ' ' + w + (n === 1 ? '' : 's'));
+	sjkText('multiCount', many ? (placed === sjk.multi.length ? placed + ' models selected' : sjk.multi.length + ' selected (' + parts.join(', ') + ')') : '');
 	sjkText('multiHint', surfaces && many ? 'A remap affects every surface with this shader, here or anywhere on the map.' : 'Shift+click adds or takes out; Esc clears.');
 	if (many) sjkText('selKind', 'Multiple selection');
 	$('btnHide').textContent = many ? 'Hide ' + sjk.multi.length : $('btnHide').textContent;

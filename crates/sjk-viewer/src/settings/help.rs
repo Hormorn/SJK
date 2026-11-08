@@ -523,6 +523,10 @@ const HELP: &[(&str, &str)] = &[
         "Sounds heard from your head, quieter and duller behind walls and shut doors, and rooms ring, a hall longer than a corridor.",
     ),
     (
+        crate::weather::sound::CVAR,
+        "Hear the rain and the wind with the weather, as loud as they fall and blow, quieter under a roof. The game's own outdoor sounds.",
+    ),
+    (
         crate::footprints::PRINTS_CVAR,
         "Steps on sand, snow, mud and dirt kick up dust and leave footprints for ten seconds, as in the original game.",
     ),
@@ -605,6 +609,10 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::toy_sounds::Toy::Fishing.cvar(),
         "Off: your casts, bites and catches are silent. The toy still works.",
+    ),
+    (
+        crate::toy_sounds::Toy::WheelOfDoom.cvar(),
+        "Off: every WHEEL OF DOOM spins silently on this PC, yours and other players', quacks included.",
     ),
     (
         crate::fishing::CUE_CVAR,
@@ -854,11 +862,11 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::chat::tabs::JOF_JOIN_CVAR,
-        "JoF's clan chat, for verified JoF and S players and staff. Auto joins it if it is yours; Joined or Left choose.",
+        "JoF's clan chat, for verified JoF players and staff only. Auto joins it if it is yours; Joined or Left choose.",
     ),
     (
         crate::chat::tabs::SITH_JOIN_CVAR,
-        "The Sith clan's chat (S), for verified S and JoF players and staff. Auto joins it if it is yours.",
+        "The Sith clan's chat (S), for verified S players and staff only. Auto joins it if it is yours.",
     ),
     (
         crate::chat::tabs::PM_CVAR,
@@ -1129,6 +1137,10 @@ const HELP: &[(&str, &str)] = &[
         "Lets servers swap the map's textures. Off by default; the map's own swaps and SJK's map fixes always apply.",
     ),
     (
+        crate::remap_blocked_maps::SHARED_CVAR,
+        "Ignores server texture swaps on the maps the SJK team lists. Your choice for this map comes first. On by default.",
+    ),
+    (
         crate::remap_blocked_maps::MAP_CVAR,
         "This map only: default follows Server remaps, on lets the server swap its textures anyway, off never.",
     ),
@@ -1244,10 +1256,6 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::menu::style::CVAR,
         "The SJK UI, SJK's own menus over the live map; or classic menus after the original game's.",
-    ),
-    (
-        crate::support_links::CVAR,
-        "Support SJK at the top left of the SJK UI's main page: links to SJK's GitHub Sponsors and Ko-fi pages. Off hides it, as its x does.",
     ),
     (
         super::slider_peek::CVAR,
@@ -1577,6 +1585,10 @@ const HELP: &[(&str, &str)] = &[
         "Each step halves large textures: a quarter of their video memory. For graphics cards of 4 GB or less.",
     ),
     (
+        crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        "Halves larger textures down to this size: a quarter of their video memory each time. 0 keeps every size.",
+    ),
+    (
         crate::world_materials::filtering::mips::compress::CVAR,
         "Keeps map and model textures compressed: a quarter or less of their video memory, a little blockier. Experimental.",
     ),
@@ -1625,6 +1637,10 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::weather::CLOUDS_CVAR,
         "Drifting 3D clouds over open sky, lit by the map's sun; darker and thicker in a storm.",
+    ),
+    (
+        crate::weather::LIGHTNING_CVAR,
+        "Storms flash now and then, lighting the rain, fog and wet ground; thunder follows with Rain and wind sounds on.",
     ),
     (
         "r_modelPixelLight",

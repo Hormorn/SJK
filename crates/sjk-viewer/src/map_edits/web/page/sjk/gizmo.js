@@ -100,12 +100,12 @@ function gzScreenTurn(c, from, to) {
 
 // ---- what the gizmo is on
 
-// the placed models of the set, else the selected one, else (on Place) the current one; or your boombox chosen on
-// World
+// the placed models of the set (the last added first: its axes are the local ones, Blender's active object, as in
+// the game), else the selected one, else (on Place) the current one; or your boombox chosen on World
 function gzTargets() {
 	const s = sjk.state;
 	if (!s) return null;
-	const ids = sjk.multi.filter(m => m.kind === 'placed').map(m => m.placed);
+	const ids = sjk.multi.filter(m => m.kind === 'placed').map(m => m.placed).reverse();
 	if (!ids.length && s.selection && s.selection.kind === 'placed' && s.selection.target) ids.push(s.selection.target.placed);
 	if (!ids.length && sjkTab === 'place' && s.current) ids.push(s.current);
 	const list = ids.map(id => s.placed.find(p => p.id === id)).filter(Boolean)

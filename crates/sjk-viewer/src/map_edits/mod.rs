@@ -17,18 +17,21 @@
 //! - placed models load on demand ([`crate::model_demand`]) and are drawn each frame;
 //! - remaps join the world's remaps as source `edit`, over the map's and the server's;
 //! - shown faces (caulk and nodraw brush sides) are built as small models once and drawn
-//!   each frame ([`faces`]).
+//!   each frame ([`faces`]);
+//! - a weather edit's commands replace the map's own weather ([`crate::weather`]).
 //!
 //! Staff edit in game ([`editor`], [`panel`]) or in a web browser ([`web`]).
 
 pub(crate) mod document;
 pub(crate) mod editor;
 pub(crate) mod faces;
+pub(crate) mod fly;
 pub(crate) mod gizmo;
 pub(crate) mod linked;
 pub(crate) mod nearby;
 pub(crate) mod panel;
 mod panel_view;
+pub(crate) mod recent;
 pub(crate) mod web;
 
 use crate::{ActorInstance, GpuState};
@@ -81,12 +84,12 @@ pub(crate) struct State {
     pub(crate) editor: editor::Editor,
     /// The editor's panel ([`panel`]).
     pub(crate) panel: panel::Panel,
-    /// The strip over play while the editor is on and its panel hidden.
-    pub(crate) strip: panel_view::Strip,
+    /// The editor's camera: the free camera, flown with the right mouse button ([`fly`]).
+    pub(crate) fly: fly::Fly,
     /// The browser editor's server while it runs (`mapedit_web`, [`web`]).
     pub(crate) web: Option<web::http::Server>,
-    /// The shaders and models used lately, once read ([`web::recent`]).
-    pub(crate) web_recent: Option<web::recent::Recent>,
+    /// The shaders and models used lately, once read ([`recent`]).
+    pub(crate) recent: Option<recent::Recent>,
     /// The browser editor's brush faces, linked caulk and nearby shaders, per map.
     pub(crate) web_cache: web::Cache,
     /// The in-game transform gizmo ([`gizmo`]).
@@ -566,8 +569,19 @@ impl GpuState {
                         ));
                     }
                 }
+                // One for the map, read below.
+                Kind::Weather { .. } => {}
             }
         }
+        let weather = self
+            .map_edits
+            .document
+            .as_ref()
+            .filter(|_| enabled)
+            .and_then(|document| document.weather(server))
+            .map(<[String]>::to_vec)
+            .unwrap_or_default();
+        self.weather.set_edit(&weather);
         self.map_edits.faces = shown_faces
             .into_iter()
             .filter_map(|(variant, polygon, normal, to)| {

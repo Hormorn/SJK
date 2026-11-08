@@ -105,6 +105,9 @@ impl ViewerConsole {
             PanelAction::None => {}
             PanelAction::Close => self.close_collection_panel(),
             PanelAction::Wear(id) => crate::unlockables::wear(self, id),
+            PanelAction::WearFinisher(id) => {
+                let _ = self.set_cvar(crate::finishers::CVAR, id);
+            }
             PanelAction::WearSecond(id) => {
                 let _ = self.set_cvar(crate::looks::SECOND_CVAR, id);
             }
@@ -207,6 +210,7 @@ impl ViewerConsole {
                 self.fishing_on = on;
             }
             PanelAction::SellJunk => self.pending_fishing_sell = true,
+            PanelAction::WheelOfDoom => self.pending_wheel_of_doom = true,
             PanelAction::Monitor(on) => {
                 self.pending_monitor = Some(on);
                 self.monitor_on = on;
@@ -327,6 +331,16 @@ impl ViewerConsole {
     /// The Toys tab asked to get the rod out (`true`) or put it away, once.
     pub(crate) fn take_fishing_request(&mut self) -> Option<bool> {
         self.pending_fishing.take()
+    }
+
+    /// The viewer says whether a WHEEL OF DOOM of the player's runs, once a frame.
+    pub(crate) fn set_wheel_of_doom_on(&mut self, on: bool) {
+        self.wheel_of_doom_on = on;
+    }
+
+    /// The Toys tab pressed the WHEEL OF DOOM's switch, once.
+    pub(crate) fn take_wheel_of_doom_request(&mut self) -> bool {
+        std::mem::take(&mut self.pending_wheel_of_doom)
     }
 
     /// Whether the Fishing card is on show (the Collection open on Toys, Fishing chosen):
@@ -491,6 +505,10 @@ impl ViewerConsole {
             .text_cvar(crate::tags::FINISH_CVAR)
             .unwrap_or_default()
             .to_owned();
+        let finisher = self
+            .text_cvar(crate::finishers::CVAR)
+            .unwrap_or_default()
+            .to_owned();
         let illuminate = self.illuminate_lit();
         let cardboard_box = self.cardboard_box_on;
         let order66 = self.order66_on;
@@ -503,6 +521,7 @@ impl ViewerConsole {
         let banana = self.banana_on;
         let fishing = self.fishing_on;
         let fishing_card = self.fishing_card.clone();
+        let wheel_of_doom = self.wheel_of_doom_on;
         let stock = self.stock_blade();
         // Tiles unless the list is chosen (`ui_shaderList 1`).
         let grid = self.integer_cvar(super::collection_panel::SHADER_VIEW_CVAR) != Some(1);
@@ -572,6 +591,7 @@ impl ViewerConsole {
                 banana,
                 fishing,
                 fishing_card: Some(&fishing_card),
+                wheel_of_doom,
                 name: &name,
                 stock,
                 grid,
@@ -585,6 +605,7 @@ impl ViewerConsole {
                 toy_options,
                 tag: &tag,
                 tag_finish: &tag_finish,
+                finisher: &finisher,
             };
             self.collection_panel.append_sjk(&inputs, target, viewport);
             self.collection_panel.preview = Some(unlocks);
@@ -609,6 +630,7 @@ impl ViewerConsole {
             banana,
             fishing,
             fishing_card: Some(&fishing_card),
+            wheel_of_doom,
             name: &name,
             stock,
             grid,
@@ -622,6 +644,7 @@ impl ViewerConsole {
             toy_options,
             tag: &tag,
             tag_finish: &tag_finish,
+            finisher: &finisher,
         };
         self.collection_panel.append_sjk(&inputs, target, viewport);
     }
@@ -781,6 +804,12 @@ impl ViewerConsole {
     #[cfg(test)]
     pub(crate) fn preview_loadouts(&mut self, store: &super::collection_panel::loadouts::Store) {
         self.collection_panel.open_loadouts_for_shot(store);
+    }
+
+    /// Show the Shaders tab's Finishers page, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn preview_finishers(&mut self) {
+        self.collection_panel.show_finishers();
     }
 
     /// Open the page on its own on `tab` with `unlocks` in place of the own profile's,

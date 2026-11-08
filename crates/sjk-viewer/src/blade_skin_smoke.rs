@@ -362,23 +362,6 @@ impl Chroma {
     }
 }
 
-/// The wearer's saber kills burn away as a disruptor's do (`docs/unlockables.md`): `delay`
-/// seconds after the killing blow (default 0, at once). Every SJK client that sees the
-/// killer wear the skin draws it; the server, and other clients, keep the corpse.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Disintegrate {
-    #[serde(default)]
-    pub(crate) delay: f32,
-}
-
-impl Disintegrate {
-    /// Each value within its range.
-    pub(crate) fn check(&self) -> Result<(), String> {
-        within("disintegrate.delay", self.delay, 0.0, 3.0)
-    }
-}
-
 /// The emitter's crackle heard: `buzz`, a sound looped under the hum while the blade is
 /// lit, at `buzz_volume`, and `snaps`, one of which (at random) sounds at `snap_volume`
 /// each time a burst of the skin's `bolts` leaves the emitter. Game paths; an empty `buzz`

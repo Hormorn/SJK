@@ -146,6 +146,7 @@ mod emote_picker;
 mod emplaced_swivel;
 mod fake_noclip;
 mod file_dialog;
+mod finishers;
 mod fps_help;
 mod frame_target;
 mod free_camera;
@@ -257,6 +258,7 @@ mod blade_builder;
 mod blade_editor;
 mod blade_extras;
 mod blade_lab_designs;
+mod blade_load_all;
 mod blade_pictures;
 mod blade_signatures;
 mod blade_skin_file;
@@ -313,6 +315,7 @@ mod rarity_fx;
 mod remap_blocked_maps;
 mod render_helpers;
 mod rig_model;
+mod rig_reload;
 mod runtime_settings;
 mod saber;
 mod saber_clash_flare;
@@ -343,6 +346,7 @@ mod screenshot;
 mod server_browser;
 mod server_commands;
 mod server_passwords;
+mod server_view;
 mod session_log;
 mod session_transition;
 mod settings;
@@ -384,6 +388,7 @@ mod weapon_select;
 mod weapon_view;
 mod weather;
 mod wgsl_source;
+mod wheel_of_doom;
 mod window_icon;
 mod world_materials;
 mod world_notes;
@@ -722,6 +727,9 @@ struct GpuState {
     map_edits: map_edits::State,
     /// The mystery boxes standing on the loaded map (`mystery_box`).
     mystery_boxes: mystery_box::MysteryBoxes,
+    /// The WHEEL OF DOOM toy (`toy_wheelofdoom`): the wheels spinning and the spinner's
+    /// effects.
+    wheel_of_doom: wheel_of_doom::WheelOfDoom,
     /// What the player's Use key does at what they face, by the crosshair (`use_prompt`).
     use_prompt: use_prompt::UsePrompt,
     /// The Toy Master's toys hidden on the loaded map (`toy_master`).
@@ -840,6 +848,8 @@ struct GpuState {
     legacy_world_adapter: Option<LegacyWorldAdapter>,
     presentation_clock: presentation_clock::SnapshotPresentationClock,
     net_timing: net_timing::NetTiming,
+    /// How old our commands are at the server, for the log (`server_view`).
+    server_view: server_view::ServerView,
     /// The 125 Hz user-command clock and the `cl_maxpackets` packet pace.
     command_schedule: sjk_client::command_rate::CommandSchedule,
     packet_pacer: sjk_client::command_rate::PacketPacer,
@@ -1706,6 +1716,7 @@ impl GpuState {
             decal_surfaces,
             map_edits: Default::default(),
             mystery_boxes: Default::default(),
+            wheel_of_doom: Default::default(),
             use_prompt: Default::default(),
             toy_master: Default::default(),
             player_shadows: player_shadows::State::default(),
@@ -1793,6 +1804,7 @@ impl GpuState {
             legacy_world_adapter,
             presentation_clock,
             net_timing: net_timing::NetTiming::default(),
+            server_view: Default::default(),
             command_schedule: Default::default(),
             packet_pacer: Default::default(),
             server_clock,
@@ -2058,6 +2070,13 @@ impl GpuState {
             self.effect_aux.camera_offset(visual_now),
         );
         self.update_fog_setting();
+        // The WHEEL OF DOOM turns the player's own view over or sways it (`wheel_of_doom`).
+        let (view_target, view_up) = if local_view && branch != "backdrop" {
+            self.wheel_of_doom
+                .turn_view(view_position, view_target, view_up, Instant::now())
+        } else {
+            (view_target, view_up)
+        };
         let view = look_at_mat4(view_position, view_target, view_up);
         let aspect = self.configuration.width as f32 / self.configuration.height as f32;
         let fov = self.scope_fov(presentation_time as i32, game_audio);
@@ -2434,6 +2453,10 @@ impl GpuState {
             viewport,
             information_visible && intermission_view.is_none() && !scoreboard_held,
         );
+        self.append_wheel_of_doom_draw(
+            viewport,
+            information_visible && intermission_view.is_none() && !scoreboard_held,
+        );
         self.append_fishing_cue(
             viewport,
             information_visible && intermission_view.is_none() && !scoreboard_held,
@@ -2530,7 +2553,9 @@ impl GpuState {
         // The ghost editor's path, under its column (or over play while looking about).
         let ghost_overlay =
             !self.console_covers_frame() && !medal_popup && self.append_ghost_overlay(viewport);
-        if self.game_menu && !self.console_covers_frame() && !medal_popup {
+        // The map editor's panel stays drawn while it flies (the menu stepped aside).
+        let menu_drawn = self.game_menu || self.map_edit_panel_shown();
+        if menu_drawn && !self.console_covers_frame() && !medal_popup {
             self.refresh_game_menu_players();
             let team_sizes = self.live_session.as_ref().map_or([0, 0], |session| {
                 ingame_menu::team_sizes(session.game_state())
@@ -2610,11 +2635,6 @@ impl GpuState {
                 self.in_game_menu.append(view, vertices, font, viewport);
             }
         }
-        // The map editor's strip while its panel is hidden to aim.
-        let map_edit_strip = information_visible
-            && !console_covers_frame
-            && !medal_popup
-            && self.append_map_edit_strip(viewport);
         if scoreboard_visible {
             scoreboard::append_overlay(self, viewport, text_scale * 1.05);
         }
@@ -2726,6 +2746,7 @@ impl GpuState {
             Some(&self.world_pings.list),
             Some(&self.drone.list),
             Some(self.mystery_boxes.labels()),
+            Some(&self.wheel_of_doom.draw.list),
             Some(self.use_prompt.list()),
             information_visible.then(|| &self.hud.team_logo.list),
             information_visible.then(|| &self.hud.nameplate.list),
@@ -2737,14 +2758,15 @@ impl GpuState {
             information_visible.then(|| self.hud.draw_list()),
             (chat_visible && !chat_over_trade).then(|| self.chat.draw_list()),
             hud_edit_shown.then(|| self.hud_edit.draw_list()),
-            map_edit_strip.then(|| self.map_edits.strip.0.draw_list()),
             self.ghost
                 .editor
                 .as_deref()
                 .filter(|_| ghost_overlay)
                 .map(|editor| editor.overlay.draw_list()),
             scoreboard_visible.then(|| self.scoreboard.draw_list()),
-            (self.game_menu && !console_covers_frame && !medal_popup)
+            ((self.game_menu || self.map_edit_panel_shown())
+                && !console_covers_frame
+                && !medal_popup)
                 .then(|| self.in_game_menu.draw_list()),
             self.client_menu
                 .as_ref()
@@ -2887,6 +2909,8 @@ impl GpuState {
                 audio.observe_saber_switches(snapshot, predicted);
                 audio.set_box_music(self.cardboard_box.music());
                 audio.set_hax_loop(self.hax_loop(presentation_time));
+                audio.set_weather(self.vfs.as_deref(), self.weather.heard());
+                audio.play_weather_cues(self.weather.take_cues());
                 audio.update_frame_loops(
                     snapshot,
                     presentation_time as i32,
@@ -3050,6 +3074,7 @@ impl GpuState {
         self.static_models.append_instances(&mut self.object_groups);
         self.append_map_edit_instances();
         self.append_mystery_box_instances();
+        self.append_wheel_of_doom_instances();
         self.append_toy_master_instances();
         pickups::simple::append_frame(self, visual_now);
         // The charge glow on the view gun's muzzle (`cg_weapons.c` charge bits), after
@@ -3376,6 +3401,8 @@ impl GpuState {
         if let Some(phases) = &self.gpu_phases {
             phases.mark(&mut encoder, "overlays+post+hud");
         }
+        // The WHEEL OF DOOM's Mirror flips the finished picture (`wheel_of_doom`).
+        self.encode_wheel_of_doom_mirror(&mut encoder, output.frame.as_ref(), &output.view);
         self.encode_console_screenshot(&mut encoder, output.frame.as_ref());
         if let Some(phases) = &self.gpu_phases {
             phases.mark(&mut encoder, "capture");

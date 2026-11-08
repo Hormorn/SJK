@@ -395,7 +395,9 @@ pub fn use_cloak(packs: &mut Packs, wearer: &Wearer, level_time: i32) -> Toggled
 
 /// `G_RunFrame`'s batteries for one client (`g_main.c:3246-3301`): a jetpack in use drains
 /// a point every 200 ms (two while thrusting) and switches off empty; one off recharges a
-/// point every 150 ms; the cloak likewise, decloaking empty. Returns what switched off.
+/// point every 150 ms; the cloak likewise, decloaking empty, unless the server's cloak
+/// lasts for ever (`cloak_drains` false: JA+'s `jp_cloakFuel` 0,
+/// [`crate::force_rules::ForceRules::cloak_drains`]). Returns what switched off.
 pub fn batteries(
     packs: &mut Packs,
     jetpack_fuel: &mut i32,
@@ -403,6 +405,7 @@ pub fn batteries(
     cloaked: bool,
     thrusting: bool,
     level_time: i32,
+    cloak_drains: bool,
 ) -> Toggled {
     let mut off = Toggled::Nothing;
     if packs.jetpack_on {
@@ -420,7 +423,7 @@ pub fn batteries(
         packs.jetpack_recharge_at = level_time + REFUEL_RATE;
     }
     if cloaked {
-        if packs.cloak_reduce_at < level_time {
+        if cloak_drains && packs.cloak_reduce_at < level_time {
             *cloak_fuel -= 1;
             if *cloak_fuel <= 0 {
                 *cloak_fuel = 0;
@@ -518,5 +521,33 @@ mod tests {
         // Off: flying lands, walking stays.
         assert_eq!(jetpack_movement(false, PM_JETPACK, lit), (PM_NORMAL, 1));
         assert_eq!(jetpack_movement(false, PM_NORMAL, 0), (PM_NORMAL, 0));
+    }
+
+    #[test]
+    fn the_cloak_drains_unless_the_server_keeps_it_on() {
+        let mut packs = Packs::default();
+        let (mut jet, mut cloak) = (100, 50);
+        assert_eq!(
+            batteries(&mut packs, &mut jet, &mut cloak, true, false, 1_000, true),
+            Toggled::Nothing
+        );
+        assert_eq!(cloak, 49);
+        // JA+'s `jp_cloakFuel` 0: on for ever, the battery as it was.
+        let mut packs = Packs::default();
+        let mut cloak = 1;
+        for level_time in (1_000..60_000).step_by(50) {
+            assert_eq!(
+                batteries(
+                    &mut packs, &mut jet, &mut cloak, true, false, level_time, false
+                ),
+                Toggled::Nothing
+            );
+        }
+        assert_eq!(cloak, 1);
+        let mut packs = Packs::default();
+        assert_eq!(
+            batteries(&mut packs, &mut jet, &mut cloak, true, false, 1_000, true),
+            Toggled::Decloaked
+        );
     }
 }

@@ -54,6 +54,14 @@ var glow_integral: texture_2d<f32>;
 // wide for 64 texels, and the mip average widens the white core's fringe.
 @group(1) @binding(4)
 var core_sampler: sampler;
+// A picture a signature can paint its body with (`skinBody`), repeating along the blade.
+@group(1) @binding(5)
+var blade_body: texture_2d<f32>;
+@group(1) @binding(6)
+var blade_body_sampler: sampler;
+fn skinBody(uv: vec2<f32>) -> vec3<f32> {
+    return textureSampleLevel(blade_body, blade_body_sampler, uv, 0.0).rgb;
+}
 
 // One loaded skin's parameters (saber_skins.rs `SkinUniform`, blade_skin_file.rs for the
 // meaning of each). `grain` is the granulation in [0, 1] and `flare` the flares' sum.
@@ -295,8 +303,8 @@ const CORE_DRAWS: f32 = 2.0;
 // loaded blade skin's (saber_rgb.rs `SKIN_MATERIAL`); skins loaded at once.
 const NEUTRAL_MATERIAL: u32 = 6u;
 const SKIN_MATERIAL: u32 = 7u;
-const MAX_SKINS: u32 = 256u;
-const BLACK_MATERIAL: u32 = 263u;
+const MAX_SKINS: u32 = 512u;
+const BLACK_MATERIAL: u32 = 519u;
 const KIND_RETAIL: u32 = 0u;
 const KIND_NEUTRAL: u32 = 1u;
 const KIND_BLACK: u32 = 2u;
@@ -404,6 +412,44 @@ fn afterimage(persona: u32, off: u32) -> bool {
 @vertex
 fn vertex_main(@builtin(vertex_index) vertex_index: u32, blade: BladeInstance) -> VertexOutput {
     return blade_vertex(vertex_index, blade);
+}
+
+// The half-size layer's quad: a panel facing the camera round the blade and its room. The blade's own quad lies along the blade:
+// seen nearly along it, it is so foreshortened that its soft edge became a hard slanted line (Creyon's videos). The effects are
+// worked out from the true view ray, so they do not care what they are drawn on; this is only where they are drawn.
+@vertex
+fn vertex_volume(@builtin(vertex_index) vertex_index: u32, blade: BladeInstance) -> VertexOutput {
+    var output = blade_vertex(vertex_index, blade);
+    if output.hilt <= 0.0 || output.kind < KIND_SKIN {
+        return output;
+    }
+    let direction = output.axis.xyz;
+    let skin = skins[skin_index(output)];
+    let room = max(skin_room(skin, output.off.x), max(skin.design.y, skin.design.z) / LAB_METRE) + 3.0;
+    let base = output.hilt_at + camera.position;
+    let full = max(output.length, output.axis.w);
+    let centre = base + direction * full * 0.5;
+    let to_eye = camera.position - centre;
+    let dist = max(length(to_eye), 0.001);
+    let view = to_eye / dist;
+    var side = cross(direction, view);
+    let projected = length(side);
+    if projected < 0.001 {
+        side = cross(select(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), abs(view.z) > 0.9), view);
+    }
+    side = normalize(side);
+    let up = normalize(cross(view, side));
+    // What is nearer than the panel looks bigger on it.
+    let along_eye = abs(dot(direction, view)) * full * 0.5;
+    let grow = dist / max(dist - along_eye - room, dist * 0.2);
+    let half_w = room * grow;
+    let half_h = (full * 0.5 * projected + room) * grow;
+    let local = QUAD[vertex_index];
+    let world = centre + side * (local.x * half_w) + up * ((local.y * 2.0 - 1.0) * half_h);
+    output.clip_position = camera.view_projection * vec4(world, 1.0);
+    output.ray = world - camera.position;
+    output.blade = vec2(local.x * half_w, (local.y * 2.0 - 1.0) * half_h);
+    return output;
 }
 
 // The haze's quads: a skin's glow quad when its haze is on, for the blade itself (not an
@@ -611,7 +657,27 @@ fn blade_place(input: VertexOutput) -> vec2<f32> {
     let along = (rr * dw - rd * rw) / denom;
     let on_ray = (rd * dw - rw) / denom;
     let gap = from_hilt + r * on_ray - d * along;
-    return vec2(select(-1.0, 1.0, input.blade.x >= 0.0) * length(gap), along);
+    // Update 26 (Creyon: Byss showed in parts, cut across from tip to hilt): the side from the ray
+    // and the axis, not the quad's `blade.x`: under a close perspective the quad's middle strays from
+    // the blade's, so a slice of it drew mirrored, seen wherever a blade's two sides differ.
+    let normal = cross(r, d);
+    let across = dot(gap, normal) / max(length(normal), 0.000001);
+    return vec2(across, along);
+}
+
+// The place a new blade's body and glow are drawn at. Off to the side of the blade, the ray's nearest point on it runs away toward
+// infinity as the view comes round along the blade, so everything tied to a height along it was cut off in a hard slanted line
+// and never reached the tip, seen from behind a player (Creyon, 4/11/2026). Away from the blade its height comes from the quad instead.
+fn sig_place(input: VertexOutput) -> vec2<f32> {
+    let p = blade_place(input);
+    if !SIG_OWN_EFFECTS {
+        return p;
+    }
+    let shaft = max(input.shaft, 0.0001);
+    let over = max(input.blade.y - shaft, 0.0);
+    let flat_y = min(input.blade.y, shaft) / shaft * input.length + over;
+    // Above its end it is always the quad's height: halfway between the two, a thin line of blade stood over the tip.
+    return vec2(p.x, mix(p.y, flat_y, max(smoothstep(0.9, 2.4, abs(p.x)), smoothstep(0.0, 1.5, over))));
 }
 
 fn glow(u: f32, v: f32) -> vec3<f32> {
@@ -2043,7 +2109,7 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
     // A signature shader takes the glow the file drew and draws the blade its own way.
     if skin.design.x == f32(LAB_SIGNATURE) {
         sig_take(input);
-        let place = blade_place(input);
+        let place = sig_place(input);
         // The file's glow round the emitter stays, as a stock blade's covers the hilt's
         // mouth.
         let mouth = (1.0 - smoothstep(0.0, 2.2, length(vec2(place.x * 0.6, max(place.y, 0.0))))) * 0.75;
@@ -2072,19 +2138,19 @@ fn skin_glow_at(input: VertexOutput, pixel: f32, x: f32) -> vec3<f32> {
         if sig_echo {
             return sig_coloured(input, glow * sig_edge(input)) * persona_fade(input);
         }
-        let ray = sig_ray(input);
-        labRayPrepare(ray.o, ray.d);
         let shown = sig_full(input);
-        glow += (max(sig_vol(ray.o, ray.d, pixel), vec3(0.0))
-            + max(sig_orbit(ray.o, ray.d, pixel), vec3(0.0))) * shown;
-        if skin.arc_strike.x > 0.0 {
-            glow += sig_arcs(skin, input, ray, pixel) * shown;
+        var own_effects = vec3(0.0);
+        // In a view its effects in the air are drawn apart, at half size (`fragment_volume`).
+        if !SIG_SPLIT {
+            let air = sig_air(input, skin, place, pixel);
+            glow += air.shared_light;
+            own_effects = air.own;
         }
-        if SIG_MYTHICAL {
-            glow += sig_mythic(input, place, ray, pixel) * shown;
+        if SIG_OWN_EFFECTS {
+            glow *= 1.0 + 0.3 * smoothstep(55.0, 240.0, length(input.ray));
         }
         let edge = sig_edge(input);
-        return sig_coloured(input, glow * edge) + (kept_glow + max(uKeep, vec3(0.0)) * shown) * edge;
+        return sig_coloured(input, (glow + max(uTurnFx, vec3(0.0)) * shown) * edge) + (kept_glow + max(uKeep, vec3(0.0)) * shown + sig_coloured_air(input, own_effects)) * edge;
     }
     // A chroma takes its wearer's colour: everything it drew, turned at once.
     if input.chroma != 0.0 {
@@ -2363,8 +2429,143 @@ fn fragment_glow(input: VertexOutput) -> @location(0) vec4<f32> {
 // How much of a signature reaches the dynamic glow (the bloom).
 const SIG_BLOOM: f32 = 0.55;
 
+// A glow fragment's colour and its depth (`sig_depth`).
+struct GlowOut {
+    @location(0) colour: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
+// How deep a glow fragment is tested (1/11/2026, Creyon: straight lines cut through a
+// signature's effects where its flat quad passed into a wall, the floor or its wearer's body,
+// which hid effects standing in front of them): a signature's three-dimensional effects stand
+// up to its reach in front of the blade, so its glow is tested as if that much nearer the
+// camera. Near the hilt it is not, so the hand holding it still covers it; nor nearer than a
+// few units to the camera. Every other blade keeps its quad's depth.
+fn sig_depth(input: VertexOutput) -> f32 {
+    let flat_depth = input.clip_position.z;
+    if input.hilt <= 0.0 || input.kind < KIND_SKIN {
+        return flat_depth;
+    }
+    let skin = skins[skin_index(input)];
+    if skin.design.x != f32(LAB_SIGNATURE) {
+        return flat_depth;
+    }
+    let room = max(skin_room(skin, input.off.x), max(skin.design.y, skin.design.z) / LAB_METRE);
+    let extent = max(chain_radius(input.radius, input.length, 0.0) * skin.swell.x, input.hilt) + room;
+    let along = blade_place(input).y;
+    let dist = length(input.ray);
+    let pull = min(0.6 * extent * smoothstep(3.0, 12.0, along), max(dist - 8.0, 0.0));
+    if pull <= 0.0 || dist <= 0.0001 {
+        return flat_depth;
+    }
+    let clip = camera.view_projection * vec4(camera.position + input.ray * ((dist - pull) / dist), 1.0);
+    if clip.w <= 0.0001 {
+        return flat_depth;
+    }
+    return clamp(clip.z / clip.w, 0.0, 1.0);
+}
+
 @fragment
 fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    return main_colour(input);
+}
+
+// True in the main pass of a view, whose effects in the air `fragment_volume` draws instead.
+override SIG_SPLIT: bool = false;
+
+// What a signature's effects in the air give: light added with the glow, and its own effects'.
+struct SigAir {
+    shared_light: vec3<f32>,
+    own: vec3<f32>,
+}
+
+fn sig_air(input: VertexOutput, skin: Skin, place: vec2<f32>, pixel: f32) -> SigAir {
+    var air: SigAir;
+    let ray = sig_ray(input);
+    labRayPrepare(ray.o, ray.d);
+    let shown = sig_full(input);
+    let effects = (max(sig_vol(ray.o, ray.d, pixel), vec3(0.0))
+        + max(sig_orbit(ray.o, ray.d, pixel), vec3(0.0))) * shown;
+    if SIG_OWN_EFFECTS {
+        air.own = effects;
+    } else {
+        air.shared_light = effects;
+    }
+    if skin.arc_strike.x > 0.0 {
+        air.shared_light += sig_arcs(skin, input, ray, pixel) * shown;
+    }
+    if SIG_MYTHICAL {
+        air.shared_light += sig_mythic(input, place, ray, pixel) * shown;
+    }
+    return air;
+}
+
+// The view's depth, for the half-size layer of effects (`saber_volume.rs`).
+@group(3) @binding(2)
+var volume_depth: texture_depth_2d;
+
+// How near the view ray comes to the blade's axis, from the hilt (y 0) to `top`, in the hilt's frame.
+fn sig_ray_gap(ray: SigRay, top: f32) -> f32 {
+    let w = ray.o;
+    let d = ray.d;
+    let b = d.y;
+    let e = w.y;
+    let c = dot(d, w);
+    let denom = max(1.0 - b * b, 0.000001);
+    var along = clamp((e - b * c) / denom, 0.0, top);
+    let t = max(along * b - c, 0.0);
+    along = clamp(w.y + d.y * t, 0.0, top);
+    return length(w + d * t - vec3(0.0, along, 0.0));
+}
+
+// A signature's effects in the air alone, into the half-size layer, as the main pass would add
+// them: hidden by what stands before them, and where its quad ends.
+@fragment
+fn fragment_volume(input: VertexOutput) -> @location(0) vec4<f32> {
+    // Taken before any branch (uniform control flow).
+    // The layer is half size, but the picture it ends in is not: sized by the full picture's pixel.
+    let pixel = fwidth(input.blade.x) * 0.5;
+    if input.hilt <= 0.0 || input.kind < KIND_SKIN || (input.persona.x >> 24u) != 255u
+        || afterimage(input.persona.x, input.off.x) {
+        discard;
+    }
+    let skin = skin_at(input);
+    if skin.design.x != f32(LAB_SIGNATURE) { discard; }
+    let last = vec2<i32>(textureDimensions(volume_depth)) - vec2(1);
+    let at = clamp(vec2<i32>(input.clip_position.xy * 2.0), vec2(0), last);
+    // Fades against what stands before it, in linear units, so the quad's plane meeting a wall draws no line.
+    let scene_z = textureLoad(volume_depth, at, 0);
+    let near_units = 4.0 / max(1.0 - sig_depth(input), 0.00001);
+    let wall_units = 4.0 / max(1.0 - scene_z, 0.00001);
+    let soft = smoothstep(-26.0, 6.0, wall_units - near_units);
+    if soft <= 0.0 { discard; }
+    sig_take(input);
+    let place = blade_place(input);
+    let air = sig_air(input, skin, place, pixel);
+    let shown = sig_full(input);
+    // Past the room it fades by how near the ray itself comes to the blade, the same from every
+    // side: anything measured on the panel met the effects as a straight line (Creyon's hard lines).
+    let ray = sig_ray(input);
+    let room = max(skin_room(skin, input.off.x), max(skin.design.y, skin.design.z) / LAB_METRE);
+    let edge = 1.0 - smoothstep(room + 0.5, room + 3.0, sig_ray_gap(ray, max(input.length, input.axis.w)));
+    let out = sig_coloured(input, (air.shared_light + max(uTurnFx, vec3(0.0)) * shown) * edge)
+        + (max(uKeep, vec3(0.0)) * shown + sig_coloured_air(input, air.own)) * edge;
+    // From third person and further the effects would shrink to nothing: they gain with distance.
+    let far_off = smoothstep(55.0, 240.0, length(input.ray));
+    return vec4(out * persona_fade(input) * soft * (1.0 + 0.9 * far_off), clamp(uAirCover, 0.0, 1.0) * shown * edge * soft);
+}
+
+// A signature's own glow pipeline (`saber_gpu.rs` `SignatureBuilder::build`): its colour, and
+// its depth pulled toward the camera (`sig_depth`).
+@fragment
+fn fragment_main_deep(input: VertexOutput) -> GlowOut {
+    var out: GlowOut;
+    out.colour = main_colour(input);
+    out.depth = sig_depth(input);
+    return out;
+}
+
+fn main_colour(input: VertexOutput) -> vec4<f32> {
     // v runs from the tip (0) to behind the hilt (1), as DoLine's texture coordinates do.
     // Derivatives are taken before any branch (uniform control flow); the glow ignores the
     // core's and a skin's glow takes the pixel's size. The core is sampled with the
@@ -2622,6 +2823,28 @@ fn solid_chrome(skin: Skin, input: VertexOutput, place: f32, x: f32, pixel: f32)
 // over the blade's glow just drawn, alpha-blended; a chroma's ink body takes its colour.
 @fragment
 fn fragment_solid(input: VertexOutput) -> @location(0) vec4<f32> {
+    return solid_colour(input);
+}
+
+// A signature's solid layer that stands wide of its blade (`@solidnear`): its depth is pulled well toward
+// the camera, so its plane does not slice through the wearer or a wall beside the blade.
+@fragment
+fn fragment_solid_near(input: VertexOutput) -> GlowOut {
+    var out: GlowOut;
+    out.colour = solid_colour(input);
+    out.depth = input.clip_position.z;
+    let dist = length(input.ray);
+    let pull = min(SIG_NEAR_PULL, max(dist - 8.0, 0.0));
+    if pull > 0.0 {
+        let clip = camera.view_projection * vec4(camera.position + input.ray * ((dist - pull) / dist), 1.0);
+        if clip.w > 0.0001 {
+            out.depth = clamp(clip.z / clip.w, 0.0, 1.0);
+        }
+    }
+    return out;
+}
+
+fn solid_colour(input: VertexOutput) -> vec4<f32> {
     let pixel = fwidth(input.blade.x);
     if lab_design(input) != 0u {
         return lab_solid(input, pixel);
@@ -2667,13 +2890,28 @@ fn fragment_solid(input: VertexOutput) -> @location(0) vec4<f32> {
     // A signature shader's solid layer (dark stone, scales, a horizon).
     if skin.design.x == f32(LAB_SIGNATURE) {
         sig_take(input);
-        let place = blade_place(input);
+        if SIG_OWN_EFFECTS {
+            let view = sig_ray(input);
+            labRayPrepare(view.o, view.d);
+        }
+        let place = sig_place(input);
         out = clamp(sig_solid(out, place, pixel), vec4(0.0), vec4(1.0));
+        // A new blade's body keeps its pattern from third person and further: its contrast and colour gain with distance.
+        if SIG_OWN_EFFECTS {
+            let far_off = smoothstep(55.0, 240.0, length(input.ray));
+            let level = dot(out.rgb, vec3(0.3, 0.5, 0.2));
+            out = vec4(clamp(vec3(level) + (out.rgb - vec3(level)) * (1.0 + 0.5 * far_off), vec3(0.0), vec3(1.0)), out.a);
+        }
         // Only on the blade there is (Creyon's round 13: World Shift's lava crust stayed at
         // full length while the blade went out): a signature places its solid parts on the
         // full length, so what lies past the tip the blade has now is cut.
-        let grown = 1.0 - smoothstep(input.length - 1.0, input.length + 0.5, place.y);
-        out = vec4(out.rgb, out.a * sig_kept(input, place) * grown);
+        // Once the blade is all out the cut moves past its rounded tip (Creyon, 27/10/2026: the
+        // Moon's black tip was half see-through, the fade starting a unit below the tip).
+        let out_full = select(0.0, 1.0, input.axis.w > 0.0 && input.length >= input.axis.w);
+        let grown = 1.0 - smoothstep(input.length - 1.0 + 1.2 * out_full,
+            input.length + 0.5 + 0.4 * out_full, place.y);
+        let kept_past = select(grown, 1.0, SIG_SOLID_PAST_TIP && input.length >= input.axis.w);
+        out = vec4(out.rgb, out.a * sig_kept(input, place) * kept_past);
         if (input.persona.x >> 24u) != 255u {
             // An echo keeps its blade's solid parts only, faded (round 12).
             return vec4(sig_coloured(input, out.rgb), out.a * sig_edge(input) * persona_fade(input));
@@ -4202,6 +4440,8 @@ fn lab_solid(input: VertexOutput, pixel: f32) -> vec4<f32> {
 // functions (blade_signatures.rs `module_source`).
 
 var<private> uTime: f32;
+// Real time in seconds: a blade's cycles and moments keep their periods whatever its `@speed`.
+var<private> uClock: f32;
 var<private> uLength: f32;
 var<private> uSwing: f32;
 var<private> uClash: f32;
@@ -4218,6 +4458,19 @@ var<private> uReach: f32;
 // Whether this signature is a mythical blade's (Creyon's round 19: the mythicals must feel
 // mythical): `Signature::module_source` sets it in a mythical's own module.
 const SIG_MYTHICAL: bool = false;
+// How fast a signature's own time runs (`@speed`, Signature::speed): 1 is real time.
+const SIG_SPEED: f32 = 1.0;
+// A round blade's effects keep their own colours under a chroma; only its body and glow take the
+// wearer's (update 28, Creyon: Zeffo in a colour took all its effects with it).
+const SIG_OWN_EFFECTS: bool = false;
+// A signature whose solid layer stands wide past the point and closes itself there (`@solidpast`,
+// Signature::solid_past; Angel's cloud bank): once the blade is all out, its solid parts are not cut
+// along a straight line just past the tip (Creyon, 5/11/2026: up close the clouds' top was flat).
+const SIG_SOLID_PAST_TIP: bool = false;
+// How far (units) a `@solidnear` solid layer's depth is pulled toward the camera (`@nearpull`,
+// Signature::near_pull): 14 keeps a wide plane from slicing the wearer or a wall; Angel's cloud bank
+// pulls less, or it covered its wearer's head and face (Creyon, 5/11/2026).
+const SIG_NEAR_PULL: f32 = 14.0;
 // 1 while its wearer has its effects on (the `effects` option, the arcs bit), else 0: what a
 // signature's own volume (`sig_vol`) keeps of everything but the blade itself.
 var<private> uFx: f32;
@@ -4227,6 +4480,18 @@ var<private> uOwn: f32;
 // Light a signature adds in its own colours whatever its wearer's colour (Creyon's round 12:
 // Between Worlds' white and red duel stays white and red), added after the chroma's turn.
 var<private> uKeep: vec3<f32>;
+// Light a round blade's effect wants turned with the blade under a chroma, unlike its other effects
+// (update 28: Byss's lightning).
+var<private> uTurnFx: vec3<f32>;
+// How much of what is behind them the effects in the air hide (a cloud, not light): `fragment_volume`.
+var<private> uAirCover: f32;
+// Seconds since its last clash, for what lasts longer than `uClash`.
+var<private> uClashT: f32;
+// A chroma's turn, and how far the blade's side in the picture lies toward the wearer's left (-1 to 1):
+// one value for the whole blade, from where the camera stands, passing through 0 seen edge on.
+var<private> uTurn: f32;
+var<private> uBend: f32;
+var<private> uSide: f32;
 // Which of a signature's own parts its wearer left on (round 11: every effect can be
 // switched off): bit k set when part k (`// @part` line k) is off, read by `part(k)`.
 var<private> uParts: f32;
@@ -4238,7 +4503,8 @@ const SIG_PART_BITS: array<u32, 6> = array<u32, 6>(OFF_SPUTTER, OFF_GLITCH, OFF_
 const SIG_IGNITION: f32 = 0.42;
 
 fn sig_take(input: VertexOutput) {
-    uTime = input.animation.x;
+    uTime = input.animation.x * SIG_SPEED;
+    uClock = input.animation.x;
     uSeed = input.animation.y;
     // The full length when it is known (round 11): everything a signature places along the
     // blade stays where it is while the blade grows or shrinks.
@@ -4247,6 +4513,7 @@ fn sig_take(input: VertexOutput) {
     // the arm's sway while running and the torso following the view stay under this.
     uSwing = smoothstep(0.45, 1.0, clamp(input.motion.x, 0.0, 1.0));
     uClash = max(1.0 - input.motion.y * 2.2, 0.0);
+    uClashT = input.motion.y;
     uAge = input.motion.z;
     uSince = input.motion.w;
     uIgn = clamp(input.motion.z / SIG_IGNITION, 0.0, 1.0);
@@ -4257,6 +4524,7 @@ fn sig_take(input: VertexOutput) {
     if (input.off.x & OFF_PULSE) != 0u {
         uSwing = 0.0;
         uClash = 0.0;
+        uClashT = 1000.0;
         uSince = 1000.0;
     }
     var parts = 0u;
@@ -4268,6 +4536,18 @@ fn sig_take(input: VertexOutput) {
     uParts = f32(parts);
     uFx = 1.0;
     uOwn = 0.0;
+    uTurnFx = vec3(0.0);
+    uAirCover = 0.0;
+    uTurn = input.chroma;
+    {
+        let ay = normalize(input.axis.xyz);
+        var az = oct_unpack(input.down.zw);
+        az -= ay * dot(az, ay);
+        let n = cross(input.hilt_at, ay);
+        uBend = clamp(dot(n, cross(ay, az)) / max(length(n) * max(length(az), 0.0001), 0.000001) * 2.5, -1.0, 1.0);
+        // The same across the hilt's other axis: a curve set on this stays on one side of the wearer from every side.
+        uSide = clamp(-dot(n, az) / max(length(n) * max(length(az), 0.0001), 0.000001) * 2.5, -1.0, 1.0);
+    }
     uKeep = vec3(0.0);
     // The page turned a chroma's output afterwards; the game turns it after the hooks.
     uChroma = 0.0;
@@ -4307,7 +4587,68 @@ fn sig_coloured(input: VertexOutput, c: vec3<f32>) -> vec3<f32> {
     if input.chroma == 0.0 || base < 0.0 {
         return c;
     }
+    if SIG_OWN_EFFECTS {
+        return sig_turned(c, base, fract(base + input.chroma), 0.0);
+    }
     return sig_recolour(c, fract(base + input.chroma));
+}
+
+// The same for a round blade's air effects: a neighbour on the wheel, so they stand off the body.
+fn sig_coloured_air(input: VertexOutput, c: vec3<f32>) -> vec3<f32> {
+    let base = skins[skin_index(input)].design_color.w;
+    if input.chroma == 0.0 || base < 0.0 {
+        return c;
+    }
+    return sig_turned(c, base, fract(base + input.chroma), 0.13);
+}
+
+// A round blade under a chroma (Creyon, 3/11/2026: all one colour hid the effects, then a plain turn gave colours
+// that fought): its main colour becomes the wearer's and its other colours stay near it, closer together than
+// they were, so effects still stand apart in one family of colour. White stays white.
+fn sig_turned(c: vec3<f32>, base: f32, hue: f32, accent: f32) -> vec3<f32> {
+    let high = max(c.r, max(c.g, c.b));
+    if high <= 0.0 {
+        return c;
+    }
+    let low = min(c.r, min(c.g, c.b));
+    let span = high - low;
+    let sat = span / high;
+    var h = 0.0;
+    if span > 0.00001 {
+        if high == c.r {
+            h = fract(((c.g - c.b) / span) / 6.0);
+        } else if high == c.g {
+            h = ((c.b - c.r) / span + 2.0) / 6.0;
+        } else {
+            h = ((c.r - c.g) / span + 4.0) / 6.0;
+        }
+    }
+    let away = fract(h - base + 0.5) - 0.5;
+    // Greys and pale tones take the wearer's own hue; the white-hot keeps white
+    let colour = smoothstep(0.03, 0.3, sat);
+    // The wearer's colour is the body's exactly: 250 0 0 is red. What was another colour stays a close
+    // neighbour of it; the air effects (`accent`) lean a little along the wheel, deeper in their dark tones.
+    // Creyon, 6/11/2026: under a colour its effects still ran together, and colours opposite the main one
+    // (Peridea's red and blue) folded onto it. Now the body is the wearer's colour; every other colour it was
+    // designed with keeps its side of the wheel and stands a clear step off, more the further it was, up to a
+    // triad (a third of the wheel), so none meets the body's; the air effects take an analogous colour a
+    // sixth of the wheel off to their side. One family, every effect told apart.
+    let side = select(-1.0, 1.0, away >= 0.0);
+    let reach = abs(away);
+    let apart = side * (0.1 + 0.55 * clamp(reach - 0.08, 0.0, 0.42)) * smoothstep(0.04, 0.12, reach);
+    let depth = accent * (smoothstep(0.08, 0.85, high) - 0.5);
+    var turned = fract(hue + (apart + depth) * colour);
+    if accent > 0.0 {
+        turned = fract(hue + side * (0.17 + 0.12 * clamp(reach - 0.1, 0.0, 0.4)) * colour + 0.04 * depth);
+    }
+    let k = vec3(1.0, 2.0 / 3.0, 1.0 / 3.0);
+    let wheel = clamp(abs(fract(vec3(turned) + k) * 6.0 - vec3(3.0)) - vec3(1.0), vec3(0.0), vec3(1.0));
+    let white = smoothstep(0.82, 1.0, high) * (1.0 - smoothstep(0.08, 0.3, sat));
+    var keep = mix(max(sat, mix(0.94, 0.6, smoothstep(0.1, 0.3, abs(away)))), sat, white);
+    if accent > 0.0 {
+        keep = mix(max(sat, 0.55), sat, white);
+    }
+    return high * mix(vec3(1.0), wheel, keep);
 }
 
 // The view ray in the blade's own frame, units: `o` the camera, `d` the unit direction; y
@@ -4428,7 +4769,7 @@ fn sig_mythic(input: VertexOutput, place: vec2<f32>, ray: SigRay, pixel: f32) ->
             * flare * 1.2;
     }
     // its breath: a slow wave of light rising up it
-    let beat = fract(uTime / 6.5 + uSeed * 0.37);
+    let beat = fract(uClock / 6.5 + uSeed * 0.37);
     let wave = beat * (len + 10.0) - 5.0;
     light += c * exp(-pow((place.y - wave) / 3.2, 2.0)) * near * 0.45 * smoothstep(1.4, 2.4, age);
     // a clash rings out round it (with its swing and clash bursts: `uClash`)

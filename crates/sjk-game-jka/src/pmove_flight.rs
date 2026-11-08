@@ -121,6 +121,10 @@ impl Predictor {
             return 0.0;
         }
         let total = ((forward * forward + right * right + up * up) as f32).sqrt();
+        if let Some(boost) = self.fake_noclip_boost {
+            // A client editor's flight: its own speed, a walk key or not.
+            return self.fake_noclip_speed() * boost / total;
+        }
         self.fake_noclip_speed() * maximum as f32 / (127.0 * total)
     }
 
@@ -494,5 +498,36 @@ mod tests {
         let velocity = predictor.state().velocity;
         assert!((velocity[0] - 2500.0).abs() < 1.0, "{velocity:?}");
         assert!(velocity[1].abs() < 1e-3 && velocity[2].abs() < 1e-3);
+    }
+
+    #[test]
+    fn an_editor_boost_flies_at_its_own_speed_walking_or_not() {
+        let player = player(0);
+        for forward_move in [127, 64] {
+            let mut predictor = Predictor::from_player_state(&player, MovementConfig::default());
+            predictor.set_fake_noclip(true);
+            predictor.set_fake_noclip_boost(Some(4.0));
+            let mut time = player.command_time();
+            for _ in 0..200 {
+                time += 8;
+                predictor.predict_command(
+                    UserCommand {
+                        server_time: time,
+                        forward_move,
+                        ..UserCommand::default()
+                    },
+                    &Solid(Cell::new(0)),
+                );
+            }
+            // Accelerated to 250 * 4 along the view, the walk's half move or not.
+            let velocity = predictor.state().velocity;
+            assert!(
+                (velocity[0] - 1000.0).abs() < 5.0,
+                "{forward_move}: {velocity:?}"
+            );
+        }
+        let mut predictor = Predictor::from_player_state(&player, MovementConfig::default());
+        predictor.set_fake_noclip_boost(Some(f32::NAN));
+        assert_eq!(predictor.fake_noclip_boost, None);
     }
 }

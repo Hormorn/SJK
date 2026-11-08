@@ -95,8 +95,9 @@ const FORGET_MILLIS: i64 = 120_000;
 /// Where the burn starts: this far above a victim's origin, about the chest.
 const HIT_ABOVE: f32 = 8.0;
 
-/// The disintegrations this client starts itself: a blade skin's `disintegrate`, on a
-/// saber kill by its wearer ([`crate::GpuState::observe_saber_kills`]). The server knows
+/// The disintegrations this client starts itself: the Disintegrate finisher
+/// (`crate::finishers`), on a saber kill by its wearer
+/// ([`crate::GpuState::observe_saber_kills`]). The server knows
 /// nothing of them: the victim burns away as a disruptor's does and stays hidden until it
 /// lives again, and the body the server copies of a player as they respawn
 /// (`corpse_actors.rs`) is hidden from the start.
@@ -288,9 +289,9 @@ impl Forced {
 }
 
 impl crate::GpuState {
-    /// The kill feed's new kills: a saber kill (a thrown one too) by a wearer of a blade
-    /// skin that burns its kills away (`disintegrate`) starts the victim's
-    /// ([`Forced::kill`]), from the blow's server time and the skin's delay.
+    /// The kill feed's new kills: a saber kill (a thrown one too) by a wearer of the
+    /// Disintegrate finisher (`crate::finishers`, the attacker's look) starts the
+    /// victim's ([`Forced::kill`]), from the blow's server time and the finisher's delay.
     pub(crate) fn observe_saber_kills(&mut self) {
         let decoded = self.obituaries.decoded();
         let new = decoded.saturating_sub(self.saber_kills_seen).min(8) as usize;
@@ -310,17 +311,15 @@ impl crate::GpuState {
             {
                 continue;
             }
-            let Some(delay) = self
-                .saber_skins
-                .get(u64::from(kill.attacker) + 1)
-                .and_then(|skin| skin.disintegrate)
+            let Some(crate::finishers::Effect::Disintegrate { delay_ms }) = self
+                .looks
+                .finisher(usize::from(kill.attacker))
+                .map(|finisher| finisher.effect)
             else {
                 continue;
             };
-            self.forced_disintegrations.kill(
-                kill.target,
-                i64::from(kill.server_time) + (delay * 1_000.0) as i64,
-            );
+            self.forced_disintegrations
+                .kill(kill.target, i64::from(kill.server_time) + delay_ms);
         }
     }
 }

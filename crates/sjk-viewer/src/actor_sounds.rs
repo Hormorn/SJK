@@ -228,7 +228,7 @@ pub(crate) fn update(gpu: &mut GpuState, time: i64, audio: &mut Option<GameAudio
 /// plays for a stock `saberhup` animation cue.
 fn skin_swing<'a>(
     skins: &'a crate::saber_skins::LoadedSkins,
-    skin: u8,
+    skin: crate::saber_skins::SkinIndex,
     standard: &str,
     variant: usize,
 ) -> Option<&'a str> {

@@ -240,7 +240,9 @@ one (4:3, 5:4) scales the frame down to its width.
   hides the line for good (`ui_supportLinks 0`). While × is under the pointer, a quiet
   line under them says that Settings, Interface, "Support SJK" brings it back. It asks
   no server anything. Pointer only: its targets are the page's 80 and 81 (the links)
-  and 82 (×). Snapshot `sjk-home` (`menu_snapshot::sjk_home_snapshot`) and world shot
+  and 82 (×). Shelved since 07/11/2026 (Sol's request,
+  `support_links::SHELVED`): it never shows and its setting is out of Settings.
+  Snapshot `sjk-home` (`menu_snapshot::sjk_home_snapshot`) and world shot
   `duel6-menu` (`world_shot::duel6_sjk_menu`).
 - **Corners:** the player's [profile card](#profile-card), bottom left; the keys
   of the page, bottom centre; the version and a newer release found, bottom right.
@@ -1161,12 +1163,16 @@ darkened as Settings is, on the main page's 16:9 frame.
 - **Left:** under "Match", banded rows of 56 with a cycler each: Game type, Map, Bots,
   Bot skill (Initiate to Jedi Master), the mode's limit (Frag limit, Capture limit, or
   Objectives for Siege, which cannot be changed) and Time limit; under "Server", Server
-  name as a field (typing shows a cursor) and Allow LAN players as a switch with what it
-  means ("This PC only"); then Start the game, the gold button ("Starting..." and dimmed
-  while the server starts).
+  mod as a cycler (Base game, the default, or JA+: the mod `sjk-server` runs,
+  [JA+ mode](server.md#ja-mode)), Server name as a field (typing shows a cursor) and
+  Allow LAN players as a switch with what it means ("This PC only"); then Start the
+  game, the gold button ("Starting..." and dimmed while the server starts). Every
+  choice is kept in an archived `ui_host*` cvar (`ui_hostServerMod` for the mod, by
+  its id).
 - **Right:** the chosen map's levelshot (2:1, cropped, never stretched) with its file
   name over its foot (a click opens the map list); its long name; four figures in two
-  columns (Game type, Bots with their skill, Limits in words, Who can join); a line
+  columns (Game type, with the mod after it when it is not the base game, "Duel, JA+";
+  Bots with their skill, Limits in words, Who can join); a line
   saying who the match is for.
 - **Bottom:** how the start stands at the left (starting, or why it failed); the
   chosen row's keys at the right.
@@ -2076,38 +2082,51 @@ panel was removed on 10/10/2026).
 ## Map editor
 
 [panel_view.rs](../crates/sjk-viewer/src/map_edits/panel_view.rs): the staff map editor's
-panel ([map-edits.md](map-edits.md#the-panel) has what it does), opened by the world-note
-key while `mapedit` is on, or the in-game menu's Map editor icon, in every menu style
-(19/10/2026, Sol's request; made easier 28/10/2026, Sol's request). It is Camera
+panel ([map-edits.md](map-edits.md#the-panel) has what it does), shown whenever `mapedit`
+is on (the in-game menu's Map editor icon turns it on too), in every menu style
+(19/10/2026, Sol's request; made easier 28/10/2026 and 04/11/2026, Sol's requests). It is Camera
 control's column: the 1080-line frame on the window's right edge, the column at x 1440,
 416 wide, over the same navy fade, the scene left of x 1400 undimmed, where a click
-selects (the selection's green outline is the screen's one memorable thing).
+selects and the right button held flies (the selection's green outline is the screen's
+one memorable thing; a multiple selection outlines every member). While the editor flies
+the column stays drawn, its keys lines turned to the flight's.
 
 - **Top:** "Map editor" (Rajdhani 42), the map and its state (no edits yet, N edits not
   published, or published with the hub's revision), then the pages as tabs: Selected,
-  Place, Edits (Camera control's tabs).
-- **Selected:** what it is (Rajdhani 26), its model or shader and its detail (Exo 2 16,
-  muted, two lines), a row of two kit buttons, then Draw another shader: the kit's search
-  pill (with its count), a list of five rows as Place's (names without `textures/` or
-  `models/`, the selection's own shader in quiet print unless chosen), and Remap and
-  Remove remap. With nothing selected, how to select. On a sky (04/11/2026) the kind is
-  "Sky", the skies lead the list, and its last row has three buttons: Swap sky (Cover side
-  when a texture is chosen), Swap all skies (only with a sky chosen) and Take back.
+  Place, Edits, Weather (Camera control's tabs, 28 apart so four fit the column).
+- **Selected:** what it is (Rajdhani 26; "Hidden face and 11 more" for several), its model
+  or shader and its detail (Exo 2 16, muted, two lines; on faces the second is Fill's
+  shader and share in gold), a row of kit buttons (two; three on a hidden face or a sky:
+  Same plane, Connected, Fill), then Draw another shader: the kit's search pill (with its
+  count), a list of five rows as Place's (names without `textures/` or `models/`, the
+  selection's own shader in quiet print unless chosen, the Recent rows first with a quiet
+  "Recent" at their right and a line under the last), and Remap and Remove remap. With
+  nothing selected, how to select and to fly. On a sky (04/11/2026) the kind is "Sky", the
+  skies lead the list after the Recent rows, and its last row has three buttons: Swap sky
+  (Cover side when a texture is chosen), Swap all skies (only with a sky chosen) and Take
+  back.
 - **Place:** the kit's search pill, a list of six rows (34 each, the chosen one gold with
-  a gold tick at its left, paths without `models/`), Place where you aimed across the
-  column, then Placed model: its line and three rows of four buttons (turn and lift,
-  the nudges, scale with Grab and Remove).
-- **Edits:** a list of twelve rows, an edit for another server in quiet print; Delete,
-  Undo and Redo (each dimmed with nothing to do).
+  a gold tick at its left, paths without `models/`, the Recent rows first), Place where you
+  aimed across the column, then Placed model: its line and three rows of four buttons
+  (turn and lift, the nudges, scale with Grab, Put down while grabbing, and Remove).
+- **Edits:** a list of eleven rows, an edit for another server in quiet print; Delete,
+  Undo and Redo (each dimmed with nothing to do); then the Recent rows' switch ("Recent:
+  remembered" or "Recent: off") and Forget recent.
+- **Weather** (05/11/2026, Sol's request): "This map's weather" heading, the map's own
+  weather (muted) and what an edit keeps here (gold; "Kept for this server" when the
+  edit is this server's), an ember note while the player forces weather; then Choose: a
+  row of four (Drizzle, Rain, Storm, Snow, the preset in force a gold pill), Fog and Wind
+  (on: a gold pill), Keep what I see and Map's own, and a muted note of who sees it.
 - **Foot:** New edits for and the kit's segments (All servers, This server) at y 800, the
-  last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold),
-  Aim and Editor off at 898, and two lines of keys from 964 as Camera control's (Enter,
-  Ctrl+Z, Ctrl+Y; then Click, Esc, with Shift's fine steps on Place). A page's controls
-  end above it (a test checks every page at four window shapes).
-- **Strip:** while the editor is on and the panel hidden, a navy card 600 wide at the top
-  centre of the 16:9 frame: "Map editor" in gold, what to aim at (or that the grabbed model
-  follows the aim), and the world-note key's cap with "edit" (or "put it down", with the
-  Wheel's "turn" under it).
+  last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold) and
+  Editor off at 898, and three lines of keys from 954, 30 apart (RMB fly, Click select,
+  Shift+Click add; G R T gizmo, Esc back, with Shift's fine steps on Place; Ctrl+Z undo
+  and the cap of the key bound to `mapedit`, "leave"; while flying W A S D, Space C, Shift,
+  Wheel; while grabbing Click, Wheel, Esc; while transforming the gizmo's), then, when the
+  free camera was refused, why, in ember Exo 2 15 at 1044. A page's controls end above it
+  (a test checks every page at four window shapes, and that every key line fits the
+  column). The Aim button and the strip over play (while the panel was hidden to aim) went
+  on 04/11/2026: the panel no longer hides while the editor is on.
 
 It is a page of the in-game menu (`Page::MapEdit`), drawn by `InGameMenu::append_own_page`
 from the panel's state, which lives with the map's edits; its keys come before the game
@@ -2138,7 +2157,8 @@ screen's one memorable thing (holo blue, the new start a gold ring with its faci
   last answer (ember when refused) or "Not saved" at 840, Save (gold), Play, Look and Close
   at 898, two lines of keys from 964 (Left Right snap, Shift free, Page Up Page Down on a
   handle; Enter, Ctrl+S, Up Down elsewhere; Esc look).
-- **Strip:** while looking about, the map editor's strip: "Ghost editor" in gold, which
+- **Strip:** while looking about, a navy card at the top centre (the map editor had one
+  until 04/11/2026): "Ghost editor" in gold, which
   path is drawn, and Esc "back to the editor".
 
 It is a page of the in-game menu (`Page::GhostEdit`), drawn by

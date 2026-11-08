@@ -127,7 +127,6 @@
     ],
     "snap_volume": 1.0
   },
-  "disintegrate": {"delay": 0.0},
   "chroma": {"effects": true},
   "options": [
     {"id": "crackle", "name": "Crackle", "sections": ["flash", "sparks", "crackle"]}

@@ -27,18 +27,15 @@ pub(crate) enum Kind {
     Figure,
     /// The blade's own make: every skin has these, and they are never grouped.
     Core,
-    /// What the blade does to those it kills.
-    Kill,
 }
 
 impl Kind {
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: [Self; 5] = [
         Self::Around,
         Self::Along,
         Self::Emitter,
         Self::Figure,
         Self::Core,
-        Self::Kill,
     ];
 
     /// Its tab's name in the library.
@@ -49,7 +46,6 @@ impl Kind {
             Self::Emitter => "Emitter",
             Self::Figure => "Figures",
             Self::Core => "Core",
-            Self::Kill => "Kills",
         }
     }
 }
@@ -83,7 +79,7 @@ const fn effect(
 
 /// Every effect, by kind, in the order the library shows them (`docs/unlockables.md`,
 /// "Blade-skin files", says each field).
-pub(crate) const EFFECTS: [Effect; 49] = [
+pub(crate) const EFFECTS: [Effect; 48] = [
     effect(
         "arcs",
         "Lightning arcs",
@@ -420,13 +416,6 @@ pub(crate) const EFFECTS: [Effect; 49] = [
         "How wide the core is",
         "How wide the hot centre and its coloured fringe are.",
     ),
-    effect(
-        "disintegrate",
-        "Burn away",
-        Kind::Kill,
-        "Its kills burn away",
-        "Players this saber kills burn away as a disruptor's do, seen by every SJK player.",
-    ),
 ];
 
 /// The effect drawn by section `key`, if the builder shows it.
@@ -453,8 +442,7 @@ pub(crate) fn set_file(key: &str) -> usize {
         "bands" | "segments" | "film" | "blobs" | "front" => 3,
         "sketch" | "hourglass" | "serpent" | "strands" | "butterflies" | "wings" | "copies" => 4,
         "ink" | "chrome" => 5,
-        "smoke" | "ribbon" | "sparks" | "bolts" | "unrest" | "flash" | "crackle"
-        | "disintegrate" | "chroma" => 6,
+        "smoke" | "ribbon" | "sparks" | "bolts" | "unrest" | "flash" | "crackle" | "chroma" => 6,
         _ => 0,
     }
 }

@@ -24,11 +24,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const TIMEOUT: Duration = Duration::from_secs(10);
 /// Largest answer read, in bytes.
 const ANSWER_MAX: u64 = 256 * 1024;
-/// Largest answer to a staff query: one request's logs, up to 400 000 characters of
+/// Largest answer to a staff query: one request's logs, up to 2 000 000 characters of
 /// any script, escaped in JSON.
-const STAFF_ANSWER_MAX: u64 = 4 * 1024 * 1024;
-/// Longest a log upload may take (up to half a megabyte on a slow line).
-const LOGS_TIMEOUT: Duration = Duration::from_secs(60);
+const STAFF_ANSWER_MAX: u64 = 16 * 1024 * 1024;
+/// Longest a log upload may take (up to 4 MiB on a slow line).
+const LOGS_TIMEOUT: Duration = Duration::from_secs(120);
 /// Longest a pack's download may take (up to [`PACK_MAX`] bytes).
 const ASSET_TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -75,6 +75,9 @@ pub struct PresenceRead {
     pub blocks: Vec<crate::MapBlock>,
     /// The hub's map edits stamp, which grows with every change to any map's edits.
     pub map_edits: Option<i64>,
+    /// The maps on which SJK's creator blocked server remaps for every SJK client
+    /// (`PROTOCOL.md`, "Remap blocks"); `None` from a hub before them.
+    pub remap_blocks: Option<Vec<String>>,
     /// The hub's Toy Master stamp for this server (since 03/11/2026): when it changes,
     /// the toys listed for it changed (one placed or removed, SJK's creator came or went).
     pub secrets: Option<i64>,
@@ -168,6 +171,18 @@ pub trait Hub: Send {
         _id: i64,
         _upload: &LogUpload,
     ) -> Result<(), HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not send logs".to_owned(),
+        ))
+    }
+    /// Send `upload` (already [`LogUpload::fitted`]) unasked, with the player's `note`;
+    /// the hub answers with the id it keeps them under (`PROTOCOL.md`, "Log requests").
+    fn send_own_logs(
+        &mut self,
+        _identity: &Identity,
+        _upload: &LogUpload,
+        _note: &str,
+    ) -> Result<i64, HubError> {
         Err(HubError::Protocol(
             "this hub client does not send logs".to_owned(),
         ))
@@ -683,6 +698,28 @@ pub trait Hub: Send {
     ) -> Result<bool, HubError> {
         Err(HubError::Protocol(
             "this hub client does not report the box hunt's chase".to_owned(),
+        ))
+    }
+
+    /// The WHEEL OF DOOM's price, cooldown and segments (`GET /v1/wheel-of-doom`,
+    /// 07/11/2026).
+    fn wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+    ) -> Result<crate::wheel_of_doom::Wheel, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not read the wheel of doom".to_owned(),
+        ))
+    }
+
+    /// Spin the WHEEL OF DOOM, the player on `server` (`POST /v1/wheel-of-doom/spin`).
+    fn spin_wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+        _server: &str,
+    ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not spin the wheel of doom".to_owned(),
         ))
     }
 
@@ -1342,7 +1379,9 @@ fn feed_path(
 /// then sends the look without it). `saber_on` and `saber2_on` go only when they name an
 /// extra of their saber's skin (hubs before 26/10/2026 refuse them, and the service then
 /// sends the look without them). `tag` goes only while a tag is stuck (hubs before
-/// 27/10/2026 refuse it, and the service then sends the look without it).
+/// 27/10/2026 refuse it, and the service then sends the look without it). `finisher` goes
+/// only while one is worn (hubs before 04/11/2026 refuse it, and the service then sends
+/// the look without it).
 fn look_body(server: &str, look: &Look) -> Value {
     let mut body = json!({ "server": server, "saber": look.saber, "illuminate": look.illuminate });
     if !look.saber.is_empty() && !look.saber_off.is_empty() {
@@ -1368,6 +1407,9 @@ fn look_body(server: &str, look: &Look) -> Value {
     }
     if let Some(tag) = look.tag.as_ref() {
         body["tag"] = json!(tag);
+    }
+    if !look.finisher.is_empty() {
+        body["finisher"] = json!(look.finisher);
     }
     body
 }
@@ -1487,6 +1529,10 @@ fn staff_call(request: &StaffRequest) -> (&'static str, Value) {
                 "server": server, "map": map, "serverid": serverid,
                 "slot": slot, "name": name, "blocked": blocked
             }),
+        ),
+        StaffRequest::RemapBlock { map, blocked } => (
+            "/v1/staff/remap-block",
+            json!({ "map": map, "blocked": blocked }),
         ),
         StaffRequest::AvatarRemove { key_id } => {
             ("/v1/staff/avatar-remove", json!({ "key_id": key_id }))
@@ -1695,7 +1741,8 @@ impl Hub for HttpHub {
             StaffRequest::ChatDelete { .. }
             | StaffRequest::ChatMute { .. }
             | StaffRequest::ChatUnban { .. }
-            | StaffRequest::MapBlock { .. } => Ok(Vec::new()),
+            | StaffRequest::MapBlock { .. }
+            | StaffRequest::RemapBlock { .. } => Ok(Vec::new()),
             _ => Ok(vec![parse(answer)?]),
         }
     }
@@ -1757,6 +1804,29 @@ impl Hub for HttpHub {
             Some(LOGS_TIMEOUT),
         )
         .map(|_| ())
+    }
+
+    fn send_own_logs(
+        &mut self,
+        identity: &Identity,
+        upload: &LogUpload,
+        note: &str,
+    ) -> Result<i64, HubError> {
+        #[derive(serde::Deserialize)]
+        struct Kept {
+            id: i64,
+        }
+        let body = upload.own_body(note).to_string();
+        let answer: Kept = parse(self.send_with(
+            Some(identity),
+            "POST",
+            "/v1/logs",
+            body.as_bytes(),
+            "application/json",
+            ANSWER_MAX,
+            Some(LOGS_TIMEOUT),
+        )?)?;
+        Ok(answer.id)
     }
 
     fn decline_logs(&mut self, identity: &Identity, id: i64) -> Result<(), HubError> {
@@ -2011,6 +2081,26 @@ impl Hub for HttpHub {
         identity: &Identity,
     ) -> Result<crate::mystery_box::Boxes, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/mystery-boxes", None)?)
+    }
+
+    fn wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+    ) -> Result<crate::wheel_of_doom::Wheel, HubError> {
+        parse(self.send(Some(identity), "GET", "/v1/wheel-of-doom", None)?)
+    }
+
+    fn spin_wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+        server: &str,
+    ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/wheel-of-doom/spin",
+            Some(json!({ "server": server })),
+        )?)
     }
 
     fn junk_status(&mut self, identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {
@@ -2296,6 +2386,9 @@ impl Hub for HttpHub {
             players,
             blocks,
             map_edits: answer["map_edits"].as_i64(),
+            // A hub from before remap blocks leaves them out, and a malformed list is
+            // none: the client keeps the list it last saw.
+            remap_blocks: serde_json::from_value(answer["remap_blocks"].clone()).ok(),
             secrets: answer["secrets"].as_i64(),
             shows,
         })
@@ -2818,6 +2911,21 @@ mod tests {
         );
     }
 
+    /// A look's finisher (04/11/2026) goes only while one is worn.
+    #[test]
+    fn a_look_body_names_the_finisher_only_when_one_is_worn() {
+        let plain = look_body("1.2.3.4:29070", &Look::default());
+        assert!(plain.get("finisher").is_none());
+        let finishing = Look {
+            finisher: "finisher_disintegrate".to_owned(),
+            ..Look::default()
+        };
+        assert_eq!(
+            look_body("1.2.3.4:29070", &finishing)["finisher"],
+            "finisher_disintegrate"
+        );
+    }
+
     #[test]
     fn a_look_sends_exactly_the_protocols_fields() {
         let look = Look {
@@ -2831,6 +2939,7 @@ mod tests {
             saber2_on: Vec::new(),
             saber_sounds: String::new(),
             tag: None,
+            finisher: String::new(),
         };
         assert_eq!(
             look_body("1.2.3.4:29070", &look),

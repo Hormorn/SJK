@@ -48,6 +48,23 @@ pub(crate) const KNOWN: &[ServerCap] = &[
     },
 ];
 
+/// Server families whose commands carry the frame's own clock reading instead of the
+/// previous frame's (`sjk_client::ServerClock::command_time`, as stock and JoF EJK).
+/// The previous frame's reading matches every other client, which anti-cheats such
+/// as JoF's Heimdall compare against; SJK's own server runs no such check, so its
+/// players keep the fresher stamp (Sol, 07/11/2026).
+pub(crate) const FRESH_STAMPS: &[&str] = &["sjk"];
+
+/// 1 keeps the frame's own clock reading on every server, as on [`FRESH_STAMPS`]'
+/// (Sol, 07/11/2026).
+pub(crate) const FRESH_STAMPS_CVAR: &str = "cl_freshStamps";
+
+/// Whether commands on a server of `family` carry the previous frame's clock
+/// reading: every server but [`FRESH_STAMPS`]'.
+pub(crate) fn stamps_previous_frame(family: Option<&sjk_mod::KnownServer>) -> bool {
+    !family.is_some_and(|family| FRESH_STAMPS.contains(&family.id))
+}
+
 /// The known cap of `server`'s family, if any.
 pub(crate) fn find(server: &sjk_mod::Server) -> Option<&'static ServerCap> {
     let family = server.family()?;
@@ -74,6 +91,23 @@ mod tests {
         assert_eq!(jof.pacing, sjk_client::command_rate::Pacing::OnePerFrame);
         assert!(find(&server(JaPlus, r"\V\2.4B7")).is_none());
         assert!(find(&server(BaseJka, r"\V\2.5B0")).is_none());
+    }
+
+    #[test]
+    fn only_sjk_servers_stamp_with_the_frames_own_reading() {
+        use sjk_mod::ServerKind::{BaseJka, JaPlus, JaPro};
+        let family = |kind, info| server(kind, info).family();
+        assert!(!stamps_previous_frame(family(
+            BaseJka,
+            r"\gamename\basejka\sjk\1"
+        )));
+        assert!(stamps_previous_frame(family(BaseJka, r"\gamename\basejka")));
+        assert!(stamps_previous_frame(family(JaPlus, r"\V\2.5B0")));
+        assert!(stamps_previous_frame(family(JaPlus, r"\V\2.4B7")));
+        assert!(stamps_previous_frame(family(JaPro, "")));
+        for id in FRESH_STAMPS {
+            assert!(sjk_mod::KNOWN_SERVERS.iter().any(|family| family.id == *id));
+        }
     }
 
     #[test]

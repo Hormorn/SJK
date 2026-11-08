@@ -90,7 +90,8 @@ const VALUES: &[(&str, [&str; 3])] = &[
     // Weather.
     (crate::weather::DENSITY_CVAR, ["1", "1", "2"]),
     (crate::weather::QUALITY_CVAR, ["0", "0", "2"]),
-    (crate::weather::CLOUDS_CVAR, ["0", "0", "1"]),
+    // The volumetric clouds (`r_clouds`) are no preset's: off by default, the player's own
+    // choice under every preset (Sol, 05/11/2026).
 ];
 
 impl Level {

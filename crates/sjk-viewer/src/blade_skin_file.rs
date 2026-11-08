@@ -177,8 +177,6 @@ pub(crate) struct BladeSkinDef {
     #[serde(default)]
     pub(crate) crackle: Option<smoke::Crackle>,
     #[serde(default)]
-    pub(crate) disintegrate: Option<smoke::Disintegrate>,
-    #[serde(default)]
     pub(crate) chroma: Option<smoke::Chroma>,
     /// The parts its wearer may switch off; none when absent.
     #[serde(default)]
@@ -722,9 +720,6 @@ impl BladeSkinDef {
         }
         if let Some(crackle) = &self.crackle {
             crackle.check()?;
-        }
-        if let Some(disintegrate) = &self.disintegrate {
-            disintegrate.check()?;
         }
         colour("trail", self.trail, 1.0)?;
         colour("light.color", self.light.color, 4.0)?;

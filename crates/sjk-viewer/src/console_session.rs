@@ -206,6 +206,14 @@ impl ViewerConsole {
         )?;
         let remap_map_choice =
             console_cvars::RevisionSetting::bind(&mut cvars, crate::remap_blocked_maps::MAP_CVAR)?;
+        let remap_shared_maps = console_cvars::RevisionSetting::bind(
+            &mut cvars,
+            crate::remap_blocked_maps::SHARED_LIST_CVAR,
+        )?;
+        let remap_shared = console_cvars::RevisionSetting::bind(
+            &mut cvars,
+            crate::remap_blocked_maps::SHARED_CVAR,
+        )?;
         let draw_fog = console_cvars::IntegerSetting::bind(&mut cvars, "r_drawfog", 2)?;
         let packet_dup = console_cvars::IntegerSetting::bind(&mut cvars, "cl_packetdup", 1)?;
         let max_packets = console_cvars::IntegerSetting::bind(
@@ -220,6 +228,11 @@ impl ViewerConsole {
         )?;
         let caps_lifted =
             console_cvars::IntegerSetting::bind(&mut cvars, crate::server_caps::OVERRIDE_CVAR, 0)?;
+        let fresh_stamps = console_cvars::IntegerSetting::bind(
+            &mut cvars,
+            crate::server_caps::FRESH_STAMPS_CVAR,
+            0,
+        )?;
         let pmove_fixed = console_cvars::IntegerSetting::bind(&mut cvars, "pmove_fixed", 0)?;
         let pmove_msec = console_cvars::IntegerSetting::bind(&mut cvars, "pmove_msec", 8)?;
         let socket = super::socket::State::bind(&mut cvars)?;
@@ -652,6 +665,8 @@ impl ViewerConsole {
             pending_fishing: None,
             fishing_card: Default::default(),
             pending_fishing_sell: false,
+            wheel_of_doom_on: false,
+            pending_wheel_of_doom: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,
@@ -677,6 +692,8 @@ impl ViewerConsole {
             remap_blocked_maps,
             remap_allowed_maps,
             remap_map_choice,
+            remap_shared_maps,
+            remap_shared,
             packet_dup,
             max_packets,
             gameplay_fps,
@@ -684,6 +701,7 @@ impl ViewerConsole {
             server_cap: None,
             server_family: None,
             caps_lifted,
+            fresh_stamps,
             input_health: Default::default(),
             pmove_fixed,
             pmove_msec,

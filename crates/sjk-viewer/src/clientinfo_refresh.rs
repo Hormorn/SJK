@@ -43,6 +43,9 @@ pub(crate) struct ClientInfoWatch {
     /// Appearances whose load failed; players wearing one show Kyle, and the
     /// load is not retried in this world.
     pub(crate) failed: BTreeSet<Appearance>,
+    /// Model folders `rig_reload` reads again: a player already wearing one loads it
+    /// anew instead of keeping the mesh up.
+    pub(crate) reload: BTreeSet<String>,
     /// Players' models being read on workers.
     loads: player_loads::Loads,
     /// The NPC model being read on a worker (`npc_loads.rs`).
@@ -51,11 +54,11 @@ pub(crate) struct ClientInfoWatch {
     /// pipeline keys it brought: a model installed again (Kyle standing in for every
     /// model this PC lacks, a player who rejoins) draws with those rather than compiling
     /// them again.
-    appended: Vec<Appended>,
+    pub(crate) appended: Vec<Appended>,
 }
 
 /// One material list [`ClientInfoWatch::appended`] keeps.
-struct Appended {
+pub(crate) struct Appended {
     materials: Vec<ViewerMaterial>,
     base: usize,
     keys: std::ops::Range<usize>,
@@ -74,6 +77,7 @@ impl ClientInfoWatch {
             overrides: std::array::from_fn(|_| String::new()),
             local_identity: (-1, -1),
             failed: BTreeSet::new(),
+            reload: BTreeSet::new(),
             loads: player_loads::Loads::default(),
             npc_loads: Default::default(),
             appended: Vec::new(),
@@ -243,7 +247,9 @@ impl GpuState {
             self.actor_meshes[index].holsters.invalidate();
             // `c1`/`c2` may name another hat or cape (JoF EJK).
             self.actor_meshes[index].cosmetics.invalidate();
-            if self.actor_meshes[index].appearance == appearance {
+            if self.actor_meshes[index].appearance == appearance
+                && !self.clientinfo_watch.reload.contains(&appearance.model)
+            {
                 self.clientinfo_watch.loads.cancel(client);
                 return Ok(());
             }

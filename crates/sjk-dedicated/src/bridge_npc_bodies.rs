@@ -454,6 +454,7 @@ impl NativeGame {
                 length,
             ),
             player_team: npc.player_team,
+            saber_in_hand: npc.player.weapon() == WP_SABER,
         })
     }
 
@@ -483,3 +484,6 @@ impl NativeGame {
             .surface_location(npc, flags, spot, level_time, ghoul2_time)
     }
 }
+
+/// `WP_SABER`: a victim holding a saber, whose blows JA+ may halve.
+const WP_SABER: u8 = 3;

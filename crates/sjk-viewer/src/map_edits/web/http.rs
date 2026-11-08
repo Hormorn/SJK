@@ -246,12 +246,14 @@ pub(crate) enum EditRequest {
         shader: String,
     },
     /// The page's multiple selection hidden: the surfaces hidden, the faces drawn as
-    /// nothing again, one step to undo.
+    /// nothing again, the placed models (by their edit's id) removed, one step to undo.
     HideMany {
         #[serde(default)]
         faces: Vec<[u32; 2]>,
         #[serde(default)]
         surfaces: Vec<u32>,
+        #[serde(default)]
+        placed: Vec<u32>,
     },
 }
 
@@ -337,7 +339,15 @@ impl EditRequest {
                 surfaces,
                 shader,
             } => many_ok(faces, surfaces) && name_ok(shader),
-            Self::HideMany { faces, surfaces } => many_ok(faces, surfaces),
+            Self::HideMany {
+                faces,
+                surfaces,
+                placed,
+            } => {
+                placed.len() <= crate::map_edits::gizmo::MAX_SET
+                    && (many_ok(faces, surfaces)
+                        || (faces.len() + surfaces.len() == 0 && !placed.is_empty()))
+            }
             _ => true,
         };
         if ok {
@@ -1350,6 +1360,19 @@ mod tests {
         assert_eq!(apply.command(), None);
         assert!(parse(r#"{"op":"apply_many","faces":[[1,2]],"shader":"-"}"#).is_ok());
         assert!(parse(r#"{"op":"hide_many","surfaces":[1,2,3]}"#).is_ok());
+        // placed models: removed with the rest, or alone; no more than one set takes
+        assert!(parse(r#"{"op":"hide_many","faces":[[1,2]],"placed":[4,5]}"#).is_ok());
+        assert!(parse(r#"{"op":"hide_many","placed":[4,5]}"#).is_ok());
+        let models: Vec<String> = (0..=crate::map_edits::gizmo::MAX_SET)
+            .map(|i| i.to_string())
+            .collect();
+        assert!(
+            parse(&format!(
+                r#"{{"op":"hide_many","placed":[{}]}}"#,
+                models.join(",")
+            ))
+            .is_err()
+        );
         // refused: nothing named, too many, a shader with a space, a bad face
         assert!(parse(r#"{"op":"hide_many"}"#).is_err());
         assert!(parse(r#"{"op":"apply_many","faces":[[1,2]],"shader":"a b"}"#).is_err());

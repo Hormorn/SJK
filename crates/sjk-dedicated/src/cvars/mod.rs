@@ -175,6 +175,57 @@ impl Cvars {
             CVAR_SERVERINFO | CVAR_ROM,
             Some(b"This is SJK's server"),
         );
+        cvars.register_server_mod();
+    }
+
+    /// SJK's own `g_mod` and what the mod it names registers (`crate::server_mods`): its
+    /// settings at its defaults, the read-only server info it announces itself with, and
+    /// the values it works out from its settings. Nothing more for the base game.
+    fn register_server_mod(&mut self) {
+        use crate::server_mods::{BASE, MOD_CVAR, choices, selected};
+        self.get(
+            MOD_CVAR,
+            BASE.as_bytes(),
+            CVAR_ARCHIVE | CVAR_LATCH,
+            Some(b"The server mod the server runs from its start: base, or japlus for JA+"),
+        );
+        let Some(server_mod) = selected(self) else {
+            let named = self.string(MOD_CVAR);
+            if !named.is_empty() && !named.eq_ignore_ascii_case(BASE.as_bytes()) {
+                eprintln!(
+                    "g_mod {} is no server mod of this server ({}); it runs the base game",
+                    String::from_utf8_lossy(named),
+                    choices()
+                );
+            }
+            return;
+        };
+        for cvar in server_mod.cvars() {
+            let index = self.get(
+                cvar.name.as_bytes(),
+                cvar.default.as_bytes(),
+                cvar.flags | CVAR_VM_CREATED,
+                None,
+            );
+            self.vars[index].announced = cvar.announced;
+        }
+        for &(name, value) in server_mod.identity() {
+            self.get(
+                name.as_bytes(),
+                value.as_bytes(),
+                CVAR_SERVERINFO | CVAR_ROM,
+                None,
+            );
+            self.set(name.as_bytes(), value.as_bytes());
+        }
+        for (name, value) in server_mod.derived_info(self) {
+            self.set(name.as_bytes(), value.as_bytes());
+        }
+        println!(
+            "server mod: {} (g_mod {})",
+            server_mod.name(),
+            server_mod.id()
+        );
     }
 
     fn find(&self, name: &[u8]) -> Option<usize> {

@@ -65,7 +65,7 @@ To ship it, it needs:
   - unrest that reaches up a swing and climbs on a clash (arcs only);
   - a crackling flash that lights the room, surges at ignition, sputters out and sends a heat ring up the blade as it lights;
   - a crackle sound (buzz and snaps from retail sounds);
-  - disintegration on a saber kill;
+  - (its burn on a saber kill became the Disintegrate finisher, 04/11/2026: [unlockables.md](unlockables.md#finishers));
   - one Part, "Crackle" (flash, sparks, crackle), that the wearer can switch off.
 
 **Tried and rejected.** Milamber tried these on this blade and turned them down. Don't suggest them again:
@@ -101,18 +101,17 @@ Each is detailed in [client.md](client.md#saber-lab) and [unlockables.md](unlock
     - `smoke`: puffs of the game's particles (`saber_smoke.rs`);
     - `ribbon`: wispy strands (`saber_ribbons.rs`, `.wgsl`);
     - `sparks`: bursts, aimed along the blade (`saber_sparks.rs`);
-    - `crackle`: a buzz loop and snaps per bolt burst;
-    - `disintegrate`.
+    - `crackle`: a buzz loop and snaps per bolt burst.
   - **`flash`:** `light`, `ignite`/`surge`/`grow`, `die` and `burst`.
   - **`unrest`:** `swing`, `haze` and `clash`/`clash_time`, read from Creyon's `BladeMotion`.
   - **`chroma`**, set by file.
   - **Parts:** every section can be one of a skin's Parts (the eighth set's are `Section` 32 to 39; the `options` mask is a `u64`).
 - **In matches:**
   - A skin's crackle is heard (`saber_smoke::Heard`, `GameAudio::hear_sabers`).
-  - A saber kill by a skin with `disintegrate` burns the body away for every SJK client (`disintegration.rs`, `actor_pose::track_disintegration`, driven by the kill feed; NPCs excluded).
+  - A saber kill by a wearer of the Disintegrate finisher burns the body away for every SJK client (`disintegration.rs`, `actor_pose::track_disintegration`, driven by the kill feed; NPCs excluded). Since 04/11/2026 it is a finisher, no longer a blade-skin section ([unlockables.md](unlockables.md#finishers)).
   - The server's body copy is burnt before it shows.
 - **The builder** (`blade_builder.rs`, `collection_saber_lab_builder.rs`). The tab's first view:
-  - On the left, a library of 49 effect cards on six tabs.
+  - On the left, a library of 48 effect cards on five tabs.
   - In the middle, the blade's groups: the wearer's Parts, at most 6 groups of up to 4 effects. Drag effects in, out and between groups, or click a card.
   - Each change is checked as the game reads the files, and refused with the check's words when it would not read.
   - A chip opens that section's fields in place.
@@ -176,7 +175,7 @@ These are owed by the rules in [AGENTS.md](../AGENTS.md):
    - the fix that burns the server's body copy before it shows. Milamber had not confirmed it yet.
 5. **Remove the temporary tracing.** The code marked `TRACE-DISINTEGRATE` (`SJK_TRACE_DISINTEGRATE`) is in `disintegration.rs` and `actor_world_submission.rs`.
 6. **Decide on `SJK_APPEAR_OFFLINE`** ([hub-chat.md](hub-chat.md)). The branch added it so a tester's chat stays offline while they test. Keep it or drop it.
-7. **Defaults** (Sol's rule). The new effects show only on skins whose files declare them; no catalogue skin does yet. Disintegration is seen by every SJK client when the killer's skin has it, so which skins get it is Sol's call.
+7. **Defaults** (Sol's rule). The new effects show only on skins whose files declare them; no catalogue skin does yet. Disintegration is now a finisher (Sol, 04/11/2026), granted by hand until Sol puts finishers in holocrons.
 8. **Screenshots** for the pull request, and the changelog line under "Unreleased", which Sol may rewrite or split.
 9. **History.** The squash leaves one large commit. Split it if review wants smaller ones.
 

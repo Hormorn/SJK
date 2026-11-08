@@ -529,7 +529,7 @@ fn skins_load_from_the_packs_files_with_their_images_and_sounds() {
                 ("gfx/test/glow.png", png),
                 // Not a blade skin this client knows, and a broken one: left out.
                 (
-                    "skins/blades/saber_moon.bladeskin",
+                    "skins/blades/saber_starfall.bladeskin",
                     SAMPLE.as_bytes().to_vec(),
                 ),
                 ("skins/blades/saber_bad.bladeskin", b"{".to_vec()),
@@ -554,13 +554,16 @@ fn skins_load_from_the_packs_files_with_their_images_and_sounds() {
     assert_eq!(skin.glow.get_pixel(3, 3).0, [90, 90, 90, 255]);
     assert_eq!(skin.core.dimensions(), (64, 256));
     assert_eq!(skins.color_of("saber_tidal").map(|c| c.index), Some(0));
-    assert_eq!(skins.color_of("saber_moon"), None);
+    assert_eq!(skins.color_of("saber_starfall"), None);
     let sets = skins.sound_sets();
     assert_eq!(sets.len(), 1 + crate::blade_signatures::SIGNATURES.len());
     assert_eq!(sets[0].hum, "sound/test/blade/hum.wav");
     assert_eq!(sets[0].swings[1], "sound/test/blade/s2.wav");
     assert_eq!(skins.swing(0, 4), Some("sound/test/blade/s2.wav"));
-    assert_eq!(skins.swing(sets.len() as u8, 0), None);
+    assert_eq!(
+        skins.swing(sets.len() as crate::saber_skins::SkinIndex, 0),
+        None
+    );
     // A missing image refuses the skin: the stock blade.
     let mut missing = VirtualFileSystem::new();
     missing
@@ -749,6 +752,7 @@ fn following_another_player_draws_their_look_not_the_own_skin() {
         saber2_on: Vec::new(),
         saber_sounds: String::new(),
         tag: None,
+        finisher: String::new(),
     };
     looks.apply_event(5, "Fox", &stock);
     let slots = ViewSlots::of(&game_state, &followed);

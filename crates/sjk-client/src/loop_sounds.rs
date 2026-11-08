@@ -680,7 +680,7 @@ impl LegacyLoopAdapter {
     }
 
     /// Which set's hum each client plays (`None`: its sabers' own).
-    pub(crate) fn set_saber_hum_overrides(&mut self, sets: &[Option<u8>; MAX_CLIENTS]) {
+    pub(crate) fn set_saber_hum_overrides(&mut self, sets: &[Option<u16>; MAX_CLIENTS]) {
         self.hum_overrides = sets.map(|set| {
             set.and_then(|set| self.saber_hums.get(usize::from(set)).copied().flatten())
         });

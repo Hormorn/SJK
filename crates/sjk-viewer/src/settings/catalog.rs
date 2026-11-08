@@ -294,6 +294,11 @@ pub(super) const AUDIO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Rain and wind sounds",
+        cvar: crate::weather::sound::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Footprints and dust",
         cvar: crate::footprints::PRINTS_CVAR,
         kind: ValueKind::Bool,
@@ -428,6 +433,11 @@ pub(super) const AUDIO: &[Setting] = &[
     Setting {
         label: "Fishing sounds",
         cvar: crate::toy_sounds::Toy::Fishing.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "WHEEL OF DOOM sounds",
+        cvar: crate::toy_sounds::Toy::WheelOfDoom.cvar(),
         kind: ValueKind::Bool,
     },
     Setting {
@@ -1431,6 +1441,11 @@ pub(super) const GAME: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "SJK remap blocks",
+        cvar: crate::remap_blocked_maps::SHARED_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Remaps on this map",
         cvar: crate::remap_blocked_maps::MAP_CVAR,
         kind: ValueKind::Choice(&crate::remap_blocked_maps::Choice::NAMES),
@@ -1563,11 +1578,6 @@ pub(super) const GAME: &[Setting] = &[
         label: "Menu style",
         cvar: crate::menu::style::CVAR,
         kind: ValueKind::Choice(&crate::menu::style::MenuStyle::NAMES),
-    },
-    Setting {
-        label: "Support SJK",
-        cvar: crate::support_links::CVAR,
-        kind: ValueKind::Bool,
     },
     Setting {
         label: "Slider peek",
@@ -2056,6 +2066,11 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         },
     },
     Setting {
+        label: "Largest texture, 0 none (next map)",
+        cvar: crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        kind: ValueKind::Choice(&["1024", "2048", "4096", "0"]),
+    },
+    Setting {
         label: "Texture compression (next map)",
         cvar: crate::world_materials::filtering::mips::compress::CVAR,
         kind: ValueKind::Bool,
@@ -2359,6 +2374,11 @@ pub(super) const RENDER_WEATHER: &[Setting] = &[
     Setting {
         label: "Volumetric clouds",
         cvar: crate::weather::CLOUDS_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Lightning in storms",
+        cvar: crate::weather::LIGHTNING_CVAR,
         kind: ValueKind::Bool,
     },
 ];

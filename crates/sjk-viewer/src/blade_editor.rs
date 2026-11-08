@@ -840,7 +840,7 @@ impl Editor {
 /// the editor's rows say it beside the section's name. Only words: the sections
 /// themselves are the format's ([`crate::blade_skin_shape`]); a test says when the format
 /// has one this does not word.
-const SECTIONS: [(&str, &str); 56] = [
+const SECTIONS: [(&str, &str); 55] = [
     ("glow_profile", "the glow's shape"),
     ("core_profile", "the core's shape"),
     ("glow_image", "a glow image"),
@@ -895,7 +895,6 @@ const SECTIONS: [(&str, &str); 56] = [
     ("unrest", "wild at the emitter, calm up the blade"),
     ("flash", "a crackling star at the emitter"),
     ("crackle", "a buzz and snaps at the emitter"),
-    ("disintegrate", "its saber kills burn away"),
     ("chroma", "takes its wearer's saber colour"),
 ];
 

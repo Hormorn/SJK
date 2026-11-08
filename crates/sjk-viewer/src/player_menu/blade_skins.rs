@@ -248,7 +248,7 @@ mod tests {
         let mut choice = BladeChoice::new();
         choice.preview = Some(vec![
             unlock("saber_void"),
-            unlock("saber_moon"),
+            unlock("saber_starfall"),
             unlock("saber_sun"),
         ]);
         choice.read(&console);

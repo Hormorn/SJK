@@ -294,6 +294,18 @@ pub struct Holocron {
     /// when the hub knows it.
     #[serde(default)]
     pub traded_from: Option<String>,
+    /// The edition the hub stamped on it when it was given (since 06/11/2026): `alpha`
+    /// or `beta`. Opening it brings only things of that edition or an older one. Hubs
+    /// before then send none, which reads as [`EDITION_FIRST`].
+    #[serde(default = "first_edition")]
+    pub edition: String,
+}
+
+/// The first edition, the one a holocron the hub sent no edition for has.
+pub const EDITION_FIRST: &str = "alpha";
+
+fn first_edition() -> String {
+    EDITION_FIRST.to_owned()
 }
 
 impl Holocron {
@@ -1171,6 +1183,11 @@ pub struct Look {
     /// The tag the player stuck on the world (since 27/10/2026); `None` when absent.
     #[serde(default)]
     pub tag: Option<PlacedTag>,
+    /// The finisher the player wears (since 04/11/2026): what their saber kills do to
+    /// the body, a finisher's unlock id; empty for none (absent from older hubs and
+    /// clients).
+    #[serde(default)]
+    pub finisher: String,
 }
 
 /// A tag stuck on the world (`PROTOCOL.md`, "Looks", since 27/10/2026): a tag unlock the
@@ -1242,6 +1259,9 @@ pub struct LookEvent {
     /// The tag the wearer stuck on the world; `None` when absent.
     #[serde(default)]
     pub tag: Option<PlacedTag>,
+    /// The finisher the wearer wears (since 04/11/2026); empty when absent.
+    #[serde(default)]
+    pub finisher: String,
 }
 
 impl LookEvent {
@@ -1258,6 +1278,7 @@ impl LookEvent {
             saber2_on: self.saber2_on.clone(),
             saber_sounds: self.saber_sounds.clone(),
             tag: self.tag.clone(),
+            finisher: self.finisher.clone(),
         }
     }
 }
@@ -2074,6 +2095,7 @@ mod tests {
                 saber2_on: Vec::new(),
                 saber_sounds: String::new(),
                 tag: None,
+                finisher: String::new(),
             })
         );
         let options: Presence = serde_json::from_str(
@@ -2112,6 +2134,7 @@ mod tests {
                 saber2_on: Vec::new(),
                 tag: None,
                 saber_sounds: String::new(),
+                finisher: String::new(),
             }
         );
         let options: Feed = serde_json::from_str(
@@ -2152,7 +2175,7 @@ mod tests {
         let profile: Profile = serde_json::from_str(
             r#"{"key_id":"aa","key":"bb","name":"Sol","bio":"","verified":true,"created":5,
                 "holocron_counts":{"uncommon":4,"rare":2,"legendary":1,"mythical":0},
-                "holocrons":[{"id":9,"tier":"legendary","dropped":1791000000,"source":"play","note":""},
+                "holocrons":[{"id":9,"tier":"legendary","dropped":1791000000,"source":"play","note":"","edition":"beta"},
                              {"id":7,"tier":"rare","dropped":1790990000,"source":"staff","note":"Thanks"},
                              {"id":3,"tier":"from_the_future","dropped":1}]}"#,
         )
@@ -2178,6 +2201,11 @@ mod tests {
         assert_eq!(profile.holocrons[1].source, "staff");
         assert_eq!(profile.holocrons[1].note, "Thanks");
         assert_eq!(profile.holocrons[2].source, "", "a missing field is empty");
+        assert_eq!(profile.holocrons[0].edition, "beta");
+        assert_eq!(
+            profile.holocrons[1].edition, EDITION_FIRST,
+            "a hub before 06/11/2026 sends no edition: Alpha"
+        );
         let old: Profile = serde_json::from_str(
             r#"{"key_id":"aa","key":"bb","name":"Sol","bio":"","verified":true,"created":5}"#,
         )
