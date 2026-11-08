@@ -9147,3 +9147,13 @@ test: Started from the launcher: no notice top left.
 test: Rename %APPDATA%\SJK\Launcher\config\launcher.json, start with play.bat: the notice shows.
 test: Get it on GitHub opens the launcher's latest release; x hides it for good.
 test: Settings > Interface > SJK Launcher notice brings it back. Put launcher.json back after.
+
+[chat-name-icons]
+area: HUD
+title: SJK chat readers without a claim wear the JoF EJK icon on the scoreboard
+change: A row no claim marks gets the EJK icon when one online SJK chat reader has its name.
+change: Icon only (no tick, medals or card). Not for bots, SJK readers, shared names.
+test: A JoF EJK player in SJK chat on your server: Tab shows the EJK icon on their row.
+test: Their row has no tick even if verified; their player card is unchanged.
+test: Two players with that name on the server: neither row gets the icon.
+test: cl_sjkChatClientIcons 0: the row gets no mark at all (not SJK's emblem).

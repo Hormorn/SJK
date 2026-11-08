@@ -3,6 +3,7 @@
 mod afk;
 pub(crate) use afk::CVAR as AFK_CVAR;
 pub(crate) mod behavior;
+mod chat_readers;
 mod classic;
 mod deaths;
 mod icons;
@@ -212,14 +213,15 @@ impl Scoreboard {
             session.team_info().entries(),
             session.game_state(),
         );
-        // Tags follow the hub's roster, not the frame: derived again only when it
-        // or the rows changed.
-        let revision = crate::player_identity::revision();
+        // Tags follow the hub's roster and the SJK chat's readers, not the frame:
+        // derived again only when one of them or the rows changed.
+        let revision = chat_readers::revision();
         if revision != self.identity_revision {
             self.identity_revision = revision;
             for row in &mut self.rows {
                 row.identity = crate::player_identity::tag(row.client_num, &row.name);
             }
+            chat_readers::mark(&mut self.rows);
         }
         let snapshot = session.latest_snapshot();
         let player = &snapshot.player;
