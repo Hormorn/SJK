@@ -3778,6 +3778,17 @@ like this one.",
             for person in people.online.iter_mut().chain(people.recent.iter_mut()) {
                 *person = pictured(std::mem::take(person));
             }
+            // The clients each online player reads the chat with, for the list: Sol in
+            // the game and the launcher's chat, Kyle and Mara on JoF EJK, Bastila in the
+            // launcher only, the others in SJK.
+            for person in &mut people.online {
+                person.clients = match person.name.as_str() {
+                    "^1Sol^7Vulpes" => vec!["sjk".to_owned(), "launcher".to_owned()],
+                    "Kyle" | "Mara" => vec!["ejk".to_owned()],
+                    "Bastila" => vec!["launcher".to_owned()],
+                    _ => vec!["sjk".to_owned()],
+                };
+            }
         }
         let unlisted = sjk_identity::ChatState {
             people: None,
@@ -3814,13 +3825,16 @@ like this one.",
                 "Reelo",
             ];
             for (index, name) in names.iter().enumerate() {
-                people.online.push(person(
-                    &format!("{:016x}", 0xc0de_0000 + index),
-                    name,
-                    10,
-                    index % 5 == 0,
-                    false,
-                ));
+                people.online.push(sjk_identity::Person {
+                    clients: vec![if index % 4 == 1 { "ejk" } else { "sjk" }.to_owned()],
+                    ..person(
+                        &format!("{:016x}", 0xc0de_0000 + index),
+                        name,
+                        10,
+                        index % 5 == 0,
+                        false,
+                    )
+                });
             }
         }
         for (size, scale, suffix) in [
@@ -3881,7 +3895,21 @@ like this one.",
                 }
                 let name = format!("duel6-sjk-chat-online-crowd-{suffix}");
                 println!("{}", shoot(&mut gpu, 6, &name).display());
+                // The crowd as the window's list, with each player's clients, then the
+                // card of a row under the pointer (which says them).
                 if let Some(console) = gpu.console.as_mut() {
+                    console.sjk_chat_people_list(true);
+                }
+                let name = format!("duel6-sjk-chat-online-list-{suffix}");
+                println!("{}", shoot(&mut gpu, 6, &name).display());
+                if let Some(console) = gpu.console.as_mut() {
+                    console.sjk_chat_hover_person(Some(2));
+                }
+                let name = format!("duel6-sjk-chat-online-list-card-{suffix}");
+                println!("{}", shoot(&mut gpu, 6, &name).display());
+                if let Some(console) = gpu.console.as_mut() {
+                    console.sjk_chat_hover_person(None);
+                    console.sjk_chat_people_list(false);
                     console.preview_sjk_chat(unlisted.clone(), None);
                 }
                 let name = format!("duel6-sjk-chat-online-unlisted-{suffix}");

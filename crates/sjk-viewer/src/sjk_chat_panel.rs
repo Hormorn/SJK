@@ -1,7 +1,8 @@
 //! The SJK chat page (`docs/hub-chat.md`): the chat every SJK player shares through
 //! the SJK hub, in full. The history with names, verified and staff marks and how
 //! long ago each message came; a field to write in and Send; a small window of who is
-//! online and who was seen most recently ([`people`]); and, for a chosen message, Mute
+//! online and who was seen most recently ([`people`]), or, with its List, every online
+//! player as a row with the clients they read the chat with; and, for a chosen message, Mute
 //! on this PC, Ban 24 h for a player the hub vouches for when the sender is one it does
 //! not ([`crate::chat_ban`]), and for SJK staff Delete, Lift chat ban and Mute at the
 //! hub. Resting the pointer on a
@@ -66,6 +67,8 @@ const CARD_TRADE_TOKEN: u16 = 1_365;
 const NAME_BASE: u16 = 1_370;
 /// The players in the who-is-online window, one token each.
 const PERSON_BASE: u16 = 1_420;
+/// The window's List / Faces, and the "+N" face (which opens the list too).
+const LIST_TOKEN: u16 = 1_480;
 /// Unblock beside each blocked player the side lists while no message is chosen.
 const UNBLOCK_BASE: u16 = 1_470;
 const UNBLOCK_SHOWN: usize = 6;
@@ -172,6 +175,9 @@ struct Shown {
     /// The keys of faces in the window drawn without knowing their picture: the
     /// chat's last senders, whose messages do not say ([`Panel::find_pictures`]).
     unpictured: Vec<String>,
+    /// The window's rows while it lists every online player, where the wheel scrolls
+    /// them.
+    list_rect: Option<sjk_ui::Rect>,
 }
 
 pub(crate) struct Panel {
@@ -191,6 +197,10 @@ pub(crate) struct Panel {
     selected: Option<u64>,
     /// Messages hidden below the list, scrolled up past.
     scroll: usize,
+    /// The who-is-online window lists every online player as a row (its List) in place
+    /// of the faces, over the chosen message; and the rows scrolled past.
+    people_list: bool,
+    people_scroll: usize,
     /// The staff answers' serial when the page last sent a staff request: answers
     /// past it are this page's.
     staff_after: Option<u64>,
@@ -275,6 +285,8 @@ impl Panel {
             order: Vec::with_capacity(64),
             selected: None,
             scroll: 0,
+            people_list: false,
+            people_scroll: 0,
             staff_after: None,
             shown: Shown::default(),
             card: None,
@@ -303,6 +315,7 @@ impl Panel {
         self.owns_console = owns_console;
         self.focus = FIELD_TOKEN;
         self.scroll = 0;
+        self.people_scroll = 0;
         self.gifs.close();
     }
 
@@ -384,6 +397,13 @@ impl Panel {
             let centre = sjk_ui::Vec2::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
             let _ = self.handle_pointer(InputEvent::PointerMove(centre));
         }
+    }
+
+    /// Show the who-is-online window as its list (or its faces), for a world shot.
+    #[cfg(test)]
+    pub(crate) fn people_list_for_shot(&mut self, list: bool) {
+        self.people_list = list;
+        self.people_scroll = 0;
     }
 
     pub(crate) fn draw_list(&self) -> &sjk_ui::DrawList {
@@ -760,12 +780,23 @@ impl Panel {
             // A click on a name chooses its message, as one on the row does.
             return self.activate(MESSAGE_BASE + index);
         }
+        if token == LIST_TOKEN {
+            // List and Faces (and the "+N" face) swap what the window shows.
+            self.people_list = !self.people_list;
+            self.people_scroll = 0;
+            self.focus = LIST_TOKEN;
+            return PanelAction::None;
+        }
         if let Some(index) = token
             .checked_sub(PERSON_BASE)
             .filter(|index| usize::from(*index) < PEOPLE_SHOWN)
         {
-            // A click on a player in the window chooses their newest message on show;
-            // the card shows under the pointer either way.
+            // A click on a player in the window chooses their newest message on show
+            // (in the list it does nothing, so the list stays); the card shows under the
+            // pointer either way.
+            if self.people_list {
+                return PanelAction::None;
+            }
             let key = self.shown.people.get(usize::from(index));
             let newest = key.and_then(|key| {
                 self.shown
@@ -851,6 +882,8 @@ impl Panel {
     /// line (Up and Down pass over it).
     fn select_message(&mut self, token: u16) {
         self.focus = token;
+        // The chosen message shows where the list was.
+        self.people_list = false;
         if let Some((id, _)) = self.shown.messages.get(usize::from(token - MESSAGE_BASE)) {
             self.selected = Some(*id);
         }
@@ -948,6 +981,8 @@ impl Panel {
         }
         let in_list = (MESSAGE_BASE..MESSAGE_BASE + MESSAGES_SHOWN as u16).contains(&self.focus);
         match key {
+            // Escape closes the window's list first.
+            KeyCode::Escape if self.people_list => self.people_list = false,
             KeyCode::Escape => return PanelAction::Close,
             KeyCode::Tab => self.step(!shift),
             KeyCode::PageUp => {
@@ -1008,6 +1043,24 @@ impl Panel {
                 // Over the picker, the wheel scrolls its tiles.
                 if delta.y != 0.0 {
                     self.gifs.scroll(if delta.y > 0.0 { -1 } else { 1 });
+                }
+                return PanelAction::None;
+            }
+            let over_list = self.shown.list_rect.is_some_and(|rows| {
+                self.pointer.is_some_and(|at| {
+                    at.x >= rows.x
+                        && at.x <= rows.right()
+                        && at.y >= rows.y
+                        && at.y <= rows.bottom()
+                })
+            });
+            if over_list {
+                // Over the window's list, the wheel scrolls its rows (the view keeps
+                // the scroll within them).
+                if delta.y > 0.0 {
+                    self.people_scroll = self.people_scroll.saturating_sub(1);
+                } else if delta.y < 0.0 {
+                    self.people_scroll += 1;
                 }
                 return PanelAction::None;
             }

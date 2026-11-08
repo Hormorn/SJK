@@ -321,6 +321,13 @@ impl ViewerConsole {
         self.sjk_chat_panel.hover_person_for_shot(index);
     }
 
+    /// Show the open page's who-is-online window as its list (or its faces), for a world
+    /// shot.
+    #[cfg(test)]
+    pub(crate) fn sjk_chat_people_list(&mut self, list: bool) {
+        self.sjk_chat_panel.people_list_for_shot(list);
+    }
+
     /// The page's draw list while it is shown.
     pub(super) fn sjk_chat_panel_draw_list(&self) -> Option<&sjk_ui::DrawList> {
         (self.open && self.sjk_chat_panel.is_open()).then(|| self.sjk_chat_panel.draw_list())

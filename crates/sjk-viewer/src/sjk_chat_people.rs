@@ -11,7 +11,8 @@
 //! The window shows each player as a face: a small disc with their picture, or their
 //! initial on their colour ([`crate::profile_card::stand_in_colour`]). The faces wrap
 //! in a grid laid out here ([`columns`], [`split`], [`centre`]), so the page can test
-//! where each one goes without drawing.
+//! where each one goes without drawing. Its List shows every online player as a row
+//! instead, with the clients they read the chat with ([`client_label`]).
 
 use sjk_identity::{ChatState, normal_form};
 
@@ -22,8 +23,9 @@ pub(super) const RECENT_RADIUS: f32 = 15.0;
 pub(super) const FACE_GAP: f32 = 10.0;
 /// The window's room for faces across (frame pixels).
 pub(super) const FACES_WIDTH: f32 = 484.0;
-/// Rows of online faces at most; with more players, the last face says "+N".
-pub(super) const ONLINE_FACE_ROWS: usize = 2;
+/// Rows of online faces at most; with more players, the last face says "+N" (two
+/// before 08/11/2026).
+pub(super) const ONLINE_FACE_ROWS: usize = 3;
 /// Recent faces at most (the hub lists eight), in one row.
 pub(super) const RECENT_FACES: usize = 8;
 
@@ -99,6 +101,9 @@ pub(super) struct Row {
     pub(super) avatar: Option<String>,
     /// Playing a match now (online rows only).
     pub(super) playing: bool,
+    /// The clients they read the chat with now, as the hub lists them (online rows
+    /// only, empty when it does not say).
+    pub(super) clients: Vec<String>,
     /// When they were last seen (recent rows), unix seconds.
     pub(super) seen: u64,
     /// Muted on this PC.
@@ -113,10 +118,8 @@ pub(super) struct Listed {
     pub(super) listed: bool,
     /// How many read the chat now, as the hub says.
     pub(super) count: u32,
-    /// The online players on show: playing first, then by name.
+    /// Every online player: playing first, then by name.
     pub(super) online: Vec<Row>,
-    /// Online players left out for room (the last face says "+N" of them).
-    pub(super) more: usize,
     /// The recently seen players, most recent first.
     pub(super) recent: Vec<Row>,
 }
@@ -148,6 +151,7 @@ pub(super) fn derive(chat: &ChatState, muted: &[String]) -> Listed {
                 emoji: sjk_identity::name_emoji::for_display(&message.emoji).to_owned(),
                 avatar: None,
                 playing: false,
+                clients: Vec::new(),
                 seen: u64::try_from(message.at).unwrap_or(0),
                 muted: is_muted(&message.key_id),
             });
@@ -156,7 +160,6 @@ pub(super) fn derive(chat: &ChatState, muted: &[String]) -> Listed {
             listed: false,
             count: chat.online,
             online: Vec::new(),
-            more: 0,
             recent,
         };
     };
@@ -171,6 +174,7 @@ pub(super) fn derive(chat: &ChatState, muted: &[String]) -> Listed {
         emoji: sjk_identity::name_emoji::for_display(&person.emoji).to_owned(),
         avatar: Some(person.avatar.clone()),
         playing: person.playing,
+        clients: person.clients.clone(),
         seen: u64::try_from(person.seen).unwrap_or(0),
         muted: is_muted(&person.key_id),
     };
@@ -188,8 +192,6 @@ pub(super) fn derive(chat: &ChatState, muted: &[String]) -> Listed {
             person.key_id.clone(),
         )
     });
-    // A full window keeps its last face to say how many more there are.
-    let (shown, more) = split(online.len(), ONLINE_FACES);
     // Recent: not online now, most recently seen first, each key once.
     let mut recent: Vec<&sjk_identity::Person> = people
         .recent
@@ -211,9 +213,57 @@ pub(super) fn derive(chat: &ChatState, muted: &[String]) -> Listed {
     Listed {
         listed: true,
         count: chat.online,
-        online: online[..shown].iter().map(|person| row(person)).collect(),
-        more,
+        online: online.iter().map(|person| row(person)).collect(),
         recent: kept,
+    }
+}
+
+impl Listed {
+    /// The online players the faces show, and how many the last face counts ("+N")
+    /// when they do not all fit: a full window keeps its last face for them.
+    pub(super) fn faces(&self) -> (&[Row], usize) {
+        let (shown, more) = split(self.online.len(), ONLINE_FACES);
+        (&self.online[..shown], more)
+    }
+}
+
+/// How the list words a client the hub names (`ChatMessage::client`): SJK, or a known
+/// other client's name ([`crate::chat::client_icons::KNOWN`]); `None` for one it does
+/// not know.
+pub(super) fn client_label(client: &str) -> Option<&'static str> {
+    if client == "sjk" {
+        Some("SJK")
+    } else {
+        crate::chat::client_icons::find(client).map(|icon| icon.name)
+    }
+}
+
+/// The client's icon in the list: SJK's emblem, or the known client's own (always its
+/// own: the list is there to tell them apart, whatever `cl_sjkChatClientIcons` says).
+pub(super) fn client_texture(client: &str) -> Option<sjk_ui::TextureId> {
+    if client == "sjk" {
+        Some(crate::ui_renderer::LOGO_TEXTURE)
+    } else {
+        crate::chat::client_icons::find(client).map(|icon| icon.texture)
+    }
+}
+
+/// What a card says of an online player: in a match or not, and on which clients.
+pub(super) fn online_note(row: &Row) -> String {
+    let state = if row.playing {
+        "Online now, in a match"
+    } else {
+        "Online now"
+    };
+    let clients: Vec<&str> = row
+        .clients
+        .iter()
+        .filter_map(|client| client_label(client))
+        .collect();
+    if clients.is_empty() {
+        state.to_owned()
+    } else {
+        format!("{state}, on {}", clients.join(" and "))
     }
 }
 
@@ -283,7 +333,7 @@ mod tests {
             names(&listed.online),
             ["Bastila", "Fox", "^1Alpha", "kyle", "Mara", "^2zed"]
         );
-        assert_eq!(listed.more, 0);
+        assert_eq!(listed.faces().1, 0);
         assert!(listed.online[0].playing && !listed.online[2].playing);
     }
 
@@ -302,16 +352,20 @@ mod tests {
             }),
             ..ChatState::default()
         };
+        let faces = |listed: &Listed| {
+            let (shown, more) = listed.faces();
+            (shown.len(), more)
+        };
         // Exactly full: every face, no "+N".
         let listed = derive(&crowd(ONLINE_FACES), &[]);
-        assert_eq!((listed.online.len(), listed.more), (ONLINE_FACES, 0));
+        assert_eq!(faces(&listed), (ONLINE_FACES, 0));
         // One more: the last face says "+2", the two it stands for.
         let listed = derive(&crowd(ONLINE_FACES + 1), &[]);
-        assert_eq!((listed.online.len(), listed.more), (ONLINE_FACES - 1, 2));
-        // The hub's fifty.
+        assert_eq!(faces(&listed), (ONLINE_FACES - 1, 2));
+        // The hub's fifty: every one for the list.
         let listed = derive(&crowd(50), &[]);
-        assert_eq!(listed.online.len() + listed.more, 50);
-        assert_eq!(listed.online.len(), ONLINE_FACES - 1);
+        assert_eq!(listed.online.len(), 50);
+        assert_eq!(faces(&listed), (ONLINE_FACES - 1, 50 - ONLINE_FACES + 1));
     }
 
     #[test]
@@ -319,7 +373,7 @@ mod tests {
         // Nine online faces and twelve recent ones across the window's room.
         assert_eq!(columns(FACES_WIDTH, ONLINE_RADIUS), 9);
         assert_eq!(columns(FACES_WIDTH, RECENT_RADIUS), 12);
-        assert_eq!(ONLINE_FACES, 18);
+        assert_eq!(ONLINE_FACES, 27);
         assert!(
             RECENT_FACES <= columns(FACES_WIDTH, RECENT_RADIUS),
             "one row"
@@ -345,6 +399,44 @@ mod tests {
         assert_eq!(split(18, 18), (18, 0));
         assert_eq!(split(19, 18), (17, 2));
         assert_eq!(split(5, 0), (0, 5));
+    }
+
+    #[test]
+    fn a_card_says_which_clients_an_online_player_reads_with() {
+        let chat = ChatState {
+            people: Some(People {
+                online: vec![
+                    Person {
+                        clients: vec!["sjk".to_owned(), "launcher".to_owned()],
+                        ..person("a", "Sol", 10, true)
+                    },
+                    Person {
+                        clients: vec!["ejk".to_owned(), "other".to_owned()],
+                        ..person("b", "Vinry", 10, false)
+                    },
+                    person("c", "Kyle", 10, false),
+                ],
+                recent: Vec::new(),
+            }),
+            ..ChatState::default()
+        };
+        let listed = derive(&chat, &[]);
+        let notes: Vec<String> = listed.online.iter().map(online_note).collect();
+        assert_eq!(
+            notes,
+            [
+                "Online now, in a match, on SJK and SJK Launcher",
+                // Kyle before Vinry: by name.
+                "Online now",
+                "Online now, on JoF EternalJK",
+            ]
+        );
+        assert_eq!(
+            client_texture("sjk"),
+            Some(crate::ui_renderer::LOGO_TEXTURE)
+        );
+        assert_eq!(client_texture("ejk"), Some(crate::ui_renderer::EJK_TEXTURE));
+        assert_eq!(client_texture("other"), None);
     }
 
     #[test]

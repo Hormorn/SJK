@@ -1821,6 +1821,11 @@ pub struct Person {
     /// They hold a live claim marked active: they are playing a match now.
     #[serde(default)]
     pub playing: bool,
+    /// The clients they read the chat with in the last minute (`sjk`, `ejk`,
+    /// `launcher`, as [`ChatMessage::client`] names them), SJK's first; online persons
+    /// only, empty when the hub does not say (hubs before 08/11/2026).
+    #[serde(default)]
+    pub clients: Vec<String>,
 }
 
 /// The text a request's signature covers.
