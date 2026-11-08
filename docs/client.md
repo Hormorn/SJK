@@ -2669,6 +2669,16 @@ itself, once per server and value, with a line in orange saying the inputs are n
 going through at that rate and 125 picked.
 `help_gameplay_fps` prints the explanation and the value in use to the console and
 opens the card; `help_gameplay_fps <fps>` or `gameplay_fps <fps>` sets it (0 for Auto).
+`help_tickrate` ([tickrate_help.rs](../crates/sjk-viewer/src/tickrate_help.rs), Sol,
+08/11/2026) prints to the console what players call the tick rate, for staff to tell
+players to type: the frames drawn (`com_maxfps`), the commands sent (the gameplay FPS)
+and the server's snapshots (`sv_fps`); how SJK makes commands on an even clock; how on
+JoF it sends one a frame instead, why (Heimdall's kicks), what that costs (5 to 11 ms
+commands at 350 FPS) and how a player keeps even 8 ms steps there (`gameplay_fps_nocap
+1` with `gameplay_fps 125`), the question still open
+([networking.md](networking.md#user-commands-and-move-packets), "Open: JoF's pacing");
+then what the session uses: the FPS cap, the gameplay FPS, the commands' step and
+pacing, a `pmove_fixed` step and the server's known cap, lifted or not.
 The settings row shows Auto with the cap it follows (`Auto (125)`), and the server's
 step beside the value while a `pmove_fixed` server overrides it.
 

@@ -114,6 +114,7 @@ did: SJK Rig Model Export, the Blender add-on that writes a rig model folder
 did: Rig model emotes: a model's own animations played on its own skeleton
 did: Rig model capes and tails that swing, pushed out of the body and legs
 did: Gameplay FPS: the movement of 125, 142, 250 or 333 at any frame rate, explained
+did: help_tickrate: the tick rate explained, and how SJK sends commands on JoF
 did: Import from Base, JA+, OpenJK, EJK and TaystJK configs found on your computer
 did: Player profile, model grid, lightsaber creation, hats and capes
 did: Weather: rain, snow, splashes, ground fog and volumetric clouds

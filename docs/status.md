@@ -37,6 +37,8 @@ than stock's). It broke ghost replays until they took their recorded times (08/1
 whether Heimdall accepts the grid's stamps under 125 FPS. The facts, the workaround Sol
 uses (`gameplay_fps_nocap 1` with `gameplay_fps 125`) and how to settle it are in
 [networking.md](networking.md#user-commands-and-move-packets) ("Open: JoF's pacing").
+The `help_tickrate` console command (08/11/2026) tells players the same and must change
+with the entry.
 
 ## WHEEL OF DOOM (client side)
 

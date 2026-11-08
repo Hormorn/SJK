@@ -225,7 +225,8 @@ includes:
   `cl_cmdratecap`) and a working `cl_maxpackets`; then the gameplay FPS, the
   movement of 125, 142, 250, 333 or any frame rate apart from the frames drawn,
   explained and asked in First setup with the configs of installed clients
-  imported;
+  imported; since 08/11/2026 `help_tickrate`, the tick rate and how SJK sends
+  commands on JoF explained in the console;
 - weather: rain, snow and mist kept under open sky, 3D splashes, ground fog and
   volumetric clouds;
 - SJK identity: the identity key, the SJK hub, its verified badges, bug reports
