@@ -32,6 +32,14 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Textures larger than 2048 pixels are halved down to it (`r_maxTextureSize`, Settings: Largest texture; 0 keeps every size): a 4096 one takes a quarter of the video memory and loads faster _(Sol)_
+- A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
+- Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_
+- Tags come in collections: Collection > Tags lists the Alpha collection, SJK's own tags, and the Community collection, the tags players drew (EZ, Gonk and Geyon so far), each under its own heading, and a tag's card says which it is in _(Sol)_
+- The Uncommon and Mythical holocrons are sculpted by Sol too: a steel-framed Jedi cube with glowing green glass round an emblem plate on each face, and a gold engram of 38 engraved triangular plates that breathe out and back over a white-hot core, glowing seams between them, both detailed by a normal map _(Sol)_
+- The WHEEL OF DOOM: a new toy (`toy_wheelofdoom`, Collection > Toys) you spin for credits; it lands on a Mythical holocron, on nothing, or on doom: reversed keys, an inverted mouse, a mirrored or upside-down world, darkness, no saber, quacks, a curse or a blast, for a few seconds _(Sol)_
+- Your inputs leave as soon as before again: since 2026.1107.1 every command was made a frame late (3 ms at 350 FPS, 17 ms at 60) off SJK's servers; now only its time stamp is stock's _(Sol)_
+- `cl_freshStamps 1` stamps your commands with this frame's server time on every server again, as before 2026.1107.1 (0 keeps the stock stamp, but on SJK servers); Heimdall on JoF may kick for it _(Sol)_
 - Collection: the Toys page says 11 toys, as its tab does, instead of 10 _(Slash, hub report #265)_
 - Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
 - Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
