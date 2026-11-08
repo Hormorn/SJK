@@ -136,6 +136,16 @@ impl DueCommands {
         &self.stamps[..self.len]
     }
 
+    /// Commands with these stamps, oldest first; past [`MAX_CATCH_UP`] the rest are
+    /// left out.
+    pub fn from_stamps(stamps: impl IntoIterator<Item = i32>) -> Self {
+        let mut due = Self::default();
+        for stamp in stamps.into_iter().take(MAX_CATCH_UP) {
+            due.push(stamp);
+        }
+        due
+    }
+
     fn push(&mut self, stamp: i32) {
         self.stamps[self.len] = stamp;
         self.len += 1;

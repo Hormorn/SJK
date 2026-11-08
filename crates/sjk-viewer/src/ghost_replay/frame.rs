@@ -123,6 +123,7 @@ impl Ghost {
                         warp: 0,
                         cursor: 0,
                         consumed: None,
+                        sent: None,
                         commands_since_warp: 0,
                         corrections: 0,
                         worst_drift: 0.0,

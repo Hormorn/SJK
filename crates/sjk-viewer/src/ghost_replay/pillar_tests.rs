@@ -114,10 +114,48 @@ fn stamps(first: i32, count: usize) -> impl Iterator<Item = i32> {
     (0..count as i32).map(move |i| first + i * 8)
 }
 
+/// The stamps the live client makes at `fps` frames a second on a server that caps
+/// commands (JoF's): at most one a frame on an accumulator a step apart, stamped with
+/// the clock as the previous frame read it (`Pacing::OnePerFrame`,
+/// `CommandSchedule::stock_stamps`).
+fn one_per_frame_stamps(first: i32, fps: f64, count: usize) -> Vec<i32> {
+    use sjk_client::command_rate::{COMMAND_MILLIS, CommandSchedule, Pacing};
+    let mut schedule = CommandSchedule::default();
+    let now = std::time::Instant::now();
+    let mut stamps = Vec::with_capacity(count);
+    let mut previous = first;
+    let mut frame = 0_u32;
+    while stamps.len() < count {
+        let reading = first + (f64::from(frame) * 1000.0 / fps) as i32;
+        let due = schedule.due(reading, true, now, COMMAND_MILLIS, Pacing::OnePerFrame);
+        let due = schedule.stock_stamps(due, Pacing::OnePerFrame, COMMAND_MILLIS, previous, true);
+        stamps.extend(
+            due.as_slice()
+                .iter()
+                .copied()
+                .filter(|&stamp| stamp > first - 8),
+        );
+        previous = reading;
+        frame += 1;
+    }
+    stamps.truncate(count);
+    stamps
+}
+
 /// The scripted perfect run: forward, and a jump (held 80 ms) whenever past a takeoff point
 /// (a stock jump at full speed carries 148 units, so each lands near the next top's
 /// centre and takes off again at once).
 fn record_run(course: &Course) -> Run {
+    record_run_at(course, stamps(8, 500), 0)
+}
+
+/// [`record_run`] with the given command stamps, standing still for the first `still`
+/// commands (as a real recording begins).
+fn record_run_at(
+    course: &Course,
+    command_stamps: impl IntoIterator<Item = i32>,
+    still: usize,
+) -> Run {
     let mut ghost = Ghost {
         mode: Mode::Recording(Recording {
             name: "pillars".into(),
@@ -133,7 +171,7 @@ fn record_run(course: &Course) -> Run {
     let takeoffs = [8.0, 156.0, 306.0, 456.0, 606.0];
     // A player holds jump for a while; Pmove jumps once per press (`PMF_JUMP_HELD`).
     let mut held = 0;
-    for stamp in stamps(8, 500) {
+    for (index, stamp) in command_stamps.into_iter().enumerate() {
         let pose = Pose::of(server.state());
         let x = pose.origin[0];
         let want_jump = pose.on_ground
@@ -148,7 +186,7 @@ fn record_run(course: &Course) -> Run {
         let command = UserCommand {
             server_time: stamp,
             angles: std::array::from_fn(|i| 0_i32.wrapping_sub(pose.delta_angles[i])),
-            forward_move: if x < 760.0 { 127 } else { 0 },
+            forward_move: if index >= still && x < 760.0 { 127 } else { 0 },
             up_move: up,
             ..UserCommand::default()
         };
@@ -180,6 +218,18 @@ fn replay_bumped(
     lost: &[usize],
     bump: Option<(usize, f32)>,
 ) -> ([f32; 3], Vec<String>) {
+    replay_at(course, run, origin, lost, bump, stamps(50_000, 3_000))
+}
+
+/// [`replay_bumped`] with the live client's command stamps.
+fn replay_at(
+    course: &Course,
+    run: &Run,
+    origin: [f32; 3],
+    lost: &[usize],
+    bump: Option<(usize, f32)>,
+    live_stamps: impl IntoIterator<Item = i32>,
+) -> ([f32; 3], Vec<String>) {
     let mut ghost = Ghost {
         mode: Mode::Approaching(Box::new(Approach {
             playback: Playback {
@@ -189,6 +239,7 @@ fn replay_bumped(
                 warp: 0,
                 cursor: 0,
                 consumed: None,
+                sent: None,
                 commands_since_warp: 0,
                 corrections: 0,
                 worst_drift: 0.0,
@@ -201,34 +252,43 @@ fn replay_bumped(
     let mut server = runner(origin, 50_000 - 8);
     let mut client = server.clone();
     let mut lowest = f32::INFINITY;
-    for (index, stamp) in stamps(50_000, 3_000).enumerate() {
-        // The client predicts every command; the server misses the lost ones, and the
-        // client learns of it at once (a snapshot with no ping, the worst case).
-        let pose = Pose::of(client.state());
-        let Some(drive) = ghost.drive(
-            &UserCommand {
-                server_time: stamp,
-                ..UserCommand::default()
-            },
-            &pose,
-        ) else {
-            break;
-        };
-        if !lost.contains(&index) {
-            server.predict_command(drive.command, course);
-        }
-        if let Some((at, sideways)) = bump
-            && at == index
-        {
-            server.state_mut().velocity[1] += sideways;
-        }
-        client = server.clone();
-        if matches!(ghost.mode, Mode::Playing(_)) {
-            lowest = lowest.min(server.state().origin[2]);
+    let mut index = 0;
+    // One live command a frame, as `Pacing::OnePerFrame` makes them; the replay
+    // stamps its own (`Ghost::stamps`).
+    'frames: for live in live_stamps {
+        for &stamp in ghost.stamps(DueCommands::from_stamps([live])).as_slice() {
+            // The client predicts every command; the server misses the lost ones, and
+            // the client learns of it at once (a snapshot with no ping, the worst case).
+            let pose = Pose::of(client.state());
+            let Some(drive) = ghost.drive(
+                &UserCommand {
+                    server_time: stamp,
+                    ..UserCommand::default()
+                },
+                &pose,
+            ) else {
+                break 'frames;
+            };
+            if !lost.contains(&index) {
+                server.predict_command(drive.command, course);
+            }
+            if let Some((at, sideways)) = bump
+                && at == index
+            {
+                server.state_mut().velocity[1] += sideways;
+            }
+            client = server.clone();
+            if matches!(ghost.mode, Mode::Playing(_)) {
+                lowest = lowest.min(server.state().origin[2]);
+            }
+            index += 1;
         }
     }
-    assert!(lowest > PIT, "fell into the pit: lowest z {lowest}");
-    (server.state().origin, ghost.take_messages())
+    let mut messages = ghost.take_messages();
+    if lowest <= PIT {
+        messages.push(format!("fell into the pit: lowest z {lowest}"));
+    }
+    (server.state().origin, messages)
 }
 
 /// How many commands the walk to the start sends from `origin` before the run's first.
@@ -242,6 +302,7 @@ fn walk_commands(course: &Course, run: &Run, origin: [f32; 3]) -> usize {
                 warp: 0,
                 cursor: 0,
                 consumed: None,
+                sent: None,
                 commands_since_warp: 0,
                 corrections: 0,
                 worst_drift: 0.0,
@@ -385,4 +446,54 @@ fn a_run_cut_at_its_first_move_by_the_editor_replays_like_the_run_alone() {
         steer::horizontal([target[0] - end[0], target[1] - end[1], 0.0]) < 0.01,
         "{end:?} vs {target:?}: {messages:?}"
     );
+}
+
+/// The commands a replay sends are spaced as recorded, not as the live clock makes
+/// them: on JoF's servers it makes one a frame (`Pacing::OnePerFrame`, since
+/// 02/11/2026), so their spacing follows the frame rate, while the runs recorded before
+/// that are on the 8 ms grid. Sent on the live stamps, a run took other durations
+/// (0.4 to 3 units off over these four seconds), and the drift measured between two
+/// different times made up to nine needless corrections.
+#[test]
+fn a_run_replays_exactly_whatever_the_frame_rate_it_was_recorded_and_replayed_at() {
+    let course = Course::new();
+    let recordings = [
+        ("on the 8 ms grid", stamps(8, 520).collect::<Vec<_>>()),
+        (
+            "one a frame at 300 FPS",
+            one_per_frame_stamps(8, 300.0, 520),
+        ),
+        (
+            "one a frame at 144 FPS",
+            one_per_frame_stamps(8, 144.0, 520),
+        ),
+    ];
+    for (recorded, command_stamps) in recordings {
+        let run = record_run_at(&course, command_stamps, 20);
+        let target = run.frames.last().unwrap().origin;
+        for fps in [350.0, 237.0, 144.0, 60.0] {
+            let live = one_per_frame_stamps(50_000, fps, 3_000);
+            let (end, messages) = replay_at(&course, &run, run.start.origin, &[], None, live);
+            let off = steer::horizontal([target[0] - end[0], target[1] - end[1], 0.0]);
+            assert!(
+                off < 0.01,
+                "recorded {recorded}, replayed at {fps} FPS: {off} units off: {messages:?}"
+            );
+            assert!(
+                messages
+                    .last()
+                    .unwrap()
+                    .contains("to the end (0 corrections"),
+                "recorded {recorded}, replayed at {fps} FPS: {messages:?}"
+            );
+        }
+        // Under 60 FPS the recorded times trail the clock too far: the commands passed
+        // over merge into the live one, and the run still lands every pillar.
+        let live = one_per_frame_stamps(50_000, 30.0, 3_000);
+        let (_, messages) = replay_at(&course, &run, run.start.origin, &[], None, live);
+        assert!(
+            messages.last().unwrap().contains("played to the end"),
+            "recorded {recorded}, replayed at 30 FPS: {messages:?}"
+        );
+    }
 }

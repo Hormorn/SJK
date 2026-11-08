@@ -672,6 +672,25 @@ run alone and replays to within 0.01 unit of its end. GPU world shots with the g
 game (the column's keys and drags by hand, Play from the editor on a server, the path
 over a real recording).
 
+## Ghost replay at the recorded times
+
+08/11/2026, `personal/ghost-stamps`, based on `main` `262cbf14` (Sol: ghosts recorded
+before, on the same map and server, kept failing, and new ones too). Cause: a replay sent
+the recorded commands on the live command clock's stamps, and since 02/11/2026
+(`211208b9`, Heimdall kicks) that clock makes one command a frame on JoF's servers
+(`Pacing::OnePerFrame`), 5 to 11 ms apart, while every run recorded before then is on the
+8 ms grid (Sol's `ghosts` folder: every gap 8 ms up to 01/11, 5 to 11 ms in `test1` of
+07/11). The commands took other durations, and the drift was measured between the recorded
+state and one up to a command later, which made corrections on a run that was on its path.
+A replay now sends each command at its recorded time from its first stamp
+(`Ghost::stamps`, [client.md](client.md#ghost-replay)). Verified on Windows 11: on the real
+Pmove pillar course, runs recorded on the grid or one a frame at 300 and 144 FPS replay
+under one command a frame at 350, 237, 144 and 60 FPS to within 0.01 unit of their end
+with no correction (on the live stamps: 0.4 to 3 units off, up to nine corrections), and
+at 30 FPS still play to the end; both new tests fail without the change. Not verified: on
+a live server (Sol's runs on JoF's temple), and whether Heimdall minds stamps trailing the
+clock by up to 16 ms during a replay.
+
 ## Spawn beam lightning back to retail's
 
 01/11/2026, `personal/fxrunner-count`, based on `main` `529dc04f` (Sol's report: the green

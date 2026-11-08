@@ -1490,12 +1490,27 @@ changing map, and is saved.
 
 **Replaying.** Movement is deterministic: the same start and the same commands with
 the same durations give the same run whatever the ping, because the server steps each
-command by its own time (`ClientThink_real`). A replay sends the recorded commands with
-fresh stamps; the view the server derives (`cmd.angles + delta_angles`) is the
-recorded one, so a different `delta_angles` (after a respawn or a teleport) does not
-turn it. The camera follows the replayed view. Commands the clock passes over (a
-slower frame) give their presses to the next one, so a one-command jump or Force press
-is not lost. Force-wheel reliable commands (Stasis, Repulse, Dash) are not recorded.
+command by its own time (`ClientThink_real`). A replay sends the recorded commands at
+their recorded times from its first stamp (`Ghost::stamps`), every one the live
+command clock has reached and none fresher, rather than on that clock's own stamps;
+the view the server derives (`cmd.angles + delta_angles`) is the recorded one, so a
+different `delta_angles` (after a respawn or a teleport) does not turn it. The camera
+follows the replayed view. Force-wheel reliable commands (Stasis, Repulse, Dash) are
+not recorded.
+
+The live clock's spacing is not the recording's: on JoF's servers it makes one
+command a frame since 02/11/2026 ([command pacing](#gameplay-fps), JoF EJK's
+`cl_cmdratecap`), 5 to 11 ms apart at 350 FPS, while every run recorded before then is
+on the 8 ms grid. Replayed on the live stamps, the commands took other durations
+(Pmove's velocity rounding and jump arcs depend on them), and the drift was measured
+between the recorded state and one up to a command later, 2 to 3 units at running
+speed: enough to trip the corrections below on a run that was on its path, so long
+runs went off it (Sol, 08/11/2026: runs that had replayed on JoF's temple no longer
+did, nor new ones). A recorded time trailing the live clock by more than 16 ms (a
+hitch, or under 60 FPS on JoF) gives way to the live stamp, and the commands passed
+over give their presses to it, so a one-command jump or Force press is not lost; this
+keeps the stamps from trailing the clock, which JoF's anti-cheat reads as a time
+nudge.
 
 **The start.** `ghost play` refuses a run recorded on another map or a start more
 than 192 units away (it prints the start, to go or teleport there). Closer, it walks
@@ -1534,8 +1549,12 @@ pit, a landing) with a scripted pillar-jumping run: replayed from its start it e
 where the recording did; walked to from 30 units away with the server losing the
 second takeoff's command and a command in the air, it lands every pillar and ends
 0.4 units from the recording; shoved sideways at 60 units a second on the platform,
-it ends 7 units off where an unsteered replay ends 46 off. Not yet tried on a live
-server.
+it ends 7 units off where an unsteered replay ends 46 off. Recorded on the 8 ms grid or
+one command a frame at 300 or 144 FPS, and replayed one command a frame at 350, 237,
+144 or 60 FPS, it ends where the recording did with no correction; on the live
+stamps it ended 0.4 to 3 units off after up to nine corrections. Sol's runs on JoF's
+temple replayed there before 02/11/2026; replaying at the recorded times is not yet
+tried on a live server.
 
 ### Ghost editor
 

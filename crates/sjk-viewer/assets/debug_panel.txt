@@ -4760,6 +4760,17 @@ test: Drag the Start on the timeline mid-run: it snaps; Shift-drag: ember "Start
 test: Save once asks again, the second press overwrites; Esc (or Look) hides, Esc brings it back.
 note: Not tried in a real game yet; the path draws through walls (no depth test).
 
+[ghost-recorded-times]
+area: Gameplay
+title: Ghost replays send the commands at their recorded times (old ghosts work on JoF again)
+change: Since 02/11 JoF takes one command a frame, so a replay cut runs into other durations.
+change: A replay now stamps each command with its recorded time: same durations, no false drift.
+test: Showcase tools on, JoF temple: ghost play red (an 8 ms ghost from before): plays to the end.
+test: Record a new one (ghost record t2, run, ghost stop), then ghost play t2: plays to the end.
+test: The last line should show few corrections and a small worst drift.
+test: Watch for a Heimdall timeNudge kick on a long replay (stamps trail by up to 16 ms).
+note: Not tried on a live server yet. Under 60 FPS it merges commands as it did before.
+
 [join-retries]
 area: Gameplay
 title: Joining resends lost packets and never hangs as a floating camera
