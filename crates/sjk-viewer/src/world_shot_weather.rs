@@ -117,3 +117,79 @@ fn t2_rogue_storm_timing() {
         }
     });
 }
+
+/// Running water on `T2_Rogue`'s slanted walls and ramps in a storm at high quality, close
+/// up from the start's street (both sides, a step further on), as a contact sheet.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn t2_rogue_running_water() {
+    on_big_stack(|| {
+        let cvars = [("r_weatherForce", "3"), ("r_weatherQuality", "2")];
+        let Some((mut gpu, _profile)) = open("maps/t2_rogue.bsp", [1600, 900], None, &cvars) else {
+            return;
+        };
+        gpu.is_menu_world = false;
+        std::fs::create_dir_all(directory()).expect("the shot directory");
+        let views: [([f32; 3], f32, f32); 6] = [
+            ([1872.0, -1634.0, -510.0], 180.0, -5.0),
+            ([1872.0, -1634.0, -510.0], 0.0, -5.0),
+            ([1872.0, -1284.0, -510.0], 160.0, 0.0),
+            ([1872.0, -1284.0, -510.0], 20.0, 0.0),
+            ([1872.0, -1634.0, -510.0], 135.0, 10.0),
+            ([1872.0, -1634.0, -510.0], 45.0, 10.0),
+        ];
+        let mut images = Vec::new();
+        for (index, (eye, yaw, pitch)) in views.iter().enumerate() {
+            aim(&mut gpu, *eye, *yaw, *pitch);
+            let image = frame(&mut gpu, if images.is_empty() { 240 } else { 48 });
+            image
+                .save(directory().join(format!("t2_rogue_running_water_{index}.png")))
+                .expect("write the shot");
+            images.push(image);
+        }
+        println!(
+            "{}",
+            sheet(&images, 3, 800, "t2_rogue_running_water").display()
+        );
+    });
+}
+
+/// A lightning strike in the storm on `T2_Rogue` (`r_weatherLightning 1`), down the street
+/// from the start: the frame at its brightest beside the same view between strikes.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn t2_rogue_lightning() {
+    on_big_stack(|| {
+        let cvars = [
+            ("r_weatherForce", "3"),
+            ("r_weatherFog", "2"),
+            ("r_weatherLightning", "1"),
+        ];
+        let Some((mut gpu, _profile)) = open("maps/t2_rogue.bsp", [1600, 900], None, &cvars) else {
+            return;
+        };
+        gpu.is_menu_world = false;
+        std::fs::create_dir_all(directory()).expect("the shot directory");
+        aim(&mut gpu, [1872.0, -1984.0, -510.0], 90.0, -8.0);
+        // No strike of the storm's own while the surveys land, then one now.
+        gpu.weather.strike_in(1.0e6);
+        let calm = frame(&mut gpu, 240);
+        gpu.weather.strike_in(0.0);
+        let lit = frame(&mut gpu, 1);
+        println!(
+            "lightning flash in the shot: {:.2}; setting {} force {}; {}",
+            gpu.weather.flash(),
+            gpu.context.weather.lightning(),
+            gpu.context.weather.force(),
+            gpu.weather.lightning_state()
+        );
+        calm.save(directory().join("t2_rogue_lightning_calm.png"))
+            .expect("write the shot");
+        lit.save(directory().join("t2_rogue_lightning_flash.png"))
+            .expect("write the shot");
+        println!(
+            "{}",
+            sheet(&[calm, lit], 2, 800, "t2_rogue_lightning").display()
+        );
+    });
+}

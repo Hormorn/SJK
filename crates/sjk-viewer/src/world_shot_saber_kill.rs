@@ -63,6 +63,7 @@ fn saber_kill_disintegrates() {
             capturelimit: 0,
             allow_lan: false,
             cheats: true,
+            server_mod: crate::connection::local_server::BASE_SERVER_MOD,
         });
         until(&mut gpu, &mut parked, size, 120, "joined duel6", |gpu| {
             gpu.live_map_installed && gpu.live_session.is_some()

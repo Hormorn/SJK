@@ -10,7 +10,8 @@
 //!
 //! An SJK rig model (a folder holding `sjk_rig.cfg`, `docs/rig-models.md`) has no
 //! `model.glm` or `.skin` files: it is listed as `<model>/default` when it has an
-//! `icon_default` picture.
+//! `icon_default` picture, and each `sjk_rig_<variant>.cfg` beside it as
+//! `<model>/<variant>` when it has an `icon_<variant>` picture.
 
 use crate::catalog_tokens::tokenize;
 use sjk_vfs::VirtualFileSystem;
@@ -107,21 +108,23 @@ pub fn legacy_character_catalog_with_policy(
         if !eligibility.allows(&model, blacklist, respect_metadata) {
             continue;
         }
-        let cvar_value = format!("{model}/default");
-        if characters.contains_key(&cvar_value) {
-            continue;
-        }
-        if let Some(icon) = icon_path(vfs, &model, "default")? {
-            characters.insert(
-                cvar_value.clone(),
-                LegacyCharacter {
-                    model,
-                    skin: "default".to_owned(),
-                    cvar_value,
-                    icon,
-                    rig: true,
-                },
-            );
+        for skin in rig_variants(&paths, &model) {
+            let cvar_value = format!("{model}/{skin}");
+            if characters.contains_key(&cvar_value) {
+                continue;
+            }
+            if let Some(icon) = icon_path(vfs, &model, &skin)? {
+                characters.insert(
+                    cvar_value.clone(),
+                    LegacyCharacter {
+                        model: model.clone(),
+                        skin,
+                        cvar_value,
+                        icon,
+                        rig: true,
+                    },
+                );
+            }
         }
     }
 
@@ -159,6 +162,30 @@ fn rig_directories(paths: &[sjk_vfs::VirtualPath]) -> BTreeSet<String> {
                 .map(str::to_owned)
         })
         .collect()
+}
+
+/// A rig model's variants: `default` (its `sjk_rig.cfg`), then one per
+/// `sjk_rig_<variant>.cfg` beside it (`/model <model>/<variant>` wears that manifest).
+fn rig_variants(paths: &[sjk_vfs::VirtualPath], model: &str) -> Vec<String> {
+    let prefix = format!("models/players/{model}/sjk_rig_");
+    let mut variants = vec!["default".to_owned()];
+    variants.extend(
+        paths
+            .iter()
+            .filter_map(|path| {
+                path.as_str()
+                    .strip_prefix(prefix.as_str())?
+                    .strip_suffix(".cfg")
+                    .filter(|variant| {
+                        !variant.is_empty()
+                            && !variant.contains('/')
+                            && !variant.eq_ignore_ascii_case("default")
+                    })
+                    .map(str::to_ascii_lowercase)
+            })
+            .collect::<BTreeSet<_>>(),
+    );
+    variants
 }
 
 fn collect_ordinary_skins(
@@ -300,6 +327,12 @@ mod tests {
                 ("models/players/wolf/sjk_rig.cfg", Vec::new()),
                 ("models/players/wolf/model.gltf", Vec::new()),
                 ("models/players/wolf/icon_default.png", Vec::new()),
+                // A variant: its own manifest and icon.
+                ("models/players/wolf/sjk_rig_cloak.cfg", Vec::new()),
+                ("models/players/wolf/model_cloak.gltf", Vec::new()),
+                ("models/players/wolf/icon_cloak.png", Vec::new()),
+                // A variant without a picture stays out, as a skin without an icon does.
+                ("models/players/wolf/sjk_rig_bare.cfg", Vec::new()),
                 // Without a picture a rig model stays out, as a skin without an icon does.
                 ("models/players/bare/sjk_rig.cfg", Vec::new()),
             ],
@@ -309,13 +342,24 @@ mod tests {
         let listed: Vec<_> = catalog
             .characters
             .iter()
-            .map(|character| (character.cvar_value.as_str(), character.icon.as_str()))
+            .map(|character| {
+                (
+                    character.cvar_value.as_str(),
+                    character.icon.as_str(),
+                    character.rig,
+                )
+            })
             .collect();
         assert_eq!(
             listed,
             [
-                ("kyle/default", "models/players/kyle/icon_default.jpg"),
-                ("wolf/default", "models/players/wolf/icon_default.png"),
+                (
+                    "kyle/default",
+                    "models/players/kyle/icon_default.jpg",
+                    false
+                ),
+                ("wolf/cloak", "models/players/wolf/icon_cloak.png", true),
+                ("wolf/default", "models/players/wolf/icon_default.png", true),
             ]
         );
     }

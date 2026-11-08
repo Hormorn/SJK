@@ -56,7 +56,7 @@ struct Weather {
     wet: vec4<f32>,
     // rgb the overcast sky a wet surface mirrors, in the scene's light units.
     wet_sky: vec4<f32>,
-    // xyz the direction the rain falls (unit), w unused.
+    // xyz the direction the rain falls (unit), w a lightning flash (0..1).
     rain: vec4<f32>,
     // xyz towards the sun (unit), w how much the fog and the rain glow towards it (0 none).
     sun: vec4<f32>,
@@ -632,8 +632,15 @@ fn sun_glow(direction: vec3<f32>) -> f32 {
         }
     }
     let alpha = select(nearest, sum / max(total, 1e-6), total > 0.05);
-    if alpha <= 0.001 { discard; }
-    return vec4(weather.fog_color.rgb * sun_glow(ray.xyz), alpha);
+    // A lightning flash lights the storm's air: a cool veil over everything, strongest
+    // where the ray runs far into the open sky, faint over a wall near the eye.
+    let flash = weather.rain.w;
+    let veil = flash * (0.12 + 0.43 * smoothstep(800.0, 6000.0, reach));
+    if alpha <= 0.001 && veil <= 0.001 { discard; }
+    let lit = alpha + veil * (1.0 - alpha);
+    let colour = (weather.fog_color.rgb * sun_glow(ray.xyz) * alpha * (1.0 - veil)
+        + vec3(0.86, 0.9, 1.0) * veil) / max(lit, 1e-4);
+    return vec4(colour, lit);
 }
 
 // Rain-wet surfaces: one full-screen pass over the opaque world before the players are
@@ -660,32 +667,65 @@ fn under_sky(q: vec3<f32>) -> f32 {
     return select(0.0, 1.0, q.z >= span.x - 8.0 && q.z <= span.y);
 }
 
-// Running water's streaks: one noise tile is this long (units) and this wide.
+// Running water: the scroll down the walls wraps after this many units (one noise tile).
 const STREAK_LENGTH: f32 = 520.0;
-const STREAK_WIDTH: f32 = 40.0;
+// The headings round the vertical the running water is laid in, and its lanes' width.
+const RUN_HEADINGS: f32 = 16.0;
+const RUN_LANE: f32 = 14.0;
 
-fn streak_mask(q: vec3<f32>) -> f32 {
-    let sample = textureSampleLevel(noise, noise_sampler, q, 0.0);
-    return smoothstep(0.8, 0.845, sample.r) * (0.6 + 0.8 * sample.g);
+// Water running down a wall or a slope: x the film over the surface, y the rivulets, z the
+// drops running down them (each 0..1).
+fn run_in(p: vec3<f32>, heading: u32, upp: f32) -> vec3<f32> {
+    let angle = f32(heading) * TAU / RUN_HEADINGS;
+    let outward = vec2(cos(angle), sin(angle));
+    // Across the way down runs level along the surface; down it runs the height, so a lane
+    // follows the slope whatever its steepness.
+    let across = dot(p.xy, vec2(-outward.y, outward.x)) / RUN_LANE;
+    let lane = floor(across);
+    let x = across - lane;
+    let key = bitcast<u32>(i32(lane)) * 0x8DA6B343u ^ (heading + 1u) * 0xD8163841u;
+    let a = hash3(key);
+    let b = hash3(key ^ 0x68E31DA4u);
+    let down = (p.z + weather.wet.z) / STREAK_LENGTH;
+    // The film: a thin sheet, thicker in bands that run down, broken up by the noise.
+    let sheet = textureSampleLevel(noise, noise_sampler,
+        vec3(across / 6.0, down, dot(p.xy, outward) / 700.0 + weather.wet.w), 0.0);
+    let film = 0.3 + 0.7 * smoothstep(0.3, 0.8, sheet.r);
+    // A rivulet in about two lanes of five, its line wandering across the lane as it goes
+    // down, fixed on the surface; it runs in stretches with dry gaps between.
+    if a.x > 0.42 { return vec3(film, 0.0, 0.0); }
+    let z = p.z;
+    let wander = 0.17 * sin(z * (0.011 + 0.012 * a.y) + a.z * TAU)
+        + 0.07 * sin(z * (0.043 + 0.02 * b.x) + b.y * TAU);
+    // Its half width, 1 to 1.8 units, at least about a pixel (fainter instead).
+    let width = 0.07 + 0.06 * b.z;
+    let wide = max(width, 0.8 * upp / RUN_LANE);
+    let off = abs(x - (0.5 + wander)) / wide;
+    let line = (1.0 - smoothstep(0.55, 1.0, off)) * (width / wide);
+    let stretch = fract(z / (240.0 + 220.0 * b.x) + a.y);
+    let wet = smoothstep(0.0, 0.06, stretch) * (1.0 - smoothstep(0.68, 0.76, stretch));
+    let rivulet = line * wet;
+    // Drops running down it, a few in each wrap of the scroll: a bright head and a short
+    // tail above it, gone where they would be too small to see.
+    let count = 3.0 + floor(b.x * 5.0);
+    let above = fract(down * count + a.z) * STREAK_LENGTH / count;
+    let size = max(upp, 2.0);
+    let drop = exp(-above / size) + 0.35 * exp(-above / (4.0 * size));
+    let seen = 1.0 - smoothstep(1.5, 3.0, upp);
+    return vec3(film, rivulet, rivulet * drop * seen);
 }
 
-// Running water on a wall, 0 to 1: noise stretched along the height and scrolled down
-// it, laid on the wall's plane in world coordinates (across y and up z for a wall facing
-// x, across x for one facing y, blended between the two on a slanted wall; on a slope the
-// height runs downhill). The face's normal, which the depth gives a little unsteadily,
-// only chooses the blend, so the streaks stay put on the wall however the camera moves.
-fn streaks(p: vec3<f32>, n: vec3<f32>) -> f32 {
-    let weights = pow(abs(n.xy), vec2(4.0));
-    let blend = weights / max(weights.x + weights.y, 1e-6);
-    let along = (p.z + weather.wet.z) / STREAK_LENGTH;
-    var water = 0.0;
-    if blend.x > 0.01 {
-        water += blend.x * streak_mask(vec3(p.y / STREAK_WIDTH, along, p.x / 700.0 + weather.wet.w));
-    }
-    if blend.y > 0.01 {
-        water += blend.y * streak_mask(vec3(p.x / STREAK_WIDTH, along, p.y / 700.0 + weather.wet.w));
-    }
-    return water;
+// The running water of the heading nearest the face's (the face's normal from the depth is
+// a little unsteady, so it only chooses the heading, and blends the two nearest only half
+// way between them): the water stays put on the surface however the camera moves.
+fn running(p: vec3<f32>, n: vec3<f32>, upp: f32) -> vec3<f32> {
+    let heading = fract(atan2(n.y, n.x) / TAU) * RUN_HEADINGS;
+    let first = u32(floor(heading)) % u32(RUN_HEADINGS);
+    let between = smoothstep(0.38, 0.62, fract(heading));
+    if between <= 0.0 { return run_in(p, first, upp); }
+    let second = (first + 1u) % u32(RUN_HEADINGS);
+    if between >= 1.0 { return run_in(p, second, upp); }
+    return mix(run_in(p, first, upp), run_in(p, second, upp), between);
 }
 
 // Rain rings on standing water, 0 to 1: a drop lands in each 16-unit cell now and
@@ -863,15 +903,22 @@ fn mirrored(p: vec3<f32>, dir: vec3<f32>, size: vec2<f32>) -> vec4<f32> {
     var puddle = 0.0;
     let steep = length(n.xy);
     if level >= 2u && n.z > -0.2 {
-        // Running water on walls and steep slopes; fine detail, so it fades out with
-        // distance and at grazing views, where it would shimmer.
-        let fade = smoothstep(0.4, 0.8, steep) * (1.0 - smoothstep(500.0, 1400.0, distance))
-            * smoothstep(0.06, 0.25, abs(dot(n, view)) / max(distance, 0.001));
-        if fade > 0.0 {
-            let rivulet = streaks(p, n) * fade * wet;
-            darken += 0.25 * rivulet;
-            film += 0.4 * rivulet;
-            glint = rivulet;
+        // Running water: a film on every slope from about 10 degrees, rivulets and their
+        // drops on walls and steep slopes; fine detail, so it fades out with distance and
+        // at grazing views, where it would shimmer.
+        let slope = smoothstep(0.15, 0.45, steep);
+        let wall = smoothstep(0.5, 0.85, steep);
+        let fade = (1.0 - smoothstep(600.0, 1600.0, distance))
+            * smoothstep(0.05, 0.2, abs(dot(n, view)) / max(distance, 0.001));
+        if fade * slope > 0.0 {
+            // World units a pixel covers here, for lines no thinner than a pixel.
+            let upp = distance * 2.0 / max(weather.view.y, 1.0);
+            let water = running(p, n, upp);
+            let sheet = water.x * slope * fade * wet;
+            let rivulet = water.y * wall * fade * wet;
+            darken += 0.1 * sheet + 0.28 * rivulet;
+            film += 0.22 * sheet + 0.55 * rivulet;
+            glint = 0.45 * rivulet + 1.8 * water.z * wall * fade * wet;
         }
     }
     if level >= 3u {

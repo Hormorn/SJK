@@ -70,6 +70,9 @@ pub(crate) fn note_clash(origin: [f32; 3]) {
 /// the blade was lit and since the last swing began.
 pub(crate) const STILL: [f32; 4] = [0.0, SETTLED, SETTLED, SETTLED];
 
+/// Frames in a row a blade's length must fall before it counts as going out.
+const SHRINKING: u8 = 3;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct BladeMotion {
     tip: Option<[f32; 3]>,
@@ -84,6 +87,8 @@ pub(crate) struct BladeMotion {
     /// Its length last seen, and when it began going out (switched off), if it is.
     length: f32,
     going_out: Option<i64>,
+    /// How many frames in a row its length has fallen.
+    shrinking: u8,
     /// Its tips of the last frames and when (a ring, [`SWING_TURN`]).
     recent: [Option<([f32; 3], i64)>; RECENT],
     recent_next: usize,
@@ -194,10 +199,21 @@ impl BladeMotion {
             self.clash_seen = clashes.1;
         }
         if !fresh {
+            // Only a blade that keeps shrinking is going out: a length that dips for a frame or two
+            // made its effects vanish and snap back in game (Creyon, 4/11/2026).
             if blade.length < self.length - 0.01 {
-                self.going_out.get_or_insert(now);
-            } else if blade.length > self.length + 0.01 {
-                self.going_out = None;
+                self.shrinking = self.shrinking.saturating_add(1);
+                if self.shrinking >= SHRINKING
+                    || blade.length < self.length - 1.0
+                    || blade.length <= 0.01
+                {
+                    self.going_out.get_or_insert(now);
+                }
+            } else {
+                self.shrinking = 0;
+                if blade.length > 0.01 {
+                    self.going_out = None;
+                }
             }
         }
         self.length = blade.length;
@@ -232,6 +248,11 @@ impl BladeMotion {
     pub(crate) fn lingering(&self, now: i64, linger: f32) -> Option<[f32; 4]> {
         let since = (now - self.going_out?).max(0) as f32 * 0.001;
         (since < linger).then_some([-1.0, SETTLED, GOING_OUT + since, SETTLED])
+    }
+
+    /// How long the blade has been lit, in seconds; none when it is not.
+    pub(crate) fn lit_for(&self, now: i64) -> Option<f32> {
+        self.lit.map(|lit| (now - lit).max(0) as f32 * 0.001)
     }
 
     /// How stirred the blade is, 0 (still) to 1, rising quickly while it moves in the world,

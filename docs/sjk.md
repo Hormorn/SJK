@@ -23,7 +23,7 @@ general contributor rules.
   ([mods.md](mods.md)).
 - Every toy is a `toy_<name>` command (`toy_help` lists them all; `toy_illuminate`, `toy_box`,
   `toy_order66`, `toy_hax`, `toy_ragdoll`, `toy_drone`, `toy_boombox`, `toy_monitor`,
-  `toy_boxhunt`, `toy_banana`); a
+  `toy_boxhunt`, `toy_banana`, `toy_wheelofdoom`); a
   toy has no Force wheel entry, and one with a setting names it `cg_toy<Name>...`.
   Illuminate, the cardboard box and Order 66 have none: they are always available and
   on only for the client's run. A toy others see has an id in the look's `toys`
@@ -85,7 +85,7 @@ migrated, except where the table says so. Where each is documented:
 | `cl_maxpackets` | 125 | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `gameplay_fps` | 0, Auto: movement at the FPS cap, a `pmove_fixed` server's step wins | [Gameplay FPS](client.md#gameplay-fps) |
 | `gameplay_fps_nocap` | 0: the known server caps (JoF's 125) hold | [User commands and move packets](networking.md#user-commands-and-move-packets) |
-| `cl_packetdup_nocap` | 0: the known servers' `cl_packetdup` caps (JoF's 0) hold | [User commands and move packets](networking.md#user-commands-and-move-packets) |
+| `cl_freshStamps` | 0: commands carry the previous frame's server time as stock's, but on SJK's servers; 1 the frame's own everywhere | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `cjp_client` | empty: `1.4 SJK` on JA+, `1.4JAPRO` on jaPRO (its client-support switch); only a staff key's value is sent | [Networking](networking.md) |
 | `rate` | 90000 (stock 25000), saved 25000 moved to 90000 once | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | rendering profile | noon, bloom, dust, material maps | [Default visual profile](rendering.md#default-visual-profile) |
@@ -96,7 +96,7 @@ migrated, except where the table says so. Where each is documented:
 | `cl_experimentalShowcase` | off (the experimental `ghost` and `mimic` commands, staff keys only) | [Ghost replay](client.md#ghost-replay) |
 | `ui_sliderPeek` | on: over a match, a Settings slider held a moment fades the rest of the screen away | [Settings](sjk-ui.md#settings) |
 | `cl_sjkChatJof`, `cl_sjkChatS` | -1, Auto: a verified JoF or S player reads their own clan's chat, staff both (Sol's spec, 03/11/2026); the other only when chosen | [Clan chats](hub-chat.md#clan-chats) |
-| `ui_supportLinks` | on: Support SJK's links to GitHub Sponsors and Ko-fi, until its × hides them ([Donations](#donations)) | [Main page](sjk-ui.md#main-page) |
+| `ui_supportLinks` | on, but shelved since 07/11/2026: Support SJK's links never show ([Donations](#donations)) | [Main page](sjk-ui.md#main-page) |
 
 The HUD look (`cg_hudStyle game`) and the console (`con_style auto`: the SJK UI's
 console with its menus, else the classic one; a saved `classic` moved once to
@@ -312,7 +312,10 @@ https://ko-fi.com/soljk (Sol's page, 13/10/2026). They are offered in two places
   ×, which hides it for good (`ui_supportLinks 0`; Settings, Interface, "Support SJK"
   shows it again). Both addresses are in
   [support_links.rs](../crates/sjk-viewer/src/support_links.rs); it asks no server
-  anything.
+  anything. Shelved since 07/11/2026 (Sol's request): `support_links::SHELVED` hides
+  the line for everyone and its Settings row is gone. To bring it back, set `SHELVED`
+  to false and restore the "Support SJK" row in `settings/catalog.rs`, its place in
+  `settings/groups.rs` (Interface) and its line in `settings/help.rs`.
 
 Nothing is sold: a donation brings no feature and no advantage in the game, and
 neither place promises anything for one.

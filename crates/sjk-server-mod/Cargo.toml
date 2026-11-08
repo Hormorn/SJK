@@ -1,0 +1,13 @@
+[package]
+name = "sjk-server-mod"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "What a server mod can change in SJK's dedicated server: its settings, how it announces itself and the rules it runs"
+
+[lints]
+workspace = true
+
+[dependencies]
+sjk-game-jka.workspace = true

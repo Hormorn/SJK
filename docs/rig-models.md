@@ -64,6 +64,23 @@ in those poses (a clip within a third standing), the rest being how each foot's 
 and heel tilt. The manifest's `lift <units>` raises (or lowers) the result by hand;
 a rig without mapped ankles keeps the pelvis placement alone.
 
+Since 05/11/2026 the soles plant instead of the ankles when both models have them
+(`Soles`, `RigModel::with_soles`): each foot's lowest vertices (all within 1.5 units
+of its bottom, heel to toes, at most 64), carried by their strongest bone or joint,
+and every frame the rig's lowest sole point goes onto the driver's. Ankles alone let
+a foot built otherwise float or sink as it tipped: solfox5's digitigrade foot turned
+about a heel 10 units up and rose 1.5 units twice a step, its body bobbing 2 units
+in a walk and 3 in a run. The rise is eased over 50 ms (`PLANT_EASE`, per actor in
+`Scratch`; a first pose or a gap over 0.1 s plants at once): legs that reach otherwise
+than the driver's land a step at another moment (solfox5's, 5 % longer, touched the
+ground 2.5 units under Kyle's foot at the end of a run's swing), and planting each
+frame exactly jolted the body that much in a frame. Eased, the walk moves at most 0.4
+in a frame with the paws within 0.25 of Kyle's soles, the run 0.85 with them within
+0.9 for a moment. The ignored test `walk_against_the_driver` prints both, frame by
+frame. A digitigrade rig also wants its paw (`ball`) on JKA's foot and its long foot
+riding with the shin (`map foot_l ltibia as thigh_l`, `map ball_l ltalus as thigh_l`):
+JKA's ankle turns about a point near the ground, as the paw does.
+
 ### Dynamic joints (tails, capes)
 
 A manifest's `dynamic <joint>` lines make the joints under each named one move on
@@ -80,7 +97,8 @@ from lets physics pull it down): the test model's rose 29 degrees from level, to
 the game; with the default it hangs 24 degrees below (measured with the ignored test
 `dynamic_chains_of_an_installed_rig`, `SJK_TEST_PACK` naming the pack). The named joint stays where the animation holds it. It all happens in the
 model's space, per actor (`Scratch`): the chain answers the animation (steps, jumps,
-turns of the hips, emotes), not the player's run through the world or their turns.
+turns of the hips, emotes). The player's run through the world and their turns reach it
+only through `drag`, below.
 A frame step over 0.1 s (a hitch, a teleport) starts the chain again where the
 animation puts it.
 
@@ -90,6 +108,48 @@ should not swing side to side), `stiffness <n>` (the spring, per second squared,
 above 0; higher holds the chain closer to its animated shape), `damping <n>` (per
 second, 0 or more; higher stops the swing sooner) and `nocollide`. Left out, each
 keeps the tail's value above (wag 2.5, stiffness 70, damping 7, gravity 1600).
+`limit <degrees>` keeps each bone of the chain under that angle from its animated
+direction under its parent, off by default: the spring's lag is in game units, so
+without it a bone shorter than the lag swings far on a small step (measured on a hair
+rig: 117 degrees on a 1.3-unit lace bone). The bone tilts by half the limit at 2 units of
+lag and only nears the limit beyond that, and the spring runs free of the bone. A hard
+clamp was tried first and is why: the lag dwarfs a small limit, so the bone sat against
+it and crossed to the other side in a frame whenever the lag turned round. The angles add
+up down a chain, so hair that should barely move takes a few degrees. It takes 0 to 180, and
+anything else rejects the manifest: `limit 180` means no limit, as if the word were left out,
+and `limit 0` gives a joint that never tilts with its spring but still takes up pushes over a
+few frames and, stacked with no children, swings on its lever. A limited joint
+stacked on its anchor with no children, as a rig's single-joint hair strand or sleeve is,
+has no bone to aim; it swings about its pivot instead, along the line to the
+weighted middle of the vertices it carries. Without `limit` such a joint stays still.
+
+`drag <n>` lets a chain feel the air as the player moves (0 by default, so nothing changes
+without it). Each frame the actor's origin and legs' yaw give its velocity and turn, smoothed
+at 10 per second so prediction's steps and other players' snapshots do not shake it, and turned
+into the model's space. Each point then accelerates against that, by `drag` per second squared
+for each unit per second at the tip and less towards the anchor, and against its own speed
+round the player as they turn. So the steady lag at the tip is `speed * drag / stiffness`:
+at the game's run of 250, drag 1 and stiffness 70 lag 3.6 units, which with a `limit` tilts
+each bone 64 percent of it. Falling blows a chain up as a run blows it back. Movement counts up
+to 800 units per second and turns up to 12 radians per second. A jump of more than 3000 units per
+second is a teleport: it starts again at rest, whatever the yaw did, as do a gap of more than 0.1 s
+and a change of where the origin comes from (another body on a reused mesh, or the local player's
+prediction giving way to the interpolated origin in the free camera). An actor is only followed
+while a chain of its rig has a `drag`, and one whose origin is not read (no player pose, a cut-off
+limb) stops at once.
+
+A chain may fork, and joints may be stacked on one spot, as some rigs do. Each joint
+is placed from where its parent now stands. A parent is turned towards its first child
+with a real length; its other children follow that turn, and their own chains go on
+from there. A bone under `MIN_BONE` turns nothing: its direction would only be the bind
+matrices' rounding. Before this such a bone turned its parent at random each frame and a
+fork's other branches aimed from a place they did not stand, so a hair rig jumped up to
+137 degrees in a frame, measured with the ignored test
+`dynamic_chain_motion_of_an_installed_rig` (`SJK_TEST_PACK` and `SJK_TEST_RIG` naming the
+rig; a sway and bob, not a game animation); 13 after the fix, before any `limit`. The
+test goes on to play the driver's walk and run (how far each swinging joint's skin moves
+on them: a sway overstates it several times over, so tune body parts on these) and a stop
+and a start over the game's 100 ms blend.
 
 The body pushes the chains away. At load the rig builds a capsule (a segment
 thickened to a radius) for each bone map entry on the driver's trunk and leg bones
@@ -103,12 +163,45 @@ makes none. With the mannequin preset that is the pelvis, five spine joints, bot
 thighs and both calves. Each frame every chain point is held at its bone's length,
 pushed out of the capsules it is not exempt from (its speed into them stopped) and
 held at its length again. A point is exempt from its chain anchor's capsule and from
-those it already lies in at rest, so a cape hanging from the back, or a tail root
-inside the hips, is not shoved off its own body. A chain whose line says
-`nocollide` passes through. Only the joints collide: a long bone between two of them
-can still cut a corner of a leg, so a chain meant to slide round the body wants more
-joints. The capsules are only measured for a rig with dynamic chains, at most 64 of
+those it already lies in at rest, so a cape hanging from the back, or a tail root inside the
+hips, is not shoved off its own body. A chain whose line says
+`nocollide` passes through. `clearance <units>` on a line holds that chain so much further
+out, since the capsules sit under the skin, but no further than each joint or bone's middle
+lies at rest, so standing still moves nothing (0 by default; the at-rest exemption still uses
+the plain radius). A limited chain takes up each push over a few frames (`PUSH_RATE`), since a push
+of a unit turns a short bone tens of degrees, and its bones take up the spring's lag the
+same way (`TILT_RATE`): a change of animation moves the body far in its tenth of a second
+blend, and every bone of a chain tilting at once made the tip jump (measured on a
+seven-bone cape when stopping and starting: 5.7 degrees in the first tick, then 0.6,
+rising smoothly; the cost is that a fast leg can get about a unit further into a loose
+flap for a moment). Each joint and the middle of its bone collide, each with its own at-rest
+exemption, so a long bone no longer cuts through a leg its two ends miss, and a bone coming
+out of the hips, its middle inside them at rest, still has its joint kept out of them. Moving
+the joint moves the middle half as far, so a push on the middle moves the joint by twice the
+middle's depth. This one applies to every colliding chain, with no option: an existing tail or
+cape can look a little different near the body. The cloth between two chains and the mesh
+itself are not checked, so a sharp pose can still show some through. The head is not a
+capsule, and the arms are only for a chain whose line says `arms`: then the rig also measures
+the upper arms and forearms (`ARM_BONES`) the same way, and a chain without the word ignores them. A rig
+with no such chain has no arm capsules at all. An arm moves fast, so hair it pushes moves fast
+too (measured on the empty-handed run: the largest step in 8 ms went from 1.3 units to 4.1;
+to 2.2 with `drag` holding the hair behind the arms). A push high on a chain tilts everything
+below it, so an arm against a cape's outer column shoved its whole edge, and as the arm swings with
+the stride the edge seemed to copy the legs (measured on a five-column cape on the run: the outer
+hem rose and fell 13.6 units per stride, 2.5 without `arms`; leg capsules made no difference). Give
+`arms` to the middle columns only, or to none. The capsules are only measured for a rig with dynamic chains, at most 64 of
 them, and the check is a few vector operations per point and capsule.
+
+A `layer <outer> over <inner>` line keeps the chain under the first joint on its own side
+of the chain under the second, as hair lying over a cape. Several lines with one outer
+joint make a sheet of inner chains standing side by side. Each outer joint keeps to the
+plane through its nearest inner bone at rest, which turns with that bone, staying out by
+its chain's `clearance` or by what it has at rest if that is less. A fixed bone rather
+than the nearest each frame, so the push never jumps. Inner chains move first; a joint
+beyond their ends at rest, such as hair above a cape's top, takes no plane. The push is
+one way: the cape pushes the hair and not the other way. The log names a `layer` line that
+does nothing or something odd when the model loads: a joint with no `dynamic` line, a chain
+over itself, or lines that go round in a circle.
 
 ### Bolts on the rig
 
@@ -127,12 +220,13 @@ traces and hit boxes stay the driver's.
 | Step | Where |
 | --- | --- |
 | Folder with `sjk_rig.cfg` found, driver loaded instead of the folder's GLM | `load_player_appearance` in [player_assets.rs](../crates/sjk-viewer/src/player_assets.rs) |
+| Variant manifests (`sjk_rig_<variant>.cfg`) | `manifest` and `variant_manifest` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), `rig_variants` in [character_catalog.rs](../crates/sjk-client/src/character_catalog.rs) |
 | glTF read (skin, joints, primitives, images) | [gltf.rs](../crates/sjk-model/src/gltf.rs) |
 | Manifest, presets, fit (axes, scale, alignments, anchors), pose, CPU skin | [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), tests in `rig_model_tests.rs` |
 | Rig surfaces put in the shared vertex buffer | `append_rig_mesh` in [actor_load.rs](../crates/sjk-viewer/src/actor_load.rs) |
 | Per-frame pose and palette upload (GPU and CPU paths) | [actor_pose_steps.rs](../crates/sjk-viewer/src/actor_pose_steps.rs), `rig_skin_records` in [gpu_skinning.rs](../crates/sjk-viewer/src/gpu_skinning.rs) |
 | Dynamic joints (tails, capes), their settings and body capsules | `Settings`, `Capsule`, `Chains` and `simulate` in [rig_dynamics.rs](../crates/sjk-viewer/src/rig_dynamics.rs), `dynamic_settings` and `body_capsules` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), `RigModel::pose_after` |
-| Feet planted on the driver's ground | `Feet`, `sole` and `RigModel::with_feet` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), the ignored test `feet_against_the_driver` |
+| Feet planted on the driver's ground | `Feet`, `Soles`, `sole`, `RigModel::with_feet`, `with_soles` and `planted` in [rig_model.rs](../crates/sjk-viewer/src/rig_model.rs), the ignored tests `feet_against_the_driver` and `walk_against_the_driver` |
 | Bolts and Force points moved onto the rig | `PlayerPreview::bolt`, `RigModel::retarget_bolt` and `retarget_point`, [force_bones.rs](../crates/sjk-viewer/src/force_bones.rs) |
 | Dismemberment skipped, JoF first-person body off | [dismember.rs](../crates/sjk-viewer/src/dismember.rs), [actor_world_submission.rs](../crates/sjk-viewer/src/actor_world_submission.rs) |
 | Clips (emotes): read, converted, sampled, blended | [rig_clips.rs](../crates/sjk-viewer/src/rig_clips.rs), `RigModel::pose` and `play`, `emotes::playing` in [emotes.rs](../crates/sjk-viewer/src/emotes.rs) |
@@ -156,12 +250,30 @@ A model folder (`models/players/<name>/`) with `sjk_rig.cfg` is a rig model; `/m
 | `preset <name>` | the bone map to start from ([`PRESETS`](../crates/sjk-viewer/src/rig_model.rs)) | `mannequin` |
 | `scale <n>` or `scale auto` | game units per glTF metre | `auto` |
 | `lift <units>` | raise (negative: lower) the planted rig by hand | `0` |
-| `dynamic <joint> [gravity] [gravity <n>] [wag <units>] [stiffness <n>] [damping <n>] [nocollide]` | the joints under it move on their own (spring, wag, gravity in units per second squared), kept out of the body unless `nocollide`, one line per chain (see [Dynamic joints](#dynamic-joints-tails-capes)) | none; gravity 1600, wag 2.5, stiffness 70, damping 7 |
+| `layer <joint> over <joint>` | the first's chain stays on its side of the second's, one line per column of a sheet (see [Dynamic joints](#dynamic-joints-tails-capes)) | none |
+| `dynamic <joint> [gravity] [gravity <n>] [wag <units>] [stiffness <n>] [damping <n>] [limit <degrees>] [clearance <units>] [drag <n>] [arms] [nocollide]` | the joints under it move on their own (spring, wag, gravity in units per second squared), kept out of the body unless `nocollide`, the arms too with `arms`, trailing behind the player's movement with `drag`, one line per chain (see [Dynamic joints](#dynamic-joints-tails-capes)) | none; gravity 1600, wag 2.5, stiffness 70, damping 7, no limit, clearance 0, drag 0, no arms |
 | `map <joint> <bone>` | the joint follows the JKA bone, bind orientation kept | |
 | `map <joint> <bone> <joint end> <bone end>` | ... aimed along the bone | |
 | `map <joint> <bone> as <other joint>` | ... with another joint's alignment (finger chains) | |
 
 `map` lines replace the preset's entry for that joint or add one.
+
+A client rejects the whole manifest over a line or option it does not know, so on an older
+client a rig model using a newer one (`limit`, `clearance`, `layer`, `drag`, `arms`) does not load at all,
+rather than dropping that line.
+
+### Variants
+
+A rig model can have other looks, as a stock model has skins (05/11/2026): beside
+`sjk_rig.cfg`, each `sjk_rig_<variant>.cfg` is a whole manifest of its own (usually
+naming its own glTF, `model model_<variant>.gltf`, and its own `dynamic` lines), worn
+as `/model <name>/<variant>`. `sjk_rig.cfg` is the `default` variant and still what
+makes the folder a rig model; a variant without a manifest of its own looks like the
+default, as an unknown skin of a stock model does. The character grid lists each
+variant with an `icon_<variant>` picture (`rig_variants` in
+[character_catalog.rs](../crates/sjk-client/src/character_catalog.rs)). First use:
+`solfox5/cloth`, the OG Solfox's hood, cape and loincloth on chains over the default
+body.
 
 ### Presets
 
@@ -235,6 +347,11 @@ in one click.
   The panel counts them.
 - **Height adjustment:** written as the manifest's `lift` line (0 removes it), the
   one manifest line the add-on changes in a kept manifest.
+- **Variant** (add-on 1.12.0): empty for the model's main look; a name exports a
+  [variant](#variants) of the same model instead, as `model_<variant>.gltf` (and
+  `.bin`), `icon_<variant>` and `sjk_rig_<variant>.cfg`. An export of a variant
+  replaces only those files (and the emote files of its glTF's animations); an export
+  of the default leaves every variant's files and the pictures their glTFs use.
 - **Emote settings:** each ticked action takes a sound (`.wav` or `.mp3`, packed as
   `sound/emotes/<id>.<ext>`); "Animation frame rate" (0 is the scene's; 30 for
   animations from Unreal games) sets the clip's speed; "Keep playing while moving"
@@ -391,6 +508,8 @@ JKA_GAME_DATA=<GameData> SJK_TEST_DEMO=<demo.dm_26> SJK_TEST_RIG=<model folder n
 # rig_reload on a demo (the pack replaced by a half-scale copy; before/after in
 # target/world-shots/rig_reload.png):
 #   cargo test -p sjk-viewer --bins rig_reload_reads -- --ignored --nocapture
+# SJK_TEST_VARIANT=<variant> wears one of the model's variants (sjk_rig_<variant>.cfg)
+# in this render, the lineup and the feet test.
 # The same with an emote of the installed catalogue playing (a rig clip); 12 shots
 # about a third of a second apart in target/world-shots/rig_model_emote.png:
 #   add SJK_TEST_EMOTE=<emote id>

@@ -120,13 +120,13 @@ const SKIN_X: f32 =
 /// Blade choice `i` (0 the stock blade) answers to `SKIN_BASE + i`.
 const SKIN_BASE: u16 = 7_300;
 /// The blade row's wheel area and its arrows, which browse it a row's width at a time.
-const SKIN_SCROLL: u16 = 7_597;
+const SKIN_SCROLL: u16 = 7_797;
 /// The Sounds row's Preview button.
-const SOUND_PREVIEW: u16 = 7_590;
+const SOUND_PREVIEW: u16 = 7_790;
 /// Its width, left of the row's ‹ › control.
 const PREVIEW_WIDTH: f32 = 118.0;
-const SKIN_PREV: u16 = 7_598;
-const SKIN_NEXT: u16 = 7_599;
+const SKIN_PREV: u16 = 7_798;
+const SKIN_NEXT: u16 = 7_799;
 
 /// The first of the blade choices the row shows: the chosen one kept third from
 /// the left where it can be, the window never past either end.

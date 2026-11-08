@@ -436,6 +436,11 @@ pub(super) const AUDIO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "WHEEL OF DOOM sounds",
+        cvar: crate::toy_sounds::Toy::WheelOfDoom.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Fishing bite cue",
         cvar: crate::fishing::CUE_CVAR,
         kind: ValueKind::Choice(&["0", "1", "2"]),
@@ -1585,11 +1590,6 @@ pub(super) const GAME: &[Setting] = &[
         kind: ValueKind::Choice(&crate::menu::style::MenuStyle::NAMES),
     },
     Setting {
-        label: "Support SJK",
-        cvar: crate::support_links::CVAR,
-        kind: ValueKind::Bool,
-    },
-    Setting {
         label: "Slider peek",
         cvar: super::slider_peek::CVAR,
         kind: ValueKind::Bool,
@@ -2076,6 +2076,11 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         },
     },
     Setting {
+        label: "Largest texture, 0 none (next map)",
+        cvar: crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        kind: ValueKind::Choice(&["1024", "2048", "4096", "0"]),
+    },
+    Setting {
         label: "Texture compression (next map)",
         cvar: crate::world_materials::filtering::mips::compress::CVAR,
         kind: ValueKind::Bool,
@@ -2379,6 +2384,11 @@ pub(super) const RENDER_WEATHER: &[Setting] = &[
     Setting {
         label: "Volumetric clouds",
         cvar: crate::weather::CLOUDS_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Lightning in storms",
+        cvar: crate::weather::LIGHTNING_CVAR,
         kind: ValueKind::Bool,
     },
 ];

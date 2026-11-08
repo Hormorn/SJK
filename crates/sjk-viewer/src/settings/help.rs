@@ -615,6 +615,10 @@ const HELP: &[(&str, &str)] = &[
         "Off: your casts, bites and catches are silent. The toy still works.",
     ),
     (
+        crate::toy_sounds::Toy::WheelOfDoom.cvar(),
+        "Off: every WHEEL OF DOOM spins silently on this PC, yours and other players', quacks included.",
+    ),
+    (
         crate::fishing::CUE_CVAR,
         "A \"!\" over the float and \"Bite! Press Use!\" when a fish bites. Sound off: only while the fishing sounds can't be heard.",
     ),
@@ -1258,10 +1262,6 @@ const HELP: &[(&str, &str)] = &[
         "The SJK UI, SJK's own menus over the live map; or classic menus after the original game's.",
     ),
     (
-        crate::support_links::CVAR,
-        "Support SJK at the top left of the SJK UI's main page: links to SJK's GitHub Sponsors and Ko-fi pages. Off hides it, as its x does.",
-    ),
-    (
         super::slider_peek::CVAR,
         "In the game, hold a slider in the SJK UI a moment and the rest of Settings fades away, showing the game as you drag. Off keeps it.",
     ),
@@ -1597,6 +1597,10 @@ const HELP: &[(&str, &str)] = &[
         "Each step halves large textures: a quarter of their video memory. For graphics cards of 4 GB or less.",
     ),
     (
+        crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        "Halves larger textures down to this size: a quarter of their video memory each time. 0 keeps every size.",
+    ),
+    (
         crate::world_materials::filtering::mips::compress::CVAR,
         "Keeps map and model textures compressed: a quarter or less of their video memory, a little blockier. Experimental.",
     ),
@@ -1645,6 +1649,10 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::weather::CLOUDS_CVAR,
         "Drifting 3D clouds over open sky, lit by the map's sun; darker and thicker in a storm.",
+    ),
+    (
+        crate::weather::LIGHTNING_CVAR,
+        "Storms flash now and then, lighting the rain, fog and wet ground; thunder follows with Rain and wind sounds on.",
     ),
     (
         "r_modelPixelLight",

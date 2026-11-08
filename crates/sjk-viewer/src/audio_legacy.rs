@@ -61,6 +61,15 @@ impl LegacyLoadTask {
                         &saber_vfs,
                         &mut register,
                     );
+                    let sets = skins.sound_sets();
+                    let found = sets
+                        .iter()
+                        .filter(|set| saber_vfs.contains(set.hum).unwrap_or(false))
+                        .count();
+                    crate::log::progress(format_args!(
+                        "blade skin sounds: {found} of {} sets found",
+                        sets.len()
+                    ));
                     for path in feedback::KILL_SOUNDS {
                         if let Ok(Some(asset)) = vfs.read(path) {
                             let handle = SoundHandle(next_handle);

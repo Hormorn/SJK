@@ -535,6 +535,7 @@ impl Options {
         crate::banana::mount(&mut vfs)?;
         crate::tags::mount(&mut vfs)?;
         crate::mystery_box::mount(&mut vfs)?;
+        crate::wheel_of_doom::mount(&mut vfs)?;
         crate::saber_petals::mount(&mut vfs)?;
         super::force_presets::mount(&mut vfs)?;
         crate::card_outline::mount(&mut vfs)?;

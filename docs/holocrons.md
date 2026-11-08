@@ -61,10 +61,10 @@ set), not one cube in four colours:
 
 | Tier | Holocron | What moves |
 | --- | --- | --- |
-| Uncommon | The Jedi cube: the holocron's cube with a raised plateau on each face (the face on it, the emblem on its flat top), a lamp over each, steel edges | nothing of its own |
+| Uncommon | The Jedi cube (Sol's sculpted model, 08/11/2026): a steel-framed cube with riveted corners, glowing green glass on each face round a raised emblem plate, baked onto a 300-triangle low poly with a normal map | nothing of its own |
 | Rare | The Great Holocron: a dodecahedron, a raised pentagon in each face with the Jedi Order's emblem and runes, lit edges | a broken halo, tilted, turning and bobbing around it |
 | Legendary | The Sith pyramid (Sol's sculpted model, 05/11/2026): a dark frustum on a carved plinth, glowing purple runes and lines down its sides, baked from a high-poly model onto a 58-triangle low poly with a normal map | its cap floats over it, turning and bobbing; a glowing eye turns between them |
-| Mythical | The engram (21/10/2026; until then the kyber prism, now the [Kyber crystal](#kyber-crystals)): a long faceted gold gem of thirty triangular plates, each a slab apart from the next so thin glowing seams run between them, a white-hot core inside, a faint old-republic rune in a seal on each plate, the facets in four shades so they stand apart in any light | the shell turns about its length while it slowly tumbles over; the plates breathe out and back (up to 0.4 units, the core showing between them at the top of the breath); the seams and core pulse; streaks of reflection sweep the facets as they turn; eight sparks circle it |
+| Mythical | The engram (21/10/2026; until then the kyber prism, now the [Kyber crystal](#kyber-crystals); Sol's sculpted model since 08/11/2026): a lumpy gem of 38 engraved triangular gold plates, each its own slab (its face baked from the high poly with a normal map) with glowing seams between them and a white-hot core inside | the shell turns about its length while it slowly tumbles over; the plates breathe out and back (up to 0.4 units, the core showing between them at the top of the breath); the seams and core pulse; streaks of reflection sweep the plates as they turn; eight sparks circle it |
 
 They are made by `scripts/holocron_assets.py` with the shapes in `scripts/holocron_forms.py`:
 a model per part (the body, which stands still against the holocron, and each moving
@@ -75,17 +75,24 @@ client includes ([holocrons/stage.rs](../crates/sjk-viewer/src/holocrons/stage.r
 client mounts (`holocron_files.rs`). The Jedi cube's face is the shipped face in the tier's
 colour; the Great Holocron's pentagon and the kyber crystal come from Sol's pictures
 (17/10/2026) in the asset folder's `art/`, fitted and painted in the tier's colours by the
-script, and the Sith pyramid is Sol's sculpted model there (`art/sith_pyramid/`, its
+script, and the Jedi cube, the Sith pyramid and the engram are Sol's sculpted models there
+(`art/jedi_cube/`, `art/sith_pyramid/`, `art/gold_engram/`: each a low poly with its
 baked colour, glow and normal maps)
 (`--art <key>=<picture>` tries another; the folder's
-[README](../crates/sjk-viewer/assets/holocron/README.md)); the engram's plate is drawn by
-the script. The four are sized to fill about the cube's room on screen.
+[README](../crates/sjk-viewer/assets/holocron/README.md)). The four are sized to fill
+about the same room on screen.
 
-The engram's plates breathe in their shader (`deformVertexes wave`): every vertex of a
-plate, its walls too, carries the plate's normal, so the whole slab moves out along it as
-one. A soft halo sprite was tried (`deformVertexes autosprite`), but on the stage a surface
-whose only stage is added light did not show (an opaque test of it did, turned to the
-camera), so the halo comes from the glow pass around the seams and core instead.
+Until 08/11/2026 the Jedi cube was drawn by the script (a plateau on each face with the
+shipped face on it, a lamp over each) and the engram was thirty plates drawn by the script.
+The sculpted engram keeps that engram's life: Sol's model is split into its tiles (the
+faces of the high poly near its convex hull, cut apart by the grooves), each tile a flat
+plate of its outline, grown a little, baked from the high poly into one picture
+(`art/gold_engram/`, an object per plate). The script makes each plate a slab with walls
+and an inner face in the seams' glow, every vertex of a plate carrying the plate's normal,
+so the shader's `deformVertexes wave` moves the whole slab out along it as one. A soft halo
+sprite was tried on the old engram (`deformVertexes autosprite`), but on the stage a
+surface whose only stage is added light did not show, so the halo comes from the glow pass
+around the seams and core instead.
 
 ### Kyber crystals
 
@@ -572,6 +579,25 @@ client reads; the Collection's Holocrons tab is built on it.
   console draws). `gem::draw(list, centre, half, colour, alpha, rows)` draws the fallback.
 - `Tier::light` is the colour of the tier's point light and `Tier::about()` what the tab says of
   the tier. The 3D holocron's models are `stage::TIER_MODELS` and `stage::LOCKED_MODEL`.
+
+## Editions
+
+Since 06/11/2026 (Sol's collections, [unlockables.md](unlockables.md#alpha-and-beta-the-collections)):
+every holocron and kyber crystal carries the **edition** the hub stamped on it when it was
+given, `"edition": "alpha"` or `"beta"` on each row of the profile's `holocrons` list (the
+wire `Holocron::edition`, [wire.rs](../crates/sjk-identity/src/wire.rs); a hub before then
+sends none, read as `alpha`, `wire::EDITION_FIRST`). It keeps it for good, through trades
+too. Opening one brings only things of its edition or an older one (the hub's
+`editions::within(item, holocron)`): an Alpha
+one only Alpha things, a Beta one Beta or Alpha. The hub stamps it at every give (play
+drop, staff or operator gift, purchase, mystery box, toy, kyber crystal), Beta only while
+its switch `--beta-min-client VERSION|off` (`SJK_HUB_BETA_MIN_CLIENT`, off by default)
+names a release and the person's newest client meets it; until then every one is Alpha.
+
+The client keeps it on `holocrons::Entry::edition`; the Holocrons tab shows it before each
+recent row's date ("Beta · 06/11/2026 14:05"), on a tier's hover card (the editions of the
+unopened ones held, `Data::editions_line`: "Alpha Edition", or "2 Alpha, 1 Beta"), and in
+both loot tables' notes.
 
 ## Checked and not checked
 

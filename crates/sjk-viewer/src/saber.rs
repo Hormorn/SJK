@@ -555,11 +555,11 @@ impl Instance {
     }
 
     /// The loaded skin's number this instance wears, if it wears one.
-    pub(crate) fn skin_index(&self) -> Option<u8> {
+    pub(crate) fn skin_index(&self) -> Option<crate::saber_skins::SkinIndex> {
         self.material
             .checked_sub(crate::saber_rgb::SKIN_MATERIAL)
             .filter(|index| (*index as usize) < crate::saber_skins::MAX_SKINS)
-            .map(|index| index as u8)
+            .map(|index| index as crate::saber_skins::SkinIndex)
     }
 
     /// Where the blade starts (its hilt end).
@@ -579,6 +579,10 @@ impl Instance {
     /// Stamp the skins' animation: presentation time `seconds` and a stable per-blade
     /// `seed` (the same for a blade's glow and core, and from frame to frame).
     pub(crate) fn with_animation(mut self, seconds: f64, seed: u32) -> Self {
+        ANIMATION_SECONDS.store(
+            (seconds.rem_euclid(Self::ANIMATION_PERIOD) as f32).to_bits(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         self.animation = [
             seconds.rem_euclid(Self::ANIMATION_PERIOD) as f32,
             animation_seed(seed),
@@ -719,6 +723,14 @@ pub(crate) fn skin_extras(
         .map(move |instance| instance.with_animation(seconds, seed))
 }
 
+/// The animation time last stamped on a blade, for what follows a blade's clock off the GPU.
+static ANIMATION_SECONDS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// The animation time blades are being drawn at, in seconds.
+pub(crate) fn animation_seconds() -> f32 {
+    f32::from_bits(ANIMATION_SECONDS.load(std::sync::atomic::Ordering::Relaxed))
+}
+
 /// Group instances by shader pair and return their draw ranges.
 pub(crate) fn material_ranges(instances: &mut [Instance]) -> [Range<u32>; MATERIAL_COUNT] {
     instances.sort_unstable_by_key(|instance| instance.material());
@@ -806,6 +818,7 @@ impl Color {
 pub(crate) struct Samplers {
     glow: wgpu::Sampler,
     core: wgpu::Sampler,
+    body: wgpu::Sampler,
 }
 
 impl Samplers {
@@ -835,6 +848,14 @@ impl Samplers {
                 wgpu::MipmapFilterMode::Linear,
                 Self::CORE_ANISOTROPY,
             )),
+            body: device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("SJK saber body sampler"),
+                address_mode_u: wgpu::AddressMode::Repeat,
+                address_mode_v: wgpu::AddressMode::Repeat,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            }),
         }
     }
 }
@@ -908,6 +929,19 @@ pub(crate) fn material(
         &core.height().to_le_bytes(),
         core.as_raw(),
     ]);
+    // The picture a signature may paint its body with (`skinBody`), the same in every material.
+    // No blade paints with one now (God Ki, the only one, was left out on 06/11/2026), so it is
+    // plain white.
+    static BODY: std::sync::LazyLock<image::RgbaImage> = std::sync::LazyLock::new(|| {
+        image::load_from_memory(include_bytes!("../assets/blade_body/plain.png"))
+            .expect("the embedded body picture decodes")
+            .to_rgba8()
+    });
+    let body = crate::shared_textures::share(
+        "saber body",
+        crate::shared_textures::key(&[b"blade_body"]),
+        || crate::gpu_texture::upload_display_image(device, queue, "SJK saber body", &BODY),
+    );
     let (integral, glow, core) = crate::shared_textures::share("saber pair", key, || {
         (
             crate::saber_gpu::glow_integral::upload(device, queue, glow),
@@ -937,6 +971,8 @@ pub(crate) fn material(
             sampler(2, &samplers.glow),
             view(3, &integral),
             sampler(4, &samplers.core),
+            view(5, &body),
+            sampler(6, &samplers.body),
         ],
     })
 }

@@ -15,6 +15,10 @@
 //! A push or pull on the one gripping the thrower breaks its grip at the grip's level or
 //! above.
 //!
+//! The server's mod may change some of it ([`ForceRules`], [`Throw::rules`]): JA+ throws
+//! players on the ground and, with friendly fire, teammates, and flings items
+//! ([`crate::item_push`]).
+//!
 //! NPCs are clients too: they throw and are thrown alike (an NPC's world is
 //! [`crate::npc_force_throw`]'s), but a vehicle, and any NPC in siege, is out of reach.
 //!
@@ -26,6 +30,7 @@
 
 use crate::event_entity::EventEntity;
 use crate::force_powers::{FORCE_POWER_NEEDED, FP_ABSORB, FP_GRIP, FP_PULL, FP_PUSH, ForcePowers};
+use crate::force_rules::ForceRules;
 use crate::knockdown::Knockdown;
 use crate::player_death::Rng;
 use crate::pmove::MovementTrace;
@@ -85,7 +90,10 @@ pub enum CandidateKind {
     Button {
         pushable: bool,
     },
-    /// Anything else the throw leaves alone (items, the world, other movers).
+    /// An item (`ET_ITEM`), which a server that pushes items flings
+    /// ([`ForceRules::push_items`], [`crate::item_push`]).
+    Item,
+    /// Anything else the throw leaves alone (the world, other movers).
     Other,
 }
 
@@ -128,6 +136,10 @@ pub trait ThrowWorld {
     }
     /// `GEntity_UseFunc(mover, thrower, thrower)`: the mover is used (`Use_BinaryMover`).
     fn use_mover(&mut self, _number: u16, _thrower: u16) {}
+    /// The item numbered `number`, for a server that pushes items.
+    fn item(&mut self, _number: u16) -> Option<&mut crate::items::Pickup> {
+        None
+    }
 }
 
 const RADIUS: f32 = 1_024.0;
@@ -169,13 +181,18 @@ const ES_SABER_ENTITY: usize = 37;
 const ES_TRICKED: usize = 58;
 const EV_GENERAL_SOUND: u32 = 76;
 
-/// The throw's context: the time, the game type, the thrower's number.
+/// The throw's context: the time, the game type, the thrower's number, the server's
+/// Force rules.
 #[derive(Clone, Copy, Debug)]
 pub struct Throw {
     pub level_time: i32,
     pub gametype: i32,
     pub thrower: u16,
     pub pull: bool,
+    pub rules: ForceRules,
+    /// The players in a JA+ full-force duel ([`crate::duel::FullForce`]): none on the
+    /// base game.
+    pub full_force: crate::duel::FullForce,
 }
 
 /// What the thrower brings to every target, read once.
@@ -229,6 +246,16 @@ pub fn throw(context: Throw, world: &mut dyn ThrowWorld) {
                     world.use_mover(candidate.number, context.thrower);
                 }
             }
+            CandidateKind::Item => {
+                let in_duel = world
+                    .player(context.thrower)
+                    .is_some_and(|player| player.state.duel_in_progress());
+                if let Some(item) = world.item(candidate.number)
+                    && crate::item_push::pushable(item, context.rules.push_items, in_duel)
+                {
+                    crate::item_push::push(item, thrower.forward, context.pull, context.level_time);
+                }
+            }
             CandidateKind::Other => {}
         }
     }
@@ -272,6 +299,7 @@ fn begin(context: Throw, world: &mut dyn ThrowWorld) -> Option<Thrower> {
         power,
         level_time,
         context.gametype,
+        context.full_force,
     ) {
         return None;
     }
@@ -456,7 +484,8 @@ fn in_reach(
     match candidate.kind {
         CandidateKind::Player => {
             let team = world.player(candidate.number).map(|player| player.team)?;
-            if on_same_team(context.gametype, thrower.team, team) {
+            if on_same_team(context.gametype, thrower.team, team) && !context.rules.throw_teammates
+            {
                 return None;
             }
         }
@@ -476,6 +505,11 @@ fn in_reach(
         }
         CandidateKind::Button { pushable } => {
             if context.pull || !pushable {
+                return None;
+            }
+        }
+        CandidateKind::Item => {
+            if context.rules.push_items < 1 {
                 return None;
             }
         }
@@ -587,9 +621,11 @@ fn shove(context: Throw, thrower: &Thrower, candidate: Candidate, world: &mut dy
             victim.state,
             victim.force,
             victim.state.client_num(),
+            power,
             thrower.level as i32,
             thrower.cost,
             level_time,
+            context.rules,
         ) {
             Some((level, event)) => {
                 events.extend(event);
@@ -782,26 +818,28 @@ fn break_grip(context: Throw, number: u16, level: i32, world: &mut dyn ThrowWorl
 }
 
 /// `WP_AbsorbConversion` (`w_force.c:791-848`) on player `number` for a push, pull,
-/// grip, lightning or drain at `level` that cost `spent`: with absorption running, the
-/// power loses the victim's absorb levels and the victim's pool gains a third of the cost
-/// for each (one at least), with the absorbing hit's sound at most every 400 ms. Returns
-/// the power's level now and that sound's event, or `None` where nothing is absorbed.
+/// grip, lightning or drain (`power`) at `level` that cost `spent`: with absorption
+/// running, the power loses the victim's absorb levels and the victim's pool gains a
+/// third of the cost for each (one at least; the server's [`ForceRules::absorb_gain`]),
+/// with the absorbing hit's sound at most every 400 ms. Returns the power's level now and
+/// that sound's event, or `None` where nothing is absorbed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn absorb_conversion(
     state: &mut PlayerState,
     force: &mut ForcePowers,
     number: u16,
+    power: usize,
     level: i32,
     spent: i32,
     level_time: i32,
+    rules: ForceRules,
 ) -> Option<(i32, Option<EventEntity>)> {
     let absorb = i32::from(force.levels[FP_ABSORB]);
     if absorb == 0 || state.raw_field(PS_ACTIVE).unwrap_or(0) & (1 << FP_ABSORB) == 0 {
         return None;
     }
-    let mut gain = (spent / 3) * absorb;
-    if gain < 1 && spent >= 1 {
-        gain = 1;
-    }
+    let continuous = !matches!(power, FP_PUSH | FP_PULL);
+    let gain = rules.absorb_gain(spent, absorb, continuous);
     let pool = (state.raw_field(PS_FORCE_POWER).unwrap_or(0) as i32 + gain).min(force.max);
     state.set_raw_field(PS_FORCE_POWER, pool as u32);
     let event = (force.sound_debounce < level_time).then(|| {
@@ -854,6 +892,7 @@ fn can_counter_throw(
         power,
         context.level_time,
         context.gametype,
+        context.full_force,
     ) {
         return false;
     }
@@ -871,21 +910,31 @@ fn usable_on(context: Throw, number: u16, _power: usize, world: &mut dyn ThrowWo
         if context.pull { FP_PULL } else { FP_PUSH },
         context.level_time,
         context.gametype,
+        context.full_force,
     ) {
         return false;
     }
-    if thrower.state.duel_in_progress() {
+    let thrower_duel = crate::duel::duel_of(thrower.state);
+    if thrower_duel.is_some() && !context.full_force.has(context.thrower) {
         return false;
     }
     let Some(other) = world.player(number) else {
         return false;
     };
     if crate::force_powers::has_ysalamiri(other.state, context.gametype)
-        || other.state.duel_in_progress()
+        || crate::duel::force_refused(
+            context.thrower,
+            thrower_duel,
+            number,
+            crate::duel::duel_of(other.state),
+            context.full_force,
+        )
     {
         return false;
     }
-    if crate::knockdown::in_knockdown(other.state.raw_field(PS_LEGS_ANIM).unwrap_or(0) as u16) {
+    if !context.rules.throw_knocked_down
+        && crate::knockdown::in_knockdown(other.state.raw_field(PS_LEGS_ANIM).unwrap_or(0) as u16)
+    {
         return false;
     }
     // No push or pull on a vehicle, nor on any NPC in siege (`w_force.c:598-615`).
@@ -1075,6 +1124,8 @@ mod tests {
             gametype: 0,
             thrower: 0,
             pull,
+            rules: ForceRules::default(),
+            full_force: crate::duel::FullForce::default(),
         };
         force_door(context, &thrower(), candidate, &mut world);
         world.used
@@ -1112,6 +1163,8 @@ mod tests {
             gametype: 0,
             thrower: 0,
             pull,
+            rules: ForceRules::default(),
+            full_force: crate::duel::FullForce::default(),
         };
         let (_, mut candidate) = door(MoverState::Pos1, 96.0);
         assert!(in_reach(context(false), &thrower(), candidate, &mut world).is_some());
@@ -1122,5 +1175,206 @@ mod tests {
         assert!(in_reach(context(true), &thrower(), candidate, &mut world).is_none());
         candidate.kind = CandidateKind::Button { pushable: false };
         assert!(in_reach(context(false), &thrower(), candidate, &mut world).is_none());
+    }
+
+    /// Two players: the thrower (0) at the origin and the other (1) 100 units ahead, in
+    /// teams `teams`, every trace clear.
+    struct Pair {
+        states: [PlayerState; 2],
+        forces: [ForcePowers; 2],
+        knockdowns: [Knockdown; 2],
+        killers: [crate::damage::OtherKiller; 2],
+        effects: [i32; 2],
+        locks: [i32; 2],
+        invulnerable: [i32; 2],
+        teams: [i32; 2],
+        rng: Rng,
+    }
+
+    impl Pair {
+        fn new(teams: [i32; 2]) -> Self {
+            let mut states = [PlayerState::zero(), PlayerState::zero()];
+            states[1].set_origin([100.0, 0.0, 0.0]);
+            Self {
+                states,
+                forces: [
+                    ForcePowers::with_levels([0; 18]),
+                    ForcePowers::with_levels([0; 18]),
+                ],
+                knockdowns: [Knockdown::default(); 2],
+                killers: [crate::damage::OtherKiller::default(); 2],
+                effects: [0; 2],
+                locks: [0; 2],
+                invulnerable: [0; 2],
+                teams,
+                rng: Rng(0),
+            }
+        }
+
+        fn victim(&self) -> Candidate {
+            Candidate {
+                number: 1,
+                kind: CandidateKind::Player,
+                absmin: [85.0, -15.0, -24.0],
+                absmax: [115.0, 15.0, 40.0],
+                origin: [100.0, 0.0, 0.0],
+            }
+        }
+    }
+
+    impl ThrowWorld for Pair {
+        fn entities_in_box(&mut self, _: [f32; 3], _: [f32; 3], out: &mut Vec<Candidate>) {
+            out.clear();
+        }
+        fn trace(&mut self, _: [f32; 3], end: [f32; 3], _: u16, _: u32) -> MovementTrace {
+            MovementTrace::miss(end)
+        }
+        fn in_pvs(&mut self, _: [f32; 3], _: [f32; 3]) -> bool {
+            true
+        }
+        fn player(&mut self, number: u16) -> Option<ThrowPlayer<'_>> {
+            let at = usize::from(number);
+            if at > 1 {
+                return None;
+            }
+            Some(ThrowPlayer {
+                state: &mut self.states[at],
+                force: &mut self.forces[at],
+                health: 100,
+                knockdown: &mut self.knockdowns[at],
+                other_killer: &mut self.killers[at],
+                npc_class: None,
+                invulnerable_until: &mut self.invulnerable[at],
+                command: UserCommand::default(),
+                team: self.teams[at],
+                push_effect_until: &mut self.effects[at],
+                lock_hits: &mut self.locks[at],
+            })
+        }
+        fn reflect_missile(&mut self, _: u16, _: u16, _: [f32; 3]) {}
+        fn toss_weapon(&mut self, _: u16, _: [f32; 3], _: f32) {}
+        fn raise(&mut self, _: EventEntity) {}
+        fn sound_index(&mut self, _: &[u8]) -> u16 {
+            0
+        }
+        fn rng(&mut self) -> &mut Rng {
+            &mut self.rng
+        }
+    }
+
+    fn push(gametype: i32, rules: ForceRules) -> Throw {
+        Throw {
+            level_time: 1_000,
+            gametype,
+            thrower: 0,
+            pull: false,
+            rules,
+            full_force: crate::duel::FullForce::default(),
+        }
+    }
+
+    fn ja_plus(throw_teammates: bool) -> ForceRules {
+        ForceRules {
+            throw_knocked_down: true,
+            throw_teammates,
+            absorb_gain_scale: 2.0,
+            ..ForceRules::default()
+        }
+    }
+
+    fn thrower_in(team: i32) -> Thrower {
+        Thrower { team, ..thrower() }
+    }
+
+    #[test]
+    fn a_teammate_is_thrown_only_where_the_server_says() {
+        const GT_TEAM: i32 = 6;
+        let mut pair = Pair::new([1, 1]);
+        let victim = pair.victim();
+        // The base game passes over a teammate.
+        let base = push(GT_TEAM, ForceRules::default());
+        assert!(in_reach(base, &thrower_in(1), victim, &mut pair).is_none());
+        // JA+ without friendly fire likewise; with it, the teammate is thrown.
+        let japlus = push(GT_TEAM, ja_plus(false));
+        assert!(in_reach(japlus, &thrower_in(1), victim, &mut pair).is_none());
+        let friendly = push(GT_TEAM, ja_plus(true));
+        assert!(in_reach(friendly, &thrower_in(1), victim, &mut pair).is_some());
+        // A foe is reached under every rule.
+        let mut pair = Pair::new([1, 2]);
+        assert!(in_reach(base, &thrower_in(1), victim, &mut pair).is_some());
+        // Outside the team games nobody is a teammate.
+        let mut pair = Pair::new([0, 0]);
+        let free_for_all = push(0, ForceRules::default());
+        assert!(in_reach(free_for_all, &thrower(), victim, &mut pair).is_some());
+    }
+
+    #[test]
+    fn a_player_knocked_down_is_thrown_only_where_the_server_says() {
+        let mut pair = Pair::new([0, 0]);
+        let base = push(0, ForceRules::default());
+        let japlus = push(0, ja_plus(false));
+        for animation in ["BOTH_KNOCKDOWN1", "BOTH_GETUP1"] {
+            let animation = crate::legacy_animation_index(animation).unwrap() as u32;
+            pair.states[1].set_raw_field(PS_LEGS_ANIM, animation);
+            assert!(!usable_on(base, 1, FP_PUSH, &mut pair));
+            assert!(usable_on(japlus, 1, FP_PUSH, &mut pair));
+        }
+        // Standing, the same under every rule.
+        pair.states[1].set_raw_field(PS_LEGS_ANIM, 0);
+        assert!(usable_on(base, 1, FP_PUSH, &mut pair));
+        assert!(usable_on(japlus, 1, FP_PUSH, &mut pair));
+    }
+
+    /// The pool player 1 has after absorbing `power` at level 2 that cost `spent`.
+    fn absorbed(power: usize, spent: i32, rules: ForceRules) -> (i32, u32) {
+        let mut pair = Pair::new([0, 0]);
+        pair.forces[1].levels[FP_ABSORB] = 3;
+        pair.forces[1].max = 100;
+        pair.states[1].set_raw_field(PS_ACTIVE, 1 << FP_ABSORB);
+        let (level, _) = absorb_conversion(
+            &mut pair.states[1],
+            &mut pair.forces[1],
+            1,
+            power,
+            2,
+            spent,
+            1_000,
+            rules,
+        )
+        .unwrap();
+        (level, pair.states[1].raw_field(PS_FORCE_POWER).unwrap())
+    }
+
+    #[test]
+    fn absorbing_a_push_gains_the_base_games_third_under_every_rule() {
+        for rules in [ForceRules::default(), ja_plus(false)] {
+            assert_eq!(absorbed(FP_PUSH, 20, rules), (0, 18));
+            assert_eq!(absorbed(FP_PULL, 1, rules), (0, 1));
+        }
+    }
+
+    #[test]
+    fn fix_absorb_gains_more_from_the_continuous_powers() {
+        use crate::force_powers::{FP_DRAIN, FP_LIGHTNING};
+        assert_eq!(absorbed(FP_LIGHTNING, 1, ForceRules::default()), (0, 1));
+        assert_eq!(absorbed(FP_LIGHTNING, 1, ja_plus(false)), (0, 2));
+        assert_eq!(absorbed(FP_DRAIN, 4, ForceRules::default()), (0, 3));
+        assert_eq!(absorbed(FP_DRAIN, 4, ja_plus(false)), (0, 8));
+        assert_eq!(absorbed(FP_GRIP, 30, ja_plus(false)), (0, 60));
+    }
+
+    #[test]
+    fn an_item_is_reached_only_where_the_server_pushes_items() {
+        let mut pair = Pair::new([0, 0]);
+        let item = Candidate {
+            kind: CandidateKind::Item,
+            ..pair.victim()
+        };
+        assert!(in_reach(push(0, ForceRules::default()), &thrower(), item, &mut pair).is_none());
+        let pushing = ForceRules {
+            push_items: 1,
+            ..ForceRules::default()
+        };
+        assert!(in_reach(push(0, pushing), &thrower(), item, &mut pair).is_some());
     }
 }

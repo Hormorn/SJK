@@ -184,7 +184,7 @@ impl WorldInstallTask {
             // await — as a single frame on this thread. That outgrew the 2 MiB
             // a spawned thread gets by default and aborted the process on join
             // ("thread 'sjk-world-install' has overflowed its stack"). The main
-            // thread never hit it because it starts with 8 MiB. Reserve room
+            // thread has its own, set in build.rs. Reserve room
             // explicitly rather than depending on how much the future happens
             // to need this month; untouched pages cost nothing.
             .stack_size(WORLD_INSTALL_STACK_BYTES)

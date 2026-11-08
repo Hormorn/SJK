@@ -368,6 +368,11 @@ pub(crate) fn submit(
             if let BladeColor::Skin(skin) = color
                 && let Some(spec) = skin.petals
             {
+                // A chroma's coloured petals take the wearer's colour.
+                let spec = crate::saber_petals::PetalSpec {
+                    turn: skin.chroma.turn,
+                    ..spec
+                };
                 let base = Vec3::from_array(blade.base);
                 let along = Vec3::from_array(blade.direction);
                 // Its whole length's tip, so a blade growing out (or going in) sheds none.
@@ -384,6 +389,13 @@ pub(crate) fn submit(
                 );
             }
             light_blades[half][blade_index] = Some(blade);
+            // The Angel blade's cloud trail waits for its full form, as its clouds do.
+            let trail_ready = !matches!(color, BladeColor::Skin(skin)
+                if skin.trail_kind == crate::blade_extras::TrailKind::Cloud)
+                || state
+                    .motion
+                    .lit_for(presentation_time)
+                    .is_some_and(|lit| lit >= 9.5);
             if let Some(edges) = trails.as_deref_mut()
                 && let Some(quad) = state.trail.update(
                     edges.edge(blade),
@@ -391,7 +403,7 @@ pub(crate) fn submit(
                     equipment.trail_duration_millis,
                     hilt_blade.trail_style,
                     color,
-                    equipment.trail_duration_millis > 0,
+                    equipment.trail_duration_millis > 0 && trail_ready,
                 )
             {
                 segments.insert(quad, presentation_time);

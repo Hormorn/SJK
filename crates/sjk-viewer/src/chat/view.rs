@@ -5,6 +5,7 @@ mod composer;
 mod draft;
 mod name;
 mod recipient;
+mod row_tools;
 
 pub(super) use recipient::LIST_MAX as PM_LIST_MAX;
 mod sjk_line;

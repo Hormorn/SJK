@@ -269,9 +269,10 @@ pub(crate) struct Movers {
     snapshot_time: i32,
     smooth_clients: bool,
     permanents: Box<[EntityState]>,
-    /// The server isolates private duels (JA+, jaPRO): duellers and everyone
-    /// else pass through each other ([`sjk_client::duel_passes_through`]).
-    duel_isolation: bool,
+    /// How the server isolates private duels, if it does (JA+ with `jp_DuelAlpha`
+    /// 0 or more in a free-for-all or team game, jaPRO): duellers and everyone else
+    /// pass through each other ([`sjk_client::duel_passes_through`]).
+    duel_isolation: Option<sjk_client::DuelIsolation>,
 }
 
 impl Movers {
@@ -288,7 +289,7 @@ impl Movers {
             snapshot_time: 0,
             smooth_clients: false,
             permanents: Box::default(),
-            duel_isolation: false,
+            duel_isolation: None,
         }
     }
 
@@ -369,7 +370,9 @@ impl Movers {
             {
                 continue;
             }
-            if self.duel_isolation && sjk_client::duel_passes_through(&snapshot.player, state) {
+            if self.duel_isolation.is_some_and(|isolation| {
+                sjk_client::duel_passes_through(isolation, &snapshot.player, state)
+            }) {
                 continue;
             }
             if let Some(mut collider) =
@@ -428,8 +431,7 @@ impl Movers {
 
     /// Follow the server's private-duel policy from its serverinfo.
     pub(crate) fn set_duel_isolation(&mut self, game: Option<&sjk_protocol::GameState>) {
-        self.duel_isolation = game
-            .is_some_and(|game| sjk_client::CompatProfile::from_game_state(game).isolates_duels());
+        self.duel_isolation = game.and_then(sjk_client::DuelIsolation::from_game_state);
         self.sequence = None;
     }
 
