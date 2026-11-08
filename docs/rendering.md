@@ -890,6 +890,14 @@ process's RAM in Task Manager.
   than 16:9 so they never see past it, which lines the 3D stage up with the picture.
   A world install that runs out of memory turns the setting on
   ([status](status.md#menu-pictures-and-readable-world-install-failures)).
+- Largest texture (`r_maxTextureSize`, SJK, 2048 by default, 0 for none; Settings,
+  "Largest texture") leaves off the mip levels of a texture larger than its size, so
+  the longest side kept is that size or less, whatever `r_picmip` (`mips::skipped`
+  takes the larger of the two). It takes every path `r_picmip` takes, and also the
+  `nopicmip` stages and sky boxes. Added 08/11/2026 for community player models with
+  4096x4096 textures (`creyonwolf`): at 2048 such a texture is a quarter of its video
+  memory and upload. The whole chain is still decoded and built on a worker, so the
+  cap does not shorten that part of a load. From the next map, as `r_picmip`.
 - Texture detail (`r_picmip`, 0 to 3, as in Jedi Academy,
   [world_texture_mips.rs](../crates/sjk-viewer/src/world_texture_mips.rs)) leaves a
   material texture's largest mip levels off the card: each step halves its sides, a
