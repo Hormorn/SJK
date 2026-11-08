@@ -5983,6 +5983,12 @@ sees it there.
   Players propose them in the Discord's `#tag-proposals` channel (28/10/2026; a pinned
   post says how: one idea per post, voted with reactions, a bold square PNG, nothing
   taken from another game), which the tag card in Collection > Tags points to.
+- **Collections** (08/11/2026, Sol's decision): every tag is in one collection, **Alpha**
+  for SJK's own and **Community** for those players drew, picked from `#tag-proposals`
+  (Blep's EZ, Gonk and Geyon so far). A collection is only a label: Collection > Tags
+  lists each under its own heading and the tag's card names it ("Community tag · Rare").
+  It changes nothing in drops (a blade's edition does, [unlockables.md](unlockables.md)),
+  so the hub does not know it; a new collection is a line in `tags.rs`'s `COLLECTIONS`.
 - **Finishes and credits cards** (31/10/2026, Sol's decisions): a tag a holocron drops
   comes Holo (4 %) or Solar (0.5 %) now and then, whatever the holocron's tier
   ([holocrons.md](holocrons.md)); the hub counts those copies apart. The credits cards the
@@ -6004,8 +6010,8 @@ sees it there.
   yours."). Spare copies trade too: the trade window lists them with their finish beside
   the duplicate shaders, counted as duplicates in the day's limits
   ([tag_copies.rs](../crates/sjk-viewer/src/tag_copies.rs)).
-- **Choosing:** Collection > Tags shows every tag, then the credits cards under their own
-  heading, the ones the player lacks dimmed and the Holo and Solar copies held as badges;
+- **Choosing:** Collection > Tags shows every tag under its collection's heading, then
+  the credits cards under their own, the ones the player lacks dimmed and the Holo and Solar copies held as badges;
   the wall scrolls (the wheel, the arrows keeping the choice in view). The card on the right
   offers Normal, Holo and Solar (the finishes held), shown over the picture; Choose (or
   Enter) sets `cg_tag`, the tag or card `toy_tag` sticks (default `tag_sjk`), and
