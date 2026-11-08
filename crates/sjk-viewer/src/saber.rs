@@ -929,11 +929,10 @@ pub(crate) fn material(
         &core.height().to_le_bytes(),
         core.as_raw(),
     ]);
-    // The picture a signature may paint its body with (`skinBody`), the same in every material.
-    // No blade paints with one now (God Ki, the only one, was left out on 06/11/2026), so it is
-    // plain white.
+    // The picture a signature may paint its body with (`skinBody`), the same in every material:
+    // the Malachor Rose's (blade 300), an original made by `scripts/blade_body.py`.
     static BODY: std::sync::LazyLock<image::RgbaImage> = std::sync::LazyLock::new(|| {
-        image::load_from_memory(include_bytes!("../assets/blade_body/plain.png"))
+        image::load_from_memory(include_bytes!("../assets/blade_body/malachor_rose.png"))
             .expect("the embedded body picture decodes")
             .to_rgba8()
     });

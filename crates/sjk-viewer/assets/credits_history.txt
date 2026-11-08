@@ -9,6 +9,8 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 08/11/2026 | - | Banners out of the game for now: no Banners tab, no banner odds note
+- f8678ae |  | Banners out of the game for now: no Banners tab, no banner odds note
 + 08/11/2026 | - | Format the nameplate client icon code (cargo fmt)
 - 925c271 |  | Format the nameplate client icon code (cargo fmt)
 + 08/11/2026 | - | Keep the key binding groups' icons (Sol)
@@ -2823,6 +2825,11 @@
 - 46efdd7 |  | Predict the JA+ dual jump-attack hull over a player ahead
 
 = Creyon
++ 08/11/2026 | SJK #378 | Bring back the Malachor Rose blade (original picture and sounds)
+- 5a1aac8 |  | Bring back the Trayus Scythe blade (original picture and sounds)
+- 773d58d |  | Changelog and credits: the Trayus Scythe after Foshin's idea
+- f1bc8d6 |  | Drop the last old name from a comment
+- aad4c91 |  | Rename the blade to Malachor Rose (Creyon's choice)
 + 06/11/2026 | SJK #370 | Add 131 new blades
 - 6a5b19f |  | Add 131 new blades
 - 1f3518d |  | Angel: no hard lines at the tip or across the view
@@ -3450,6 +3457,16 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 08/11/2026 | SJK #367 | The Forge: break several saber shaders down at once
+- 536784d |  | The Forge: break several saber shaders down at once
+- 816834f |  | Forge picking: choose how many copies of each, and name a refused shader
+- ccb8ba6 |  | Forge picking: fixes from a test in game
+- 11dcc09 |  | Read the own profile again after a refused break down
++ 08/11/2026 | SJK #362 | Fishing counts as play: a hooked bite is a play signal
+- 8b36c6f |  | Fishing counts as play: a hooked bite is a play signal
++ 08/11/2026 | SJK #361 | Fishing balance: shorter bites, Old Whiskers pity, two achievements
+- 46ee2f1 |  | Fishing balance: shorter bites, Old Whiskers pity, two achievements
+- 71061a8 |  | Changelog: PR #361
 + 08/11/2026 | SJK #368 | Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
 - aa353e2 |  | Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
 - 025fb59 |  | Changelog: spawn list (PR #368)

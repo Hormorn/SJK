@@ -48,6 +48,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Fishing counts as play for holocrons: standing at the water earns while you hook the bites (within 5 minutes of the last one); pressing Use without a bite still scares the fish off _(Slash, PR #362, after headshotsmcgee117's question in #ideas)_
 - Fishing: bites come every 15 to 40 seconds (were 20 to 60), and Old Whiskers bites more often the longer you go without it. Echo Angler needs 5 Echoes (was 10). Two new achievements: Beachcomber (every kind of junk) and Steady Hand (10 bites hooked in a row) _(Slash, PR #361)_
 - The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), choose how many copies of each with + and - (or the buttons beside Break down selected), and Break down selected turns them all into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; if one cannot go, the line under the button names it and nothing is broken down. Locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, PR #367, after Atrosex's idea)_
+- Malachor Rose blade (blade 300, Mythical): the blade left out of the 130, back with its own name, picture and sounds; the 131st of Creyon's round. It comes to holocrons with the others _(Creyon, PR #378, after Foshin's idea)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 

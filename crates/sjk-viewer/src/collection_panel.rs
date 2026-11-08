@@ -2796,7 +2796,7 @@ mod tests {
         redraw(&mut panel, &inputs);
         assert_eq!(panel.shader_filter.edition, Some(crate::editions::BETA));
         let beta = ids(&panel);
-        assert_eq!(beta.len(), 130);
+        assert_eq!(beta.len(), 131);
         assert_eq!(alpha.len() + beta.len(), all.len());
         assert!(beta.iter().all(|id| !alpha.contains(id)));
         let _ = panel.cycle_edition(false);
@@ -2888,7 +2888,7 @@ mod tests {
         assert_eq!(ids(&panel), ["saber_tidal"]);
         panel.shader_filter.query = "creyon".to_owned();
         redraw(&mut panel, &inputs);
-        assert_eq!(ids(&panel).len(), 281, "the saber smith is searched");
+        assert_eq!(ids(&panel).len(), 282, "the saber smith is searched");
         panel.shader_filter.query = "mythical".to_owned();
         redraw(&mut panel, &inputs);
         assert_eq!(
@@ -2923,6 +2923,7 @@ mod tests {
                 "saber_vergence_scatter",
                 "saber_taris_undercity",
                 "saber_angel",
+                "saber_malachor_rose",
             ]
         );
         panel.shader_filter.query = "nothing".to_owned();

@@ -54,7 +54,7 @@ macro_rules! signature {
 /// Blade Lab designs reworked in full (19/10/2026: the Star Wars rework; the Bleeding Kyber in
 /// round 9), which replace their hand-ported designs (`blade_lab_designs.rs`). Sol's Sun
 /// (blade 001) became one on 20/10/2026, keeping its file's look under its own.
-pub(crate) const SIGNATURES: [Signature; 262] = [
+pub(crate) const SIGNATURES: [Signature; 263] = [
     signature!("sun"),
     signature!("abyssal_eye"),
     signature!("aurora_wyrm"),
@@ -324,6 +324,8 @@ pub(crate) const SIGNATURES: [Signature; 262] = [
     signature!("ansion_plains"),
     signature!("sernpidal_dust"),
     signature!("angel"),
+    // 6/11/2026: the Malachor Rose back, all its own (blade 300).
+    signature!("malachor_rose"),
 ];
 
 /// The lab's helpers every signature may call (`lab.glsl`, translated).

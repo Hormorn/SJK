@@ -186,7 +186,7 @@ pub(crate) fn blade_skin_named(word: &str) -> Option<&'static Unlockable> {
 }
 
 /// Every unlockable, in the hub's catalogue order (the order profiles list them in).
-pub(crate) static ALL: [Unlockable; 299] = [
+pub(crate) static ALL: [Unlockable; 300] = [
     Unlockable {
         id: "saber_sun",
         number: 1,
@@ -4081,6 +4081,19 @@ pub(crate) static ALL: [Unlockable; 299] = [
         smith: CREYON,
         description: "Sernpidal under the falling moon: dust in the air pours down the blade from point to hand, and a thin red cloud hangs on round it.",
         how_to_get: COMING_TO_HOLOCRONS,
+    }, // 6/11/2026: back with its own picture, sounds and words (Foshin's idea).
+    Unlockable {
+        id: "saber_malachor_rose",
+        number: 300,
+        name: "Malachor Rose blade",
+        kind: Kind::BladeSkin,
+        tier: Rarity::Mythical,
+        chroma: false,
+        droppable: false,
+        edition: crate::editions::BETA,
+        smith: CREYON,
+        description: "The Force as it was wielded on Malachor V, drawn to a single thin edge: a body of pale rose light clouded with white, climbing the blade, a fine sheen along its outline and a narrow tear in space around it. Long crescents of white light and crimson wheel round it in dark red air, with small stars.",
+        how_to_get: COMING_TO_HOLOCRONS,
     },
 ];
 
@@ -4625,6 +4638,7 @@ mod tests {
                 "saber_fest_steppe",
                 "saber_ansion_plains",
                 "saber_sernpidal_dust",
+                "saber_malachor_rose",
             ]
         );
         assert!(blade_skins().all(|skin| [SOL, CREYON].contains(&skin.smith)));
@@ -4672,6 +4686,7 @@ mod tests {
                 "saber_vergence_scatter",
                 "saber_taris_undercity",
                 "saber_angel",
+                "saber_malachor_rose",
             ]
         );
         assert_eq!(
@@ -5008,7 +5023,7 @@ mod tests {
         assert!(Rarity::Unique > Rarity::Mythical, "the rarest");
     }
 
-    /// Sol's collections (06/11/2026): Creyon's round, blades 170 to 299, is the Beta
+    /// Sol's collections (06/11/2026): Creyon's round, blades 170 to 300, is the Beta
     /// edition, the 130 blades and nothing else; every other unlockable is Alpha.
     #[test]
     fn creyons_round_is_the_beta_edition() {
@@ -5026,7 +5041,7 @@ mod tests {
             })
             .collect();
         beta.sort_unstable();
-        assert_eq!(beta, (170..=299).collect::<Vec<u16>>());
+        assert_eq!(beta, (170..=300).collect::<Vec<u16>>());
         assert!(
             ALL.iter()
                 .filter(|unlockable| unlockable.edition != crate::editions::BETA)
@@ -5655,6 +5670,7 @@ mod tests {
                 ("saber_fest_steppe", "Fest Steppe blade"),
                 ("saber_ansion_plains", "Ansion Plains blade"),
                 ("saber_sernpidal_dust", "Sernpidal Dust blade"),
+                ("saber_malachor_rose", "Malachor Rose blade"),
             ]
         );
         assert!(ALL.iter().all(Unlockable::is_blade_skin));

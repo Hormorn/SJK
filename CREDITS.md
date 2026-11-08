@@ -475,7 +475,7 @@ includes:
 Creyon and Lumaya wear the SJK team's Contributor medal, shown on their
 cards of the in-game credits page.
 
-Creyon ([Creyon94](https://github.com/Creyon94)), contributor and tester, has 78
+Creyon ([Creyon94](https://github.com/Creyon94)), contributor and tester, has 79
 pull requests merged into SJK, most of them bringing SJK in line with EternalJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ACreyon94)):
 
@@ -790,7 +790,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 120 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 123 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1000,6 +1000,11 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
   button through the launch options.
 - #384 the E-Web: the holdable, and single-player maps' `emplaced_eweb` (hub report #267).
 - #368 the spawn list (`spawn_panel`): NPCs, vehicles and cheats picked from a list.
+- #362 fishing counts as play: a hooked bite keeps a player at the water earning, after
+  headshotsmcgee117's question (hub report #269).
+- #361 fishing balance: shorter bites, a pity rule for Old Whiskers, Echo Angler at 5, and
+  the Beachcomber and Steady Hand achievements.
+- #367 the Forge breaks several saber shaders down at once, after Atrosex's idea.
 
 His Peek work in #199 (closed 24/10/2026, not merged) shaped the Drone toy: a player is
 asked before being peeked, told who watches, and can end it. His #206 (closed 25/10/2026,
@@ -1101,6 +1106,9 @@ falling blossoms like the Spectral's, and a branch with a flower where the blade
 (and one day a wooden hilt). Sol built it as the Varykino Blossom, a Mythical saber shader
 (blade 166, 21/10/2026), with all of it but the hilt, which waits for custom hilts.
 Kushina also gave the idea of the Angel blade (05/11/2026).
+
+Foshin, a player, gave the idea of the blade that came back as the Malachor Rose
+(blade 300, 07/11/2026), the 131st blade of Creyon's round.
 
 Kushina also asked for JA+ and jaPRO plugin options she would not have to type as a
 `cp_pluginDisable` number: Sol built them as Settings switches named after each feature,

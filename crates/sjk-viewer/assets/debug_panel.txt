@@ -9370,3 +9370,30 @@ test: devmap mp/ffa3, give item_eweb_holdable, use it: the gun stands, the barre
 test: Fire: bolts go to the crosshair. Back off or use it again: put away, weapons back.
 test: Shoot it to pieces (200): it blows up and the holdable is gone.
 test: devmap hoth2: walk to an E-Web facing its way, use key: take it; again: let go.
+
+[fishing-play-balance]
+area: Gameplay
+title: Fishing counts as play, and its balance (Slash, #362, #361)
+change: A hooked bite keeps a player standing at the water earning holocron time.
+change: Bites every 15 to 40 s, Old Whiskers pity, Echo Angler at 5, two new achievements.
+test: toy_fishing, stand and hook bites: Holocrons tab keeps counting, no Not earning line.
+test: Stop hooking for over 5 minutes, or go idle 2 minutes: the tab says Not earning.
+test: Collection > Achievements > Fun: Fishing shows seven, Beachcomber and Steady Hand.
+note: Needs hub shared #12 and #13 deployed; Echo Angler stays 10 until then.
+
+[forge-shatter-many]
+area: Menus & settings
+title: The Forge breaks several shaders down at once (Slash, #367)
+change: Break down: Select (S), click to pick, + and - for copies, then Break down selected.
+test: Select on: pick two shaders, + on one, Break down selected: the card lists them.
+test: Confirm: shards rise, counts fall, a worn last copy comes off the saber.
+test: Escape stops picking. A locked shader cannot be picked.
+note: Needs hub shared #16 deployed; without it the Select chip does not show.
+
+[malachor-rose-300]
+area: Rendering & effects
+title: Malachor Rose blade 300 (Creyon, #378, after Foshin's idea)
+change: A Mythical blade of pale rose light, Beta Edition, not droppable yet.
+test: Collection > Shaders: search malachor: it lists, its look plays on the stand.
+test: Wear it (a staff grant): the rose body, crescents and sounds show in a match.
+note: Its sounds come with hub shared #20's sjk_skins_2 pack.
