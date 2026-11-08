@@ -350,6 +350,7 @@ fn load_hilt_model(
         center: [0.0; 3],
         flash_bolt: None,
         turning_bone: None,
+        eweb_part: None,
     });
     let cached = (mesh_index, sockets);
     model_cache.insert(definition.model.clone(), cached);

@@ -1960,6 +1960,32 @@ taken at its bind pose, as the static mesh is; Ghoul2's frame 0 of `mp.gla` diff
 it by under a tenth of a unit. The muzzle flash and the dying gun's red pulse and
 damaged skin are not changed by this.
 
+### E-Webs
+
+An E-Web set down (`ET_GENERAL` with `models/map_objects/hoth/eweb_model.glm`: the
+holdable or a single-player map's `emplaced_eweb`) is turned by the server, as in
+`CG_General`'s `CG_G2ServerBoneAngles`: its bone slots name `cannon_Yrot` and
+`cannon_Xrot` by their `CS_G2BONES` strings, with the angles `EWeb_SetBoneAngles` gave
+them, `BONE_ANGLES_POSTMULT` about the axes in `boneOrient` (forward `NEGATIVE_X`, right
+`NEGATIVE_Z`, up `POSITIVE_Y`). The gun is drawn in three parts cut from its model
+([eweb_view.rs](../crates/sjk-viewer/src/eweb_view.rs)), each triangle going with the bone
+its first vertex leans on most: the stand (the base and the tripod's legs), the top
+(`cannon_Yrot`) and the barrel (`cannon_Xrot` and below). Each part is moved by its bone's
+matrix in the skeleton's frame 0 with the two turns applied ([`BoneOverridePose`](../crates/sjk-model/src/bone_override.rs)),
+the gun standing unfolded on its legs with its feet 24 units below its origin, and
+turned first by Ghoul2's root quarter turn (`GHOUL2_ROOT`, the one the server reads its
+muzzle through; without it the barrel points to the gun's right). The
+unfolding (frames 4-20) and the firing frames (2-4) that `EF_G2ANIMATING` asks for are
+not played, and the pickup (`ET_ITEM`) is drawn whole as before. The parts load through
+the model loader the first time a gun is seen; until they have, the gun is drawn whole.
+
+While the local player works an E-Web (`CG_UsingEWeb`: the emplaced gun's weapon, its
+`emplacedIndex` naming a `WP_NONE` entity) its movement is not predicted: the server
+moves it behind the turning gun every frame, so its place is interpolated from the
+snapshots and the mouse kept, as `cg_noPredict 1` does
+([interpolated_view.rs](../crates/sjk-viewer/src/interpolated_view.rs)). Predicted, the
+gunner shook as the gun turned.
+
 ### Force presentation controls
 
 `cg_forceAnimFX` (on) controls animation-driven Rage, Heal, Quick Heal and Grip-victim

@@ -42,6 +42,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Characters you build yourself are easy to find: Profile > Character lists the game's species first, under Customizable, each tile marked; pick one to choose its head, torso, legs and skin colour, as in single player; after the skin colours, Custom gives red, green and blue sliders for any colour you like _(Slash, PR #375, after Blep's idea)_
 - The vote panel is easier to read: a centred SJK card under the match timer with the proposal in large text, the seconds left with a shrinking bar, the YES and NO counts in green and red with a bar of their share, and the keys to vote under them (`/vote yes` / `/vote no` when no key is bound); `testvote` shows a made-up vote to see it _(Slash, PR #379)_
 - Kept outside the game's GameData, SJK finds a Steam copy of Jedi Academy by itself, in any Steam library (another drive too), and a GOG copy on Windows; and Steam's Play button can start SJK: set Jedi Academy's launch options to the path of sjk.exe followed by %command% _(Slash, PR #366)_
+- The E-Web works: use it from the inventory to set the heavy repeater down in front of you, aim with the mouse and fire, use it again (or back off) to put it away; it blows up when shot to pieces or when you die. The E-Webs of single-player maps such as hoth2 stand on the map too, and anyone facing one takes it with the use key (hub report #267) _(Slash, PR #384, after Hormorn's and AngeloPapaya's reports)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 

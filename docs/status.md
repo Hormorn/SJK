@@ -82,6 +82,29 @@ fixed text "10 toys", written before Fishing came as the eleventh toy, while the
 unit test `the_headline_counts_every_toy` (headline against the tab's count and the rows),
 the `collection` tests, fmt and clippy.
 
+## E-Web: the holdable, and the single-player maps' `emplaced_eweb` (hub report #267)
+
+07/11/2026, `fix/eweb` from `main` `f70925b5`. The E-Web holdable did nothing on SJK's
+server: `HI_EWEB` was listed as not ported, so a use gave it back ("holdable eweb used:
+not ported yet"), and hoth2's two `emplaced_eweb` entities (a single-player class) were
+never spawned. The server now runs the multiplayer game's E-Web (`ItemUse_UseEWeb`,
+`EWeb_Create`, `EWebThink`, `EWebFire`, `EWebDie`: [eweb.rs](../crates/sjk-game-jka/src/eweb.rs),
+[bridge_eweb.rs](../crates/sjk-dedicated/src/bridge_eweb.rs)) and spawns `emplaced_eweb` as a
+gun anyone facing it takes with the use key ([server.md](server.md#e-webs)). The client draws
+a gun set down in three parts turned by the server's bone angles
+([rendering.md](rendering.md#e-webs)); while the player works one its movement is not
+predicted (`CG_UsingEWeb`), as the server moves it behind the turning gun. Verified on
+Windows: unit tests (placement, the four degree turn, the bolt from the muzzle, health and
+death, the map gun's taking rules, `give` and `use_eweb` reaching it, the client's part split,
+root turn and axes, the unpredicted gunner), fmt, build, clippy on the changed crates. Played
+in game on `mp/ffa3` (`give item_eweb_holdable`, `use_eweb`): the gun is set down in front of
+the player, its barrel follows the aim and its bolts go to the crosshair; the first build
+drew the gun a quarter turn off (Ghoul2's root turn was missing) and shook the gunner while
+turning (predicted movement), both fixed and played again. Not verified: hoth2's guns, the
+gun's death and blast, on Linux and macOS, and against a stock client. Not ported: the
+unfolding and firing animations on SJK's client, the gun's fall (`G_RunExPhys`), the map
+gun's scripts, `INACTIVE`, NPC gunners and its wreck.
+
 ## Rig chains feel the player's movement, and can keep out of the arms
 
 06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only

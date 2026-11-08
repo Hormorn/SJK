@@ -38,6 +38,8 @@ pub(super) struct StaticModelMesh {
     pub(super) flash_bolt: Option<bolt::BoltMatrix>,
     /// For an emplaced gun's turning part, the bind pose of the bone that carries it.
     pub(super) turning_bone: Option<sjk_model::GlaBone>,
+    /// For a part of an E-Web, what poses it ([`crate::eweb_view`]).
+    pub(super) eweb_part: Option<std::sync::Arc<crate::eweb_view::PartPose>>,
 }
 
 /// Gather preload defaults and the initial world's rigid appearances and append
@@ -164,6 +166,9 @@ pub(super) fn load_one(
     if let Some(part) = emplaced_swivel::Part::of(appearance) {
         return emplaced_swivel::load_part(vfs, appearance, part, flattened);
     }
+    if let Some(part) = crate::eweb_view::Part::of(appearance) {
+        return crate::eweb_view::load_part(vfs, appearance, part, flattened);
+    }
     let asset = vfs
         .read(&appearance.model)?
         .ok_or("network model asset was not found")?;
@@ -188,5 +193,6 @@ pub(super) fn load_one(
         center: mesh_center(&flattened.vertices[vertex_start..]),
         flash_bolt,
         turning_bone: None,
+        eweb_part: None,
     })
 }

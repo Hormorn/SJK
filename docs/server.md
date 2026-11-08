@@ -367,6 +367,31 @@ implemented. Pursuit uses local steering and ordinary NPC movement; complex
 obstacles still need broader map playtesting. No new protocol fields or SP entity
 flags are sent, and no new assets are required for the retail sand creature.
 
+## E-Webs
+
+The E-Web holdable is the multiplayer game's (`ItemUse_UseEWeb`, `EWeb_Create`,
+`EWebThink`, `g_items.c`): the use key on it sets the gun down 48 units ahead when its box
+is clear there and lands on the world within 18 units (else the "shieldcon_empty" sound),
+and puts it away again a second later at the earliest. While on it the player holds the
+emplaced gun's weapon (`ps.emplacedIndex`), is kept 32 units behind the gun's top, which
+turns after its view by at most four degrees a frame, and fires a 20-damage turret bolt
+(`MOD_TURBLAST`) from the muzzle every 100 ms while fire is held. Backing off or
+moving too far off the ground puts it back in the inventory. It has 200 of health, kept
+between deployments; shot to pieces, or when its owner dies or leaves, it blows up (90
+within 128, `MOD_SUICIDE`) and the holdable is gone for good. The muzzle and the gunner's
+place are read on the server's own copy of `eweb_model.glm`, posed at frame 0 with the two
+bone turns (`map_turret_model::TurretPose`), so they do not follow the unfolding or firing
+frames. The gun does not fall (`G_RunExPhys` is not run); it is set down on the ground.
+
+The single-player maps' `emplaced_eweb` (hoth2 places two), which the multiplayer game
+has no spawn for, stands where the map puts it with its own `health` (250 by default),
+`splashDamage` (40) and `splashRadius` (100); its `INVULNERABLE` flag (4) makes it
+take no damage. Anyone standing up, alive and on foot who faces its way (a dot of 0.75)
+takes it with the use key, as `eweb_can_be_used` asks, and works it as the holdable is.
+The use key again, backing off or dying lets go; the gun stays. Not ported: its `usescript`,
+`painscript` and `deathscript`, `INACTIVE` with `target_activate`, NPCs taking it, the wreck
+and its smoke (the gun is gone once it blows up).
+
 ## Siege doors
 
 The use key reaches a `PLAYER_USE` door (`ValidUseTarget`, `GlobalUse`). In siege,

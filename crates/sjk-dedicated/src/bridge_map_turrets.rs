@@ -43,6 +43,12 @@ pub(super) struct MapTurrets {
 }
 
 impl MapTurrets {
+    /// `RegisterItem` by another thing than a turret (the E-Web's `EWebPrecache`), added
+    /// with the turrets' to `CS_ITEMS`.
+    pub(in crate::bridge) fn register_item(&mut self, item: usize) {
+        self.work.items.push(item);
+    }
+
     /// Lets go of the turrets without freeing them: the pool they were in is gone.
     pub(super) fn forget_entities(&mut self) {
         self.g2.clear();
@@ -251,7 +257,7 @@ impl NativeGame {
 
     /// The items the turrets registered (`RegisterItem`: the blaster's, the emplaced
     /// gun's), added to `CS_ITEMS` so that the clients load what draws their bolts.
-    fn register_turret_items(&mut self) {
+    pub(in crate::bridge) fn register_turret_items(&mut self) {
         let items = std::mem::take(&mut self.map_turrets.work.items);
         let Some(mut present) = self
             .config_strings

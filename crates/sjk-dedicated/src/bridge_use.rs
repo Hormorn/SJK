@@ -77,6 +77,10 @@ impl NativeGame {
         {
             return;
         }
+        // A map E-Web's gunner lets go of it with the key (`bridge_eweb`).
+        if self.leave_map_eweb_by_use(client, level_time) {
+            return;
+        }
         let Some(peer) = self.peer(client) else {
             return;
         };
@@ -117,7 +121,10 @@ impl NativeGame {
             self.try_jetpack(client, level_time);
             return;
         };
-        if self.use_vehicle(client, found, level_time) || self.use_gun(client, found, level_time) {
+        if self.use_vehicle(client, found, level_time)
+            || self.use_gun(client, found, level_time)
+            || self.use_map_eweb(client, found, level_time)
+        {
             return;
         }
         // A button the use key reached is pressed, and a `PLAYER_USE` door used

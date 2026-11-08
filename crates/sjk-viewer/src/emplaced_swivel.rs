@@ -159,6 +159,7 @@ pub(crate) fn load_part(
         center: render_helpers::mesh_center(&flattened.vertices[vertex_start..]),
         flash_bolt: None,
         turning_bone: (part == Part::Turning).then(|| skeleton.bones[bone].clone()),
+        eweb_part: None,
     })
 }
 
@@ -256,7 +257,7 @@ fn stand_matrix(bone: &GlaBone, angles: [f32; 3]) -> [[f32; 4]; 3] {
 
 /// The entity's placement followed by the bone's model-space `matrix`: the turning
 /// part's position and rotation (`[x, y, z, w]`).
-fn carried(transform: &Transform, matrix: [[f32; 4]; 3]) -> ([f32; 3], [f32; 4]) {
+pub(crate) fn carried(transform: &Transform, matrix: [[f32; 4]; 3]) -> ([f32; 3], [f32; 4]) {
     let entity = glam::Quat::from_array(transform.rotation);
     let bone = glam::Quat::from_mat3(&glam::Mat3::from_cols(
         glam::Vec3::new(matrix[0][0], matrix[1][0], matrix[2][0]),

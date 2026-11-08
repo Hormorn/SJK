@@ -155,6 +155,7 @@ impl NativeGame {
             self.publish_gun(self.mounted.guns.len() - 1);
         }
         self.map = Some(map);
+        self.spawn_ewebs();
         if let Some(item) = sjk_game_jka::items::find(emplaced::ITEM_CLASSNAME)
             .filter(|_| !self.mounted.guns.is_empty())
         {
@@ -231,7 +232,7 @@ impl NativeGame {
                     )
                 };
                 if let Some(blast) = blast {
-                    self.gun_blast(number, user, blast, level_time);
+                    self.gun_blast(number, user, blast, MOD_UNKNOWN, level_time);
                 }
                 let Self {
                     server,
@@ -447,6 +448,9 @@ impl NativeGame {
         attacker: Option<u16>,
         level_time: i32,
     ) -> bool {
+        if self.hurt_eweb(number, damage, level_time) {
+            return true;
+        }
         let Some(index) = self.mounted.index(number) else {
             return false;
         };
@@ -528,7 +532,14 @@ impl NativeGame {
     /// The gun's end (`G_RadiusDamage(origin, gun, damage, radius, gun, NULL,
     /// MOD_UNKNOWN)`) over the players, NPCs and other guns, its lines drawn through the
     /// map and the guns' boxes (`CanDamage`, `MASK_SOLID`).
-    fn gun_blast(&mut self, gun: u16, user: Option<u16>, blast: Blast, level_time: i32) {
+    pub(in super::super) fn gun_blast(
+        &mut self,
+        gun: u16,
+        user: Option<u16>,
+        blast: Blast,
+        means: u32,
+        level_time: i32,
+    ) {
         self.gather_splash_targets();
         let targets = std::mem::take(&mut self.splash_targets);
         let mut solids = std::mem::take(&mut self.mounted.solids);
@@ -566,7 +577,7 @@ impl NativeGame {
                     damage,
                     radius,
                     Some(gun),
-                    MOD_UNKNOWN,
+                    means,
                     level_time,
                     &targets,
                     &world,
@@ -580,7 +591,7 @@ impl NativeGame {
                     damage,
                     radius,
                     Some(gun),
-                    MOD_UNKNOWN,
+                    means,
                     level_time,
                     &targets,
                     &WithPlayers {

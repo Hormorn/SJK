@@ -8,12 +8,13 @@ use sjk_protocol::{GameState, PlayerState, Snapshot};
 
 /// Whether the local view is the server's rather than predicted, and how
 /// (`CG_PredictPlayerState`): following, a synchronous server, `cg_noPredict`, a
-/// JA+ kick victim, or, while jaPRO tools are loaded, a movement style SJK's pmove
-/// does not model ([`japro_unpredicted`]).
+/// JA+ kick victim, on an E-Web (`eweb`, [`using_eweb`]), or, while jaPRO tools are
+/// loaded, a movement style SJK's pmove does not model ([`japro_unpredicted`]).
 pub(crate) fn mode(
     console: Option<&crate::console::ViewerConsole>,
     game: &GameState,
     player: &PlayerState,
+    eweb: bool,
 ) -> Option<Interpolation> {
     let no_predict = console
         .and_then(|console| console.integer_cvar("cg_noPredict"))
@@ -25,6 +26,10 @@ pub(crate) fn mode(
         server_synchronous(game),
         || sjk_game_jka::pmove_japlus::JaPlusRules::from_game_state(game).enabled,
     )
+    // `CG_UsingEWeb`: the server moves the gunner behind the turning gun every frame, so
+    // its place is taken from the snapshots, the mouse kept (`CG_InterpolatePlayerState(
+    // qtrue)`, `cg_predict.c:1080`).
+    .or_else(|| eweb.then_some(Interpolation::KeepAngles))
     .or_else(|| {
         sjk_game_jka::pmove_lugormod::LugormodRules::from_game_state(game)
             .needs_snapshot(player)
@@ -77,6 +82,21 @@ fn announce_style(style: Option<&'static str>) {
              the server has it (japro.predictMoveStyles 1 predicts it as JKA)",
         ));
     }
+}
+
+/// `CG_UsingEWeb` (`cg_predict.c:978-988`): the local player works an E-Web — on the
+/// emplaced gun's weapon, its `emplacedIndex` naming an entity whose weapon is
+/// `WP_NONE` (an emplaced gun's is `WP_EMPLACED_GUN`).
+pub(crate) fn using_eweb(snapshot: &Snapshot) -> bool {
+    const WP_EMPLACED_GUN: u8 = 17;
+    let player = &snapshot.player;
+    let gun = player.emplaced_index();
+    player.weapon() == WP_EMPLACED_GUN
+        && gun != 0
+        && snapshot
+            .entities
+            .binary_search_by_key(&gun, |state| state.number())
+            .is_ok_and(|index| snapshot.entities[index].weapon() == 0)
 }
 
 pub(crate) fn server_synchronous(game: &GameState) -> bool {
@@ -141,7 +161,13 @@ pub(crate) fn present(gpu: &mut GpuState, time: i32) {
     if matches!(latest.player.movement_type(), 7 | 8) {
         return;
     }
-    let Some(mode) = mode(gpu.console.as_ref(), session.game_state(), &latest.player) else {
+    let eweb = using_eweb(latest);
+    let Some(mode) = mode(
+        gpu.console.as_ref(),
+        session.game_state(),
+        &latest.player,
+        eweb,
+    ) else {
         return;
     };
     let previous = session.snapshot_at_or_before(time);
@@ -183,7 +209,7 @@ mod lugormod_tests {
             game.replace_config_string(0, format!("\\gamename\\{name}").into_bytes())
                 .unwrap();
             assert_eq!(
-                mode(None, &game, &player),
+                mode(None, &game, &player, false),
                 if name == "Lugormod v3" {
                     Some(Interpolation::KeepAngles)
                 } else {
@@ -193,6 +219,45 @@ mod lugormod_tests {
             );
         }
         player.set_movement_type(0);
-        assert_eq!(mode(None, &game, &player), None);
+        assert_eq!(mode(None, &game, &player, false), None);
+    }
+
+    /// On the emplaced gun's weapon at an E-Web (`WP_NONE`): unpredicted; at an emplaced
+    /// gun, or with another weapon, predicted.
+    #[test]
+    fn a_gunner_on_an_eweb_is_not_predicted() {
+        let gun = |weapon: u32| {
+            let mut state =
+                sjk_protocol::EntityState::zero(70, &sjk_protocol::LEGACY_ENTITY_FIELDS);
+            state.set_raw_field(14, weapon);
+            state
+        };
+        let mut snapshot = Snapshot {
+            message_sequence: 0,
+            reliable_acknowledge: 0,
+            server_commands: Vec::new(),
+            server_time: 0,
+            delta_from: None,
+            flags: 0,
+            area_mask: Vec::new(),
+            player: PlayerState::default(),
+            vehicle_player: None,
+            entities: vec![gun(0)],
+            consumed_bits: 0,
+        };
+        // `ps.weapon`, `ps.emplacedIndex`.
+        snapshot.player.set_raw_field(47, 17);
+        snapshot.player.set_raw_field(112, 70);
+        assert!(using_eweb(&snapshot));
+        snapshot.entities = vec![gun(17)];
+        assert!(!using_eweb(&snapshot));
+        snapshot.entities = vec![gun(0)];
+        snapshot.player.set_raw_field(47, 3);
+        assert!(!using_eweb(&snapshot));
+        let game = GameState::empty_local(0);
+        assert_eq!(
+            mode(None, &game, &PlayerState::default(), true),
+            Some(Interpolation::KeepAngles)
+        );
     }
 }

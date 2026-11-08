@@ -681,6 +681,7 @@ impl GpuState {
                         center: [0.0; 3],
                         flash_bolt: None,
                         turning_bone: None,
+                        eweb_part: None,
                     },
                     scene,
                 )
