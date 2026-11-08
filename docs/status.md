@@ -376,6 +376,44 @@ hub leaves the list out and clients keep the one they had. With `cg_serverRemaps
 (the default) server remaps are already ignored, and a map the player allowed is `on`,
 which the list leaves alone: the list matters to players who turned Server remaps on.
 
+## Mining toy (phase 1)
+
+04/11/2026, `feat/mining`, based on `main` `c0d603eb` (vinry's idea, built by Slash): `toy_mining` puts a
+pickaxe in the right hand, held as a hilt is (turned with the hand bolt, so it stays in
+the grip in every pose and in first person; the strong saber stance), and three
+boulders come up out of the ground round the player, in sight, on flat dry ground
+([client.md](client.md#mining)). The attack button (MB1, kept from the weapon; `+use` too) swings, held again and again: the whole body plays `BOTH_A3_T__B_`
+from the swing's start (`actor_pose_steps.rs`, the own player only; legs while standing),
+and the blow strikes the nearest boulder within 64 units before the player. 10 to 14 blows
+break it; a glint flashes on it now and then, and a blow landing while it shines is a clean
+strike (two blows, less rubble, the ore one tier rarer but never into the Heart). The find (4
+rubble, 9 ores, the Heart of the Mountain with Old Whiskers' kind of bad luck protection)
+jumps to the feet and is counted in `mining_log.txt`; another boulder comes up 4 to 8
+seconds later (balanced against Fishing: about six boulders a minute, the Heart some
+40 minutes, near Old Whiskers' half hour after Fishing's balance pass, #361; Sharp Eye, not
+Steady Hand, which #361 takes for Fishing; a 15 to 25 second wait was tried and felt slow). The player may walk with it; an alt attack or getting hurt puts it away, and it
+and the fishing rod put each other away. Boulders and swings are the miner's own (not
+sent); others see the pickaxe held. The fists are selected when the player has them,
+else a lit saber is switched off, and the pickaxe replaces what the hand held. Health
+counting down over the maximum after a spawn no longer counts as a hit. Boulders keep
+64 units of the feet, in sight, and clear of items. Collection > Toys has its twelfth row (rows 52 high
+with a gap of 2, the name and tagline moved up, so twelve fit at 1080 lines), the quick
+wheel's catalogue its icon, Key bindings its row, `toy_help` its line (and Fishing's, which
+it lacked), Settings > Sound > Toys `s_toyMiningSound`. The look has the toy `mining`
+(after `fishing`). Assets from `scripts/mining_assets.py` (it reuses `fishing_assets.py`'s
+MD3 and PNG writers). Five achievements (`mine_first`, `mine_500`, `mine_clean_250`,
+`mine_kinds`, `heart_of_the_mountain` hidden; 05/11/2026) in a Mining category, Fishing and
+Mining on a third board page, Hobbies (the Fun page's bands were full); the hub needs the
+five ids in its catalogue before they unlock online. No credits: phase 2 (selling finds
+under the Fishing junk's daily cap, shared) needs the hub. A first take struck veins on
+walls; Slash asked for boulders on the ground and the whole body in the swing (04/11/2026).
+Verified: fmt, build, the mining, pose, collection, looks, quick wheel, settings and input
+tests; a release build in game on a local `mp/ffa3` (driven through the console socket):
+the pickaxe in both hands in the stance, the swing down to the ground, boulders coming up
+on the player's floor, blows breaking one for a silver nugget in `mining_log.txt`, the
+saber switched off. Not verified: the glint and a clean strike in game, the sounds, other
+players seeing the pickaxe.
+
 ## No repeated commands on JoF (Heimdall kicks)
 
 04/11/2026, `personal/jof-packetdup` from `main` `ba165c38`: Turin was kicked by

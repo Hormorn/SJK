@@ -52,6 +52,15 @@ impl GpuState {
         {
             self.fishing.toggle();
         }
+        if let Some(on) = console.take_mining_request()
+            && on != self.mining.on()
+        {
+            // As `toggle_mining`: `+use` is both toys', so the rod goes away first.
+            if on && self.fishing.on() {
+                self.fishing.toggle();
+            }
+            self.mining.toggle();
+        }
         // The boombox checks who may carry it, so it is switched once the console is let
         // go; the Fishing card's Sell junk too.
         let boombox_request = console.take_boombox_request();
@@ -131,6 +140,7 @@ impl GpuState {
             console.set_banana_on(self.banana.on());
             console.set_fishing_on(self.fishing.on());
             console.set_wheel_of_doom_on(self.wheel_of_doom.running());
+            console.set_mining_on(self.mining.on());
         }
         let connection = self
             .console

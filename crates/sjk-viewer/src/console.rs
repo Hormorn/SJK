@@ -289,6 +289,10 @@ pub(crate) struct ViewerConsole {
     fishing_on: bool,
     /// The Toys tab asked to get the rod out (`true`) or put it away, not yet taken.
     pending_fishing: Option<bool>,
+    /// The pickaxe is in hand, mirrored as [`Self::order66_on`] is.
+    mining_on: bool,
+    /// The Toys tab asked to take the pickaxe (`true`) or put it away, not yet taken.
+    pending_mining: Option<bool>,
     /// The Fishing card's catches and sale, as the viewer last gave them.
     fishing_card: crate::fishing_sell::Card,
     /// The Fishing card's Sell junk button was pressed.

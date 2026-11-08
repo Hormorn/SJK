@@ -77,6 +77,15 @@ pub(super) fn load<'a>(
         variant: String::new(),
     });
     appearances.extend(
+        crate::mining::MODELS
+            .into_iter()
+            .chain(crate::mining::ORE_MODELS.map(|ore| ore.model))
+            .map(|model| Appearance {
+                model: model.to_owned(),
+                variant: String::new(),
+            }),
+    );
+    appearances.extend(
         crate::fishing::MODELS
             .into_iter()
             .chain(crate::fishing::FISH_MODELS.map(|fish| fish.model))

@@ -43,6 +43,10 @@ pub(super) fn register(shell: &mut sjk_shell::Shell) -> Result<(), sjk_shell::Co
             "Toy: print your fish log in full: every fish and junk caught, held and sold",
         ),
         (
+            crate::mining::COMMAND,
+            "Toy: take a pickaxe in hand, or put it away (boulders come up round you; attack strikes the one before you)",
+        ),
+        (
             crate::order66::COMMAND,
             "Toy: Order 66 on or off (every player who has it on dies when one of them executes it)",
         ),

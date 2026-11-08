@@ -125,17 +125,73 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
             }
         }
     }
-    // A fisher holds the rod before the chest, as a rifle's ready pose (`fishing`): only
-    // a standing torso, so a jump or a hit plays as sent (and puts the rod away).
+    // A miner's swing is the whole body's (`mining`): the strong saber style's blow from
+    // overhead, from the swing's start, the legs too while they stand (a step plays as sent), blended in
+    // over 100 ms as `CG_SetLerpFrameAnimation` blends the torso.
+    if !mesh.corpse_pool
+        && mesh.animator.humanoid()
+        && let Some(slot) = mesh
+            .entity_id
+            .and_then(|id| usize::try_from(id.get().checked_sub(1)?).ok())
+        && let Some(elapsed) = crate::mining::swinging(slot)
+        && let Some((swing, name)) = crate::mining::swing_pose()
+        && mesh.preview.config.get_exact(name).is_some()
+    {
+        let started = presentation_time - elapsed;
+        let legs = standing_clip(state.lower.clip);
+        for (track, play) in [(&mut state.upper, true), (&mut state.lower, legs)] {
+            if !play {
+                continue;
+            }
+            let outgoing = *track;
+            track.clip = swing;
+            track.started_at_millis = started;
+            track.phase_millis = 0;
+            track.speed_milli = 1_000;
+            track.forced_frame = None;
+            track.transition = (elapsed < 100 && outgoing.clip != swing).then_some(
+                sjk_runtime::AnimationTrackTransition {
+                    clip: outgoing.clip,
+                    revision: outgoing.revision,
+                    started_at_millis: outgoing.started_at_millis,
+                    phase_millis: outgoing.phase_millis,
+                    speed_milli: outgoing.speed_milli,
+                    forced_frame: outgoing.forced_frame,
+                    blend_started_at_millis: started,
+                    blend_duration_millis: 100,
+                },
+            );
+        }
+    }
+    // A fisher holds the rod before the chest, as a rifle's ready pose (`fishing`), and a
+    // miner the pickaxe (`mining`): only a standing torso, so a jump or a hit plays as
+    // sent (and puts the rod away).
     if !mesh.corpse_pool
         && mesh.animator.humanoid()
         && mesh
             .entity_id
             .and_then(|id| usize::try_from(id.get().checked_sub(1)?).ok())
-            .is_some_and(crate::fishing::holding_rod)
+            .and_then(|slot| {
+                if crate::mining::holding_pick(slot) {
+                    crate::mining::hold_pose()
+                } else if crate::fishing::holding_rod(slot) {
+                    crate::fishing::hold_pose()
+                } else {
+                    None
+                }
+            })
+            .is_some_and(|(_, name)| mesh.preview.config.get_exact(name).is_some())
         && standing_clip(state.upper.clip)
-        && let Some((hold, name)) = crate::fishing::hold_pose()
-        && mesh.preview.config.get_exact(name).is_some()
+        && let Some((hold, _)) = mesh
+            .entity_id
+            .and_then(|id| usize::try_from(id.get().checked_sub(1)?).ok())
+            .and_then(|slot| {
+                if crate::mining::holding_pick(slot) {
+                    crate::mining::hold_pose()
+                } else {
+                    crate::fishing::hold_pose()
+                }
+            })
     {
         state.upper.clip = hold;
         state.upper.forced_frame = None;

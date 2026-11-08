@@ -30,10 +30,11 @@ pub(crate) enum Toy {
     Fishing,
     /// The WHEEL OF DOOM (`wheel_of_doom.rs`).
     WheelOfDoom,
+    Mining,
 }
 
 impl Toy {
-    pub(crate) const ALL: [Self; 14] = [
+    pub(crate) const ALL: [Self; 15] = [
         Self::Box,
         Self::Order66,
         Self::Hax,
@@ -48,6 +49,7 @@ impl Toy {
         Self::Tag,
         Self::Fishing,
         Self::WheelOfDoom,
+        Self::Mining,
     ];
 
     /// The switch that lets this toy be heard (on by default).
@@ -67,6 +69,7 @@ impl Toy {
             Self::Tag => "s_toyTagSound",
             Self::Fishing => "s_toyFishingSound",
             Self::WheelOfDoom => "s_toyWheelOfDoomSound",
+            Self::Mining => "s_toyMiningSound",
         }
     }
 }

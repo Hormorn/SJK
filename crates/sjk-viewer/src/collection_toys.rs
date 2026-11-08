@@ -20,13 +20,13 @@ use crate::menu_widgets::TextFamily;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign, TextureId};
 
 /// The rows: their left edge and width, where the column heads and the first row stand,
-/// a row's height and the room between rows, and its picture's side. Twelve fit over
-/// the keys (the WHEEL OF DOOM's row made the rows 52 tall 2 apart, 58 and 3 before).
+/// a row's height and the room between rows, and its picture's side. Thirteen fit over
+/// the keys (49 tall 2 apart with Mining, 08/11/2026; 52 and 2 for twelve, 58 and 3 for eleven).
 const ROWS_X: f32 = LEFT_X - 12.0;
 const ROWS_WIDTH: f32 = 860.0;
 const HEADS_Y: f32 = 300.0;
 const ROWS_Y: f32 = 336.0;
-const ROW_HEIGHT: f32 = 52.0;
+const ROW_HEIGHT: f32 = 49.0;
 const ROW_GAP: f32 = 2.0;
 const ROW_ART: f32 = 46.0;
 /// A row's key column: its width, and the room the switch keeps at the row's right.
@@ -55,7 +55,7 @@ const SELL_ROW: f32 = 42.0;
 /// ([`Inputs::toy_keys`]): each toy's switch, Order 66's order after its own, the
 /// Monitor's throw (held, it charges) after its own, and the Banana peel's drop after its
 /// own.
-pub(crate) const COMMANDS: [&str; 15] = [
+pub(crate) const COMMANDS: [&str; 16] = [
     "toy_illuminate",
     "toy_box",
     "toy_order66",
@@ -71,6 +71,7 @@ pub(crate) const COMMANDS: [&str; 15] = [
     "banana_drop",
     crate::fishing::COMMAND,
     crate::wheel_of_doom::COMMAND,
+    crate::mining::COMMAND,
 ];
 
 /// One toy as the tab shows it.
@@ -278,6 +279,21 @@ const TOYS: [Toy; TOY_COUNT] = [
         options: &[],
         token: WHEEL_OF_DOOM_TOKEN,
     },
+    Toy {
+        icon: "mining",
+        name: "Mining",
+        tag: "Break the boulders that come up round you for ore.",
+        title: "Mining",
+        what: "Take a pickaxe and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and another comes up elsewhere. When it glints, strike: a clean strike counts twice and digs out rarer ore. Other SJK players see your pickaxe; the boulders are yours alone.",
+        more: Some(
+            "Three boulders wait at a time. Attacking or getting hurt puts the pickaxe away. Your finds are in mining_log.txt.",
+        ),
+        commands: &[(crate::mining::COMMAND, "Your key")],
+        switch: "Pickaxe out",
+        sight: None,
+        options: &[],
+        token: MINING_TOKEN,
+    },
 ];
 
 /// The Toy Master's achievements the player holds: the toys they found.
@@ -392,6 +408,7 @@ fn states(inputs: &Inputs<'_>) -> [bool; TOY_COUNT] {
         inputs.banana,
         inputs.fishing,
         inputs.wheel_of_doom,
+        inputs.mining,
     ]
 }
 
@@ -550,7 +567,7 @@ impl Panel {
             &mut self.ui,
             TextFamily::Display,
             format_args!("{}", toy.name),
-            frame.rect(words_x, y + 6.0, words_width, 30.0 * k),
+            frame.rect(words_x, y + 3.0, words_width, 28.0 * k),
             23.0 * s,
             if chosen {
                 color::GOLD_BRIGHT
@@ -564,7 +581,7 @@ impl Panel {
             &mut self.ui,
             TextFamily::Body,
             format_args!("{}", toy.tag),
-            frame.rect(words_x, y + 8.0 + 30.0 * k, words_width, 22.0 * k),
+            frame.rect(words_x, y + 3.0 + 27.0 * k, words_width, 22.0 * k),
             15.0 * s,
             color::MUTED,
             FontWeight::Regular,

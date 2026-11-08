@@ -101,6 +101,8 @@ pub(crate) enum InputAction {
     Fishing,
     /// `toy_wheelofdoom`: show the WHEEL OF DOOM's price, or spin it ([`crate::wheel_of_doom`]).
     WheelOfDoom,
+    /// `toy_mining`: take the pickaxe in hand or put it away ([`crate::mining`]).
+    Mining,
     /// `fishing_sell`: sell the fished junk to the hub ([`crate::fishing_sell`]).
     FishingSell,
     /// `fishing_log`: print the fish log in full to the console.
@@ -362,6 +364,7 @@ impl GameplayInput {
                     | crate::cardboard_box::COMMAND
                     | crate::fishing::COMMAND
                     | crate::wheel_of_doom::COMMAND
+                    | crate::mining::COMMAND
                     | crate::fishing_sell::COMMAND
                     | crate::fishing_sell::LOG_COMMAND
                     | crate::order66::COMMAND
@@ -548,6 +551,7 @@ impl GameplayInput {
             crate::cardboard_box::COMMAND => Some(InputAction::CardboardBox),
             crate::fishing::COMMAND => Some(InputAction::Fishing),
             crate::wheel_of_doom::COMMAND => Some(InputAction::WheelOfDoom),
+            crate::mining::COMMAND => Some(InputAction::Mining),
             crate::fishing_sell::COMMAND => Some(InputAction::FishingSell),
             crate::fishing_sell::LOG_COMMAND => Some(InputAction::FishingLog),
             crate::order66::COMMAND => Some(InputAction::Order66),
@@ -747,6 +751,7 @@ impl super::GpuState {
             Some(InputAction::CardboardBox) => self.toggle_cardboard_box(),
             Some(InputAction::Fishing) => self.toggle_fishing(),
             Some(InputAction::WheelOfDoom) => self.wheel_of_doom_command(),
+            Some(InputAction::Mining) => self.toggle_mining(),
             Some(InputAction::FishingSell) => self.sell_fishing_junk(),
             Some(InputAction::FishingLog) => self.print_fishing_log(),
             Some(InputAction::Order66) => self.toggle_order66(),
@@ -779,8 +784,16 @@ impl super::GpuState {
                     self.gameplay_input.flip_kick.start();
                 }
             }
-            Some(InputAction::Weapon(weapon)) => self.select_weapon(weapon),
-            Some(InputAction::WeaponCycle(direction)) => self.cycle_weapon(direction),
+            Some(InputAction::Weapon(weapon)) => {
+                // A weapon chosen (the saber's 1 among them) puts the pickaxe away
+                // (`mining`), and is taken out as ever.
+                self.mining.weapon_chosen();
+                self.select_weapon(weapon);
+            }
+            Some(InputAction::WeaponCycle(direction)) => {
+                self.mining.weapon_chosen();
+                self.cycle_weapon(direction);
+            }
             Some(InputAction::WeaponMelee) => self.select_melee(),
             Some(InputAction::SelectionCycle(inventory, direction)) => {
                 let snapshot = self

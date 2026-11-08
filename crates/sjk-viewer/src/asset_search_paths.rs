@@ -525,6 +525,7 @@ impl Options {
         crate::illuminate::mount(&mut vfs)?;
         crate::cardboard_box::mount(&mut vfs)?;
         crate::fishing::mount(&mut vfs)?;
+        crate::mining::mount(&mut vfs)?;
         crate::order66::mount(&mut vfs)?;
         crate::hax::mount(&mut vfs)?;
         crate::ragdoll::mount(&mut vfs)?;

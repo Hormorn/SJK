@@ -136,6 +136,15 @@ pub(crate) enum Counter {
     JunkKinds,
     /// The most fish bites hooked in a row, none let go between (04/11/2026).
     HookStreak,
+    // The Mining toy's (vinry's toy, Slash, 05/11/2026; [`crate::mining`]).
+    /// Boulders broken with the Mining toy.
+    BouldersBroken,
+    /// Clean strikes on them (a blow on the glint).
+    CleanStrikes,
+    /// Kinds of ore dug (bits of [`ore_kind`]).
+    OreKinds,
+    /// The Heart of the Mountain dug.
+    MountainHearts,
 }
 
 /// How far a monitor must fly to its hit for Long Distance Call (game units, from where
@@ -144,7 +153,7 @@ pub(crate) enum Counter {
 pub(crate) const MONITOR_FAR: f32 = 1_575.0;
 
 impl Counter {
-    const COUNT: usize = 46;
+    const COUNT: usize = 50;
     const ALL: [Self; Self::COUNT] = [
         Self::Kills,
         Self::SaberKills,
@@ -192,6 +201,10 @@ impl Counter {
         Self::GreatCatfish,
         Self::JunkKinds,
         Self::HookStreak,
+        Self::BouldersBroken,
+        Self::CleanStrikes,
+        Self::OreKinds,
+        Self::MountainHearts,
     ];
 
     /// Its name in `achievements.json`.
@@ -243,11 +256,15 @@ impl Counter {
             Self::GreatCatfish => "great_catfish",
             Self::JunkKinds => "junk_kinds",
             Self::HookStreak => "hook_streak",
+            Self::BouldersBroken => "boulders_broken",
+            Self::CleanStrikes => "clean_strikes",
+            Self::OreKinds => "ore_kinds",
+            Self::MountainHearts => "mountain_hearts",
         }
     }
 
     /// Whether the count is the size of a set the record keeps (maps, servers, weapons,
-    /// duel partners, kinds of fish and of junk, the toys' players by name) rather than a
+    /// duel partners, kinds of fish, junk and ore, the toys' players by name) rather than a
     /// number.
     const fn is_set(self) -> bool {
         matches!(
@@ -258,6 +275,7 @@ impl Counter {
                 | Self::DuelPartners
                 | Self::FishKinds
                 | Self::JunkKinds
+                | Self::OreKinds
         ) || self.is_named()
     }
 
@@ -295,6 +313,7 @@ pub(crate) enum Category {
     Monitor,
     BoxHunt,
     Fishing,
+    Mining,
     /// The Toy Master's secrets, which the hub alone names ([`secret_kind`]).
     ToyMaster,
 }
@@ -307,23 +326,33 @@ pub(crate) enum Page {
     General,
     /// The toys, one category each.
     Fun,
+    /// The hobbies, toys played for finds (Fishing, Mining): the Fun page's four bands
+    /// were full (05/11/2026).
+    Hobbies,
 }
 
 impl Page {
-    pub(crate) const ALL: [Self; 2] = [Self::General, Self::Fun];
+    pub(crate) const ALL: [Self; 3] = [Self::General, Self::Fun, Self::Hobbies];
 
     /// The name its switch reads.
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::General => "General",
             Self::Fun => "Fun",
+            Self::Hobbies => "Hobbies",
         }
+    }
+
+    /// The page after it, the last turning to the first.
+    pub(crate) fn next(self) -> Self {
+        let at = Self::ALL.iter().position(|page| *page == self).unwrap_or(0);
+        Self::ALL[(at + 1) % Self::ALL.len()]
     }
 }
 
 impl Category {
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 14] = [
+    pub(crate) const ALL: [Self; 15] = [
         Self::Combat,
         Self::Duels,
         Self::Journeys,
@@ -337,6 +366,7 @@ impl Category {
         Self::Monitor,
         Self::BoxHunt,
         Self::Fishing,
+        Self::Mining,
         Self::ToyMaster,
     ];
 
@@ -356,6 +386,7 @@ impl Category {
             Self::Monitor => "Monitor",
             Self::BoxHunt => "Box hunt",
             Self::Fishing => "Fishing",
+            Self::Mining => "Mining",
             Self::ToyMaster => "Toy Master",
         }
     }
@@ -366,6 +397,7 @@ impl Category {
             Self::Combat | Self::Duels | Self::Journeys | Self::Community | Self::Collection => {
                 Page::General
             }
+            Self::Fishing | Self::Mining => Page::Hobbies,
             _ => Page::Fun,
         }
     }
@@ -451,13 +483,13 @@ impl Kind {
 
 use Category::{
     Boombox, BoxHunt, CardboardBox, Collection, Combat, Community, Drone, Duels, Fishing, Hax,
-    Journeys, Monitor, Order66,
+    Journeys, Mining, Monitor, Order66,
 };
 use Counter as C;
 use Source::{Client, Hub};
 
 /// Every achievement, in the hub's catalogue order.
-pub(crate) const ALL: [Kind; 75] = [
+pub(crate) const ALL: [Kind; 80] = [
     kind(
         "first_blood",
         "First Blood",
@@ -1074,6 +1106,49 @@ pub(crate) const ALL: [Kind; 75] = [
         Fishing,
         Client(C::HookStreak),
     ),
+    // 05/11/2026 (Slash): the Mining toy's, counted on servers as the rest; the goals set
+    // for its pace (some six boulders a minute, the Heart some 40 minutes).
+    kind(
+        "mine_first",
+        "First Strike",
+        "Break a boulder with the Mining toy.",
+        1,
+        Mining,
+        Client(C::BouldersBroken),
+    ),
+    kind(
+        "mine_500",
+        "Stonebreaker",
+        "Break 500 boulders.",
+        500,
+        Mining,
+        Client(C::BouldersBroken),
+    ),
+    kind(
+        "mine_clean_250",
+        "Sharp Eye",
+        "Land 250 clean strikes, each as the boulder glints.",
+        250,
+        Mining,
+        Client(C::CleanStrikes),
+    ),
+    kind(
+        "mine_kinds",
+        "Prospector",
+        "Dig every kind of ore.",
+        crate::mining::ORE_KINDS as u64,
+        Mining,
+        Client(C::OreKinds),
+    ),
+    kind(
+        "heart_of_the_mountain",
+        "Heart of the Mountain",
+        "Dig the Heart of the Mountain.",
+        1,
+        Mining,
+        Client(C::MountainHearts),
+    )
+    .secret(),
 ];
 
 /// The bit of the fish `id` in [`Record`]'s kinds of fish: its place among the fish of
@@ -1093,6 +1168,16 @@ pub(crate) fn junk_kind(id: &str) -> Option<u32> {
         .iter()
         .filter(|catch| catch.kind == crate::fishing::Kind::Junk)
         .position(|catch| catch.id == id)
+        .map(|index| 1 << index)
+}
+
+/// The bit of the ore `id` in [`Record`]'s kinds of ore: its place among the ores of
+/// [`crate::mining::FINDS`] (rubble has none).
+pub(crate) fn ore_kind(id: &str) -> Option<u32> {
+    crate::mining::FINDS
+        .iter()
+        .filter(|find| find.kind == crate::mining::Kind::Ore)
+        .position(|find| find.id == id)
         .map(|index| 1 << index)
 }
 
@@ -1279,6 +1364,8 @@ pub(crate) struct Record {
     fish: u32,
     /// Kinds of junk fished up (bits of [`junk_kind`]).
     junk: u32,
+    /// Kinds of ore dug (bits of [`ore_kind`]).
+    ores: u32,
     /// The toys' sets of players ([`Counter::is_named`]), by the counter's key: names
     /// without colours, lower case.
     named: BTreeMap<String, BTreeSet<String>>,
@@ -1313,6 +1400,7 @@ impl Record {
         weapons: 0,
         fish: 0,
         junk: 0,
+        ores: 0,
         named: BTreeMap::new(),
         spare_ms: [0; Counter::COUNT],
         floors: [0; Counter::COUNT],
@@ -1329,6 +1417,7 @@ impl Record {
             Counter::Weapons => u64::from(self.weapons.count_ones()),
             Counter::FishKinds => u64::from(self.fish.count_ones()),
             Counter::JunkKinds => u64::from(self.junk.count_ones()),
+            Counter::OreKinds => u64::from(self.ores.count_ones()),
             _ if counter.is_named() => self
                 .named
                 .get(counter.key())
@@ -1405,6 +1494,20 @@ impl Record {
         }
     }
 
+    /// A boulder the Mining toy broke, for `find`, after `clean` clean strikes on it.
+    /// Whether a count changed (always: a boulder counts).
+    pub(crate) fn mined(&mut self, find: &crate::mining::Find, clean: u32) -> bool {
+        self.add(Counter::BouldersBroken, 1);
+        self.add(Counter::CleanStrikes, u64::from(clean));
+        if find.kind == crate::mining::Kind::Ore {
+            self.ores |= ore_kind(find.id).unwrap_or(0);
+            if find.id == crate::mining::HEART {
+                self.add(Counter::MountainHearts, 1);
+            }
+        }
+        true
+    }
+
     /// Remember player `name` in the set of `counter` ([`Counter::is_named`]), by its
     /// normal form; whether they were new.
     fn name(&mut self, counter: Counter, name: &str) -> bool {
@@ -1464,6 +1567,11 @@ impl Record {
             Counter::JunkKinds => {
                 while u64::from(self.junk.count_ones()) > below {
                     self.junk &= self.junk - 1;
+                }
+            }
+            Counter::OreKinds => {
+                while u64::from(self.ores.count_ones()) > below {
+                    self.ores &= self.ores - 1;
                 }
             }
             _ => {
@@ -1644,6 +1752,7 @@ impl Record {
             "weapons": self.weapons,
             "fish": self.fish,
             "junk": self.junk,
+            "ores": self.ores,
             "named": self.named,
             "spare_ms": spare_ms,
             "floors": floors,
@@ -1688,6 +1797,7 @@ impl Record {
         record.weapons = u32::try_from(number(json.get("weapons"))).unwrap_or(0);
         record.fish = u32::try_from(number(json.get("fish"))).unwrap_or(0);
         record.junk = u32::try_from(number(json.get("junk"))).unwrap_or(0);
+        record.ores = u32::try_from(number(json.get("ores"))).unwrap_or(0);
         if let Some(unlocked) = json["unlocked"].as_object() {
             for (id, at) in unlocked {
                 if let (Some(kind), Some(at)) = (find(id), at.as_i64()) {
@@ -1976,7 +2086,37 @@ mod tests {
         assert_eq!(crate::fishing::JUNK_KINDS, 6);
         assert_eq!(find("junk_kinds").unwrap().goal, 6);
         assert_eq!(find("echo_angler").unwrap().goal, 5);
-        assert_eq!(find("fish_first").unwrap().category.page(), Page::Fun);
+        assert_eq!(find("fish_first").unwrap().category.page(), Page::Hobbies);
+        assert_eq!(Record::from_json(&record.to_json()), record);
+    }
+
+    /// A boulder counts towards Stonebreaker, its clean strikes towards Sharp Eye, an
+    /// ore towards its kind, the Heart towards its own; rubble counts the boulder only,
+    /// and the kinds of ore are kept in the file.
+    #[test]
+    fn mining_counts_boulders_clean_strikes_ores_and_the_heart() {
+        let find = |id: &str| {
+            crate::mining::FINDS
+                .iter()
+                .find(|find| find.id == id)
+                .unwrap()
+        };
+        let mut record = Record::default();
+        assert!(record.mined(find("rubble"), 0));
+        assert!(record.mined(find("iron_ore"), 2));
+        assert!(record.mined(find("iron_ore"), 1));
+        assert!(record.mined(find(crate::mining::HEART), 0));
+        assert_eq!(record.count(Counter::BouldersBroken), 4);
+        assert_eq!(record.count(Counter::CleanStrikes), 3);
+        assert_eq!(record.count(Counter::OreKinds), 2);
+        assert_eq!(record.count(Counter::MountainHearts), 1);
+        assert_eq!(crate::mining::ORE_KINDS, 9);
+        assert_eq!(find("rubble").kind, crate::mining::Kind::Rubble);
+        assert_eq!(super::find("mine_kinds").unwrap().goal, 9);
+        assert_eq!(
+            super::find("mine_first").unwrap().category.page(),
+            Page::Hobbies
+        );
         assert_eq!(Record::from_json(&record.to_json()), record);
     }
 
@@ -2065,7 +2205,7 @@ mod tests {
 
     /// The fourteen of 26/10/2026 and those since follow Decorated in the hub's order,
     /// the twelve the hub counts are its own, Master Craftsman asks for every card finish,
-    /// six are hidden and only Surveyor retired.
+    /// seven are hidden and only Surveyor retired.
     #[test]
     fn the_new_achievements_follow_the_hubs_catalogue() {
         let ids: Vec<&str> = ALL[21..].iter().map(|kind| kind.id).collect();
@@ -2126,6 +2266,11 @@ mod tests {
                 "old_whiskers",
                 "junk_kinds",
                 "fish_steady",
+                "mine_first",
+                "mine_500",
+                "mine_clean_250",
+                "mine_kinds",
+                "heart_of_the_mountain",
             ]
         );
         assert_eq!(ALL[20].id, "decorated");
@@ -2145,7 +2290,8 @@ mod tests {
                 "hax_triple",
                 "boombox_tough_crowd",
                 "monitor_triple",
-                "old_whiskers"
+                "old_whiskers",
+                "heart_of_the_mountain",
             ]
         );
         let retired: Vec<&str> = ALL.iter().filter(|k| k.retired).map(|k| k.id).collect();

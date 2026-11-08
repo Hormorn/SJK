@@ -6338,6 +6338,82 @@ player standing still. The models, picture, shader and icon are bundled, made by
 game), and mounted below all game data. See
 [fishing.rs](../crates/sjk-viewer/src/fishing.rs).
 
+## Mining
+
+Mining (vinry's idea, built by Slash, 04/11/2026; phase 1) is a toy for every SJK player, and unlike
+[Fishing](#fishing) no waiting game: a pickaxe in the hand, boulders coming up out of the
+ground round the player, and each broken a blow at a time at the player's own pace. Phase 1
+gives nothing the economy counts: finds go to the player's own mining log, and five
+achievements count them on servers as the rest do (in a Mining category on the board's
+Hobbies page, beside Fishing's; [identity.md](identity.md)): First Strike (a boulder
+broken), Stonebreaker (500), Sharp Eye (250 clean strikes), Prospector (every kind of
+ore, the Heart among them) and the hidden Heart of the Mountain. Selling them
+(phase 2) is to share Fishing junk's daily cap (one cap for both, so mining earns nothing
+on top of fishing); that needs the hub.
+
+- **`toy_mining`** (a bind, the quick wheel's Toys catalogue, Collection > Toys, "Pickaxe
+  out") takes the pickaxe in hand or puts it away. The player may walk with it;
+  an alt attack, choosing a weapon (`weapon <n>`, the saber's 1 among them, or the next
+  or previous one; it then comes out), getting hurt, dying or leaving the game puts it
+  away (health over the
+  maximum counting down after a spawn is no hurt). The hands go empty: the fists when the
+  player has them (`weapmelee`), else a lit saber is switched off; the pickaxe then
+  replaces whatever that hand holds. It is held as a hilt is: on the right hand's bolt,
+  turned with it (its handle along the bolt's +Z out of the top of the fist, its spike
+  forward along -Y, fitted in game against a hilt), so it stays in the grip in every pose,
+  first person included, where the own hands hold it; laid straight in the upright plane
+  the body faces (the handle and spike kept in it), so the hands' roll in the saber move
+  does not tip it to a side and its head stays level through the swing. The upper body takes the strong
+  saber stance (`BOTH_SABERSLOW_STANCE`), both hands on the handle, while it stands.
+  Taking it puts the fishing rod away and getting the rod out puts it away: `+use` is both
+  toys'.
+- **Boulders** (three at a time) come up out of the ground 140 to 420 units from the
+  player, at least 110 apart, rising over 0.6 seconds: the first ones within a second of
+  the pickaxe coming out, the next 4 to 8 seconds after one breaks (so another always
+  waits; about six a minute). A spot must be in the
+  player's sight, on ground flat enough (its normal at least 0.75 up), not in water, lava
+  or slime, nor the sky, at most 64 units below the feet (not the floor under a ledge),
+  the boulder itself in sight, and 56 units clear of the map's items (weapons, pickups).
+  A boulder more than 1400 units from the player goes, and another
+  comes up nearer; another map has none. They are the player's own: nobody else sees
+  them, and they do not block anyone.
+- **A swing** is the attack button (MB1; `+use` too): the attack is kept from the
+  weapon in hand while the pickaxe is out, so nothing fires. 0.7 seconds of the whole body playing the strong saber style's
+  blow from overhead down (`BOTH_A3_T__B_`, both hands on the handle; the legs too while
+  they stand, blended in over 100 ms), the pickaxe following the hands down to the ground
+  before the feet, its blow landing 0.42 seconds in (presses during a swing are not kept,
+  so spamming swings no faster; held, the attack swings again and again). The saber
+  swooshes the animation's cues play (`sound/weapons/saber/`) are left out while a player
+  holds the pickaxe (`actor_sounds.rs`): the pickaxe's own swing plays. The blow strikes the nearest boulder
+  within 64 units before the player (about 57 degrees either side of the way they face),
+  or, striking none, says nothing (a word there cut short the find just shown while the
+  attack was held). Others see the pickaxe held, not the swing: swings are not
+  sent.
+- **Blows:** a boulder takes 10 to 14, shrinking as it breaks and shaking at each.
+- **The glint:** 1 to 2.5 seconds after a boulder's first blow, then every 1.5 to 4
+  seconds, a star flashes on it for 0.8 seconds with a spark sound. A blow that lands
+  while it shines is a **clean strike**: it counts two blows, rings, and makes the find
+  better.
+- **The find:** rubble 40% of the time (four kinds), 10 points less for each clean strike
+  (never under 20%), else an ore (nine kinds, weighted 96 iron, 86 copper, 57 silver,
+  43 glowstone, 28 sunstone, 19 moonstone, 11 star quartz, 9 void crystal and 1 the
+  Heart of the Mountain). With any clean strike the ore is one tier rarer (iron becomes
+  copper and so on), never into the Heart, which only its own roll gives. The Heart's
+  weight rises by one for every 100 ores dug since the last one, as Old Whiskers' does:
+  one in about 230 boulders, some 40 minutes of steady mining (an hour at an easy pace),
+  near Old Whiskers' half hour. The find jumps out of the broken boulder to the player's feet and is
+  said in the centre of the screen; each is counted in `mining_log.txt` in the settings
+  folder (`<id> <count>` a line, and `heart_wait <count>`).
+- **Sounds:** Settings > Sound > Toys, "Mining sounds" (`s_toyMiningSound`), all retail
+  game sounds (the melee swing, stone blows and breaking, a ricochet's ring, a spark).
+
+No game server knows of it. The pickaxe is a toy in the player's look (`toys: ["mining"]`),
+so other SJK players draw it in the miner's hands; players on stock clients see
+empty hands. The models, pictures, shader and icon are bundled, made by
+[mining_assets.py](../scripts/mining_assets.py) from shapes (nothing taken from another
+game; the rock is the installed game's Yavin rock), and mounted below all game data. See
+[mining.rs](../crates/sjk-viewer/src/mining.rs).
+
 ## Toy sounds
 
 Settings > Sound > Toys (Sol's request, 25/10/2026) sets how the toys sound on this PC:
@@ -6350,7 +6426,8 @@ and everyone else's (`s_toyBoxSound`, `s_toyOrder66Sound`, `s_toyHaxSound`,
 03/11/2026), `s_toyMasterSound` (the toys [the Toy
 Master](toy-master.md) hides, 30/10/2026), `s_toyFishingSound`
 (the [Fishing](#fishing) toy), `s_toyWheelOfDoomSound` (the
-[WHEEL OF DOOM](wheel-of-doom.md), 07/11/2026), all
+[WHEEL OF DOOM](wheel-of-doom.md), 07/11/2026), `s_toyMiningSound` (the
+[Mining](#mining) toy), all
 on by default,
 archived). The toy still
 runs and is still seen; nothing is sent to anyone. The Illuminate holocron makes no
@@ -6792,8 +6869,9 @@ later toys are in the catalogue's Toys group only, to add from there: Box hunt
 (`toy_boxhunt`), the Tag (`toy_tag`) and since 29/10/2026 the
 [Banana peel](#banana-peel) (Banana peel, `toy_banana`, marked while it is on, and Drop
 banana peel, `banana_drop`), [Fishing](#fishing) (`toy_fishing`, marked while the rod
-is out) and since 07/11/2026 the [WHEEL OF DOOM](wheel-of-doom.md) (`toy_wheelofdoom`,
-a press: the first shows the price, a second spins).
+is out), since 07/11/2026 the [WHEEL OF DOOM](wheel-of-doom.md) (`toy_wheelofdoom`,
+a press: the first shows the price, a second spins) and [Mining](#mining) (`toy_mining`,
+marked while the pickaxe is in hand).
 
 ### GIF wheel
 

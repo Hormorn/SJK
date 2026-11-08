@@ -623,6 +623,10 @@ const HELP: &[(&str, &str)] = &[
         "A \"!\" over the float and \"Bite! Press Use!\" when a fish bites. Sound off: only while the fishing sounds can't be heard.",
     ),
     (
+        crate::toy_sounds::Toy::Mining.cvar(),
+        "Off: your swings, blows and finds are silent. The toy still works.",
+    ),
+    (
         crate::away_emote::SJK_CVAR,
         "A looping emote you play while away (alt-tabbed out or idle), silent. Any emote you play then goes quiet too, for everyone.",
     ),

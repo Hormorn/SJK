@@ -350,6 +350,9 @@ impl GpuState {
             // Moving, jumping or attacking puts the rod away; `+use` hooks a bite
             // (`fishing`).
             self.fishing.shape_command(&command);
+            // The attack button (or `+use`) swings the pickaxe and is kept from the weapon;
+            // an alt attack puts it away (`mining`).
+            self.mining.shape_command(&mut command);
             // Attacks count toward the play the holocron claims report.
             crate::holocrons::signals::command(command.buttons);
             // A Hax hack starts and holds on `+use` (`hax`).
