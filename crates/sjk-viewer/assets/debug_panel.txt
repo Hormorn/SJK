@@ -2519,6 +2519,14 @@ test: With cl_idrive 2: hold C, then SPACE: you jump; let go of SPACE: you crouc
 note: A roll on landing while crouched (PM_CrashLand) is not prevented, in EJK either.
 
 # ---- Menus & settings ----
+[classic-collection-camera]
+area: Menus & settings
+title: Classic menus: Collection and Camera control entries
+change: Main menu SJK page: COLLECTION between PROFILE and IDENTITY opens the Collection.
+change: In-game SJK pop-up: Collection after Profile, Camera control last (was only F8).
+test: ui_menuStyle classic, main menu > SJK > COLLECTION: the Collection; Back returns.
+test: In a match, Esc > SJK: nine rows at full height; Collection opens the Collection.
+test: Esc > SJK > Camera control: its panel opens as with F8.
 
 [mp-sp-camera-names]
 area: Menus & settings

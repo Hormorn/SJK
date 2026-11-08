@@ -219,10 +219,15 @@ pub(crate) fn heading(page: Page) -> Option<&'static str> {
     }
 }
 
-/// Height of one pop-up row: the retail 30, or a list row once a page has
-/// more rows than fit (the call-vote lists).
-pub(crate) fn row_height(rows: usize) -> f32 {
-    if rows > 8 { 18.0 } else { 30.0 }
+/// Height of one pop-up row on `page`: the retail 30, or a list row once a
+/// page has more rows than fit (the call-vote lists). SJK's pop-up keeps the
+/// retail rows: its nine entries fit under the bar.
+pub(crate) fn row_height(page: Page, rows: usize) -> f32 {
+    if rows > 8 && page != Page::Sjk {
+        18.0
+    } else {
+        30.0
+    }
 }
 
 /// Height of one read-only info line of the about pop-up.
@@ -243,7 +248,7 @@ pub(crate) fn popup(page: Page, rows: usize, info: usize) -> [f32; 4] {
         _ => (270.0, 360.0),
     };
     let header = if heading(page).is_some() { 30.0 } else { 0.0 };
-    let height = 8.0 + header + info as f32 * INFO_LINE + rows as f32 * row_height(rows);
+    let height = 8.0 + header + info as f32 * INFO_LINE + rows as f32 * row_height(page, rows);
     [x, POPUP_TOP, width, height]
 }
 
@@ -371,7 +376,13 @@ mod tests {
             Page::ReportPlayer,
         ] {
             let tab = Tab::of_page(page).expect("pop-up page has a button");
-            let [x, y, width, height] = popup(page, 18, 0);
+            // SJK's pop-up keeps retail rows for its own entries; the lists go to 18.
+            let rows = if page == Page::Sjk {
+                super::super::sjk::ENTRIES.len()
+            } else {
+                18
+            };
+            let [x, y, width, height] = popup(page, rows, 0);
             assert!(y >= BAR_HEIGHT && y + height <= 480.0, "{page:?}");
             assert!(x >= 0.0 && x + width <= 640.0, "{page:?}");
             let [bar_x, _, bar_width, _] = tab.rect();

@@ -12,7 +12,7 @@ pub(crate) struct Entry {
 }
 
 /// The pop-up's entries, top to bottom.
-pub(crate) const ENTRIES: [Entry; 7] = [
+pub(crate) const ENTRIES: [Entry; 9] = [
     Entry {
         label: "Changelog",
         hint: "What changed in each SJK release, and who made it",
@@ -24,6 +24,10 @@ pub(crate) const ENTRIES: [Entry; 7] = [
     Entry {
         label: "Profile",
         hint: "Your medals, bio, record and achievements",
+    },
+    Entry {
+        label: "Collection",
+        hint: "Medals, achievements, shaders, toys, holocrons and the Forge",
     },
     Entry {
         label: "Identity",
@@ -41,13 +45,19 @@ pub(crate) const ENTRIES: [Entry; 7] = [
         label: "SJK chat",
         hint: "Talk with every SJK player, on any server or in the menus",
     },
+    Entry {
+        label: "Camera control",
+        hint: "Frame a shot: the camera, the sun and the HUD (F8)",
+    },
 ];
 
 /// Rows of the entries.
 pub(crate) const CHANGELOG: usize = 0;
 pub(crate) const CREDITS: usize = 1;
 pub(crate) const PROFILE: usize = 2;
-pub(crate) const IDENTITY: usize = 3;
-pub(crate) const REPORT: usize = 4;
-pub(crate) const REPORT_PLAYER: usize = 5;
-pub(crate) const SJK_CHAT: usize = 6;
+pub(crate) const COLLECTION: usize = 3;
+pub(crate) const IDENTITY: usize = 4;
+pub(crate) const REPORT: usize = 5;
+pub(crate) const REPORT_PLAYER: usize = 6;
+pub(crate) const SJK_CHAT: usize = 7;
+pub(crate) const CAMERA_CONTROL: usize = 8;
