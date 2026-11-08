@@ -9157,3 +9157,13 @@ test: A JoF EJK player in SJK chat on your server: Tab shows the EJK icon on the
 test: Their row has no tick even if verified; their player card is unchanged.
 test: Two players with that name on the server: neither row gets the icon.
 test: cl_sjkChatClientIcons 0: the row gets no mark at all (not SJK's emblem).
+
+[chat-online-list]
+area: Menus & settings
+title: SJK chat page: three rows of online faces and a List with each player's clients
+change: Online window: 27 faces (3 rows, was 18). List (heading, or the +N face) shows everyone
+change: as rows with their client icons (SJK, JoF EJK, launcher). Needs hub branch people-clients.
+test: Open the SJK chat page (sjkchat): up to 27 faces, then +N; hover: card says the clients.
+test: Click List: a row per online player, icons on the right; the wheel over rows scrolls.
+test: Faces, Escape or clicking a message brings the faces back; Escape again closes the page.
+test: Before the hub deploy: rows show without icons, cards say only Online now.

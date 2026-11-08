@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 = cg_statusBalloons: Status bubbles: the chat bubble over SJK players shows why it is up: dots while typing, a pause sign in a menu, a moon while alt-tabbed.
+- SJK chat page: the Online window holds three rows of faces, and its List shows every online player as a row with the icons of the clients they are on (SJK, JoF EJK, the SJK Launcher); the wheel scrolls it, Faces or Escape goes back _(Sol)_
 - JoF EJK players who are in SJK chat now wear the JoF EJK icon on the scoreboard, found by their name (their client does not tell the hub its slot yet); icon only, no tick (`cl_sjkChatClientIcons 0` turns it off) _(Sol)_
 - Players without the SJK Launcher see on the main page that it is out, with a link to its release page; its x hides it for good (`ui_launcherNotice`, Settings > Interface) _(Sol)_
 - Status bubbles: the chat bubble over an SJK player can show why it is up: the dots lit in turn while they type, a pause sign while a menu or the console is open, a moon with a rising z while their game is alt-tabbed or minimised; other players keep the stock bubble. Off by default: Settings > Chat > Status bubbles (`cg_statusBalloons`) _(Sol)_

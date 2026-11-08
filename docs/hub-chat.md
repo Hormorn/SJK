@@ -672,8 +672,24 @@ codes aside) on their own colour, as their card and profile draw it
   the menus or in a game, or one on a game server with the chat off. A gold dot at the
   foot of a face marks a player holding a live claim marked active (in a match,
   playing, as holocrons count it). Playing players come first, then by name (colours
-  and symbols aside), each key once. Faces of 40 pixels at 1080p wrap nine to a row, two
-  rows at most: with more than 18 players the last face says "+N" of the rest.
+  and symbols aside), each key once. Faces of 40 pixels at 1080p wrap nine to a row,
+  three rows at most (two before 08/11/2026): with more than 27 players the last face
+  says "+N" of the rest. An online player's card says which clients they read the chat
+  with, when the hub says (`clients`, below): "Online now, on SJK and SJK Launcher".
+- **List** (Sol's request, 08/11/2026: "make the currently online list longer and a way
+  to expand it and/or see a list + their clients too"): a button at the right end of
+  the Online heading, or a click on the "+N" face, turns the window into a list of
+  every online player (the hub lists 50 at most), down to the keys, where the chosen
+  message goes: a row each, in the same order, with their face, name and tick, and on
+  the right the icons of the clients they read the chat with (SJK's emblem, JoF
+  EternalJK's, the SJK Launcher's; `sjk_chat_people::client_texture`, always the
+  client's own icon, whatever `cl_sjkChatClientIcons` says, since telling them apart
+  is the list's point). A row under the pointer shows the player's card, as a face
+  does; a click on it does nothing, so the list stays. Twenty rows show at 1080p; with
+  more, the last row says which ("1 to 20 of 30") and the wheel over the rows scrolls
+  them. Faces (the same button), Escape, or choosing a message (which then shows under
+  the window) bring the faces back. The Recently active part is left out while the list
+  shows. The list is kept while the game runs, not saved.
 - **Recently active**: keys that read the feed before that, not online now, most
   recently seen first, up to eight smaller, dimmed faces in one row. No time is written
   on them: the card says it ("Seen 11 minutes ago", "Seen yesterday", as the servers'
@@ -699,13 +715,14 @@ The list rides on the feed the client already reads, so it needs no request of i
 The client keeps the last list it was given (`ChatState::people`) until the hub gives
 another, and forgets it when the chat is turned off or another hub is read.
 
-### Proposed feed addition: `people`
+### Feed addition: `people`
 
-Not in the hub yet; the client is built against it and falls back as above without it.
+In the hub since 10/10/2026 (its `PROTOCOL.md`, "The feed", is the contract); the client
+falls back as above without it.
 
     "people":{"online":[Person],"recent":[Person]}
     Person: {"key_id":"..","name":"..","verified":false,"staff":false,"avatar":"<version>",
-             "seen":<unix s>,"playing":false}
+             "seen":<unix s>,"playing":false,"clients":["sjk","launcher"]}
 
 - Optional in a feed answer, so it stays `/v1/`. The hub adds it to a key's answer when
   it last gave that key the list 20 seconds ago or more (the first answer after `after`
@@ -717,6 +734,10 @@ Not in the hub yet; the client is built against it and falls back as above witho
   ago, most recent `seen` first, at most 8.
 - `name`, `verified`, `staff` and `avatar` as in a Profile (the display name);
   `seen` is the key's last feed read. A key the operator removed is not listed.
+- `clients` (since 08/11/2026, online persons only, left out when none is known): the
+  clients the person read the feed with in the last 60 seconds, named as chat messages
+  name them (`sjk`, `ejk`, `launcher`, from each feed request's `User-Agent`), SJK's
+  first, each once (`sjk_identity::Person::clients`). A hint, like `client`.
 - Nothing new is stored: the hub already keeps, in memory, when each key last read
   the feed for the count; it only needs to keep that past the minute (in memory, up to
   7 days, so a restart forgets it) and look up the profile fields.

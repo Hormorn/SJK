@@ -5,7 +5,9 @@
 //! ([`crate::jof_tag`]), the name, the verified tick for a verified
 //! sender, then the text in the SJK chat's gold, wrapping only when it is too long. Over
 //! the chosen message, a small window shows who is online and who was seen last as
-//! faces, their pictures or initials ([`super::people`]). A name in the chat or a face
+//! faces, their pictures or initials ([`super::people`]); its List shows every online
+//! player as a row instead, with the clients they read the chat with, over the chosen
+//! message. A name in the chat or a face
 //! in the window under the pointer shows that player's sender card over the page.
 //! While the GIF picker is open it takes the messages' place
 //! ([`super::gif_picker`]), and its key card takes the whole page's.
@@ -61,6 +63,19 @@ const NOTE_ROW: f32 = 22.0;
 const PEOPLE_PAD: f32 = 18.0;
 /// The chosen message's heading, this far under the window.
 const CHOSEN_GAP: f32 = 34.0;
+/// The window's List / Faces button, at the right end of the Online heading.
+const LIST_BUTTON_WIDTH: f32 = 120.0;
+/// The window as a list: its bottom, a row, a row's face, the name's size and a
+/// client's icon with the gap before it (frame pixels).
+const LIST_BOTTOM_Y: f32 = 984.0;
+const LIST_ROW: f32 = 34.0;
+const LIST_FACE: f32 = 13.0;
+const LIST_NAME_SIZE: f32 = 17.0;
+const CLIENT_SIDE: f32 = 22.0;
+const CLIENT_GAP: f32 = 6.0;
+/// A client's name after its icon, and the room between two clients.
+const CLIENT_LABEL_SIZE: f32 = 14.0;
+const CLIENT_SPACING: f32 = 14.0;
 
 /// A name under the pointer: whose card it shows, who, and the name's rectangle.
 type Shows = (CardSource, crate::sender_card::Person, sjk_ui::Rect);
@@ -319,10 +334,13 @@ impl Panel {
         } else {
             self.messages(&frame, inputs, measure)
         };
-        let (listed, bottom) = self.people(&frame, inputs);
+        let (listed, bottom) = self.people(&frame, inputs, measure);
         self.follow_card(named.or(listed));
         self.composer(&frame, inputs);
-        self.chosen(&frame, inputs, measure, bottom + CHOSEN_GAP);
+        // The window's list stands where the chosen message goes.
+        if self.shown.list_rect.is_none() {
+            self.chosen(&frame, inputs, measure, bottom + CHOSEN_GAP);
+        }
         self.keys(&frame);
         self.card(&frame, inputs, measure, viewport);
         self.only_hover(&frame, inputs);
@@ -727,17 +745,29 @@ impl Panel {
     /// does not list them, the count and the chat's last senders. Returns the player
     /// whose face is under the pointer, for the card, and the window's bottom (frame
     /// pixels), which follows what it shows.
-    fn people(&mut self, frame: &Frame, inputs: &Inputs<'_>) -> (Option<Shows>, f32) {
+    fn people(
+        &mut self,
+        frame: &Frame,
+        inputs: &Inputs<'_>,
+        measure: &Measure<'_>,
+    ) -> (Option<Shows>, f32) {
         use super::people::{
             FACES_WIDTH, ONLINE_RADIUS, RECENT_RADIUS, centre, columns, grid_height,
         };
         let s = frame.s;
         self.shown.people.clear();
         self.shown.unpictured.clear();
+        self.shown.list_rect = None;
         let chat = inputs.chat.filter(|chat| inputs.enabled && chat.live);
         let listed = chat.map_or_else(Default::default, |chat| {
             super::people::derive(chat, inputs.muted)
         });
+        // List and Faces, once the hub says who is online and someone is.
+        let can_list = chat.is_some() && listed.listed && !listed.online.is_empty();
+        if self.people_list && can_list && !self.gifs.open {
+            return self.people_rows(frame, &listed, measure);
+        }
+        let (faces, more) = listed.faces();
         // Where each part goes, so the window can be drawn round them first.
         let online_note = match chat {
             None => Some("Shows once the SJK hub answers."),
@@ -747,7 +777,7 @@ impl Panel {
         };
         let online_columns = columns(FACES_WIDTH, ONLINE_RADIUS);
         let recent_columns = columns(FACES_WIDTH, RECENT_RADIUS);
-        let online_faces = listed.online.len() + usize::from(listed.more > 0);
+        let online_faces = faces.len() + usize::from(more > 0);
         let online_top = ONLINE_Y + UNDER_HEADING;
         let mut online_bottom =
             online_top + grid_height(online_faces, online_columns, ONLINE_RADIUS);
@@ -778,30 +808,26 @@ impl Panel {
             Some(_) => format!("Online  \u{b7}  {}", listed.count),
             None => "Online".to_owned(),
         };
-        kit::heading(&mut self.ui, frame, SIDE_X, ONLINE_Y, SIDE_WIDTH, &online);
+        self.online_heading(frame, &online, can_list.then_some("List"));
         let mut hovered = None;
         if let Some(note) = online_note {
             self.quiet_row(frame, online_top, note);
         }
-        for (index, row) in listed.online.iter().enumerate() {
+        for (index, row) in faces.iter().enumerate() {
             let at = centre(index, online_columns, ONLINE_RADIUS, [SIDE_X, online_top]);
-            let note = if row.playing {
-                "Online now, in a match"
-            } else {
-                "Online now"
-            };
+            let note = super::people::online_note(row);
             hovered = self
-                .face(frame, row, at, ONLINE_RADIUS, true, note.to_owned())
+                .face(frame, row, at, ONLINE_RADIUS, true, note)
                 .or(hovered);
         }
-        if listed.more > 0 {
+        if more > 0 {
             let at = centre(
-                listed.online.len(),
+                faces.len(),
                 online_columns,
                 ONLINE_RADIUS,
                 [SIDE_X, online_top],
             );
-            self.more_face(frame, at, ONLINE_RADIUS, listed.more);
+            self.more_face(frame, at, ONLINE_RADIUS, more);
         }
         if chat.is_none() {
             return (hovered, bottom);
@@ -826,6 +852,185 @@ impl Panel {
             hovered = self
                 .face(frame, row, at, RECENT_RADIUS, false, note)
                 .or(hovered);
+        }
+        (hovered, bottom)
+    }
+
+    /// The Online heading, with `button` (List or Faces) at its right end when given.
+    fn online_heading(&mut self, frame: &Frame, label: &str, button: Option<&str>) {
+        let room = if button.is_some() {
+            SIDE_WIDTH - LIST_BUTTON_WIDTH - 12.0
+        } else {
+            SIDE_WIDTH
+        };
+        kit::heading(&mut self.ui, frame, SIDE_X, ONLINE_Y, room, label);
+        if let Some(button) = button {
+            kit::button(
+                &mut self.ui,
+                frame,
+                [
+                    SIDE_X + SIDE_WIDTH - LIST_BUTTON_WIDTH,
+                    ONLINE_Y - 14.0,
+                    LIST_BUTTON_WIDTH,
+                    28.0,
+                ],
+                button,
+                false,
+                true,
+                self.focus == LIST_TOKEN,
+                LIST_TOKEN,
+            );
+            self.order.push(LIST_TOKEN);
+        }
+    }
+
+    /// The window as a list of every online player (its List), down to the keys, over
+    /// the chosen message: a row each, playing first, with their face, name, tick and
+    /// the icons of the clients they read the chat with on the right; the wheel scrolls
+    /// the rows when they do not all fit. Returns the player whose row is under the
+    /// pointer and the window's bottom.
+    fn people_rows(
+        &mut self,
+        frame: &Frame,
+        listed: &super::people::Listed,
+        measure: &Measure<'_>,
+    ) -> (Option<Shows>, f32) {
+        let s = frame.s;
+        let top = ONLINE_Y + UNDER_HEADING;
+        let bottom = LIST_BOTTOM_Y;
+        let rect = frame.rect(PEOPLE_X, PEOPLE_TOP, PEOPLE_WIDTH, bottom - PEOPLE_TOP);
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect,
+            radius: 14.0 * s,
+            color: color::alpha(color::HOLO, 0.05),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect,
+            radius: 14.0 * s,
+            width: 1.0 * s,
+            color: color::alpha(color::HOLO, 0.25),
+        });
+        let label = format!("Online  \u{b7}  {}", listed.count);
+        self.online_heading(frame, &label, Some("Faces"));
+        let fits = (((bottom - PEOPLE_PAD - top) / LIST_ROW) as usize).min(PEOPLE_SHOWN);
+        let total = listed.online.len();
+        // A list too long for the window keeps its last row to say where it is.
+        let rows = if total > fits {
+            fits.saturating_sub(1)
+        } else {
+            total
+        };
+        self.people_scroll = self.people_scroll.min(total - rows);
+        let first = self.people_scroll;
+        self.shown.list_rect = Some(frame.rect(SIDE_X, top, SIDE_WIDTH, rows as f32 * LIST_ROW));
+        let mut hovered = None;
+        for (index, row) in listed.online[first..first + rows].iter().enumerate() {
+            let y = top + index as f32 * LIST_ROW;
+            let token = PERSON_BASE + self.shown.people.len() as u16;
+            let band = frame.rect(SIDE_X - 8.0, y, SIDE_WIDTH + 16.0, LIST_ROW);
+            if self.ui.token_hovered(token) {
+                let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+                    rect: band,
+                    radius: 8.0 * s,
+                    color: color::alpha(color::HOLO, 0.10),
+                });
+            }
+            let middle = y + LIST_ROW * 0.5;
+            let note = super::people::online_note(row);
+            hovered = self
+                .face(
+                    frame,
+                    row,
+                    [SIDE_X + LIST_FACE, middle],
+                    LIST_FACE,
+                    true,
+                    note,
+                )
+                .or(hovered);
+            // The whole row answers to the pointer, as its face does.
+            self.ui.hit_region(token, band);
+            // Each client its icon and its name, from the right edge leftwards.
+            let mut x = SIDE_X + SIDE_WIDTH;
+            for client in row.clients.iter().rev() {
+                let (Some(icon), Some(label)) = (
+                    super::people::client_texture(client),
+                    super::people::client_label(client),
+                ) else {
+                    continue;
+                };
+                let label_width =
+                    measure.width(label, CLIENT_LABEL_SIZE * s, TextFace::Regular) / s.max(0.001);
+                x -= label_width;
+                text(
+                    &mut self.ui,
+                    TextFamily::Body,
+                    format_args!("{label}"),
+                    frame.rect(x, middle - 10.0, label_width + 2.0, 20.0),
+                    CLIENT_LABEL_SIZE * s,
+                    if row.muted {
+                        color::QUIET
+                    } else {
+                        color::MUTED
+                    },
+                    FontWeight::Regular,
+                    TextAlign::Start,
+                );
+                x -= CLIENT_GAP + CLIENT_SIDE;
+                let _ = self.ui.draw_list_mut().push(DrawCommand::TexturedQuad {
+                    rect: frame.rect(x, middle - CLIENT_SIDE * 0.5, CLIENT_SIDE, CLIENT_SIDE),
+                    texture: icon,
+                    color: if row.muted {
+                        sjk_ui::Color::new(0.6, 0.62, 0.68, 0.5)
+                    } else {
+                        sjk_ui::Color::new(1.0, 1.0, 1.0, 1.0)
+                    },
+                });
+                x -= CLIENT_SPACING;
+            }
+            let icons_width = SIDE_X + SIDE_WIDTH - x;
+            let name = name_for_display(&row.name);
+            let name = if name.is_empty() {
+                "(no name)".to_owned()
+            } else {
+                name
+            };
+            let left = SIDE_X + LIST_FACE * 2.0 + 12.0;
+            let tick_room = sjk_chat_look::tick_room(LIST_NAME_SIZE);
+            let room = (SIDE_X + SIDE_WIDTH - icons_width - 8.0 - left - tick_room).max(0.0);
+            let name_width = (measure.width(&name, LIST_NAME_SIZE * s, TextFace::Semibold)
+                / s.max(0.001))
+            .min(room);
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{name}"),
+                frame.rect(left, middle - 12.0, name_width + 2.0, 24.0),
+                LIST_NAME_SIZE * s,
+                if row.muted { color::QUIET } else { color::TEXT },
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            if let Some(mark) = crate::ui_renderer::mark_texture(row.verified, row.tick, row.trust)
+            {
+                let [at, centre] = frame.point(left + name_width, middle);
+                sjk_chat_look::tick(
+                    self.ui.draw_list_mut(),
+                    mark,
+                    at,
+                    centre,
+                    LIST_NAME_SIZE * s,
+                    1.0,
+                );
+            }
+        }
+        if rows < total {
+            let line = format!(
+                "{} to {} of {}  \u{b7}  the wheel scrolls",
+                first + 1,
+                first + rows,
+                total
+            );
+            self.quiet_row(frame, top + rows as f32 * LIST_ROW + 6.0, &line);
         }
         (hovered, bottom)
     }
@@ -991,16 +1196,18 @@ impl Panel {
         })
     }
 
-    /// The last online face of a full window: how many more players read the chat.
+    /// The last online face of a full window: how many more players read the chat. A
+    /// click on it opens the list of them all.
     fn more_face(&mut self, frame: &Frame, at: [f32; 2], radius: f32, more: usize) {
         let s = frame.s;
         let centre = frame.point(at[0], at[1]);
         let r = radius * s;
         let square = sjk_ui::Rect::new(centre[0] - r, centre[1] - r, r * 2.0, r * 2.0);
+        let lit = self.ui.token_hovered(LIST_TOKEN);
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
             rect: square,
             radius: r,
-            color: color::alpha(color::HOLO, 0.12),
+            color: color::alpha(color::HOLO, if lit { 0.22 } else { 0.12 }),
         });
         let width = 1.5 * s;
         let _ = self.ui.draw_list_mut().push(DrawCommand::Arc {
@@ -1022,6 +1229,7 @@ impl Panel {
             FontWeight::Semibold,
             TextAlign::Center,
         );
+        self.ui.hit_region(LIST_TOKEN, square);
     }
 
     /// Send only in SJK's hover card, over the page: why it should stay rare.
@@ -2147,7 +2355,7 @@ mod tests {
     #[test]
     fn the_window_shows_faces_in_a_grid_with_a_last_one_for_the_rest() {
         let fonts = crate::text::load_modern(1.0, None).expect("Inter");
-        let state = crowd(20);
+        let state = crowd(29);
         let mut panel = Panel::new();
         panel.open(true);
         let inputs = inputs(&state, &[], false);
@@ -2155,7 +2363,7 @@ mod tests {
         let drawn = texts(&panel);
         found(&drawn, "Online  \u{b7}  9");
         found(&drawn, "Recently active");
-        // Twenty online in eighteen faces: seventeen, then "+3".
+        // Twenty-nine online in twenty-seven faces: twenty-six, then "+3".
         let online = super::people::ONLINE_FACES - 1;
         assert_eq!(panel.shown.people.len(), online + 2, "and two recent");
         let (_, more, _) = found(&drawn, "+3");
@@ -2171,8 +2379,9 @@ mod tests {
         assert!((tenth.x - first.x).abs() < 0.01 && (tenth.y - first.y - 50.0).abs() < 0.01);
         assert!((shown[1].x - first.x - 50.0).abs() < 0.01);
         assert!((more.x - shown[8].x).abs() < 0.01);
+        let third_row = shown[18];
         assert!(
-            more.y >= tenth.y - 1.0 && more.y < tenth.bottom(),
+            more.y >= third_row.y - 1.0 && more.y < third_row.bottom(),
             "{more:?}"
         );
         // No two faces touch.
@@ -2234,16 +2443,17 @@ mod tests {
             let (_, chosen, _) = found(&texts(&panel), "Chosen message").clone();
             (window(&panel, 1.0), chosen)
         };
-        let (full, full_chosen) = chosen_at(&crowd(20));
+        let (full, full_chosen) = chosen_at(&crowd(30));
         let (one_row, one_row_chosen) = chosen_at(&crowd(5));
         assert!(
-            (full.height - one_row.height - 50.0).abs() < 0.01,
-            "one row less"
+            (full.height - one_row.height - 100.0).abs() < 0.01,
+            "two rows less"
         );
-        assert!((full_chosen.y - one_row_chosen.y - 50.0).abs() < 0.01);
-        // Shorter than the window of names it replaced (318 tall, Chosen at 556).
-        assert!(full.bottom() < 522.0 && one_row_chosen.y < 556.0 - 15.0 - 100.0);
-        let state = crowd(20);
+        assert!((full_chosen.y - one_row_chosen.y - 100.0).abs() < 0.01);
+        // Three rows since 08/11/2026: 50 taller than the two before (bottom 522), Chosen
+        // under one row still higher than under the window of names (at 556).
+        assert!(full.bottom() < 572.0 && one_row_chosen.y < 556.0 - 15.0 - 100.0);
+        let state = crowd(30);
         let mut panel = Panel::new();
         panel.open(true);
         panel.selected = Some(3);
@@ -2286,13 +2496,116 @@ mod tests {
         }
     }
 
+    /// List turns the window into a row per online player, over the chosen message and
+    /// down to the keys: their name and, on the right, the icons of the clients they
+    /// read the chat with; the wheel scrolls the rows that do not fit; Faces, Escape or
+    /// choosing a message brings the faces back.
+    #[test]
+    fn the_list_shows_every_online_player_with_their_clients() {
+        let fonts = crate::text::load_modern(1.0, None).expect("Inter");
+        let mut state = crowd(30);
+        if let Some(people) = state.people.as_mut() {
+            people.online[0].clients = vec!["sjk".to_owned(), "launcher".to_owned()];
+            people.online[5].clients = vec!["ejk".to_owned()];
+        }
+        let mut panel = Panel::new();
+        panel.open(true);
+        panel.selected = Some(3);
+        let inputs = inputs(&state, &[], false);
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        assert!(panel.order.contains(&LIST_TOKEN), "List on the heading");
+        found(&texts(&panel), "List");
+        assert_eq!(panel.activate(LIST_TOKEN), PanelAction::None);
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        let drawn = texts(&panel);
+        found(&drawn, "Faces");
+        assert!(
+            !drawn.iter().any(|(text, ..)| text == "Chosen message"),
+            "the list stands where the chosen message goes"
+        );
+        found(&drawn, "^2Sol");
+        // Thirty online, twenty rows and the line that says where the list is.
+        let rows = panel.shown.people.len();
+        assert_eq!(rows, 20);
+        found(&drawn, "1 to 20 of 30  \u{b7}  the wheel scrolls");
+        let textures: Vec<sjk_ui::TextureId> = panel
+            .ui
+            .draw_list()
+            .commands()
+            .iter()
+            .filter_map(|command| match command {
+                DrawCommand::TexturedQuad { texture, .. } => Some(*texture),
+                _ => None,
+            })
+            .collect();
+        for icon in [
+            crate::ui_renderer::LOGO_TEXTURE,
+            crate::ui_renderer::LAUNCHER_TEXTURE,
+            crate::ui_renderer::EJK_TEXTURE,
+        ] {
+            assert!(textures.contains(&icon), "{icon:?}");
+        }
+        // The rows inside the window, at every screen shape, above the keys.
+        for viewport in [
+            [1920.0, 1080.0],
+            [3840.0, 2160.0],
+            [1024.0, 768.0],
+            [2560.0, 1080.0],
+        ] {
+            panel.build_with(&inputs, &fonts.font, viewport);
+            assert!(!panel.ui.overflowed(), "{viewport:?}");
+            let s = Frame::new(viewport).s;
+            let window = window(&panel, s);
+            let keys = Frame::new(viewport).point(0.0, KEYS_Y - 20.0)[1];
+            assert!(window.bottom() < keys, "{viewport:?}");
+            for row in faces(&panel) {
+                assert!(inside(row, window), "{row:?} in {window:?} at {viewport:?}");
+            }
+        }
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        // The wheel over the rows scrolls them, no further than the last.
+        let rows_rect = panel.shown.list_rect.expect("the rows");
+        let over = sjk_ui::Vec2::new(rows_rect.x + 40.0, rows_rect.y + 40.0);
+        let _ = panel.handle_pointer(sjk_ui::InputEvent::PointerMove(over));
+        let wheel = |down: bool| sjk_ui::InputEvent::PointerWheel {
+            position: over,
+            delta: sjk_ui::Vec2::new(0.0, if down { -1.0 } else { 1.0 }),
+        };
+        let scroll = panel.scroll;
+        let _ = panel.handle_pointer(wheel(true));
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        found(&texts(&panel), "2 to 21 of 30  \u{b7}  the wheel scrolls");
+        assert_eq!(panel.scroll, scroll, "the messages stay");
+        for _ in 0..40 {
+            let _ = panel.handle_pointer(wheel(true));
+        }
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        found(&texts(&panel), "11 to 30 of 30  \u{b7}  the wheel scrolls");
+        // A click on a row leaves the list; Escape closes it, then the page.
+        assert_eq!(panel.activate(PERSON_BASE), PanelAction::None);
+        assert!(panel.people_list);
+        assert_eq!(
+            panel.edit(KeyCode::Escape, None, false, false),
+            PanelAction::None
+        );
+        assert!(!panel.people_list);
+        // Choosing a message closes it too.
+        let _ = panel.activate(LIST_TOKEN);
+        assert!(panel.people_list);
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        let _ = panel.activate(MESSAGE_BASE);
+        assert!(!panel.people_list);
+        panel.build_with(&inputs, &fonts.font, [1920.0, 1080.0]);
+        found(&texts(&panel), "Chosen message");
+    }
+
     /// A chosen message with a GIF, as staff, on a full window: the GIF row (favourites
     /// and Hide this GIF), Manage GIF source and Staff's buttons all stand above the keys,
     /// none over another, at every screen shape.
     #[test]
     fn a_gif_message_and_staff_fit_above_the_keys() {
         let fonts = crate::text::load_modern(1.0, None).expect("Inter");
-        let mut state = crowd(20);
+        let mut state = crowd(30);
         state.messages[2].text = "look https://giphy.com/gifs/wave-PanelFit01xyz".to_owned();
         let mut panel = Panel::new();
         panel.open(true);
