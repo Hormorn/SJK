@@ -24,6 +24,17 @@
 
 # ---- Console & chat ----
 
+[spawn-panel]
+area: Console & chat
+title: Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
+change: spawn_panel lists every NPC and vehicle of the game data and a few cheats.
+change: Enter or a click runs npc spawn <name> as if typed; the list stays open.
+test: devmap mp/ffa3, then spawn_panel: NPCs under Jedi Academy, then Community.
+test: Type troop: the list filters; Enter spawns the chosen one in front of you.
+test: Tab to Vehicles, click Swoop: a swoop appears. Cheats: Noclip, God mode work.
+test: Esc clears the filter, Esc again closes. bind F6 spawn_panel: F6 opens and closes.
+test: On a server without cheats a spawn is refused in the console, nothing else.
+
 [holocron-catchup-signals]
 area: Gameplay
 title: Holocron catch-up x2 and play signals (needs the hub's economy-ideas branch)
@@ -9322,3 +9333,30 @@ test: Skin: the presets, then Custom: it brings Red/Green/Blue sliders; the stag
 test: Apply, reopen Character > Skin: Custom is chosen; a bot or second client sees the tint.
 test: Custom at 20 20 20: the note says servers show it white; a preset leaves Custom.
 test: Classic menu style: the model grid keeps the old order (species after the models).
+
+[vote-card]
+area: HUD
+title: Vote panel: a centred SJK card, and testvote (Slash, #379)
+change: The vote shows as a card under the timer: proposal, time bar, YES / NO counts and keys.
+change: testvote [team|off] shows a made-up vote for 30 seconds; nothing goes to the server.
+test: In a match: testvote. The card shows under the timer, the counts grow, the bar shrinks.
+test: testvote team: a second card under it. testvote off: gone.
+test: hud_edit during testvote: the card drags; right-click puts it back.
+
+[steam-gog-lookup]
+area: Menus & settings
+title: SJK finds the game in Steam libraries and GOG; start from Steam (Slash, #366)
+change: Kept outside GameData, SJK looks in every Steam library and in GOG's games (Windows).
+change: Steam launch options "path\sjk.exe" %command% make Steam's Play start SJK.
+test: Copy sjk.exe to Downloads and start it: the main menu opens, no GameData error.
+test: Set the launch options in Steam and press Play: SJK opens at its main menu.
+
+[eweb-port]
+area: Gameplay
+title: The E-Web works: the holdable and hoth2's guns (Slash, #384, hub report #267)
+change: Use it from the inventory: it is set down ahead, aim and fire; use again to put away.
+change: Single-player maps' E-Webs (hoth2) stand on the map; the use key takes one.
+test: devmap mp/ffa3, give item_eweb_holdable, use it: the gun stands, the barrel follows.
+test: Fire: bolts go to the crosshair. Back off or use it again: put away, weapons back.
+test: Shoot it to pieces (200): it blows up and the holdable is gone.
+test: devmap hoth2: walk to an E-Web facing its way, use key: take it; again: let go.

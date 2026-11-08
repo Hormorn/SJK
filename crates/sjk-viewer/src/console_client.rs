@@ -139,6 +139,7 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
         "Search commands and cvars and edit cvar values (F3 in the console)",
     ),
     (super::debug_panel::COMMAND, super::debug_panel::HELP),
+    (super::spawn_panel::COMMAND, super::spawn_panel::HELP),
     (super::model_viewer::COMMAND, super::model_viewer::HELP),
     (
         crate::medal_popup::rehearsal::COMMAND,
@@ -1155,6 +1156,12 @@ impl crate::GpuState {
             super::debug_panel::COMMAND => {
                 if let Some(console) = &mut self.console {
                     console.toggle_debug_panel();
+                }
+                self.sync_cursor_policy();
+            }
+            super::spawn_panel::COMMAND => {
+                if let Some(console) = &mut self.console {
+                    console.toggle_spawn_panel(self.vfs.as_deref());
                 }
                 self.sync_cursor_policy();
             }

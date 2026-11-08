@@ -24,6 +24,7 @@ impl ViewerConsole {
         }
         self.browser.close();
         self.debug_panel.close();
+        self.spawn_panel.close();
         self.update_panel.close();
         self.profile_panel.close();
         self.collection_panel.close();

@@ -1259,6 +1259,33 @@ mod tests {
         }
     }
 
+    /// The spawn list (`spawn_panel`) over duel6, in the SJK UI's look in every menu
+    /// style: a few made-up NPC names on the NPCs tab, the second one chosen and run.
+    #[test]
+    #[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+    fn duel6_spawn_panel() {
+        for style in ["sjk", "classic"] {
+            on_big_stack(move || {
+                let menu = menu::ClientMenu::new(true, String::new());
+                let cvars = [
+                    ("ui_menuStyle", style),
+                    (crate::settings::quick::HIDE_CVAR, "1"),
+                ];
+                let Some((mut gpu, _profile)) =
+                    open("maps/mp/duel6.bsp", [1920, 1080], Some(menu), &cvars)
+                else {
+                    return;
+                };
+                let _ = frame(&mut gpu, 10);
+                if let Some(console) = gpu.console.as_mut() {
+                    console.spawn_panel_for_shot();
+                }
+                let name = format!("duel6-spawn-panel-{style}");
+                println!("{}", shoot(&mut gpu, 6, &name).display());
+            });
+        }
+    }
+
     /// A made-up profile with medals, worn names, a record and half the achievements,
     /// for the Profile page's shots.
     pub(super) fn profile_preview() -> crate::console::profile_panel::Preview {

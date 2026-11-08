@@ -3450,6 +3450,22 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 08/11/2026 | SJK #368 | Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
+- aa353e2 |  | Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
+- 025fb59 |  | Changelog: spawn list (PR #368)
++ 08/11/2026 | SJK #366 | Find Jedi Academy in Steam libraries and GOG; start from Steam
+- 4114c73 |  | Find Jedi Academy in Steam libraries and GOG; start from Steam
+- e4ee042 |  | Move the store lookup into the sjk-game-stores crate
++ 08/11/2026 | SJK #384 | Port the E-Web: the holdable and hoth2's emplaced_eweb (hub report #267)
+- 12d8472 |  | Port the E-Web: the holdable and hoth2's emplaced_eweb (hub report #267)
++ 08/11/2026 | SJK #375 | Character: species first under Customizable, and a Custom RGB skin colour (Blep's idea)
+- 7d898a6 |  | Character: list the species first under Customizable, their tiles marked
+- eee42d5 |  | Character: a Custom skin colour with R, G and B sliders for species
++ 08/11/2026 | SJK #379 | Vote panel: a centred SJK card that is easy to read, and testvote
+- 7d91427 |  | Vote panel: a centred SJK card that is easy to read, and testvote
++ 08/11/2026 | SJK #386 | Classic menus: Collection and SJK chat on the SJK page, Collection and Camera control in the in-game SJK pop-up
+- cbba876 |  | Classic menus: Collection entry, and Camera control in the in-game SJK pop-up
+- 9e14d91 |  | Classic menus: SJK CHAT on the main menu's SJK page
 + 08/11/2026 | SJK #387 | Key bindings: a Toggles group for every on/off setting, and togglebind (Blep's idea)
 - 4f74d62 |  | Toggle binds: Key bindings > Toggles and togglebind (Blep's idea)
 - e36d1b9 |  | toggle: a number matches a value of the same number ("80" and "80.0")

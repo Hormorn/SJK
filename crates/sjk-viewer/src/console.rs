@@ -49,6 +49,8 @@ mod console_import;
 mod console_model_viewer;
 #[path = "console_sjk_pages.rs"]
 mod console_sjk_pages;
+#[path = "console_spawn_panel.rs"]
+mod console_spawn_panel;
 #[path = "console_update.rs"]
 mod console_update;
 #[path = "credits.rs"]
@@ -78,6 +80,8 @@ mod profile_page;
 mod sjk_chat_page;
 #[path = "sjk_chat_panel.rs"]
 pub(crate) mod sjk_chat_panel;
+#[path = "spawn_panel.rs"]
+pub(crate) mod spawn_panel;
 #[path = "console_staff_page.rs"]
 mod staff_page;
 #[path = "staff_panel.rs"]
@@ -227,6 +231,8 @@ pub(crate) struct ViewerConsole {
     pub(crate) sith_cloud: crate::jof_content::card::Card,
     /// Personal test list of Sol's build, drawn in place of the console while open.
     debug_panel: debug_panel::Panel,
+    /// The `spawn_panel` list of NPCs, vehicles and cheats, drawn in place of the console.
+    spawn_panel: spawn_panel::Panel,
     /// The `modelviewer` page, drawn in place of the console while open.
     model_viewer: model_viewer::Panel,
     changelog: changelog::Panel,
@@ -635,6 +641,7 @@ impl ViewerConsole {
                 || self.asset_browser.open
                 || self.jof_content_open()
                 || self.debug_panel.is_open()
+                || self.spawn_panel.is_open()
                 || self.model_viewer.is_open()
                 || self.changelog.is_open()
                 || self.credits.is_open()
@@ -1163,6 +1170,9 @@ impl ViewerConsole {
         if let Some(draw_list) = self.debug_panel_draw_list() {
             return draw_list;
         }
+        if let Some(draw_list) = self.spawn_panel_draw_list() {
+            return draw_list;
+        }
         if self.open && self.browser.is_open() {
             return self.browser.draw_list();
         }
@@ -1220,6 +1230,7 @@ impl ViewerConsole {
             self.close_content();
             self.browser.close();
             self.debug_panel.close();
+            self.spawn_panel.close();
             self.model_viewer.close();
             self.changelog.close();
             self.credits.close();

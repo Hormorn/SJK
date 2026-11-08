@@ -790,7 +790,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 114 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 120 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -991,6 +991,15 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
   idea.
 - #387 a Toggles group in Key bindings, one row for every on/off setting, and `togglebind`,
   after Blep's idea.
+- #386 Collection, SJK chat and Camera control entries in the classic menus.
+- #375 the game's species first under Customizable in the SJK UI's Character page, and a
+  Custom skin colour with red, green and blue sliders, after Blep's idea.
+- #379 the vote panel as a centred SJK card with the proposal, time and counts, and
+  `testvote`.
+- #366 SJK finds Jedi Academy in any Steam library and GOG, and starts from Steam's Play
+  button through the launch options.
+- #384 the E-Web: the holdable, and single-player maps' `emplaced_eweb` (hub report #267).
+- #368 the spawn list (`spawn_panel`): NPCs, vehicles and cheats picked from a list.
 
 His Peek work in #199 (closed 24/10/2026, not merged) shaped the Drone toy: a player is
 asked before being peeked, told who watches, and can end it. His #206 (closed 25/10/2026,

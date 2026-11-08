@@ -308,6 +308,7 @@ impl ViewerConsole {
             || self.holocrons_panel_key(event)
             || self.sjk_chat_panel_key(event)
             || self.debug_panel_key(event)
+            || self.spawn_panel_key(event)
         {
             return true;
         }

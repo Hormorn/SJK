@@ -755,6 +755,17 @@ overlay routes their text to the UI's families (`console_sjk_pages.rs`).
   outcome (ember for a load or save error) bottom left; keys Space, Tab, Up Down, Esc
   bottom right. World shot: `world_shot::tests::duel6_debug_panel` (1080p and 4K with
   `ui_textScale 1.2`, `ui_menuStyle sjk` and `classic`).
+- **Spawn list** ([spawn_panel_view.rs](../crates/sjk-viewer/src/spawn_panel_view.rs),
+  05/11/2026): the `spawn_panel` command's list ([client.md](client.md#spawn-list)), in
+  this look in every menu style, laid out as the Test list. Top bar "Spawn list" with the
+  filter's search pill (always typing, "N found" while a filter is typed), the tabs NPCs,
+  Vehicles and Cheats under it; the names down the left in rows of 44 (x 96, 600 wide,
+  from y 214 to 950) under a gold "Jedi Academy" and a holo "Community" heading, the
+  chosen one banded in gold; the reading column (x 790 to 1824): the kind in gold
+  ("NPC - Jedi Academy"), the name at 40, What it does for a cheat, Runs with the line in
+  gold, and the gold Spawn (Run) button; two quiet lines at the bottom say it needs
+  cheats. The last line run bottom left; keys Enter, Tab, Up Down, Esc bottom right.
+  World shot: `world_shot::tests::duel6_spawn_panel` (`ui_menuStyle sjk` and `classic`).
 - **Credits** ([credits_sjk.rs](../crates/sjk-viewer/src/credits_sjk.rs), since
   08/10/2026, Sol's request: restyle Credits but keep its sun): on the left SJK's
   emblem (220 across, centred at (300, 330)) is the page's sun, the one memorable
