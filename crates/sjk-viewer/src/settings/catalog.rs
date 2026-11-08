@@ -2120,6 +2120,11 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Toon on my model",
+        cvar: crate::toon_choice::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Reflection probes (reload)",
         cvar: "r_cubeMapping",
         kind: ValueKind::Bool,

@@ -1656,7 +1656,11 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::dynamic_lights::TOON_MODELS_CVAR,
-        "Cartoon-style shading on players and other models: light in soft bands with a bright rim around them. Only you see it.",
+        "Shows the cartoon shading players chose for their own model: soft light bands and a bright rim. Off, every model stays stock.",
+    ),
+    (
+        crate::toon_choice::CVAR,
+        "Your model in cartoon-style shading, as SJK players who show toon models see it. Also on the Profile's Character tab.",
     ),
     (
         "r_cubeMapping",

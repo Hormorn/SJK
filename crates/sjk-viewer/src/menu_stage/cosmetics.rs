@@ -212,6 +212,7 @@ impl GpuState {
             cosmetic.placed = instance.is_some();
             if let Some(mut instance) = instance {
                 instance.set_light(actor.light);
+                instance.view_flags |= actor.instance.view_flags & crate::toon_choice::FLAG;
                 self.queue.write_buffer(
                     &cosmetic.instance_buffer,
                     0,

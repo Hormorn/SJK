@@ -244,6 +244,7 @@ mod tags;
 mod tags_frame;
 mod team_sabers;
 mod tickrate_help;
+mod toon_choice;
 mod toy_master;
 mod toy_saved;
 mod toy_sight;

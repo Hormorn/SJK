@@ -143,6 +143,9 @@ struct Sinks<'a> {
     /// Client slots muted on this PC (bits): drawn with the default saber colour
     /// and without hat or cape (`muted_players.rs`).
     muted: u32,
+    /// Client slots whose players chose toon shading for their model, while this PC shows
+    /// it (`toon_choice.rs`, `r_toonModels`).
+    toon_slots: u32,
     /// Each client slot's team blade colours in team games: `cg_saberTeamColors`, and
     /// `cg_ctfTeamSabers` (no skin over them) in CTF or CTY (`team_sabers.rs`); in
     /// Siege the class-forced colours (`siege_sabers.rs`).
@@ -423,6 +426,11 @@ pub(crate) fn submit(
                 .and_then(|_| gpu.local_prediction.predicted_state()),
         ),
         muted: gpu.muted_players.slots().muted,
+        toon_slots: if gpu.context.dynamic_light_settings.toon_models() {
+            crate::toon_choice::slots(&gpu.looks)
+        } else {
+            0
+        },
         team_blades: crate::team_sabers::with_classes(
             crate::team_sabers::blades(gpu.console.as_ref(), game_state),
             gpu.siege_sabers.forced(game_state, gpu.vfs.as_deref()),
@@ -460,6 +468,7 @@ pub(crate) fn submit(
             .ok()
             .map_or(0, |number| {
                 crate::actor_instance::scene_flags(game_state, snapshot, number)
+                    | crate::toon_choice::flag(sinks.toon_slots, number)
             });
         let mut transform = entity.sample(presentation_time);
         if matches!(entity.kind, EntityKind::Actor | EntityKind::Corpse) {

@@ -249,6 +249,8 @@ pub(crate) struct PlayerMenu {
     hub: bool,
     /// The Force page showed last frame ([`Self::settle_force_page`]).
     force_shown: bool,
+    /// The Character page's Toon shading switch: `cg_toonModel` as read last.
+    toon: bool,
 }
 
 impl PlayerMenu {
@@ -301,6 +303,7 @@ impl PlayerMenu {
             preview_ready: false,
             hub: false,
             force_shown: false,
+            toon: false,
         }
     }
 
@@ -364,9 +367,25 @@ impl PlayerMenu {
     /// Read the blade skins the player owns and wears for the Saber page's blade
     /// choice, twice a second while it draws.
     pub(crate) fn follow_blade_skins(&mut self, console: &ViewerConsole) {
+        // The toon switch follows the setting changed elsewhere (Settings, the console).
+        if self.is_sjk() && self.page == ProfilePage::Character {
+            self.read_toon(console);
+        }
         if self.is_sjk() && self.page == ProfilePage::Saber {
             self.blade_choice.follow(console);
             self.sound_choice.read(console, &self.blade_choice);
+        }
+    }
+
+    /// The toon switch from `cg_toonModel`.
+    fn read_toon(&mut self, console: &ViewerConsole) {
+        self.toon = console.bool_cvar(crate::toon_choice::CVAR).unwrap_or(false);
+    }
+
+    /// The own model in toon shading or not, at once (the look carries it to the others).
+    fn set_toon(&mut self, console: &mut ViewerConsole, on: bool) {
+        if console.set_cvar(crate::toon_choice::CVAR, if on { "1" } else { "0" }) {
+            self.toon = on;
         }
     }
 

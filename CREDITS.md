@@ -438,7 +438,9 @@ includes:
   `main` from now on; the top-tier blades then drawn about a quarter faster with the same
   look (the blade's hiding worked out once per pixel, far lightning bolts skipped);
 - toon models (02/11/2026): `r_toonModels` draws lit models with banded light, a rim
-  and livelier colour, live and off by default;
+  and livelier colour, live and off by default; since 08/11/2026 each player chooses it
+  for their own model (`cg_toonModel`, the Character tab's Toon shading), synced through
+  the hub look, and `r_toonModels`, on by default, shows those choices;
 - 3D sound (03/11/2026, after VisionJK's `v_spatial`, Blackwolf's idea): `s_spatial`
   hears from the player's head, muffles sounds behind walls and shut doors and rings
   the room round the player with a small reverb sized by rays, in SJK's own mixer,

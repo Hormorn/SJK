@@ -325,12 +325,17 @@ on the 16:9 frame, dark behind the form on the left and clear over the model.
   `LegacyAssetCatalog::retail_characters`, `LegacyCharacter::rig`). The grid opens on
   the worn model: one named without a skin is its default skin (as the game reads it),
   and one the catalogue lacks opens on the first Default skin, never a team's.
-  Keys: the rows are Name, Search, the strip, the team (models), the grid and Apply;
+  Keys: the rows are Name, Search, the strip, the team (models), the grid, Toon
+  shading and Apply;
   Left and Right step the strip or the tile, Up and Down the tile by a line (and leave
   the grid at its ends), Enter on the strip goes to the grid, on a tile chooses it. The
   Model row that stepped to the next model of the grid is gone (Sol's decision,
   11/10/2026): the grid chooses the model. The Head row that drew as a model cycler
   after that removal is the Head category now.
+- **Toon shading** (Sol's request, 08/11/2026): a switch over Apply, the player's own
+  model in toon shading for every SJK player who shows toon models (`cg_toonModel`,
+  written at once, not on Apply; [Toon models](rendering.md#toon-models)). The stage's
+  model shows it at once, while `r_toonModels` is on.
 - **Apply** (a friend's request, 12/10/2026): a model chosen (the grid, a species' head,
   torso, legs or skin colour, the team colour) shows on the stage at once but is not worn:
   the `model` and `char_color_*` cvars keep the old one until the button under the grid

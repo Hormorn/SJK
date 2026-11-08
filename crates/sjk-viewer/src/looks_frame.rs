@@ -53,6 +53,12 @@ impl GpuState {
         let own_slot =
             session.and_then(|session| u8::try_from(session.game_state().client_num).ok());
         let lit = self.illuminate.lit();
+        // The own model in toon shading (`toon_choice.rs`).
+        let toon = self
+            .console
+            .as_ref()
+            .and_then(|console| console.bool_cvar(crate::toon_choice::CVAR))
+            .unwrap_or(false);
         // The Hax's trap holds while away: hackers' clients may then hack the player away.
         let away_hackable = self.hax.on() && crate::hax::away_hackable(self.console.as_ref());
         let text = |name: &str| {
@@ -119,7 +125,8 @@ impl GpuState {
                     .with_toy(crate::monitor::TOY, self.monitor.on())
                     .with_toy(crate::box_hunt::TOY, self.box_hunt.on())
                     .with_toy(crate::banana::TOY, self.banana.on())
-                    .with_toy(crate::fishing::TOY, self.fishing.on()),
+                    .with_toy(crate::fishing::TOY, self.fishing.on())
+                    .with_toy(crate::toon_choice::TOY, toon),
             );
             (
                 own.saber_skin,
@@ -159,7 +166,8 @@ impl GpuState {
         .with_toy(crate::monitor::TOY, self.monitor.on())
         .with_toy(crate::box_hunt::TOY, self.box_hunt.on())
         .with_toy(crate::banana::TOY, self.banana.on())
-        .with_toy(crate::fishing::TOY, self.fishing.on());
+        .with_toy(crate::fishing::TOY, self.fishing.on())
+        .with_toy(crate::toon_choice::TOY, toon);
         if let Some(sent) = sent {
             let options = crate::blade_extras::gated(&options, player_identity::holds_card);
             let mut look = sent.to_look(&options);

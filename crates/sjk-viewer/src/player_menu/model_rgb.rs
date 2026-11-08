@@ -144,7 +144,12 @@ mod tests {
         let (menu, _console, _directory) = page("jedi_hm/rgb");
         let rows = slider_rows(&menu);
         assert_eq!(rows.len(), 3);
-        assert_eq!(rows[2] + 1, menu.apply_row(), "just above Apply");
+        // Then the Toon shading switch, then Apply.
+        assert_eq!(
+            rows[2] + 2,
+            menu.apply_row(),
+            "just above the toon switch and Apply"
+        );
         assert!(!menu.canvas.overflowed());
         for row in rows {
             assert!(

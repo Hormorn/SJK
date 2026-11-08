@@ -74,7 +74,7 @@ fn apply_lighting_mode(input: VertexOutput, primary: vec4<f32>, secondary: vec4<
     }
     let result = base * color;
     let rgb = i32(stage.generators.x);
-    if toon_models() && !fullbright && input.light_ambient.a != 0.0 &&
+    if toon_model(input.light_ambient.a) && !fullbright &&
         input.entity_control.x <= 0.5 && (rgb == 4 || rgb == 9) {
         return vec4(toon_colour(result.rgb), result.a);
     }

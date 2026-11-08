@@ -32,7 +32,10 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+= r_toonModels reset: Toon models now shows the toon shading players chose for their own model; off, every model keeps stock shading.
+= cg_toonModel: Toon on my model: your model in toon shading for every SJK player; some models suit it, some don't. Also on the Character tab.
 = cg_statusBalloons: Status bubbles: the chat bubble over SJK players shows why it is up: dots while typing, a pause sign in a menu, a moon while alt-tabbed.
+- Toon shading is now each player's choice for their own model, since some models look better with it and some without: Toon shading on the Profile's Character tab (or Settings, `cg_toonModel`) shows your model toon to every SJK player. Toon models in Settings (`r_toonModels`), now on by default, shows those choices; off, everyone keeps stock shading _(Sol)_
 - JoF EJK players now wear the JoF EJK icon on their nameplate too, small after the name (after the tick for a player whose claim says EJK; alone for one found by their name) _(Sol)_
 - `help_tickrate` explains what players call the tick rate: the frames you draw, the commands you send and the snapshots the server sends back; how SJK sends commands on JoF and why, and how to keep even 8 ms steps there; then what your game uses right now _(Sol)_
 - Solfox is a new fox: Sol's own model, with a sculpted head, a tail and arms that bend cleanly, and a second look, Solfox cloth, with a hood, cape and long skirt that move as you run. SJK players get it from the hub as before _(Sol)_

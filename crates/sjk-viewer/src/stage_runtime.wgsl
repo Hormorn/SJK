@@ -147,6 +147,9 @@ fn entity_vertex(input: VertexInput, instance: InstanceInput, index: u32) -> Ver
         instance.entity_color, instance.shader_tex_coord, instance.entity_control,
         light, !world);
     if (instance.view_flags & 8u) != 0u { output.animation_index = i32((instance.view_flags >> 8u) & 65535u); }
+    // A toon model (`view_flags` bit 28, `toon_choice::FLAG`): its entity light's `a` is 2
+    // instead of 1, which `toon_model` reads.
+    if !world && (instance.view_flags & (1u << 28u)) != 0u { output.light_ambient.a = 2.0; }
     // RF_DEPTHHACK: rd-vanilla narrows the depth range to 0..0.3
     // (`tr_backend.cpp:906`) so the view weapon draws over the world.
     output.position = clip_position(position, instance.position.w);
@@ -293,18 +296,19 @@ fn generated_color(input: VertexOutput) -> vec4<f32> {
     var color = vec4(1.0);
     let rgb_kind = i32(stage.generators.x);
     var diffuse = input.lighting_diffuse.rgb;
-    // Bit 0: `r_modelPixelLight`; bits 1..3: `r_toonModels`, which needs each pixel's
-    // own normal (bands drawn per vertex would follow the triangles).
+    // Bit 0: `r_modelPixelLight`; a toon model needs each pixel's own normal too
+    // (bands drawn per vertex would follow the triangles).
     // A model normal map lights each pixel through its own bent normal as well.
-    if (point_lights.metadata.y != 0u || model_normal_on) && input.light_ambient.a != 0.0 &&
-        (rgb_kind == 4 || rgb_kind == 9) {
+    let toon = toon_model(input.light_ambient.a);
+    if ((point_lights.metadata.y & 1u) != 0u || toon || model_normal_on) &&
+        input.light_ambient.a != 0.0 && (rgb_kind == 4 || rgb_kind == 9) {
         var light = EntityLight(input.light_ambient.rgb,
             input.light_directed, input.light_direction);
         if (point_lights.metadata.y & 1u) != 0u && model_grid.bounds.w != 0u {
             light = spatial_model_light(input.world_position);
         }
         let normal = model_shading_normal(input.world_normal);
-        if toon_models() {
+        if toon {
             diffuse = toon_diffuse(input.world_position, normal, light);
         } else {
             diffuse = diffuse_light(normal, light);

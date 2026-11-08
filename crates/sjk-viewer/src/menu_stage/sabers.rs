@@ -579,6 +579,7 @@ impl GpuState {
                 let mut instance =
                     ActorInstance::new(grip.to_array(), rotation.to_array(), [1.0; 3]);
                 instance.set_light(light);
+                instance.view_flags |= actor.instance.view_flags & crate::toon_choice::FLAG;
                 self.queue
                     .write_buffer(&saber.instance_buffer, 0, bytemuck::bytes_of(&instance));
             }
@@ -815,6 +816,7 @@ impl GpuState {
             };
             let mut instance = ActorInstance::new(grip.to_array(), rotation.to_array(), [1.0; 3]);
             instance.set_light(actor.light);
+            instance.view_flags |= actor.instance.view_flags & crate::toon_choice::FLAG;
             self.queue.write_buffer(
                 &saber.float_instance_buffer,
                 0,

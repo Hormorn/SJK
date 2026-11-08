@@ -55,6 +55,7 @@ impl PlayerMenu {
         self.saber.set_search("");
         self.blade_choice.read(console);
         self.sound_choice.read(console, &self.blade_choice);
+        self.read_toon(console);
         self.page = ProfilePage::Character;
         self.selected = 0;
         self.creator.reset();
@@ -390,6 +391,8 @@ impl PlayerMenu {
                         self.creator.show_chosen();
                     }
                     CharacterRow::Grid => self.grid_side(direction),
+                    // Either way flips the switch.
+                    CharacterRow::Toon => self.set_toon(console, !self.toon),
                     CharacterRow::Red | CharacterRow::Green | CharacterRow::Blue => {
                         if let Some(channel) = row.channel() {
                             self.step_model_channel(channel, direction);

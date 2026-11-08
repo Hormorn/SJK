@@ -34,11 +34,12 @@ fn finish_model_light(position: vec3<f32>, source: EntityLight) -> EntityLight {
     return light;
 }
 
-// Toon models (`r_toonModels`, bits 1..3 of `point_lights.metadata.y`): stylized,
-// banded light on lit models instead of the smooth falloff, with a rim of light on
-// their silhouette. 0 keeps stock shading; the bit stays clear unless the player opts in.
-fn toon_models() -> bool {
-    return ((point_lights.metadata.y >> 1u) & 3u) != 0u;
+// Toon models: stylized, banded light on a lit model instead of the smooth falloff, with
+// a rim of light on its silhouette. Drawn on a model whose wearer chose it for their own
+// (`cg_toonModel`, `toon_choice.rs`), told by its entity light's `a` of 2 (`entity_vertex`),
+// while this PC shows them (`r_toonModels`, bits 1..3 of `point_lights.metadata.y`).
+fn toon_model(lit: f32) -> bool {
+    return lit > 1.5 && ((point_lights.metadata.y >> 1u) & 3u) != 0u;
 }
 
 // A staircase with soft risers: `x` rounded to whole steps, each step eased over a

@@ -97,6 +97,12 @@ impl Settings {
             lights.clear();
         }
     }
+    /// Whether this PC shows the toon shading players chose for their models
+    /// (`r_toonModels`, `toon_choice.rs`).
+    pub(crate) fn toon_models(&self) -> bool {
+        self.1.toon()
+    }
+
     /// Publish the same gated scene lights to world shading and subsequent entity lighting.
     pub(crate) fn upload(
         &self,

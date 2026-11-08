@@ -8822,6 +8822,16 @@ test: Try r_dayNight 0 and 1, bright and dark maps, saber glow and shiny hilts s
 test: Check weapons, NPCs and vehicles too; tell if any looks wrong or too bright.
 note: First pass: no ink outlines yet; the menu character preview keeps stock shading.
 
+[toon-choice]
+area: Rendering & effects
+title: Toon shading by choice: each player picks it for their own model (cg_toonModel)
+change: Profile > Character > Toon shading (or Settings) puts your model in toon for everyone.
+change: The choice goes in your hub look; r_toonModels is now on by default and shows choices.
+test: Character tab: flip Toon shading, the model on the stage turns toon at once, Apply not needed.
+test: Two SJK clients on one server: B sees A toon only when A has it on; B r_toonModels 0 = stock.
+test: Your hat, cape and hilt follow the body; NPCs, items and your view weapon stay stock.
+note: The what's-new card resets r_toonModels to on once; corpses after respawn stay stock.
+
 [prop-gun]
 area: Gameplay
 title: Prop gun toy: a fake gun from your pk3
