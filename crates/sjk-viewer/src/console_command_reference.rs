@@ -387,7 +387,7 @@ fn markdown(console: &ViewerConsole) -> (String, Counts) {
          command and default key: `bind <key> <command>` binds one from the console.\n",
     );
     let mut category = None;
-    for action in crate::keybind_editor::ACTIONS {
+    for action in crate::keybind_editor::ACTIONS.iter() {
         if category != Some(action.category) {
             category = Some(action.category);
             let caption = crate::keybind_editor::CATEGORIES[action.category as usize];

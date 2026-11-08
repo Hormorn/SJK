@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- A key can flip any on/off setting: Settings > Key bindings has a Toggles group, one row for every switch in Settings (search finds it by name), and `togglebind <key> <cvar>` binds one from the console (`togglebind F5 cg_drawFPS`; with values, `togglebind F6 cg_fov 80 100 120` steps through them) _(Slash, after Blep's idea)_
 - Textures larger than 2048 pixels are halved down to it (`r_maxTextureSize`, Settings: Largest texture; 0 keeps every size): a 4096 one takes a quarter of the video memory and loads faster _(Sol)_
 - A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
 - Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_

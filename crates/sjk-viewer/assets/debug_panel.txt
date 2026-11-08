@@ -2446,6 +2446,18 @@ note: The console copy of a chat line keeps the escapes, as in EternalJK.
 
 # ---- Input ----
 
+[toggle-binds]
+area: Input
+title: Toggle binds: Key bindings > Toggles and togglebind (Blep idea)
+change: Key bindings ends with Toggles: a row for each on/off switch of Settings (toggle <cvar>).
+change: Console: togglebind <key> <cvar> [values] binds the key to toggle that cvar.
+test: Settings > Key bindings: scroll to Toggles; bind a key to FPS / frame-time readout.
+test: In game press it: the switch flips; again: back. Settings shows the same value.
+test: Search fps or cg_drawFPS in Key bindings: the Toggles row comes up.
+test: Console: togglebind F5 cg_drawFPS, press F5 twice; togglebind F6 cg_fov 80 100 120.
+test: togglebind F7 cg_drawFSP: unknown cvar, F7 stays unbound.
+test: Classic menu style, Controls: the Toggles heading after Other.
+
 [worldnote-key]
 area: Input
 title: World notes get their own key; Inspect is for players only

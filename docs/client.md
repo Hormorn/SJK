@@ -2697,6 +2697,23 @@ keys are drawn muted. Reset defaults restores them. The console's `bind` and
 `unbind` commands are unrestricted. See
 [keybind_editor.rs](../crates/sjk-viewer/src/keybind_editor.rs).
 
+Toggles, the last group (08/11/2026, Blep's idea in #ideas), has one row for every
+on/off switch in Settings, named as its row there and in the settings search's order
+(a switch shown on several pages once), bound as `toggle <cvar>`: each press flips the
+switch, as the row would. A switch a fixed action already runs is left to that action.
+The rows are made from the settings catalogue at start
+([catalog.rs](../crates/sjk-viewer/src/keybind_editor/catalog.rs) `toggle_rows`,
+`settings::switches`), so a new switch gets its row with no edit here; none has a
+default key. The search finds them by name, by `toggle` or by the cvar.
+
+The console's `togglebind <key> <cvar> [value1 value2 ...]` binds the same from the
+console: `togglebind F5 cg_drawFPS` is `bind F5 "toggle cg_drawFPS"`, and with
+values (`togglebind F6 cg_fov 80 100 120`) each press steps to the next, as stock
+`toggle` does. It takes only a cvar that exists (a typo is told at once, where
+`toggle` would make a new cvar on the first press), spells it as registered, and
+quotes a value with a space or `;`. `bind <key> "toggle <name>"` still takes any
+name ([shell_builtins.rs](../crates/sjk-shell/src/shell_builtins.rs)).
+
 The console can also bind an arbitrary pair of keys as one chord, using the
 JoF EJK syntax `bind K+L kill`. Hold either key and press the other to run the
 chord. The first key's ordinary bind has already run; the chord replaces the

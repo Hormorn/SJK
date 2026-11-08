@@ -127,6 +127,37 @@ impl Shell {
         )])
     }
 
+    /// SJK's `togglebind <key> <cvar> [value1 value2 ...]` (Blep's idea, 08/11/2026): binds the
+    /// key to `toggle` that cvar, so each press flips it between 0 and 1, or steps through
+    /// the values given. The cvar must exist, so a typo is told at once rather than making a
+    /// new cvar on the first press; `bind <key> "toggle <name>"` still takes any name.
+    pub(super) fn togglebind_command(
+        &mut self,
+        arguments: &[String],
+    ) -> Result<Vec<String>, ShellError> {
+        let [key, name, values @ ..] = arguments else {
+            return Err(ShellError::Usage(
+                "togglebind <key> <cvar> [value1 value2 ...]",
+            ));
+        };
+        if values.len() == 1 {
+            return Err(ShellError::Usage("toggle needs at least two values"));
+        }
+        let Some(cvar) = self.cvars.get(name) else {
+            return Err(CvarError::Unknown(name.clone()).into());
+        };
+        let mut command = format!("toggle {}", cvar.name);
+        for value in values {
+            if value.contains(|c: char| c.is_whitespace() || c == ';') {
+                command.push_str(&format!(" \"{value}\""));
+            } else {
+                command.push(' ');
+                command.push_str(value);
+            }
+        }
+        self.bind_command(&[key.clone(), command])
+    }
+
     pub(super) fn unbind_command(
         &mut self,
         arguments: &[String],

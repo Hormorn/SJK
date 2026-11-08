@@ -1111,6 +1111,15 @@ pub(crate) fn switch_label(cvar: &str) -> Option<&'static str> {
         .map(|setting| setting.label)
 }
 
+/// Every on/off switch of the settings, once each, in the search's order: its row's
+/// name and its cvar. Key bindings' Toggles rows are made from them.
+pub(crate) fn switches() -> impl Iterator<Item = (&'static str, &'static str)> {
+    search::rows()
+        .iter()
+        .filter(|setting| matches!(setting.kind, ValueKind::Bool))
+        .map(|setting| (setting.label, setting.cvar))
+}
+
 /// Whether `cvar` has a row on a general or renderer tab that can show
 /// `value`: a switch's 0 or 1, or a number within its slider's range.
 #[cfg(test)]

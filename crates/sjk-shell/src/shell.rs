@@ -616,6 +616,7 @@ fn builtin_commands() -> impl Iterator<Item = (&'static str, &'static str)> {
         ("set", "Set or create a session cvar"),
         ("seta", "Set or create an archived cvar"),
         ("toggle", "Toggle a boolean/numeric cvar"),
+        ("togglebind", "Bind a key to toggle a cvar"),
         ("unalias", "Remove an alias"),
         ("unaliasall", "Remove every alias"),
         ("unbind", "Remove a key binding"),
@@ -704,6 +705,55 @@ mod key_display_tests {
         assert!(list.iter().any(|line| line.starts_with("K+L ")), "{list:?}");
         assert_eq!(shell.execute_line("unbind L+K").unwrap(), ["K+L unbound"]);
         assert_eq!(shell.binds.get("K+L"), None);
+    }
+
+    #[test]
+    fn togglebind_binds_a_key_to_toggle_a_known_cvar() {
+        let mut cvars = CvarRegistry::new();
+        for (name, default) in [("cg_drawFPS", "0"), ("cg_fov", "80")] {
+            cvars
+                .register(crate::CvarDefinition::new(
+                    name,
+                    default,
+                    crate::CvarFlags::NONE,
+                    "test",
+                ))
+                .unwrap();
+        }
+        let mut shell = Shell::new(cvars, BindTable::new());
+        assert_eq!(
+            shell.execute_line("togglebind f5 cg_drawfps").unwrap(),
+            ["F5 = \"toggle cg_drawFPS\""]
+        );
+        let command = shell.binds.get("F5").unwrap().to_owned();
+        shell.execute_line(&command).unwrap();
+        assert_eq!(shell.cvars.get("cg_drawFPS").unwrap().value.as_text(), "1");
+        shell.execute_line(&command).unwrap();
+        assert_eq!(shell.cvars.get("cg_drawFPS").unwrap().value.as_text(), "0");
+
+        shell
+            .execute_line("togglebind F6 cg_fov 80 100 120")
+            .unwrap();
+        let command = shell.binds.get("F6").unwrap().to_owned();
+        assert_eq!(command, "toggle cg_fov 80 100 120");
+        for expected in ["100", "120", "80"] {
+            shell.execute_line(&command).unwrap();
+            assert_eq!(shell.cvars.get("cg_fov").unwrap().value.as_text(), expected);
+        }
+
+        assert!(matches!(
+            shell.execute_line("togglebind F7 cg_drawFSP"),
+            Err(ShellError::Cvar(crate::CvarError::Unknown(_)))
+        ));
+        assert!(matches!(
+            shell.execute_line("togglebind F7 cg_fov 90"),
+            Err(ShellError::Usage(_))
+        ));
+        assert!(matches!(
+            shell.execute_line("togglebind F7"),
+            Err(ShellError::Usage(_))
+        ));
+        assert_eq!(shell.binds.get("F7"), None);
     }
 }
 
