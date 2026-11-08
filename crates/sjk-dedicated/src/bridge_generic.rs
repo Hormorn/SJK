@@ -61,7 +61,7 @@ impl NativeGame {
             return;
         }
         if generic == GENCMD_ENGAGE_DUEL {
-            self.duel_key(client, level_time);
+            self.duel_key(client, level_time, false);
             return;
         }
         if self.generic_holdable(client, generic, level_time) {

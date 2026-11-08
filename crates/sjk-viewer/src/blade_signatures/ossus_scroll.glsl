@@ -1,0 +1,306 @@
+// Ossus Scroll (update 24, Creyon: a weird black flicker; the black ink is gone): a blade painted in one
+// breath of a brush loaded with gold. Its own body is the warm white of rice paper glowing from within,
+// veins of gold leaf drifting up through it; strokes of gold sweep up round both its sides, thick where
+// they start and drying to a fine tail; a sepia wash bleeds softly at its edges; drops of gold gather and
+// fall from it; swung, gold is flung off it in long splashes. Round it, incense: slow pale breaths
+// turning up the blade, gold dust settling through them. No figures: only brushwork.
+// @part Paper glow
+// @part Gold strokes
+// @part Sepia wash
+// @part Falling gold
+// @part Gold splash
+// @part Incense
+// @raycache fast
+// @room 8
+// @solid 1
+// @moments own
+// @trail gilded
+// @palette {"corona.rim_cool":[0.55,0.55,0.6],"corona.rim_hot":[0.95,0.93,0.88],"corona.inner":[1.0,0.99,0.95],"core.white":[1.0,1.0,0.97],"core.fringe_cool":[0.7,0.7,0.72],"core.fringe_hot":[0.95,0.94,0.9],"light.color":[0.95,0.93,0.86],"trail":[0.85,0.85,0.88]}
+// @speed 2.6
+
+const vec3 IS_PAPER = vec3(1.0, 0.96, 0.88);
+const vec3 IS_INK = vec3(0.86, 0.58, 0.16);
+const vec3 IS_GREY = vec3(0.62, 0.48, 0.3);
+
+float is_flow(vec2 p){
+  float v = sin(p.x + 1.5*sin(p.y*0.9 + 0.4));
+  v += 0.8*sin(p.y*1.3 + 1.2*sin(p.x*1.2 + 1.9));
+  v += 0.5*sin((p.x - p.y)*2.0 + 1.0*sin(p.y*2.1 + 0.7));
+  return 0.5 + v/4.6;
+}
+float is_half(float y){
+  // (update 20) one stroke of a loaded brush: full where it lands, thinning and swelling as the hand
+  // moves, drying to a fine point
+  float s = clamp(y/max(uLength, 1.0), 0.0, 1.0);
+  float e0 = 1.0 - clamp((uLength + 0.3 - y)/0.9, 0.0, 1.0);
+  float tip = sqrt(max(1.0 - e0*e0, 0.0));
+  float press = 0.62 + 0.3*sin(s*5.0 + 0.8) + 0.1*sin(s*17.0 + 2.0);
+  return (0.58 + 0.34*press)*tip;
+}
+
+vec3 sig_glow_tc(vec3 g, vec2 b, float r, float px){
+  float top = uLength + 0.3;
+  float y = clamp(b.y, 0.0, top);
+  float d = max(length(vec2(b.x, b.y - y)) - is_half(y), 0.0);
+  vec3 col = vec3(0.0);
+  // effect 1 (with Paper glow): a warm paper-white glow breathing round it
+  if (part(0.0) > 0.5) col += IS_PAPER*(halo(d, 0.5)*0.22 + halo(d, 1.6)*0.05)*(1.0 + 0.25*sin((uTime*0.4)*0.7))*smoothstep(-0.5, 1.0, b.y)*(1.0 - smoothstep(top, top + 3.0, b.y));
+  // nothing over the point (Creyon): what it draws fades out just past its tip
+  col *= tipFadeB(b);
+  return col*roomFade(abs(b.x));
+}
+vec3 sig_core_d(vec3 c, vec2 b, float px){ return c*0.0; }
+
+// One brush stroke on side s: a curve sweeping up from the blade's edge, out and back in, its
+// width thick at its start and drying to a fine tail; its alpha (0 to 1) at b.
+float is_stroke(vec2 b, float k, float s){
+  float L = uLength;
+  float cyc = (uTime*0.4)*0.07 + h11(k*3.3);
+  float n = floor(cyc), q = fract(cyc);
+  float y0 = L*(0.04 + 0.7*h11(n*2.1 + k));
+  float len = L*(0.25 + 0.2*h11(n*4.3 + k)); if (y0 + len > L + 0.3) y0 = L + 0.3 - len;
+  float f = (b.y - y0)/len;
+  if (f < -0.05 || f > 1.05) return 0.0;
+  float ff = clamp(f, 0.0, 1.0);
+  // painted on, then fading: the stroke grows along its length and dries away
+  float drawn = smoothstep(0.0, 0.25, q);
+  float dry = 1.0 - smoothstep(0.6, 1.0, q);
+  float x = s*(0.6 + (1.3 + 0.8*h11(n + k*5.0))*sin(3.1416*ff)*(0.8 + 0.2*sin((uTime*0.4)*0.3 + k)));
+  float w = mix(0.6, 0.05, pow(ff, 0.8));
+  float dd = abs(b.x - x);
+  // its dry-brush texture: thin streaks along it
+  float bristle = 0.86 + 0.14*sin(dd*9.0/max(w, 0.03) + ff*3.0);
+  float a = (1.0 - smoothstep(w*0.6, w, dd))*bristle;
+  a *= smoothstep(-0.05, 0.05, f)*(1.0 - smoothstep(drawn - 0.05, drawn, ff))*(1.0 - smoothstep(0.95, 1.05, f));
+  return a*dry;
+}
+
+// effects 1 to 5, painted over the glow
+vec4 sig_solid_raw(vec4 o, vec2 b, float px){
+  float top = uLength + 0.3;
+  if (b.y < -1.0 || b.y > top + 4.0) return o;
+  float x = abs(b.x);
+  vec4 res = o;
+  // effect 3: the ink wash, grey ink bleeding softly out at its edges, darker in places
+  float half = is_half(clamp(b.y, 0.0, top));
+  float dEdge = x - half;
+  if (part(2.0) > 0.5 && b.y > 0.0 && b.y < top && dEdge > 0.0 && dEdge < 1.5){
+    float bleed = is_flow(vec2(b.y*0.4 - (uTime*0.4)*0.15, b.x*1.5 + 3.0));
+    float wash = (1.0 - smoothstep(0.1, 0.5 + 0.8*bleed, dEdge))*0.45*bleed;
+    res = vec4(mix(res.rgb, IS_GREY*0.5, wash), max(res.a, wash));
+  }
+  // effect 2: the brush strokes, black ink sweeping up round both sides
+  if (part(1.0) > 0.5){
+    float ink = 0.0;
+    for (int i = 0; i < 4; i++){
+      float k = float(i);
+      ink = max(ink, is_stroke(b, k, mod(k, 2.0) < 0.5 ? -1.0 : 1.0));
+    }
+    ink *= 0.92;
+    res = vec4(mix(res.rgb, IS_INK, ink), max(res.a, ink));
+  }
+  // effect 4: falling ink, drops gathering on its edge and falling away
+  if (part(3.0) > 0.5){
+    for (int i = 0; i < 5; i++){
+      float k = float(i);
+      float cyc = (uTime*0.4)*(0.12 + 0.05*h11(k*2.7)) + h11(k*6.1);
+      float n = floor(cyc), q = fract(cyc);
+      float s = h11(n*3.9 + k) > 0.5 ? 1.0 : -1.0;
+      float y0 = uLength*(0.2 + 0.7*h11(n*5.3 + k));
+      float fall = max(q - 0.4, 0.0)/0.6;
+      vec2 c = vec2(s*(0.6 + 0.3*fall), y0 - 9.0*fall*fall);
+      float rr = 0.12 + 0.08*smoothstep(0.0, 0.4, q);
+      // a drop, a little longer than round as it falls
+      vec2 dv = b - c;
+      dv.y *= 1.0 - 0.35*smoothstep(0.0, 0.3, fall);
+      float a = (1.0 - smoothstep(rr*0.3, rr*1.1, length(dv)))*smoothstep(0.0, 0.2, q)*(1.0 - smoothstep(0.85, 1.0, q));
+      res = vec4(mix(res.rgb, IS_INK, a*0.9), max(res.a, a*0.9));
+    }
+  }
+  // effect 5: the ink splash, swung, long curved splashes of ink flung off its upper half
+  float sw = smoothstep(0.2, 0.9, clamp(uSwing, 0.0, 1.0));
+  if (part(4.0) > 0.5 && sw > 0.01 && b.y > uLength*0.4 && b.y < top + 2.0){
+    float lane = is_flow(vec2(b.y*0.6, (uTime*0.4)*0.5));
+    float reach = (1.5 + 3.0*lane)*sw;
+    float streak = abs(sin(b.y*1.4 + x*0.6 + 2.0*lane));
+    float a = (1.0 - smoothstep(0.0, 0.18, streak))*(1.0 - smoothstep(reach*0.3, reach, max(dEdge, 0.0)))*smoothstep(0.0, 0.2, dEdge)*0.8;
+    res = vec4(mix(res.rgb, IS_INK, a), max(res.a, a));
+  }
+  // the body: rice-paper white glowing from within, grey ink veins drifting up through it
+  if (b.y >= -0.2 && b.y <= top){
+    float cov = fillD(x - half, min(px, 0.05))*smoothstep(0.02, 0.12 + px, half);
+    if (cov > 0.0){
+      float u = clamp(x/max(half, 0.01), 0.0, 1.0);
+      vec3 col = mix(IS_PAPER*1.05, IS_PAPER*0.85, smoothstep(0.4, 1.0, u));
+      if (part(0.0) > 0.5){
+        float vein = abs(is_flow(vec2(b.x*3.0 + 1.0, b.y*0.25 - (uTime*0.4)*0.25)) - 0.5);
+        col = mix(col, IS_GREY, (1.0 - smoothstep(0.0, 0.06, vein))*0.55);
+      }
+      col = mix(col, IS_GREY*0.7, smoothstep(0.85, 1.0, u)*0.5);
+      float a = cov;
+      res = vec4(mix(res.rgb, col, a), max(res.a, a));
+    }
+  }
+  return res;
+}
+
+// Incense round it: broad pale breaths turning slowly up the blade, never near its middle, gold dust
+// settling down through them, one long stroke of light drawn round it now and then.
+vec3 sig_vol_tc(vec3 ro, vec3 rd, float px){
+  vec3 fx = vec3(0.0);
+  if (uFx <= 0.0) return fx;
+  float L = uLength, t0;
+  float aft = rxLife(0.0, 0.3, 0.6);
+  if (aft <= 0.01 || fxNear(ro, rd, 0.0, L) > 16.0) return fx;
+  if (part(5.0) > 0.5){
+    for (int i = 0; i < 4; i++){
+      float k = float(i);
+      float y0 = L*(0.04 + 0.22*k);
+      fx += 0.26*xPuffs(ro, rd, 1.2, 2.5 + 0.6*h11(k*3.3), 0.45, k*0.29 + 0.0035*uTime, y0, y0 + L*0.36, 1.6, k + 7.0, IS_PAPER, IS_GREY);
+    }
+  }
+  if (part(1.0) > 0.5){
+    fx += gxKin(ro, rd, 4.0, 6.0, 3.00, 0.040, 0.26, 0.08, 0.96, 1.0, 7858.0, vec3(1.0, 0.86, 0.5), IS_INK);
+    for (int i = 0; i < 2; i++){
+      float k = float(i);
+      fx += 0.8*xComets(ro, rd, 1.5, 2.1, 0.8, k*0.5 + 0.004*uTime, L*(0.1 + 0.3*k), L*(0.5 + 0.3*k), 0.28, k + 31.0, vec3(1.0, 0.88, 0.55), IS_INK);
+    }
+  }
+  // great strokes of gold drawn round it by an unseen brush, up to its very point
+  if (part(4.0) > 0.5){
+    for (int i = 0; i < 3; i++){
+      float k = float(i), sa;
+      float q0 = fract(uClock*0.09 + k/3.0);
+      float bWs = 0.0;
+      float best = 1e3, bf = 0.0;
+      vec3 prev = around(0.9, k*0.37 + q0*0.2, L*(0.05 + 0.1*k));
+      for (int j = 1; j <= 10; j++){
+        float g = float(j)/10.0;
+        vec3 q = around(0.9 + 1.0*sin(3.1416*g), k*0.37 + q0*0.2 + 0.8*g, mix(L*(0.05 + 0.1*k), L + 0.1, g));
+        float d = raySeg(ro, rd, prev, q, sa);
+        { float wN = bW(d); bWs += wN; best = min(best, d); bf += ((float(j) - 1.0 + sa)/10.0 - bf)*wN/bWs; }
+        prev = q;
+      }
+      float wd = mix(0.11, 0.015, bf);
+      float life = sin(3.1416*q0);
+      fx += (vec3(1.0, 0.9, 0.62)*(1.0 - smoothstep(wd*0.5, wd + max(px, 0.02), best))*0.9 + IS_INK*halo(best, wd*3.5)*0.6)*life*(1.0 - smoothstep(q0*1.6, q0*1.6 + 0.1, bf));
+    }
+  }
+  float tipl = halo(rayPt(ro, rd, vec3(0.0, L, 0.0), t0), 1.1);
+  fx += IS_INK*tipl*0.5;
+  // gold stars of the old library hanging in the incense, and leaf falling slowly through them
+  if (part(3.0) > 0.5){
+    for (int i = 0; i < 6; i++){
+      float k = float(i);
+      vec3 p = around(2.5, 0.012*uClock + 0.5*mod(k, 2.0), L*(0.12 + 0.15*k));
+      fx += fxFlare(ro, rd, p, px, 0.15, 1.5, 4.0, 0.06, IS_INK*1.2);
+    }
+    fx += 1.2*shFlakes(ro, rd, 2.3, 0.8, L, 22.0, 2.6, -0.55, 0.14, 0.11, 0.4, 0.5, 33.0, vec3(1.0, 0.88, 0.55), IS_INK*0.5);
+  }
+  // the lighting: a brush of gold runs up with the blade, shedding sparks; what is round it follows after
+  float rise = smoothstep(0.0, 0.75, uAge);
+  float reveal = (L + 6.0)*smoothstep(0.1, 1.3, uAge);
+  float sr;
+  raySeg(ro, rd, vec3(0.0), vec3(0.0, L + 4.0, 0.0), sr);
+  if (uAge < 2000.0) fx *= 1.0 - smoothstep(reveal - 5.0, reveal, sr*(L + 4.0));
+  vec3 lit = fx;
+  if (uAge < 1.6){
+    float gone = 1.0 - smoothstep(0.75, 1.5, uAge);
+    vec3 head = vec3(0.0, L*rise, 0.0);
+    float dh = rayPt(ro, rd, head, t0);
+    lit += (vec3(1.0, 0.92, 0.7)*halo(dh, 0.5)*1.3 + IS_INK*halo(dh, 1.7)*0.7)*gone;
+    lit += 1.4*rxSparkShower(ro, rd, px, head, clamp(uAge/1.5, 0.0, 1.0), 26.0, 3.0, 3.0, vec3(1.0, 0.92, 0.7), IS_INK);
+  }
+  return lit*aft*uFx*hiltFade(ro, rd);
+}
+// (update 26) the body starts softly in the emitter, no hard end above the hilt
+vec4 sig_solid(vec4 o, vec2 b, float px){
+  vec4 r = sig_solid_raw(o, b, px);
+  float j = smoothstep(-0.25, 0.3, b.y);
+  return vec4(mix(o.rgb, r.rgb, j), mix(o.a, r.a, j));
+}
+// (update 29, Creyon: nothing past the tip) every effect ends at the blade's end
+vec3 sig_vol_34(vec3 ro, vec3 rd, float px){
+  vec3 fx = sig_vol_tc(ro, rd, px);
+  float s;
+  raySeg(ro, rd, vec3(0.0), vec3(0.0, uLength + 4.0, 0.0), s);
+  return fx*tipFade(ro, rd);
+}
+vec3 sig_glow_d(vec3 g, vec2 b, float r, float px){
+  return sig_glow_tc(g, b, r, px)*tipFadeB(b);
+}
+
+// >>> update 34: this blade's signature piece
+const vec3 SX_HOT = vec3(0.950, 0.930, 0.880);
+const vec3 SX_DEEP = vec3(0.550, 0.550, 0.600);
+const vec3 SX_PALE = vec3(1.000, 0.990, 0.950);
+vec3 sig_vol_p1(vec3 ro, vec3 rd, float px){
+  vec3 fx = sig_vol_34(ro, rd, px);
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, uLength) > 16.0) return fx;
+  float L = uLength, C = uClock;
+  vec3 a = vec3(0.0);
+  a += 1.4*xPuffs(ro, rd, 1.5, 2.6, 1.1, C*0.014, L*0.05, L*0.97, 0.55, 61.0, SX_PALE, SX_HOT*0.6); a += 1.2*xDust(ro, rd, 1.5, 2.8, 1.1, C*0.014 + 0.5, L*0.05, L*0.97, 0.4, 62.0, SX_PALE, SX_HOT); a += 1.0*shFlakes(ro, rd, 3.6, 0.6, L - 0.3, 20.0, 3.0, -0.4, 0.14, 0.14, 0.42, 0.5, 63.0, SX_PALE, SX_HOT*0.5);
+  return fx + a*rxLife(0.35, 1.3, 0.35)*uFx*tipFade(ro, rd)*hiltFade(ro, rd);
+}
+// <<< update 34
+// >>> dim: less glow, so its effects and body can be seen
+vec3 sig_glow_grown(vec3 g, vec2 b, float r, float px){ return sig_glow_d(g, b, r, px)*0.72; }
+vec3 sig_core(vec3 c, vec2 b, float px){ return sig_core_d(c, b, px)*0.7; }
+// <<< dim
+
+// >>> update 52: this blade's great effects in the air
+vec3 sig_vol_w2(vec3 ro, vec3 rd, float px){
+  vec3 a = vec3(0.0);
+  vec3 base = sig_vol_p1(ro, rd, px);
+  float L = uLength, C = uClock;
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, L) > 16.0) return base;
+  // leaves of old scrolls drifting down round it
+  a += 1.2*syPetalsAir(ro, rd, 11.0, 4.6, 0.05, 541.0, vec3(1.0, 0.95, 0.72), vec3(0.85, 0.55, 0.14));
+  a += 1.6*shFlakes(ro, rd, 3.6, 0.5, L - 0.4, 26.0, 2.8, 0.75, 0.2, 0.2, 0.35, 0.55, 543.0, vec3(1.0, 0.86, 0.5), vec3(0.42, 0.2, 0.04));
+  a += 0.8*syMistSpin(ro, rd, 0.3, L*0.96, 1.3, 4.6, 0.04, 544.0, vec3(0.28, 0.17, 0.05), vec3(0.04, 0.025, 0.01));
+  return base + a*rxLife(0.3, 1.0, 0.35)*uFx*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+// <<< update 52
+vec3 sig_glow_w2(vec3 g, vec2 b, float r, float px){ return sig_glow_grown(g, b, r, px)*growGlow(b); }
+vec3 sig_vol_own(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_w2(ro, rd, px), a = vec3(0.0);
+  float L = uLength, C = uClock;
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, L) > 16.0) return base;
+
+  if (part(5.0) > 0.5){
+    a += 1.3*vec3(0.0);
+  }
+  return base + a*rxLife(0.3, 1.2, 0.4)*uFx*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+vec3 sig_glow(vec3 g, vec2 b, float r, float px){
+  vec3 col = sig_glow_w2(g, b, r, px);
+  float d = max(abs(b.x) - 0.5, 0.0), C = uClock, on = rxLife(0.3, 1.3, 0.35)*uFx*tipFadeB(b)*growGlow(b)*roomFade(abs(b.x))*smoothstep(0.0, 4.0, b.y);
+
+  if (part(5.0) > 0.5){
+    col += vec3(0.0);
+  }
+  return col;
+}
+
+// >>> what this blade has in the air of its own
+vec3 sig_vol_m26(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_own(ro, rd, px), a = vec3(0.0);
+  if (uFx <= 0.0) return base;
+  float L = uLength;
+  a += 1.48*vec3(0.0);
+  a += 1.1*gxLanterns(ro, rd, px, 5.0, 4.6, 205.0, vec3(1.000, 0.990, 0.950), vec3(0.950, 0.930, 0.880));
+  a += 1.15*gxHelix(ro, rd, px, 18.0, 2.6, 2.1, 0.04, 5.0, vec3(1.000, 0.990, 0.950), vec3(0.950, 0.930, 0.880));
+  return base + a*rxLife(0.8, 3.0, 0.45)*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+// <<<
+
+// >>> its own moment
+vec3 sig_vol(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_m26(ro, rd, px), a = vec3(0.0);
+  if (uFx <= 0.0) return base;
+  float m = rxCycle(54.0, 20.0, 28.0, 34.0, 43.0), L = uLength;
+  a += 1.35*gxField(ro, rd, px, 16.0, m, 4.8, 1.1, 1.6, -1.0, 1.0, 0.34, 1104.0, vec3(1.000, 0.990, 0.950), vec3(0.950, 0.930, 0.880));
+  return base*1.0 + a*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+// <<<
+

@@ -1,9 +1,9 @@
 # Reviewing and merging pull requests
 
 How SJK reviews and merges someone's pull request. It is written for the maintainers
-who may merge into `main` (Sol and, since 03/11/2026, Slash and Milamber;
-[Automation](sjk.md#automation)) and for the AI assistants that review for them: an
-assistant asked to review or merge a pull request reads this page first and follows it
+who may merge into `main` (Sol, Slash and Milamber since 03/11/2026, and Lumaya since
+05/11/2026; [Automation](sjk.md#automation)) and for the AI assistants that review for
+them: an assistant asked to review or merge a pull request reads this page first and follows it
 to the end. It applies [AGENTS.md](../AGENTS.md) and the
 [pull request rules](development.md#branches-commits-and-pull-requests) to another
 person's change; where those pages say more, they hold.

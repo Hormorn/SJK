@@ -99,6 +99,8 @@ pub(crate) enum InputAction {
     CardboardBox,
     /// `toy_fishing`: get the fishing rod out or put it away ([`crate::fishing`]).
     Fishing,
+    /// `toy_wheelofdoom`: show the WHEEL OF DOOM's price, or spin it ([`crate::wheel_of_doom`]).
+    WheelOfDoom,
     /// `fishing_sell`: sell the fished junk to the hub ([`crate::fishing_sell`]).
     FishingSell,
     /// `fishing_log`: print the fish log in full to the console.
@@ -359,6 +361,7 @@ impl GameplayInput {
                     | "force_illuminate"
                     | crate::cardboard_box::COMMAND
                     | crate::fishing::COMMAND
+                    | crate::wheel_of_doom::COMMAND
                     | crate::fishing_sell::COMMAND
                     | crate::fishing_sell::LOG_COMMAND
                     | crate::order66::COMMAND
@@ -544,6 +547,7 @@ impl GameplayInput {
             "toy_illuminate" | "force_illuminate" => Some(InputAction::Illuminate),
             crate::cardboard_box::COMMAND => Some(InputAction::CardboardBox),
             crate::fishing::COMMAND => Some(InputAction::Fishing),
+            crate::wheel_of_doom::COMMAND => Some(InputAction::WheelOfDoom),
             crate::fishing_sell::COMMAND => Some(InputAction::FishingSell),
             crate::fishing_sell::LOG_COMMAND => Some(InputAction::FishingLog),
             crate::order66::COMMAND => Some(InputAction::Order66),
@@ -742,6 +746,7 @@ impl super::GpuState {
             Some(InputAction::Illuminate) => self.toggle_illuminate(),
             Some(InputAction::CardboardBox) => self.toggle_cardboard_box(),
             Some(InputAction::Fishing) => self.toggle_fishing(),
+            Some(InputAction::WheelOfDoom) => self.wheel_of_doom_command(),
             Some(InputAction::FishingSell) => self.sell_fishing_junk(),
             Some(InputAction::FishingLog) => self.print_fishing_log(),
             Some(InputAction::Order66) => self.toggle_order66(),

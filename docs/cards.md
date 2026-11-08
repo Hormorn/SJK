@@ -25,7 +25,7 @@ system. Hats and capes stay free for everyone and are never sold or dropped
 | Where a sealed card is revealed | Into the first set only, so Alpha cards stay launch-set cards (my pick, Sol's go-ahead). |
 | What the holocron's tier does | A higher tier raises the odds of rarer cards, better finishes and more credits ([Odds](#odds)). |
 | Finishes | Normal, Holo, Solar (the rarest: an animated sunlit shimmer). |
-| Editions | A stamp apart from the finish: **Alpha Edition** while the alpha lasts. Every other collectible carries one too ([Editions](unlockables.md#editions)). |
+| Editions | A stamp apart from the finish: **Alpha Edition** while the alpha lasts. Every other collectible carries one too ([Editions](unlockables.md#editions)). Since 06/11/2026 holocrons and kyber crystals carry one as well, stamped by the hub when given: an Alpha one brings Alpha things only, a Beta one Beta or Alpha ([Alpha and Beta](unlockables.md#alpha-and-beta-the-collections)). Cards are not gated by it yet (every face is the SJK Alpha set) and a copy keeps the Alpha Edition stamp. The rest of the holocron seasons design (Beta tables with guaranteed prizes, pity, no duplicate faces; branch `personal/beta-season`) is not built. |
 | Credits' sign | The galactic credit's, the slanted seven crossed by two bars (Sol's pick, from Wikipedia); drawn from shapes. |
 | What credits will buy | An Uncommon (150) or a Rare (400) holocron, outside the daily caps; Legendary and Mythical ones are only ever earned (Sol, 17/10/2026, [Holocrons for credits](#holocrons-for-credits)); prepared, not deployed. Until then the shop sold for credits. |
 | Duplicates | Cards keep a count ("x3"). A droppable shader held twice or more can be shattered into kyber shards, one copy at a time, never the last (Sol, 17/10/2026; it replaced selling duplicates for credits). |
@@ -324,6 +324,10 @@ on; `sjk_alpha_010` is the Toxiee meme card (Legendary, it was `sol_lore_001`), 
 `sjk_alpha_000`, Sol's, brings the Sun blade while held (20/10/2026). Sol edits the cards
 on the live hub since 29/10/2026 (from 20/10/2026 with a card editor on their PC), so the
 hub's catalogue is the list as it stands, not this page.
+`sjk_alpha_000`, Sol's, brings the Sun blade while held (20/10/2026), and `sjk_alpha_002`,
+Creyon's, the Moon blade (26/10/2026, Creyon's blade, the Sun's sister). Sol edits the cards
+himself since 20/10/2026 with the hub's Card Studio (`scripts/card_studio.py`), so the
+hub's `assets/dist/cards.json` is the list as it stands, not this page.
 
 **Credits cards (20/10/2026, Sol's decision):** so that no credit reads as ranked above
 another, every credits card is Mythical (the hub's import and pack build refuse any other

@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "glow_profile": {
+    "width": 0.42,
+    "peak": 0.5,
+    "tail_width": 1.0,
+    "tail_peak": 0.14
+  },
+  "core_profile": {
+    "width": 0.36,
+    "fringe_width": 0.62
+  },
+  "core": {
+    "white": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "white_flare": 0.4,
+    "fringe_cool": [
+      0.176,
+      0.496,
+      0.8
+    ],
+    "fringe_hot": [
+      0.64,
+      0.9,
+      1
+    ],
+    "fringe_heat": {
+      "base": 0.3,
+      "grain": 0.5
+    },
+    "fringe_brightness": {
+      "base": 0.7,
+      "grain": 0.3,
+      "flare": 0.6
+    },
+    "breathe": {
+      "amount": 0.03,
+      "rate": 1.4,
+      "along": 0.3,
+      "seed": 6.283
+    },
+    "tip": 2.4
+  },
+  "corona": {
+    "rim_cool": [
+      0.121,
+      0.341,
+      0.55
+    ],
+    "rim_hot": [
+      0.22,
+      0.62,
+      1
+    ],
+    "inner": [
+      0.64,
+      0.9,
+      1
+    ],
+    "inner_width": 0.6,
+    "rim_heat": {
+      "grain": 0.6,
+      "flare": 0.7
+    },
+    "inner_mix": {
+      "base": 0.55,
+      "grain": 0.3,
+      "flare": 0.3
+    },
+    "brightness": {
+      "base": 0.6,
+      "grain": 0.3,
+      "flare": 0.78
+    },
+    "reach": 1.5,
+    "swell": {
+      "grain": 0.05,
+      "flare": 0.15
+    }
+  },
+  "granulation": {
+    "octaves": [
+      {
+        "scale": 0.28,
+        "speed": -1.0,
+        "evolve": 0.3,
+        "offset": 53.0,
+        "weight": 0.6
+      },
+      {
+        "scale": 0.9,
+        "speed": -2.0,
+        "evolve": 0.6,
+        "offset": 109.0,
+        "weight": 0.4
+      }
+    ],
+    "low": 0.25,
+    "high": 0.8
+  },
+  "flares": {
+    "count": 1,
+    "rate": 0.3,
+    "rate_step": 0.1,
+    "rate_seed": 0.05,
+    "phase_seed": 3.1,
+    "phase_step": 0.5,
+    "threshold": 0.5,
+    "overshoot": 4.0,
+    "size": 1.6,
+    "size_jitter": 0.6
+  },
+  "shimmer": [
+    {
+      "amount": 0.03,
+      "rate": 1.7,
+      "along": 0.5,
+      "seed": 6.283
+    }
+  ],
+  "tongues": {
+    "along": 0.3,
+    "offset": 37.0,
+    "out": 1.4,
+    "speed": 0.8,
+    "edge_low": 0.5,
+    "edge_high": 1.3,
+    "low": 0.6,
+    "range": 0.7
+  },
+  "trail": [
+    0.22,
+    0.62,
+    1
+  ],
+  "light": {
+    "color": [
+      0.22,
+      0.62,
+      1
+    ],
+    "flicker": {
+      "amount": 0.05,
+      "waves": [
+        {
+          "rate": 1.1,
+          "weight": 0.6,
+          "phase": 1.3
+        },
+        {
+          "rate": 2.3,
+          "weight": 0.4,
+          "phase": 0.7
+        }
+      ]
+    }
+  },
+  "sounds": {
+    "on": "sound/sjk/creyon/malevolence_ion_beam/on.wav",
+    "off": "sound/sjk/creyon/malevolence_ion_beam/off.wav",
+    "hum": "sound/sjk/creyon/malevolence_ion_beam/hum.wav",
+    "swings": [
+      "sound/sjk/creyon/malevolence_ion_beam/swing1.wav",
+      "sound/sjk/creyon/malevolence_ion_beam/swing2.wav",
+      "sound/sjk/creyon/malevolence_ion_beam/swing3.wav"
+    ]
+  }
+}

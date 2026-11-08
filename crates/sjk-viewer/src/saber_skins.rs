@@ -30,8 +30,11 @@ use std::sync::Arc;
 /// Players a game server can hold (`MAX_CLIENTS`); entity ids 1..=32 are their bodies.
 pub(crate) const MAX_CLIENTS: usize = sjk_client::SABER_SOUND_CLIENTS;
 /// Most blade skins loaded at once: material slots and the storage array's length
-/// (`MAX_SKINS` in `saber.wgsl`). 256 skins are 248 KiB, far inside a storage binding.
-pub(crate) const MAX_SKINS: usize = 256;
+/// (`MAX_SKINS` in `saber.wgsl`). 512 skins are 496 KiB, far inside a storage binding.
+pub(crate) const MAX_SKINS: usize = 512;
+/// A loaded skin's number (Creyon's Star Wars round, 1/11/2026: past 256 skins, so no longer a
+/// byte).
+pub(crate) type SkinIndex = u16;
 /// Widest a skin's glow may reach past the stock capsule (`corona.reach`); the
 /// instances' bounds allow for it ([`crate::saber::Instance::extent`]).
 pub(crate) const MAX_GLOW_REACH: f32 = 2.0;
@@ -102,7 +105,7 @@ impl LightFlicker {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct SkinColor {
     /// The skin's number among the loaded skins, below [`MAX_SKINS`].
-    pub(crate) index: u8,
+    pub(crate) index: SkinIndex,
     /// The blur trail's vertex colour.
     pub(crate) trail: [f32; 3],
     /// The dynamic light's colour (before `saber_lights`' gain).
@@ -285,6 +288,20 @@ impl SkinColor {
     /// The blur trail's colour, a chroma's turned to its wearer's.
     pub(crate) fn trail_color(&self) -> [f32; 3] {
         self.chromatic(self.trail)
+    }
+
+    /// The blur trail's colour at animation time `seconds`, red through Rakata's 30-second surge.
+    pub(crate) fn trail_color_surging(&self, seconds: f32) -> [f32; 3] {
+        fn ease(a: f32, b: f32, x: f32) -> f32 {
+            let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        }
+        let t = seconds.rem_euclid(30.0);
+        let surge = ease(18.0, 21.0, t) * (1.0 - ease(25.0, 29.0, t));
+        let red = [1.0, 0.1, 0.08];
+        self.chromatic(std::array::from_fn(|i| {
+            self.trail[i] + (red[i] - self.trail[i]) * surge
+        }))
     }
 
     fn chromatic(&self, rgb: [f32; 3]) -> [f32; 3] {
@@ -854,7 +871,7 @@ impl LoadedSkin {
 
     /// What its blades are drawn with, as the loaded skin numbered `index`, worn with
     /// the options in `off` switched from their default (its parts off, its extras on).
-    fn color(&self, index: u8, off: crate::saber_skin_options::OptionsOff) -> SkinColor {
+    fn color(&self, index: SkinIndex, off: crate::saber_skin_options::OptionsOff) -> SkinColor {
         use crate::blade_extras::TrailKind;
         use crate::blade_skin_file::extras::Section;
         // The extras are a signature's, drawn while the designs are.
@@ -1053,7 +1070,7 @@ pub(crate) struct LoadedSkins {
     generation: u64,
     /// The one skin this table changed from the table of the generation given
     /// ([`Self::edited`]), so that only it is uploaded again.
-    edit: Option<(u64, u8)>,
+    edit: Option<(u64, SkinIndex)>,
 }
 
 impl std::fmt::Debug for LoadedSkins {
@@ -1160,12 +1177,12 @@ impl LoadedSkins {
             skins,
             packs: Arc::clone(&self.packs),
             generation,
-            edit: Some((self.generation, index as u8)),
+            edit: Some((self.generation, index as SkinIndex)),
         })
     }
 
     /// The skin [`Self::edited`] changed, and the generation of the table it changed.
-    pub(crate) fn edit(&self) -> Option<(u64, u8)> {
+    pub(crate) fn edit(&self) -> Option<(u64, SkinIndex)> {
         self.edit
     }
 
@@ -1227,24 +1244,24 @@ impl LoadedSkins {
         self.skins
             .iter()
             .position(|skin| skin.id == id)
-            .map(|index| self.skins[index].color(index as u8, off))
+            .map(|index| self.skins[index].color(index as SkinIndex, off))
     }
 
     /// The number of the loaded skin of unlock `id` (its sound set's in the audio
     /// adapter's table), if its pack is loaded.
-    pub(crate) fn index_of(&self, id: &str) -> Option<u8> {
+    pub(crate) fn index_of(&self, id: &str) -> Option<SkinIndex> {
         self.skins
             .iter()
             .position(|skin| skin.id == id)
-            .map(|index| index as u8)
+            .map(|index| index as SkinIndex)
     }
 
     /// The loaded skins with their numbers.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (u8, &LoadedSkin)> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (SkinIndex, &LoadedSkin)> {
         self.skins
             .iter()
             .enumerate()
-            .map(|(index, skin)| (index as u8, skin))
+            .map(|(index, skin)| (index as SkinIndex, skin))
     }
 
     /// The uniform array `saber.wgsl` reads, zero past the loaded skins.
@@ -1276,7 +1293,7 @@ impl LoadedSkins {
     /// Whether the skin numbered `index` takes the colour of the light where it is
     /// (`ambient` in its file), so its instances want that light
     /// ([`crate::saber_persona::light_instances`]).
-    pub(crate) fn takes_ambient(&self, index: u8) -> bool {
+    pub(crate) fn takes_ambient(&self, index: SkinIndex) -> bool {
         self.skins
             .get(usize::from(index))
             .is_some_and(|skin| skin.shown().ambient.is_some())
@@ -1300,7 +1317,7 @@ impl LoadedSkins {
 
     /// The swing skin `index` plays for a stock swing cue's `variant`.
     /// Skin `index`'s sounds.
-    pub(crate) fn sounds(&self, index: u8) -> Option<&crate::blade_skin_file::Sounds> {
+    pub(crate) fn sounds(&self, index: SkinIndex) -> Option<&crate::blade_skin_file::Sounds> {
         self.skins
             .get(usize::from(index))
             .map(|skin| &skin.def.sounds)
@@ -1318,13 +1335,16 @@ impl LoadedSkins {
     }
 
     /// Skin `index`'s crackle heard (`crackle` in its file); none without.
-    pub(crate) fn crackle(&self, index: u8) -> Option<&crate::blade_skin_file::smoke::Crackle> {
+    pub(crate) fn crackle(
+        &self,
+        index: SkinIndex,
+    ) -> Option<&crate::blade_skin_file::smoke::Crackle> {
         self.skins
             .get(usize::from(index))
             .and_then(|skin| skin.def.crackle.as_ref())
     }
 
-    pub(crate) fn swing(&self, index: u8, variant: usize) -> Option<&str> {
+    pub(crate) fn swing(&self, index: SkinIndex, variant: usize) -> Option<&str> {
         self.skins
             .get(usize::from(index))
             .map(|skin| skin.def.sounds.swings[variant % 3].as_str())
@@ -1352,11 +1372,11 @@ pub(crate) struct SaberSkins {
     /// Which skin's sound set each slot is heard with (its number): `sound_others`, with
     /// the local player's own in its slot. The blade's unless the player chose other
     /// saber sounds (`crate::saber_sound_choice`).
-    sounds: [Option<u8>; MAX_CLIENTS],
+    sounds: [Option<SkinIndex>; MAX_CLIENTS],
     /// What the hub's looks say each slot is heard with.
-    sound_others: [Option<u8>; MAX_CLIENTS],
+    sound_others: [Option<SkinIndex>; MAX_CLIENTS],
     /// The local player's own sound set.
-    sound_local: Option<u8>,
+    sound_local: Option<SkinIndex>,
     /// Who sits in each slot (team, name), for the skins drawn from that.
     personas: [crate::saber_persona::Persona; MAX_CLIENTS],
     /// The local player's own, also with no session (its `name`).
@@ -1562,7 +1582,7 @@ impl SaberSkins {
         &mut self,
         revision: u64,
         generation: u64,
-        of: impl Fn(usize) -> (Option<SkinColor>, Second, Option<u8>),
+        of: impl Fn(usize) -> (Option<SkinColor>, Second, Option<SkinIndex>),
     ) {
         if self.taken_at == Some((revision, generation)) {
             return;
@@ -1701,7 +1721,7 @@ impl SaberSkins {
         client: Option<usize>,
         skin: Option<SkinColor>,
         second: Second,
-        sound: Option<u8>,
+        sound: Option<SkinIndex>,
     ) {
         if (client, skin, second, sound)
             == (
@@ -1722,7 +1742,7 @@ impl SaberSkins {
 
     /// Each client slot's sound set (a loaded skin's number) for the audio adapter:
     /// the blade's, or the one the player chose apart from it.
-    pub(crate) fn sound_sets(&self) -> [Option<u8>; MAX_CLIENTS] {
+    pub(crate) fn sound_sets(&self) -> [Option<SkinIndex>; MAX_CLIENTS] {
         if self.plain {
             return [None; MAX_CLIENTS];
         }
@@ -1731,7 +1751,7 @@ impl SaberSkins {
 
     /// The sound set the player whose body is entity `entity_id` (client + 1) is heard
     /// with, for the animation's swing cues.
-    pub(crate) fn sound_of(&self, entity_id: u64) -> Option<u8> {
+    pub(crate) fn sound_of(&self, entity_id: u64) -> Option<SkinIndex> {
         let client = usize::try_from(entity_id.checked_sub(1)?).ok()?;
         if self.plain {
             return None;

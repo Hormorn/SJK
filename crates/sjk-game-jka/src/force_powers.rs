@@ -100,6 +100,7 @@ const PS_ROCKET_LOCK_TIME: usize = 79;
 const PS_ROCKET_TARGET_TIME: usize = 71;
 const PS_VEHICLE: usize = 84;
 const PS_SABER_IN_FLIGHT: usize = 88;
+const PS_SABER_ENTITY: usize = 31;
 /// `ps.saberHolstered`, `ps.weaponTime`.
 const PS_SABER_HOLSTERED: usize = 81;
 const PS_WEAPON_TIME: usize = 10;
@@ -365,6 +366,11 @@ pub struct ForceFrame<'a> {
     /// The sounds the user's `Cmd_ToggleSaber_f` plays turning its sabers off, each hand's
     /// (`saber[n].soundOff`): a gripped user's saber is kept off.
     pub saber_off_sounds: [SaberOffSound; 2],
+    /// The server's Force rules (its mod's; the base game's by default).
+    pub rules: crate::force_rules::ForceRules,
+    /// The players in a JA+ full-force duel, whose powers work in it
+    /// ([`crate::duel::FullForce`]); none on the base game.
+    pub full_force: crate::duel::FullForce,
 }
 
 /// A hand's off-sound as `Cmd_ToggleSaber_f` plays it (`g_cmds.c:2720-2730`).
@@ -388,8 +394,48 @@ pub(crate) struct Forcer<'s, 'f> {
     /// A gripped user's thrown saber was turned off in the air, which the caller carries
     /// out ([`Begun::saber_knocked_down`]).
     saber_knocked: bool,
+    /// A gripped user's saber is to be knocked out of its hand
+    /// ([`Begun::saber_knocked_out`]).
+    saber_knocked_out: bool,
     /// The command's buttons, which keep lightning and drain going.
     pub(crate) buttons: u16,
+}
+
+/// What happens to a gripped player's lit saber.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GrippedSaber {
+    /// `Cmd_ToggleSaber_f`: off (or, thrown, knocked down in the air).
+    Off,
+    /// Left lit.
+    Lit,
+    /// `saberKnockOutOfHand`.
+    KnockedOut,
+}
+
+/// A gripped player's lit saber under the server's `rule`, the player's Force pool at
+/// most `max` (VisionJK `codemp/game/w_force.c:6029-6051`; the base game turns it off).
+fn gripped_saber(
+    state: &PlayerState,
+    max: i32,
+    rule: crate::force_rules::GripOpenSaber,
+) -> GrippedSaber {
+    use crate::force_rules::GripOpenSaber;
+    let field = |index: usize| state.raw_field(index).unwrap_or(0);
+    let thrown = field(PS_SABER_IN_FLIGHT) != 0;
+    match rule {
+        GripOpenSaber::Off => GrippedSaber::Off,
+        GripOpenSaber::ThrownOnly if thrown => GrippedSaber::Off,
+        GripOpenSaber::ThrownOnly => GrippedSaber::Lit,
+        GripOpenSaber::LowForceDrops => {
+            let saber = field(PS_SABER_ENTITY);
+            let held = saber > 0 && saber < ENTITY_NUMBER_NONE;
+            if !held || thrown || max as f32 * 0.35 < field(PS_FORCE_POWER) as i32 as f32 {
+                GrippedSaber::Off
+            } else {
+                GrippedSaber::KnockedOut
+            }
+        }
+    }
 }
 
 /// `PmoveSingle`'s selections (`bg_pmove.c:11072-11079`): the power a command names, if
@@ -422,6 +468,10 @@ pub struct Begun {
     /// The user, gripped, had its saber in flight: `Cmd_ToggleSaber_f` turns it off in the
     /// air (`saberKnockDown`), which is the caller's (`g_cmds.c:2690-2700`).
     pub saber_knocked_down: bool,
+    /// The user, gripped with little Force, loses its saber (`saberKnockOutOfHand` at its
+    /// own velocity), which is the caller's (JA+'s `jp_gripOpenSaber` 2,
+    /// [`crate::force_rules::GripOpenSaber::LowForceDrops`]).
+    pub saber_knocked_out: bool,
     prepower: i32,
     alive: bool,
     buttons: u16,
@@ -449,12 +499,14 @@ pub fn begin(
         frame,
         throw: None,
         saber_knocked: false,
+        saber_knocked_out: false,
         buttons: command.buttons,
     };
     let (prepower, alive) = forcer.begin(command, jump_sound);
     Begun {
         throw: forcer.throw,
         saber_knocked_down: forcer.saber_knocked,
+        saber_knocked_out: forcer.saber_knocked_out,
         prepower,
         alive,
         buttons: command.buttons,
@@ -479,6 +531,7 @@ pub fn finish(
         frame,
         throw: None,
         saber_knocked: false,
+        saber_knocked_out: false,
         buttons: begun.buttons,
     };
     forcer.finish(begun.prepower, begun.alive);
@@ -504,6 +557,7 @@ pub fn key(
         frame,
         throw: None,
         saber_knocked: false,
+        saber_knocked_out: false,
         buttons: 0,
     };
     match power {
@@ -533,6 +587,7 @@ pub fn disconnect(state: &mut PlayerState, force: &mut ForcePowers, frame: &mut 
         frame,
         throw: None,
         saber_knocked: false,
+        saber_knocked_out: false,
         buttons: 0,
     };
     for power in 0..NUM_FORCE_POWERS {
@@ -562,6 +617,7 @@ impl<'s, 'f> Forcer<'s, 'f> {
             frame,
             throw: None,
             saber_knocked: false,
+            saber_knocked_out: false,
             buttons: 0,
         }
     }
@@ -583,6 +639,20 @@ impl Forcer<'_, '_> {
                 SaberOffSound::Named(name) => self.frame.others.sound_index(name),
             };
             self.raise(crate::weapon_fire::sound_event(origin, CHAN_AUTO, index));
+        }
+    }
+
+    /// A gripped user's lit saber, as the server's rules have it
+    /// ([`GripOpenSaber`](crate::force_rules::GripOpenSaber); VisionJK
+    /// `codemp/game/w_force.c:6029-6051`): off (the base game), off only when thrown, or
+    /// knocked out of a hand with little Force left (35 % of its most at most).
+    fn gripped_saber(&mut self) {
+        match gripped_saber(self.state, self.force.max, self.frame.rules.grip_open_saber) {
+            GrippedSaber::Off => self.toggle_saber_off(),
+            GrippedSaber::Lit => {}
+            // The NPCs' Force update has no saber to knock out of a hand: it goes off.
+            GrippedSaber::KnockedOut if self.frame.npc => self.toggle_saber_off(),
+            GrippedSaber::KnockedOut => self.saber_knocked_out = true,
         }
     }
 
@@ -676,7 +746,7 @@ impl Forcer<'_, '_> {
         self.state
             .set_raw_field(PS_GRIP_CRIPPLE, u32::from(crippled));
         if crippled && self.field(PS_WEAPON) == WP_SABER && self.field(PS_SABER_HOLSTERED) == 0 {
-            self.toggle_saber_off();
+            self.gripped_saber();
         }
         if jump_sound {
             self.raise(predef_sound(self.origin(), PDSOUND_FORCEJUMP));
@@ -841,6 +911,7 @@ impl Forcer<'_, '_> {
             power,
             self.frame.level_time,
             self.frame.gametype,
+            self.frame.full_force,
         )
     }
 
@@ -856,6 +927,7 @@ impl Forcer<'_, '_> {
             power,
             self.frame.level_time,
             self.frame.gametype,
+            self.frame.full_force,
         )
     }
 
@@ -1338,20 +1410,27 @@ pub enum UsableOn {
 }
 
 /// `ForcePowerUsableOn` for player `attacker` using `power` on player `other`: not on
-/// one with ysalamiri, not by one who may not use it now, not in or at a duel; a grip
-/// not at one absorbing or in a saber special; a push or pull not at one knocked down.
-/// (NPCs, the vehicle and siege cases, are not players.)
+/// one with ysalamiri, not by one who may not use it now, not in or at a duel (but in a
+/// JA+ full-force duel, [`crate::duel::force_refused`]); a grip not at one absorbing or in
+/// a saber special; a push or pull not at one knocked down. (NPCs, the vehicle and siege
+/// cases, are not players.)
 pub fn usable_on(
     attacker: &PlayerState,
     other: &PlayerState,
     power: usize,
     level_time: i32,
     gametype: i32,
+    full_force: crate::duel::FullForce,
 ) -> UsableOn {
     if has_ysalamiri(other, gametype)
-        || !can_use_now(attacker, power, level_time, gametype)
-        || attacker.duel_in_progress()
-        || other.duel_in_progress()
+        || !can_use_now(attacker, power, level_time, gametype, full_force)
+        || crate::duel::force_refused(
+            attacker.client_num(),
+            crate::duel::duel_of(attacker),
+            other.client_num(),
+            crate::duel::duel_of(other),
+            full_force,
+        )
     {
         return UsableOn::No;
     }
@@ -1387,12 +1466,16 @@ pub(crate) fn has_ysalamiri(state: &PlayerState, gametype: i32) -> bool {
         || state.powerups[PW_YSALAMIRI] != 0
 }
 
-/// `BG_CanUseFPNow` (`bg_misc.c:1725-1788`).
+/// `BG_CanUseFPNow` (`bg_misc.c:1725-1788`). A duellist uses only its saber Force and
+/// jump, but in a JA+ full-force duel, where every power works (VisionJK
+/// `bg_misc.c:1754-1769`, the server's side only: the movement's own check, which clients
+/// predict, is unchanged).
 pub(crate) fn can_use_now(
     state: &PlayerState,
     power: usize,
     level_time: i32,
     gametype: i32,
+    full_force: crate::duel::FullForce,
 ) -> bool {
     let field = |index: usize| state.raw_field(index).unwrap_or(0);
     if has_ysalamiri(state, gametype)
@@ -1406,6 +1489,7 @@ pub(crate) fn can_use_now(
     }
     let lock_frame = field(PS_SABER_LOCK_FRAME);
     if field(PS_DUEL_IN_PROGRESS) != 0
+        && !full_force.has(state.client_num())
         && !matches!(power, FP_SABER_OFFENSE | FP_SABER_DEFENSE | FP_LEVITATION)
         && (lock_frame == 0 || power != FP_PUSH)
     {
@@ -1454,6 +1538,7 @@ pub(crate) fn usable(
     power: usize,
     level_time: i32,
     gametype: i32,
+    full_force: crate::duel::FullForce,
 ) -> bool {
     if has_ysalamiri(state, gametype)
         || health <= 0
@@ -1462,7 +1547,7 @@ pub(crate) fn usable(
     {
         return false;
     }
-    if !can_use_now(state, power, level_time, gametype)
+    if !can_use_now(state, power, level_time, gametype, full_force)
         || state.raw_field(PS_KNOWN).unwrap_or(0) & (1 << power) == 0
     {
         return false;
@@ -1520,4 +1605,72 @@ pub(crate) fn drain(
         cost
     };
     state.set_raw_field(PS_FORCE_POWER, (pool - cost).max(0) as u32);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::force_rules::GripOpenSaber;
+
+    fn lit(thrown: bool, saber_entity: u32, pool: u32) -> PlayerState {
+        let mut state = PlayerState::zero();
+        state.set_raw_field(PS_SABER_IN_FLIGHT, u32::from(thrown));
+        state.set_raw_field(PS_SABER_ENTITY, saber_entity);
+        state.set_raw_field(PS_FORCE_POWER, pool);
+        state
+    }
+
+    #[test]
+    fn the_base_game_turns_a_gripped_players_saber_off() {
+        for state in [lit(false, 40, 100), lit(true, 40, 0), lit(false, 0, 0)] {
+            assert_eq!(
+                gripped_saber(&state, 100, GripOpenSaber::Off),
+                GrippedSaber::Off
+            );
+        }
+    }
+
+    #[test]
+    fn grip_open_saber_1_turns_only_a_thrown_one_off() {
+        let rule = GripOpenSaber::ThrownOnly;
+        assert_eq!(
+            gripped_saber(&lit(false, 40, 100), 100, rule),
+            GrippedSaber::Lit
+        );
+        assert_eq!(
+            gripped_saber(&lit(false, 40, 0), 100, rule),
+            GrippedSaber::Lit
+        );
+        assert_eq!(
+            gripped_saber(&lit(true, 40, 100), 100, rule),
+            GrippedSaber::Off
+        );
+    }
+
+    #[test]
+    fn grip_open_saber_2_knocks_it_out_of_a_hand_short_of_force() {
+        let rule = GripOpenSaber::LowForceDrops;
+        // 35 of 100 is not above 35 %: knocked out.
+        assert_eq!(
+            gripped_saber(&lit(false, 40, 35), 100, rule),
+            GrippedSaber::KnockedOut
+        );
+        assert_eq!(
+            gripped_saber(&lit(false, 40, 36), 100, rule),
+            GrippedSaber::Off
+        );
+        assert_eq!(
+            gripped_saber(&lit(true, 40, 0), 100, rule),
+            GrippedSaber::Off
+        );
+        // No saber entity to knock out: off.
+        assert_eq!(
+            gripped_saber(&lit(false, 0, 0), 100, rule),
+            GrippedSaber::Off
+        );
+        assert_eq!(
+            gripped_saber(&lit(false, 1_023, 0), 100, rule),
+            GrippedSaber::Off
+        );
+    }
 }
