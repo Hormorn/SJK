@@ -163,7 +163,7 @@ pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         CHAT_ONLY_CVAR,
         false,
         CvarFlags::ARCHIVE,
-        "The open console shows only chat lines (all lines are still kept: off shows them          again)",
+        "The open console shows only chat lines (all lines are still kept: off shows them again)",
     ))?;
     cvars.register(CvarDefinition::new(
         OVER_CHAT_CVAR,
