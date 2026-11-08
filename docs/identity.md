@@ -88,7 +88,23 @@ vector that both test suites check, so a drift in either shows as a failing test
    icon in its own colours on the scoreboard and the player card in place of SJK's
    emblem, as its chat lines do ([hub-chat.md](hub-chat.md#how-a-line-looks),
    `cl_sjkChatClientIcons 0` gives everyone SJK's emblem); the tick still sits on its
-   foot.
+   foot. A client that reads the chat without claiming its slot (today JoF EternalJK,
+   whose claims wait in JediofFreedom/JoF_EJK#405) gets its players marked by name
+   alone (Sol's request, 08/11/2026, "assume they are on JoF EJK"): a scoreboard row
+   no claim marks wears that client's icon when its name is the name of exactly one
+   online reader of the chat (the feed's `people`: their hub name, or the name on their
+   newest message), never a bot's row. The client assumed is the
+   `unclaimed` entry of [chat/client_icons.rs](../crates/sjk-viewer/src/chat/client_icons.rs);
+   the match is [scoreboard/chat_readers.rs](../crates/sjk-viewer/src/scoreboard/chat_readers.rs).
+   Since a name proves nothing, the row gets the icon alone, no tick, trust mark,
+   medals or emoji, and the player card and the game chat stay as they were. Left out:
+   the player's own key, readers holding a claim on this server or playing a match (a
+   claim marked active, which only SJK makes), readers whose newest message came from
+   SJK, a reader whose name is on a row a claim marks, and a name two rows or two
+   readers share. An SJK player out of a match elsewhere can still lend their name's
+   icon to a namesake here, which is why it stays an icon. With
+   `cl_sjkChatClientIcons 0` such rows get no mark, since SJK's emblem would say more
+   than a name shows.
 5. Once a claim is accepted the thread also tells the hub the player's *look* (the
    blade skin they wear and whether their Illuminate holocron is lit), which lives on
    the claim; other SJK clients on the server read it from the claims and the feed and

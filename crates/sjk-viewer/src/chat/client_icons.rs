@@ -23,6 +23,10 @@ pub(crate) struct ClientIcon {
     /// Why it is here, and the evidence.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) why: &'static str,
+    /// A game client in SJK chat that does not claim its slot: a scoreboard row the hub
+    /// holds no claim for, whose name is an online SJK chat reader's, is taken to be on
+    /// it ([`unclaimed`], `scoreboard/chat_readers.rs`). One entry at most.
+    pub(crate) unclaimed: bool,
 }
 
 pub(crate) const KNOWN: &[ClientIcon] = &[
@@ -31,7 +35,11 @@ pub(crate) const KNOWN: &[ClientIcon] = &[
         name: "JoF EternalJK",
         texture: crate::ui_renderer::EJK_TEXTURE,
         why: "Takes part in SJK chat with the same keys and identity files \
-              (JediofFreedom/JoF_EJK#398, SJK #194); the hub marks its messages \"ejk\"",
+              (JediofFreedom/JoF_EJK#398, SJK #194); the hub marks its messages \"ejk\". \
+              Its released builds read the chat without claiming their slot (the claims \
+              wait in JediofFreedom/JoF_EJK#405), and it is the only game client in SJK chat \
+              besides SJK, which claims: Sol, 08/11/2026, \"assume they are on JoF EJK\"",
+        unclaimed: true,
     },
     ClientIcon {
         client: "launcher",
@@ -41,12 +49,23 @@ pub(crate) const KNOWN: &[ClientIcon] = &[
               folder (Sol-Vulpes/sjk-launcher, src/chat.rs); the hub marks its messages \
               \"launcher\" from the User-Agent SJKLauncher/<version> (SJK-hub clients.rs, \
               27/10/2026)",
+        unclaimed: false,
     },
 ];
 
 /// The icon for messages from `client`, `None` for SJK's emblem.
 pub(crate) fn find(client: &str) -> Option<&'static ClientIcon> {
     KNOWN.iter().find(|icon| icon.client == client)
+}
+
+/// The client a player who reads SJK chat but holds no claim is taken to be on, while
+/// [`CVAR`] is on (with it off such a player gets no mark: SJK's emblem would say more
+/// than a name shows).
+pub(crate) fn unclaimed() -> Option<&'static ClientIcon> {
+    KNOWN
+        .iter()
+        .find(|icon| icon.unclaimed)
+        .filter(|_| SHOWN.load(Ordering::Relaxed))
 }
 
 static SHOWN: AtomicBool = AtomicBool::new(true);
@@ -81,6 +100,10 @@ mod tests {
             );
         }
         assert!(find("ejk").is_some() && find("launcher").is_some());
+        assert!(
+            KNOWN.iter().filter(|icon| icon.unclaimed).count() <= 1,
+            "one client is assumed at most"
+        );
         assert!(find("").is_none() && find("sjk").is_none());
     }
 }
