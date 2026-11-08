@@ -7356,7 +7356,12 @@ failed (a wrong or missing password, a full server), joins the same server again
 it (headshotsmcgee117's report, 03/11/2026: only `connect <ip>;password <pw>` worked), as
 stock's client sends its next `connect` with the new userinfo (`CL_CheckForResend`). The
 password a join already sent changes nothing ([connection.rs](../crates/sjk-viewer/src/connection.rs),
-`rejoin_on_new_password`).
+`rejoin_on_new_password`), nor does one typed while a join that worked loads its map.
+The password a join sent moves with the session to each new world
+(`hand_shell_to` in [session_transition.rs](../crates/sjk-viewer/src/session_transition.rs)):
+until 08/11/2026 it did not, so a saved `password` looked new after every map load,
+graphics reload and failed join, and the client joined again and again until the
+server refused the address ("Too Many players with the same IP").
 
 The console never prints a password: what it prints is kept in the scrollback,
 `qconsole.log` and the crash trail that the session log, crash reports and log uploads

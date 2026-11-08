@@ -513,6 +513,11 @@ impl GpuState {
         to.join_task = self.join_task.take();
         to.connect_timeline = self.connect_timeline.take().or(to.connect_timeline.take());
         to.last_connect_address = self.last_connect_address.take();
+        // With the address goes the password its join sent: a world that started
+        // with none took a saved `password` for a new one and joined again at every
+        // map load, graphics reload and failed join, until the server refused the
+        // address ("Too Many players with the same IP", Sol 08/11/2026).
+        to.join_password = std::mem::take(&mut self.join_password);
         to.pointer_captured = self.pointer_captured;
         to.cursor_policy = std::mem::replace(
             &mut self.cursor_policy,

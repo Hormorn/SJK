@@ -9191,3 +9191,13 @@ test: staff <part of a name>: the page opens on that player when the search find
 test: Medals and shaders: type moon, then 42, then mythical: the list follows; Held only too.
 test: Give a rare holocron to a test player, then My gifts: listed; Undo twice: it goes again.
 note: Needs the hub's staff-gifts branch deployed; until then Here/Online/Team and My gifts fail.
+
+[rejoin-loop]
+area: Gameplay
+title: No more joining the same server again and again (Too Many players with the same IP)
+change: A saved password looked new after each map load: the client joined again in a loop.
+change: The password a join sent now moves with the session to the next map's world.
+test: With a password saved (seta password ...), join a JoF server: one join, you stay in.
+test: Wait for a map change: the map loads once, no "joining again" in last-client.log.
+test: Change HDR or FXAA in game (map reloads): you stay on the server, no new join.
+test: Join a full or locked server: the failure screen stays, no join every few seconds.
