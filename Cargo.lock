@@ -3073,6 +3073,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sjk-game-stores"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+]
+
+[[package]]
 name = "sjk-gpu-memory"
 version = "0.1.0"
 dependencies = [
@@ -3287,6 +3294,7 @@ dependencies = [
  "sjk-effect",
  "sjk-entity",
  "sjk-game-jka",
+ "sjk-game-stores",
  "sjk-gpu-memory",
  "sjk-identity",
  "sjk-jof-content",
