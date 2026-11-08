@@ -730,7 +730,7 @@ mod tests {
                 ("Boombox", 2, 0, 3),
                 ("Monitor", 2, 4, 6),
                 ("Box hunt", 3, 0, 4),
-                ("Fishing", 3, 5, 5),
+                ("Fishing", 3, 5, 7),
             ]
         );
         let all = |standings: &[Standing]| -> Vec<Slot> {

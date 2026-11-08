@@ -1094,8 +1094,10 @@ and in the hub (same ids):
 | Still Standing, Most Wanted | `box_hunt_survive`, `box_hunt_survive_5` | 1, 5 marks stayed to the end without a hunter's kill, still in the hunt | hub |
 | First Bite, Angler | `fish_first`, `fish_50` | 1, 50 fish landed with the Fishing toy ([client.md](client.md#fishing)) | client |
 | Every Fish in the Pond | `fish_kinds` | every kind of fish landed (12, `fishing::FISH_KINDS`) | client |
-| Echo Angler | `echo_angler` | 10 Echoes landed on the line | client |
+| Echo Angler | `echo_angler` | 5 Echoes landed on the line (10 until 04/11/2026) | client |
 | Old Whiskers (hidden) | `old_whiskers` | Old Whiskers, the great catfish, landed | client |
+| Beachcomber | `junk_kinds` | every kind of junk fished up (6, `fishing::JUNK_KINDS`) | client |
+| Steady Hand | `fish_steady` | 10 fish bites hooked in a row, none let go between | client |
 
 
 The fourteen after Decorated came on 26/10/2026 (Sol's list), with the categories

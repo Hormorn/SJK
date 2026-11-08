@@ -2760,7 +2760,7 @@ throws at Saber Throw 1), the hub accepting the new ids.
 `toy_fishing` puts a rod in the right hand (the rifles' ready pose on the torso; in first
 person held in view), a bucket at the feet and a float on the water ahead, or on a small
 pond drawn where there is none, in the installed game's swamp textures
-([client.md](client.md#fishing)). A bite every 20 to 60 seconds, `+use` within about a
+([client.md](client.md#fishing)). A bite every 15 to 40 seconds (20 to 60 until 04/11/2026), `+use` within about a
 second: nothing 15%, junk 30%, one of 12 fish 55% (each its own model and painted skin),
 counted in `fishing_log.txt`; the bucket holds the last fish caught (`last <id>` in the
 log). An Echo
@@ -2787,6 +2787,18 @@ earlier release builds in game (Slash: the rod in third person, the pond, bites;
 the first-person rod or the Fishing band on the Fun page), world shots of the pond on duel6
 (`rods_at_the_first_spawn`). Not verified: the five ids at the hub, other players seeing a
 rod, an Echo bite online, the rod on custom models.
+
+Balance (Slash, 04/11/2026): bites every 15 to 40 seconds (`BITE_WAIT`, were 20 to 60);
+Old Whiskers' weight rises by one for every 10 fish since the last one (`WHISKERS_PITY`,
+the count kept in the fish log as `whiskers_wait`), about 37 fish on average instead of
+106; Echo Angler's goal 5 (was 10: an Echo drops about every 30 minutes of play, 8 a day
+at most). Two achievements appended to `achievements::ALL` and `kyber::REWARDS`:
+Beachcomber (`junk_kinds`, every kind of junk, a set of bits as the kinds of fish) and
+Steady Hand (`fish_steady`, the best run of fish bites hooked with none let go,
+`Counter::HookStreak`); the Fishing band on the Fun page holds seven. Needs the hub's
+matching catalogue (the two ids, `echo_angler` at 5, `fish_50`'s hourly allowance for the
+shorter wait) deployed first. Verified: the fishing, achievements, kyber and collection
+tests.
 
 ## Boombox toy
 

@@ -6269,13 +6269,17 @@ brings up are the ones the hub drops anyway.
   for the cast: the toy fishes anywhere, since few maps have water. The pond is drawn
   with the installed game's own swamp textures (Hidden Evil's lake layers over the stock
   water, Yavin's mud, mossy rock and ground plants), so the game must be installed.
-- **Bites** come every 20 to 60 seconds: the float dips, a splash plays, and `+use` within
+- **Bites** come every 15 to 40 seconds (20 to 60 until 04/11/2026): the float dips, a splash plays, and `+use` within
   0.8 to 1.2 seconds hooks it. Too soon scares the fish (the next bite waits 10 to 20
   seconds more); too late lets it go. A hooked bite comes up empty 15% of the time, with
   junk 30% (six kinds) and a fish 55% (twelve kinds, from the Silver darter to Old
   Whiskers, the great catfish, one fish in about 106), reeled in to the tip hanging by
-  its mouth, and said in the centre of the screen. Each catch is counted in
-  `fishing_log.txt` in the settings folder (`<id> <count>` a line, and `last <id>`).
+  its mouth, and said in the centre of the screen. Old Whiskers has bad luck protection
+  (04/11/2026): its weight among the fish rises by one for every 10 fish landed since the
+  last one (`fishing::WHISKERS_PITY`), so it comes in about 37 fish on average and within
+  67 for nine players in ten (over 240 before). Each catch is counted in
+  `fishing_log.txt` in the settings folder (`<id> <count>` a line, and `last <id>`); the
+  fish since the last Old Whiskers are kept there as a count, `whiskers_wait <count>`.
 - **The fish** each have their own model and painted skin (`fishing_fish_<id>.md3`, one
   fish atlas): the slim Silver darter, the deep spiny Mud snapper, the spotted
   big-mouthed Swamp gulper, the barred Striped bonefish, the Glow perch with its glowing
@@ -6295,8 +6299,10 @@ brings up are the ones the hub drops anyway.
   the water toward holocrons while the last one came within 5 minutes
   ([holocrons.md](holocrons.md), "Play signals"). A press of Use without a bite scares the
   fish off, so a held or repeated key hooks nothing.
-- **Achievements:** First Bite (a fish), Angler (50 fish), Every Fish in the Pond (every kind), Echo Angler (10
-  Echoes on the line) and Old Whiskers (hidden), counted on servers only, as the others
+- **Achievements:** First Bite (a fish), Angler (50 fish), Every Fish in the Pond (every kind), Echo Angler (5
+  Echoes on the line; 10 until 04/11/2026), Old Whiskers (hidden), Beachcomber (every kind
+  of junk) and Steady Hand (10 fish bites hooked in a row, none let go between; an Echo's
+  bite neither counts nor breaks the run), counted on servers only, as the others
   ([identity.md](identity.md#achievements)).
 - **Sounds:** Settings > Sound > Toys, "Fishing" (`s_toyFishingSound`).
 - **The fish log on the card** (03/11/2026): the Fishing card in Collection > Toys says
