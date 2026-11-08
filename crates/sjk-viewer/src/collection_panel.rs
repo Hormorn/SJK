@@ -2478,8 +2478,7 @@ impl Panel {
             // A toy's row chooses it; its own switch runs it.
             TOY_TOKEN | BOX_TOKEN | ORDER_TOKEN | HAX_TOKEN | RAGDOLL_TOKEN | DRONE_TOKEN
             | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN
-            | WHEEL_OF_DOOM_TOKEN
-            | QUESTS_TOKEN => {
+            | WHEEL_OF_DOOM_TOKEN | QUESTS_TOKEN => {
                 self.toy = TOY_TOKENS.iter().position(|&row| row == token).unwrap_or(0);
                 PanelAction::None
             }
