@@ -181,6 +181,7 @@ impl GpuState {
         self.play_propgun_sounds(audio);
         self.play_boombox_sounds(audio);
         self.play_mystery_box_sounds(audio);
+        self.play_wheel_of_doom_sounds(audio);
         self.play_toy_master_sounds(audio);
         self.spawn_hax_glyphs(audio, presentation_time);
         Ok(())

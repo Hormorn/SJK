@@ -52,6 +52,8 @@ pub(super) fn respawn_item(
 ) {
     let (number, pickup) = &mut items[index];
     let number = *number;
+    // `RespawnItem` with `jp_pushAll`: a flung item is back at its place first.
+    sjk_game_jka::item_push::back_home(pickup);
     let event = sjk_game_jka::items::respawn(pickup, level_time);
     let current = pool
         .state(number)

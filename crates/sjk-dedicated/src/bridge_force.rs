@@ -66,6 +66,14 @@ impl NativeGame {
         if begun.saber_knocked_down {
             self.knock_down_in_flight(client, server_time);
         }
+        // Gripped with little Force where the mod says so (JA+'s `jp_gripOpenSaber` 2):
+        // `saberKnockOutOfHand(saber, self, ps.velocity)`.
+        if begun.saber_knocked_out {
+            let velocity = self
+                .peer(client)
+                .map_or([0.0; 3], |peer| peer.state.velocity());
+            self.knock_out(client, velocity, server_time);
+        }
         if let Some(pull) = begun.throw {
             self.force_throw(client, pull, server_time);
         }
@@ -143,6 +151,8 @@ impl NativeGame {
             gametype: self.gametype,
             thrower: client as u16,
             pull,
+            rules: self.mod_force,
+            full_force: self.full_force_duels(),
         };
         // What every player was, to tell afterwards whom the throw changed (a throw is a
         // button press, not a per-frame cost).
@@ -200,6 +210,7 @@ impl NativeGame {
             brushes,
             movers,
             used: Vec::new(),
+            push_items: context.rules.push_items > 0,
         };
         force_throw::throw(context, &mut throw_world);
         let used = std::mem::take(&mut throw_world.used);
@@ -310,6 +321,8 @@ struct ServerThrow<'a> {
     movers: Vec<ThrowMover>,
     /// The movers the throw used, in order, for the game to use once it is over.
     used: Vec<u16>,
+    /// The items are within reach (JA+'s `jp_pushAll`); the base game's throw lists none.
+    push_items: bool,
 }
 
 impl ServerThrow<'_> {
@@ -344,7 +357,17 @@ impl ThrowWorld for ServerThrow<'_> {
                 .iter()
                 .filter_map(|npc| sjk_game_jka::npc_force_throw::npc_candidate(npc, mins, maxs)),
         );
+        if self.push_items {
+            item_candidates(self.items, mins, maxs, out);
+        }
         out.sort_by_key(|candidate| candidate.number);
+    }
+
+    fn item(&mut self, number: u16) -> Option<&mut Pickup> {
+        self.items
+            .iter_mut()
+            .find(|(id, _)| id.legacy_number() == number)
+            .map(|(_, pickup)| pickup)
     }
 
     fn trace(&mut self, start: [f32; 3], end: [f32; 3], pass: u16, mask: u32) -> MovementTrace {
@@ -591,6 +614,31 @@ pub(super) fn missile_candidates(
                 absmin,
                 absmax,
                 origin: ES_POS_BASE.map(|index| f32::from_bits(read(index))),
+            });
+        }
+    }
+}
+
+/// `EntitiesInBox`' items for a push or pull that flings them (JA+'s `jp_pushAll`): each
+/// one's box where it is, grown by the unit `SV_LinkEntity` adds, that meets
+/// `mins`..`maxs`, appended to `out`.
+fn item_candidates(
+    items: &[(EntityId, Pickup)],
+    mins: [f32; 3],
+    maxs: [f32; 3],
+    out: &mut Vec<Candidate>,
+) {
+    for (number, pickup) in items {
+        let (low, high) = pickup.bounds;
+        let absmin: [f32; 3] = std::array::from_fn(|axis| pickup.origin[axis] + low[axis] - 1.0);
+        let absmax: [f32; 3] = std::array::from_fn(|axis| pickup.origin[axis] + high[axis] + 1.0);
+        if overlaps(absmin, absmax, mins, maxs) {
+            out.push(Candidate {
+                number: number.legacy_number(),
+                kind: CandidateKind::Item,
+                absmin,
+                absmax,
+                origin: pickup.origin,
             });
         }
     }

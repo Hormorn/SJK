@@ -859,11 +859,17 @@ impl Panel {
                     TextAlign::Start,
                 );
             }
+            // Its edition before the date (06/11/2026): what opening it may bring.
+            let when = match (recent.edition.as_str(), recent.when.as_str()) {
+                ("", when) => when.to_owned(),
+                (edition, "") => edition.to_owned(),
+                (edition, when) => format!("{edition} · {when}"),
+            };
             text(
                 &mut self.ui,
                 TextFamily::Body,
-                format_args!("{}", recent.when),
-                frame.rect(x + 238.0, y + 3.0, RECENT_WIDTH - 238.0 - 12.0, 22.0),
+                format_args!("{when}"),
+                frame.rect(x + 218.0, y + 3.0, RECENT_WIDTH - 218.0 - 12.0, 22.0),
                 15.0 * s,
                 color::MUTED,
                 FontWeight::Regular,
@@ -1112,11 +1118,25 @@ pub(super) fn tier_card(index: usize, data: &Data) -> crate::menu::sjk::hover::C
         Some(count) => lines.push(Line::held(format!("You hold {count}"))),
         None => {}
     }
+    lines.extend(edition_lines(tier.slot, data));
     Card {
         title: tier.title().into_owned(),
         colour: tier.colour,
         lines,
     }
+}
+
+/// The editions of the unopened ones of the tile at `slot` and what that means
+/// (06/11/2026, [`crate::editions`]); nothing when none is held.
+fn edition_lines(slot: usize, data: &Data) -> Vec<crate::menu::sjk::hover::Line> {
+    use crate::menu::sjk::hover::Line;
+    let Some(held) = data.editions_line(slot) else {
+        return Vec::new();
+    };
+    vec![
+        Line::held(held),
+        Line::status("Each brings things of its own edition or an older one only."),
+    ]
 }
 
 /// What the hover card of a kyber crystal's tile says: where crystals come from, what one
@@ -1135,6 +1155,7 @@ fn crystal_card(tier: &'static Tier, data: &Data) -> crate::menu::sjk::hover::Ca
         Some(count) => lines.push(Line::held(format!("You hold {count}"))),
         None => {}
     }
+    lines.extend(edition_lines(tier.slot, data));
     Card {
         title: tier.title().into_owned(),
         colour: tier.colour,
@@ -1179,6 +1200,7 @@ mod tests {
                     note: "n ".repeat(100),
                     opened: false,
                     trade: None,
+                    edition: "Alpha".into(),
                 },
                 Recent {
                     tier: 0,
@@ -1189,6 +1211,7 @@ mod tests {
                     trade: Some(
                         "Received from ^1Nib^7 in a trade - tradable again in 6d 23h".into(),
                     ),
+                    edition: "Beta".into(),
                 },
             ],
             next: "Next holocron in about 20 minutes of play".into(),
@@ -1216,6 +1239,7 @@ mod tests {
                 trade: (index % 3 == 2).then(|| {
                     "Received from ^5Padawan^7 in a trade - tradable again in 6d 23h".into()
                 }),
+                edition: "Alpha".into(),
             })
             .collect();
         data

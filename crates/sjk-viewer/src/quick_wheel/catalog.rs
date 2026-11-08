@@ -47,7 +47,7 @@ pub(crate) enum State {
 /// icons and cut by `scripts/wheel_icons.py` from two boards (the first sixteen
 /// from the first, the rest, named by the actions they are for, from the
 /// second); uploaded into the UI atlas at start (`ui_renderer::wheel_icon`).
-pub(crate) const ICONS: [(&str, &[u8]); 58] = [
+pub(crate) const ICONS: [(&str, &[u8]); 59] = [
     ("drizzle", include_bytes!("../../assets/wheel/drizzle.png")),
     ("rain", include_bytes!("../../assets/wheel/rain.png")),
     ("storm", include_bytes!("../../assets/wheel/storm.png")),
@@ -215,6 +215,11 @@ pub(crate) const ICONS: [(&str, &[u8]); 58] = [
     (
         "banana",
         include_bytes!("../../assets/banana/toy_banana.png"),
+    ),
+    // The WHEEL OF DOOM's picture, the wheel (bundled with the client).
+    (
+        "wheel_of_doom",
+        include_bytes!("../../assets/wheel_of_doom/toy_wheelofdoom.png"),
     ),
     // The Tag's picture, the spray can (bundled with the client).
     ("tag", include_bytes!("../../assets/tags/toy_tag.png")),
@@ -746,6 +751,15 @@ pub(crate) const ACTIONS: &[Action] = &[
         Toys,
         State::None,
         Some("banana"),
+    ),
+    // Shows the WHEEL OF DOOM's price, then spins it on a second press.
+    action(
+        "wheel_of_doom",
+        "WHEEL OF DOOM",
+        crate::wheel_of_doom::COMMAND,
+        Toys,
+        State::None,
+        Some("wheel_of_doom"),
     ),
     // Sticks the chosen tag where the player looks.
     action(

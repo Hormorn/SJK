@@ -1,8 +1,9 @@
 //! The live player model on the menu's stage: while the backdrop camera is
 //! on a route with a [`Stage`], the current `model` cvar is skinned into
 //! its own vertex/index buffers, lit from the map like any actor, and drawn
-//! through the shared material runtime. Changing the model rebuilds the
-//! buffers on the spot, so the swap is visible the same frame. The sabers
+//! through the shared material runtime. A new model is read on a worker and
+//! its textures go up one a frame ([`load`]); the model shown stays until the
+//! new one is ready, so choosing models never stalls a frame. The sabers
 //! in its hands live in [`sabers`]; the Saber tab's throw in [`throw`]; the
 //! hat and cape it wears in [`cosmetics`]. The classic profile shows the
 //! same actor in a preview of its own ([`preview`]) instead of on the stage;
@@ -13,6 +14,7 @@ mod force_fx;
 mod force_motion;
 mod hilt_guard;
 mod lab;
+mod load;
 mod lone;
 pub(crate) mod preview;
 mod prop;
@@ -52,6 +54,9 @@ const THROW_STANCE: &str = "BOTH_SABERPULL";
 pub(crate) struct MenuStage {
     gla_cache: GlaCache,
     actor: Option<StageActor>,
+    /// The model being read on a worker, uploaded or compiled ([`load`]); the actor
+    /// above stays on until it is ready.
+    load: load::Load,
     /// Model cvar whose load failed; not retried until the value changes.
     failed: Option<String>,
     /// `.sab` definitions, read once the first hilt is needed.
@@ -482,23 +487,16 @@ impl GpuState {
                 return;
             }
             let model = model.to_owned();
-            // A card out of video memory loses this model, not the game (a 3 GB card
-            // browsing the creator's legs, 21/10/2026); the textures it uploaded go
-            // with it.
-            let kept = self.world_materials.texture_keys();
-            let device = self.device.clone();
-            let built =
-                crate::gpu_guard::capture(&device, || self.build_stage_actor(stage, &model, now))
-                    .unwrap_or_else(|error| {
-                        self.world_materials.forget_textures_since(&kept);
-                        Err(format!("the graphics card: {error}").into())
-                    });
-            match built {
-                Ok(actor) => {
-                    self.menu_stage.actor = Some(actor);
+            // Read on a worker, a texture a frame ([`load`]): the model shown stays
+            // until the new one is ready.
+            match self.step_stage_load(stage, &model, now) {
+                load::Step::Waiting if self.menu_stage.actor.is_none() => return,
+                load::Step::Waiting => {}
+                load::Step::Ready(actor) => {
+                    self.menu_stage.actor = Some(*actor);
                     self.menu_stage.cosmetics_dirty = true;
                 }
-                Err(error) => {
+                load::Step::Failed(error) => {
                     crate::log::progress(format_args!(
                         "player stage could not load {model}: {error}"
                     ));
@@ -648,24 +646,25 @@ impl GpuState {
         actor.stance = stance;
     }
 
+    /// The render thread's part of a stage model a worker read ([`load`]): its
+    /// materials, whose new pipelines the returned jobs compile, and its buffers.
     fn build_stage_actor(
         &mut self,
         stage: Option<Stage>,
         model: &str,
+        read: load::Read,
         now: Instant,
-    ) -> Result<StageActor, Box<dyn Error>> {
+    ) -> Result<(StageActor, crate::world_materials::pipeline_jobs::Jobs), Box<dyn Error>> {
         let vfs = self.vfs.clone().ok_or("player stage has no VFS")?;
-        let (directory, variant) = split_model_cvar(model);
-        let mut preview = load_player_appearance_with(
-            &vfs,
-            &directory,
-            variant,
-            [0.0; 3],
-            0.0,
-            &mut self.menu_stage.gla_cache,
-        )?;
-        preview.origin = [0.0; 3];
-        preview.yaw = 0.0;
+        let load::Read {
+            mut preview,
+            scene: flattened,
+            draws: actor_draws,
+            vertex_ranges,
+            ..
+        } = read;
+        // The stance now, which may have changed while the worker read: the first
+        // skinning poses the mesh again.
         let stance = self
             .menu_stage
             .actor
@@ -677,12 +676,10 @@ impl GpuState {
         let started = now;
         let sequence = preview.sequence.clone();
         let frame = animation_frame(&preview.sequence, 0.0);
-        let mut flattened = FlattenedScene::default();
-        let (actor_draws, vertex_ranges) = append_actor_mesh(&mut flattened, &preview, frame)?;
         let tintable = flattened.materials.iter().any(|material| {
             crate::player_menu::takes_entity_colour(&self.shaders, &material.shader)
         });
-        let materials = self.world_materials.compile_detached(
+        let (materials, jobs) = self.world_materials.compile_detached_deferred(
             &self.device,
             &self.queue,
             &vfs,
@@ -748,7 +745,7 @@ impl GpuState {
         self.menu_stage.sabers_dirty = true;
         let pose = preview.animation.frame_matrices(frame).unwrap_or_default();
         self.menu_stage.actor_builds += 1;
-        Ok(StageActor {
+        let actor = StageActor {
             model: model.to_owned(),
             tintable,
             build: self.menu_stage.actor_builds,
@@ -774,7 +771,8 @@ impl GpuState {
             lower: tracks::Track::new(sequence.clone(), started),
             upper: tracks::Track::new(sequence, started),
             from: None,
-        })
+        };
+        Ok((actor, jobs))
     }
 
     /// The stage model wears the Character page's colour (`player_menu/model_rgb.rs`):

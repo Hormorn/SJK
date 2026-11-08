@@ -54,7 +54,7 @@ macro_rules! signature {
 /// Blade Lab designs reworked in full (19/10/2026: the Star Wars rework; the Bleeding Kyber in
 /// round 9), which replace their hand-ported designs (`blade_lab_designs.rs`). Sol's Sun
 /// (blade 001) became one on 20/10/2026, keeping its file's look under its own.
-pub(crate) const SIGNATURES: [Signature; 132] = [
+pub(crate) const SIGNATURES: [Signature; 262] = [
     signature!("sun"),
     signature!("abyssal_eye"),
     signature!("aurora_wyrm"),
@@ -192,6 +192,138 @@ pub(crate) const SIGNATURES: [Signature; 132] = [
     signature!("thousand_cranes"),
     // 25/10/2026: Sol's Hearth (blade 168), a Unique blade that grows as it is held.
     signature!("hearth"),
+    // 29/10/2026: Creyon's Star Wars round (from blade 170).
+    signature!("vulptex_crystalfire"),
+    signature!("zeffo_thunderchorus"),
+    signature!("moraband_erasure"),
+    signature!("wellspring_triad"),
+    signature!("chirrut_whills"),
+    signature!("atollon_gathering"),
+    signature!("wobani_projection"),
+    signature!("iridonia_rite"),
+    signature!("rishi_ocean_flow"),
+    signature!("scipio_awakening"),
+    signature!("nal_hutta_spicevine"),
+    signature!("korriban_ragnos"),
+    signature!("ossus_scroll"),
+    signature!("kiros_echani"),
+    signature!("toydaria_gale_streamers"),
+    signature!("rattatak_crimson_surge"),
+    signature!("hosnian_daybreak"),
+    signature!("rakata_infinite"),
+    signature!("tatooine_krayt_spine"),
+    signature!("lahmu_sandveil"),
+    signature!("dromund_kaas_vitiate"),
+    signature!("utapau_whirlwind"),
+    signature!("umbara_gloaming"),
+    signature!("tython_jedaii"),
+    signature!("crait_salt_flats"),
+    signature!("sullust_magma"),
+    signature!("kijimi_snowfall"),
+    signature!("saleucami_turbolaser"),
+    signature!("wayland_gravity_press"),
+    signature!("onderon_blazing_strike"),
+    signature!("dantooine_grassland"),
+    signature!("bracca_rust_spark"),
+    signature!("mandalore_mythosaur"),
+    signature!("nevarro_ash"),
+    signature!("vandor_whiteout"),
+    signature!("bendu_equilibrium"),
+    signature!("lehon_maelstrom"),
+    signature!("zonama_starlight"),
+    signature!("bastila_battle_meditation"),
+    signature!("cantonica_ascension"),
+    signature!("nightsister_ichor"),
+    signature!("nihilus_hunger"),
+    signature!("rodia_toxic_bloom"),
+    signature!("glee_anselm_rockpools"),
+    signature!("polis_massa_asteroid"),
+    signature!("lotho_minor_lavaglass"),
+    signature!("agamar_copper"),
+    signature!("sorgan_lake"),
+    signature!("iego_lightglow"),
+    signature!("sluis_grey"),
+    signature!("arkanis_teal"),
+    signature!("peridea_convergence"),
+    signature!("byss_force_storm"),
+    signature!("lira_san_starglass"),
+    signature!("mimban_marshlight"),
+    signature!("zygerria_cleave"),
+    signature!("jabiim_siege"),
+    signature!("pantora_sunrise"),
+    signature!("mon_cala_coral"),
+    signature!("tund_sorcerers"),
+    signature!("haruun_kal_wildheart"),
+    signature!("kalevala_darksaber"),
+    signature!("ruusan_thoughtbomb"),
+    signature!("garel_corona"),
+    signature!("trandosha_scorekeeper"),
+    signature!("wroshyr_rootwood"),
+    signature!("iktotch_foresight"),
+    signature!("vardos_phrik"),
+    signature!("kuat_shipwright"),
+    signature!("kowak_silkweb"),
+    signature!("nar_kreeta_lightspeed"),
+    signature!("manaan_tidebreaker"),
+    signature!("cato_neimoidia_gilded"),
+    signature!("dxun_beastfang"),
+    signature!("fondor_weldsparks"),
+    signature!("plazir_lanterns"),
+    signature!("coruscant_neon"),
+    signature!("savareen_starfall"),
+    signature!("hijarna_colours"),
+    signature!("kef_bir_waves"),
+    signature!("shili_thornfang"),
+    signature!("florrum_brigand"),
+    signature!("abafar_pallor"),
+    signature!("teth_leafdrift"),
+    signature!("malastare_podrace"),
+    signature!("anaxes_clonefront"),
+    signature!("lola_sayu_watchbeam"),
+    signature!("quell_embers"),
+    signature!("skako_pressure"),
+    signature!("cerea_meadow"),
+    signature!("corulag_slate"),
+    signature!("bothawui_amber"),
+    signature!("hapes_rose"),
+    signature!("ithor_verdant"),
+    signature!("mirial_saffron"),
+    signature!("zeltros_violet"),
+    signature!("socorro_ochre"),
+    signature!("muunilinst_brass"),
+    signature!("dorin_pewter"),
+    // 26/10/2026: Creyon's Moon (blade 270, 169 until Sol's Mystery took that number), his own blade, the Sun's night-time sister.
+    signature!("moon"),
+    signature!("kathol_rift"),
+    signature!("fondor_mass_driver"),
+    signature!("exar_kun_temple"),
+    signature!("naga_sadow_alchemy"),
+    signature!("orbalisk_carapace"),
+    signature!("ziost_silence"),
+    signature!("nathema_deadworld"),
+    signature!("amphistaff_serpent"),
+    signature!("vergence_scatter"),
+    signature!("voxyn_scream"),
+    signature!("ysalamir_hush"),
+    signature!("rakghoul_plague"),
+    signature!("taris_undercity"),
+    signature!("telos_restoration"),
+    signature!("malevolence_ion_beam"),
+    signature!("massassi_altar"),
+    signature!("sith_tremor_sword"),
+    signature!("eye_of_aldhani"),
+    signature!("ferrix_foundry"),
+    signature!("kenari_crash"),
+    signature!("sarlacc_pit"),
+    signature!("cloud_city_dusk"),
+    signature!("ring_of_kafrene"),
+    signature!("hypergate_drift"),
+    signature!("bardotta_calm"),
+    signature!("alzoc_ice"),
+    signature!("fest_steppe"),
+    signature!("ansion_plains"),
+    signature!("sernpidal_dust"),
+    signature!("angel"),
 ];
 
 /// The lab's helpers every signature may call (`lab.glsl`, translated).
@@ -233,8 +365,8 @@ pub(crate) fn of(id: &str) -> Option<&'static Signature> {
 }
 
 impl Signature {
-    /// A `// @key value` line of its header (`@room`, `@solid`, `@moments`, `@palette`).
-    fn meta(&self, key: &str) -> Option<&'static str> {
+    /// A `// @key value` line of its header (`@room`, `@solid`, `@moments`, `@speed`, `@palette`).
+    pub(crate) fn meta(&self, key: &str) -> Option<&'static str> {
         self.wgsl
             .lines()
             .take_while(|line| line.starts_with("//"))
@@ -292,6 +424,18 @@ impl Signature {
             .unwrap_or(0.0)
     }
 
+    /// Whether its solid layer, once the blade is all out, stands past the tip uncut and closes
+    /// itself there (`@solidpast 1`; Angel's cloud bank, whose top was cut flat just past the tip).
+    pub(crate) fn solid_past(&self) -> bool {
+        self.meta("solidpast") == Some("1")
+    }
+
+    /// How far its `@solidnear` solid layer's depth is pulled toward the camera (`@nearpull`),
+    /// if not the usual 14 units.
+    pub(crate) fn near_pull(&self) -> Option<f32> {
+        self.meta("nearpull").and_then(|pull| pull.parse().ok())
+    }
+
     /// Whether it draws a solid layer (`@solid 1`).
     pub(crate) fn solid(&self) -> bool {
         self.meta("solid") == Some("1")
@@ -308,7 +452,22 @@ impl Signature {
     /// (`lab.glsl` behindBlade, 31/10/2026); `@raycache off` works it out at every piece, as
     /// before, for World Shift, which drew at a third of its speed with it (RTX 5080, Vulkan).
     pub(crate) fn ray_cache(&self) -> bool {
-        self.meta("raycache") != Some("off")
+        // The cost test times a GPU with and without the cache in one sitting
+        #[cfg(test)]
+        if std::env::var_os("SJK_RAYCACHE_OFF").is_some() {
+            return false;
+        }
+        self.meta("raycache").is_none()
+    }
+
+    /// How fast its own time runs (`@speed`, 1 when it has none): Creyon's Star Wars round was
+    /// written at about a third of the speeds of Sol's blades and ran in slow motion beside them
+    /// in game (1/11/2026). Its cycles and moments run at this speed too; lighting, swings and
+    /// clashes keep real time.
+    pub(crate) fn speed(&self) -> f32 {
+        self.meta("speed")
+            .and_then(|speed| speed.parse().ok())
+            .unwrap_or(1.0)
     }
 
     /// Its `design` lane in `saber.wgsl`'s `Skin`: the signature's number, no reach of its
@@ -411,7 +570,7 @@ impl Signature {
     }
 
     /// The names of its own parts, from its `// @part` lines in order.
-    fn parts(&self) -> impl Iterator<Item = &'static str> {
+    pub(crate) fn parts(&self) -> impl Iterator<Item = &'static str> {
         self.wgsl
             .lines()
             .take_while(|line| line.starts_with("//"))
@@ -474,28 +633,127 @@ impl Signature {
     /// Collection's swatch (Creyon's round 12: the swatches showed every signature as a plain
     /// blade): how often it calls each of the lab's effect pieces.
     pub(crate) fn swatch_hints(&self) -> SwatchHints {
-        let count = |name: &str| self.wgsl.matches(name).count().min(4) as u8;
+        // The shells and `rx` pieces of Creyon's Star Wars round (1/11/2026, lab.glsl) count as the
+        // effects they look like: its cards were drawn as plain blades.
+        let count = |names: &[&str]| {
+            names
+                .iter()
+                .map(|name| self.wgsl.matches(name).count())
+                .sum::<usize>()
+                .min(4) as u8
+        };
         SwatchHints {
-            smoke: count("fxSmoke("),
-            streams: count("fxStreams("),
-            flakes: count("fxFlakes("),
-            sparks: count("fxSparks("),
-            fall: count("fxFall("),
-            motes: count("fxMotes("),
-            coils: count("fxCoils("),
+            smoke: count(&[
+                "fxSmoke(",
+                "shSheath(",
+                "shSmokeA(",
+                "shFire(",
+                "rxMist(",
+                "rxMistSpin(",
+                "rxSmoke(",
+            ]),
+            streams: count(&[
+                "fxStreams(",
+                "shStrands(",
+                "shCurtain(",
+                "rxRibbon(",
+                "rxTongue(",
+                "rxHelix(",
+                "rxAurora(",
+            ]),
+            flakes: count(&["fxFlakes(", "shFlakes(", "rxRocks("]),
+            sparks: count(&[
+                "fxSparks(",
+                "shBolts(",
+                "shVeins(",
+                "shGlints(",
+                "rxBolt(",
+                "rxSparkShower(",
+            ]),
+            fall: count(&["fxFall(", "shStreaks("]),
+            motes: count(&[
+                "fxMotes(",
+                "shMotes(",
+                "rxStarCloud(",
+                "rxBorn(",
+                "rxComet(",
+            ]),
+            coils: count(&["fxCoils("]),
             orbit: self.wgsl.contains("fn sig_orbit(") || self.wgsl.contains("fn sig_orbit_solid("),
         }
     }
 
     /// The shader its pipelines are built from: `saber.wgsl` with its own signature.
     pub(crate) fn module_source(&self) -> String {
-        let mut source = slim(&module_source(include_str!("saber.wgsl"), self.wgsl));
+        let mut full = module_source(include_str!("saber.wgsl"), self.wgsl);
+        // `@raycache fast`: the round's rays (`lab.glsl`), the hiding only where a piece can show
+        if self.meta("raycache") == Some("fast") {
+            full = full
+                .replace("fn rayPt(", "fn rayPtKept(")
+                .replace("fn raySeg(", "fn raySegKept(")
+                .replace("fn rayPtFast(", "fn rayPt(")
+                .replace("fn raySegFast(", "fn raySeg(")
+                .replace("fn xDust(", "fn xDustKept(")
+                .replace("fn xBeads(", "fn xBeadsKept(")
+                .replace("fn xPuffs(", "fn xPuffsKept(")
+                .replace("fn xDustFast(", "fn xDust(")
+                .replace("fn xBeadsFast(", "fn xBeads(")
+                .replace("fn xPuffsFast(", "fn xPuffs(")
+                .replace("fn rxComet(", "fn rxCometKept(")
+                .replace("fn rxCometFast(", "fn rxComet(")
+                .replace("fn sig_vol(", "fn sig_vol_near(")
+                .replace("fn sig_vol_solid(", "fn sig_vol_solid_near(");
+            // Right against the eye a blade's air effects would cost the most and show the least
+            // (Creyon's videos, 125 frames down to 46 at 3440x1440): they fade out and stop.
+            full.push_str(
+                "\nfn sig_vol(ro: vec3<f32>, rd: vec3<f32>, px: f32) -> vec3<f32> {\n    \
+                 let e = length(vec3(ro.x, ro.y - clamp(ro.y, 0.0, uLength), ro.z));\n    if e < 3.5 {\n        return vec3(0.0);\n    }\n    \
+                 return sig_vol_near(ro, rd, px) * smoothstep(3.5, 7.5, e);\n}\n\
+                 fn sig_vol_solid(ro: vec3<f32>, rd: vec3<f32>, px: f32) -> vec4<f32> {\n    \
+                 let e = length(vec3(ro.x, ro.y - clamp(ro.y, 0.0, uLength), ro.z));\n    if e < 3.5 {\n        return vec4(0.0);\n    }\n    \
+                 let o = sig_vol_solid_near(ro, rd, px);\n    \
+                 return vec4(o.rgb, o.a * smoothstep(3.5, 7.5, e));\n}\n",
+            );
+        }
+        // The round's blades (`@speed`) always draw their built-in file: the stock features it has
+        // no key for cannot run, so they need not be built (update 22, Creyon: load times).
+        let mut source = if self.meta("speed").is_some() {
+            slim(&lean(&full, self.default_file()))
+        } else {
+            slim(&full)
+        };
         if !self.ray_cache() {
             // Every piece calls the hiding worked out whole, as before (`lab.glsl`); the kept
             // one is left unused.
             source = source
                 .replace("fn behindBlade(", "fn behindBladeCached(")
                 .replace("behindBladeFull(", "behindBlade(");
+        }
+        if let Some(pull) = self.near_pull() {
+            source = source.replacen(
+                "const SIG_NEAR_PULL: f32 = 14.0;",
+                &format!("const SIG_NEAR_PULL: f32 = {pull:?};"),
+                1,
+            );
+        }
+        if self.solid_past() {
+            source = source.replacen(
+                "const SIG_SOLID_PAST_TIP: bool = false;",
+                "const SIG_SOLID_PAST_TIP: bool = true;",
+                1,
+            );
+        }
+        if self.meta("speed").is_some() {
+            source = source.replacen(
+                "const SIG_SPEED: f32 = 1.0;",
+                &format!("const SIG_SPEED: f32 = {:?};", self.speed()),
+                1,
+            );
+            source = source.replacen(
+                "const SIG_OWN_EFFECTS: bool = false;",
+                "const SIG_OWN_EFFECTS: bool = true;",
+                1,
+            );
         }
         // A mythical blade's awakening, breath and clash ring (round 19, `sig_mythic`), and a
         // Unique one's (25/10/2026, Sol: Mythical's level of effects), unless it draws its own
@@ -516,17 +774,61 @@ impl Signature {
 }
 
 /// The entry points a signature's own pipelines use (`saber_gpu.rs` `SignatureBuilder::build`).
-const SIGNATURE_ENTRIES: [&str; 4] = [
+const SIGNATURE_ENTRIES: [&str; 8] = [
     "vertex_main",
+    "vertex_volume",
     "fragment_main",
+    "fragment_main_deep",
+    "fragment_volume",
     "vertex_solid",
     "fragment_solid",
+    "fragment_solid_near",
 ];
 
 /// A signature's module cut to what its pipelines run (Creyon's round 20: the blades' effects took
 /// minutes to come in at launch): a signature skin is never a hand-ported design, so the designs'
 /// glow and solid pass draw nothing in it, and every function its entry points do not reach is
 /// left out, with the entry points it has no pipelines for. The driver then compiles far less.
+/// The stock features a blade's file can switch on, as (file key, its functions): with no key in
+/// the file, each function's body becomes a return of nothing, and what only it called goes too.
+const LEAN_FEATURES: [(&str, &str); 12] = [
+    ("serpent", "skin_serpent"),
+    ("butterflies", "skin_butterflies"),
+    ("strands", "skin_strands"),
+    ("wings", "skin_wings"),
+    ("blobs", "skin_blobs"),
+    ("sketch", "skin_sketch"),
+    ("glyphs", "skin_glyphs"),
+    ("embers", "skin_embers"),
+    ("arcs", "skin_arcs"),
+    ("motes", "skin_motes"),
+    ("veins", "skin_veins"),
+    ("star", "skin_star"),
+];
+
+fn lean(source: &str, file: &str) -> String {
+    let mut source = source.to_owned();
+    for (key, name) in LEAN_FEATURES {
+        if file.contains(&format!("\"{key}\"")) {
+            continue;
+        }
+        let head = format!("fn {name}(");
+        let Some(at) = source.find(&head) else {
+            continue;
+        };
+        let Some(open) = source[at..].find('{').map(|n| at + n) else {
+            continue;
+        };
+        if !source[at..open].contains("-> f32") {
+            continue;
+        }
+        if let Some(end) = block_end(&source, open) {
+            source.replace_range(open..end, "{\n    return 0.0;\n}");
+        }
+    }
+    source
+}
+
 fn slim(source: &str) -> String {
     let mut source = source.to_owned();
     for (head, empty) in [
@@ -708,13 +1010,44 @@ mod tests {
     use super::*;
     use wgpu::naga;
 
+    /// 1/11/2026: `@speed` reaches the module's clock; a blade without it keeps real time.
+    #[test]
+    fn speed_sets_the_clock_and_sols_blades_keep_real_time() {
+        let lehon = of("saber_lehon_maelstrom").expect("Lehon");
+        assert_eq!(lehon.speed(), 4.5);
+        assert!(
+            lehon
+                .module_source()
+                .contains("const SIG_SPEED: f32 = 4.5;")
+        );
+        let sun = of("saber_sun").expect("the Sun");
+        assert_eq!(sun.speed(), 1.0);
+        assert!(sun.module_source().contains("const SIG_SPEED: f32 = 1.0;"));
+        for signature in &SIGNATURES {
+            let speed = signature.speed();
+            assert!(speed.is_finite() && speed > 0.0, "{}", signature.id);
+        }
+    }
+
     /// 31/10/2026: every signature reads the ray's part of its hiding kept once per pixel but
     /// World Shift (`@raycache off`), whose module works it out at every piece.
     #[test]
-    fn world_shift_alone_goes_without_the_ray_cache() {
+    fn world_shift_moon_and_vulptex_go_without_the_ray_cache() {
         for signature in &SIGNATURES {
             let source = signature.module_source();
-            let off = signature.id == "saber_world_shift";
+            // (1/11/2026, update 15: the Moon and Vulptex Spiritfire too; Creyon's RTX lost half its frames
+            // on them though they cost less than Abyssal Eye on llvmpipe, World Shift's pattern)
+            // (4/11/2026: and the round's blades, `@raycache fast`, after the same on his RTX)
+            let off = signature.meta("raycache").is_some();
+            assert_eq!(
+                matches!(
+                    signature.id,
+                    "saber_world_shift" | "saber_moon" | "saber_vulptex_crystalfire"
+                ) || signature.meta("speed").is_some() && off,
+                off,
+                "{}",
+                signature.id
+            );
             assert_eq!(signature.ray_cache(), !off, "{}", signature.id);
             // off: the kept one is defined but nothing calls it
             assert_eq!(
@@ -799,6 +1132,34 @@ mod tests {
             .validate(&module)
             .unwrap_or_else(|error| panic!("{id}: {}", error.emit_to_string(source)));
         }
+    }
+
+    /// The Moon blade (Creyon's, 26/10/2026): its five own parts, Sol's mist from its file on
+    /// its "Moon glitter" switch (no motes, Creyon found them cheap; no afterimages, its own
+    /// effects took their place), and the bursts: six options, none dropped.
+    #[test]
+    fn the_moon_blade_offers_its_parts_and_sols_pieces_on_one_switch() {
+        let moon = of("saber_moon").unwrap();
+        let def = crate::blade_skin_file::parse(moon.id, moon.default_file()).unwrap();
+        let options = moon.options(&def);
+        let names: Vec<_> = options.iter().map(|option| option.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "Moonlight",
+                "Moon glitter",
+                "Silver tide",
+                "Falling stars",
+                "Night mist",
+                "Lunar eclipse"
+            ]
+        );
+        let glitter = &options[1].sections;
+        assert!(glitter.iter().any(|s| s == "wisps"), "{glitter:?}");
+        for gone in ["motes", "ghosts", "arcs"] {
+            assert!(!glitter.iter().any(|s| s == gone), "{glitter:?}");
+        }
+        assert_eq!(moon.petals().map(|p| p.part), Some(1));
     }
 
     #[test]

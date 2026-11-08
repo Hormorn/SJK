@@ -65,6 +65,7 @@ impl GpuState {
         // go; the Fishing card's Sell junk and the Mining card's Sell rubble too.
         let boombox_request = console.take_boombox_request();
         let sell_junk = console.take_fishing_sell_request();
+        let wheel_of_doom = console.take_wheel_of_doom_request();
         let sell_rubble = console.take_mining_sell_request();
         let mut actions = [None; MAX_ACTIONS_PER_FRAME];
         console.advance_command_frame();
@@ -106,6 +107,9 @@ impl GpuState {
         if sell_junk {
             self.sell_fishing_junk();
         }
+        if wheel_of_doom {
+            self.wheel_of_doom_command();
+        }
         if sell_rubble {
             self.sell_mining_rubble();
         }
@@ -139,6 +143,7 @@ impl GpuState {
             console.set_box_hunt_on(self.box_hunt.on());
             console.set_banana_on(self.banana.on());
             console.set_fishing_on(self.fishing.on());
+            console.set_wheel_of_doom_on(self.wheel_of_doom.running());
             console.set_mining_on(self.mining.on());
         }
         let connection = self

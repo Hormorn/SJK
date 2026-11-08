@@ -9,9 +9,9 @@
 use serde::Deserialize;
 
 /// Longest log text the hub takes, in characters.
-pub const LOGS_MAX: usize = 400_000;
+pub const LOGS_MAX: usize = 2_000_000;
 /// Largest `POST /v1/logs` body the hub takes, in bytes.
-pub const BODY_MAX: usize = 524_288;
+pub const BODY_MAX: usize = 4 * 1024 * 1024;
 /// What [`LogUpload::fitted`] keeps the body under, leaving room for the other fields.
 const BODY_BUDGET: usize = BODY_MAX - 8_192;
 /// Longest `build`, `os` and `gpu`, as for crash reports.
@@ -95,6 +95,18 @@ impl LogUpload {
         }
     }
 
+    /// `POST /v1/logs`'s body for logs sent unasked, with what the player wrote
+    /// ([`own_note`]ed).
+    pub fn own_body(&self, note: &str) -> serde_json::Value {
+        serde_json::json!({
+            "logs": self.logs,
+            "note": own_note(note),
+            "build": self.build,
+            "os": self.os,
+            "gpu": self.gpu,
+        })
+    }
+
     /// `POST /v1/logs`'s body for request `id`.
     pub fn body(&self, id: i64) -> serde_json::Value {
         serde_json::json!({
@@ -105,6 +117,32 @@ impl LogUpload {
             "gpu": self.gpu,
         })
     }
+}
+
+/// Longest note sent with unasked logs, in characters.
+pub const OWN_NOTE_MAX: usize = 500;
+
+/// A player's note as the hub takes it with unasked logs: one line (line breaks and tabs
+/// become spaces, other control and hidden characters go), trimmed, at most
+/// [`OWN_NOTE_MAX`] characters.
+pub fn own_note(raw: &str) -> String {
+    let line: String = raw
+        .chars()
+        .map(|c| {
+            if matches!(c, '\n' | '\r' | '\t') {
+                ' '
+            } else {
+                c
+            }
+        })
+        .filter(|&c| !c.is_control() && !hidden(c))
+        .collect();
+    line.trim()
+        .chars()
+        .take(OWN_NOTE_MAX)
+        .collect::<String>()
+        .trim_end()
+        .to_owned()
 }
 
 /// How many bytes `logs` takes in a JSON string.
@@ -178,6 +216,9 @@ pub struct LogRequestRow {
     /// Bytes of logs sent, 0 unless sent.
     #[serde(default)]
     pub size: u64,
+    /// Sent by the player unasked (the launcher's Send my logs): no staff member asked.
+    #[serde(default)]
+    pub own: bool,
     /// The player's build, when sent.
     #[serde(default)]
     pub build: String,
@@ -359,6 +400,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn an_unasked_send_carries_the_note_on_one_line_and_no_request() {
+        let upload = LogUpload {
+            logs: "a\nb".into(),
+            build: "2026.1107.1".into(),
+            os: "windows".into(),
+            gpu: "GTX 1650".into(),
+        };
+        let body = upload.own_body("  white\r\nscreen\t\u{202e}after 740  ");
+        assert_eq!(body["note"], "white  screen after 740");
+        assert!(body.get("request").is_none());
+        assert_eq!(body["logs"], "a\nb");
+        assert_eq!(
+            own_note(&"x".repeat(OWN_NOTE_MAX + 9)).chars().count(),
+            OWN_NOTE_MAX
+        );
+    }
+
+    #[test]
     fn clean_keeps_lines_and_tabs_and_drops_what_the_hub_refuses() {
         assert_eq!(
             clean("a\r\nb\tc\u{0}d\u{1b}[31me\u{7f}\u{202e}f\u{feff}g\rh"),
@@ -370,7 +429,8 @@ mod tests {
     #[test]
     fn a_fitted_upload_keeps_the_newest_lines_under_the_limits() {
         let line = "x".repeat(99);
-        let logs: String = (0..6_000).map(|n| format!("{n:05} {line}\n")).collect();
+        let count = LOGS_MAX / 105 + 2_000;
+        let logs: String = (0..count).map(|n| format!("{n:05} {line}\n")).collect();
         let fitted = LogUpload {
             logs: logs.clone(),
             ..LogUpload::default()
@@ -378,7 +438,7 @@ mod tests {
         .fitted();
         assert!(fitted.logs.chars().count() <= LOGS_MAX + 30);
         assert!(fitted.logs.starts_with("[earlier lines left out]\n"));
-        assert!(fitted.logs.ends_with(&format!("05999 {line}\n")));
+        assert!(fitted.logs.ends_with(&format!("{:05} {line}\n", count - 1)));
         // Cut at a line: what follows the marker is a whole line.
         let first = fitted.logs.lines().nth(1).unwrap();
         assert_eq!(first.len(), 105, "{first}");
@@ -393,8 +453,9 @@ mod tests {
 
     #[test]
     fn a_body_full_of_escapes_still_fits() {
-        // Each tab and each quote takes two bytes in JSON.
-        let logs = "\t\"".repeat(200_000);
+        // Each quote takes two bytes in JSON and each euro sign three in UTF-8: the
+        // characters fit, the body does not.
+        let logs = "\u{20ac}\"".repeat(LOGS_MAX / 2);
         let fitted = LogUpload {
             logs,
             ..LogUpload::default()

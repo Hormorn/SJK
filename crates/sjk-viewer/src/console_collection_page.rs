@@ -214,6 +214,7 @@ impl ViewerConsole {
                 self.mining_on = on;
             }
             PanelAction::SellJunk => self.pending_fishing_sell = true,
+            PanelAction::WheelOfDoom => self.pending_wheel_of_doom = true,
             PanelAction::SellRubble => self.pending_mining_sell = true,
             PanelAction::Monitor(on) => {
                 self.pending_monitor = Some(on);
@@ -335,6 +336,16 @@ impl ViewerConsole {
     /// The Toys tab asked to get the rod out (`true`) or put it away, once.
     pub(crate) fn take_fishing_request(&mut self) -> Option<bool> {
         self.pending_fishing.take()
+    }
+
+    /// The viewer says whether a WHEEL OF DOOM of the player's runs, once a frame.
+    pub(crate) fn set_wheel_of_doom_on(&mut self, on: bool) {
+        self.wheel_of_doom_on = on;
+    }
+
+    /// The Toys tab pressed the WHEEL OF DOOM's switch, once.
+    pub(crate) fn take_wheel_of_doom_request(&mut self) -> bool {
+        std::mem::take(&mut self.pending_wheel_of_doom)
     }
 
     /// The viewer says whether the pickaxe is in hand, once a frame.
@@ -543,6 +554,7 @@ impl ViewerConsole {
         let fishing = self.fishing_on;
         let mining = self.mining_on;
         let fishing_card = self.fishing_card.clone();
+        let wheel_of_doom = self.wheel_of_doom_on;
         let mining_card = self.mining_card.clone();
         let stock = self.stock_blade();
         // Tiles unless the list is chosen (`ui_shaderList 1`).
@@ -614,6 +626,7 @@ impl ViewerConsole {
                 fishing,
                 mining,
                 fishing_card: Some(&fishing_card),
+                wheel_of_doom,
                 mining_card: Some(&mining_card),
                 name: &name,
                 stock,
@@ -654,6 +667,7 @@ impl ViewerConsole {
             fishing,
             mining,
             fishing_card: Some(&fishing_card),
+            wheel_of_doom,
             mining_card: Some(&mining_card),
             name: &name,
             stock,

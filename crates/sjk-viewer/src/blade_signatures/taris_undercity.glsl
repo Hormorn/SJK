@@ -1,0 +1,175 @@
+// Taris Undercity (Mythical, rebuilt on Sol's glow and core 3/11/2026): Taris at night, the city-world before Malak burned it: the blade is a black tower climbing in tiers, thousands of windows alight. Rivers of speeder traffic circle it in three dimensions, searchlights sweep through the smog and rain falls past. Then the Sith fleet fires: beams strike the tower, its lights die and fire bursts from it.
+// @part City tower
+// @part Speeder lanes
+// @part Searchlights
+// @part Smog and rain
+// @part Day and night
+// @raycache fast
+// @room 8
+// @solid 1
+// @moments own
+// @trail neon
+// @palette {"corona.rim_cool":[0.55,0.248,0.055],"corona.rim_hot":[1.0,0.45,0.1],"corona.inner":[1,0.95,0.8],"core.white":[1.0,1.0,1.0],"core.fringe_cool":[0.8,0.36,0.08],"core.fringe_hot":[1,0.95,0.8],"light.color":[1,0.45,0.1],"trail":[1,0.45,0.1]}
+// @speed 1.0
+
+const vec3 Am = vec3(1.000, 0.700, 0.300);
+const vec3 Te = vec3(0.240, 0.780, 0.950);
+const vec3 Rd = vec3(1.000, 0.130, 0.080);
+const vec3 Fi = vec3(1.000, 0.380, 0.080);
+const vec3 H = vec3(1.000, 0.960, 0.860);
+const vec3 Tw = vec3(0.022, 0.024, 0.034);
+float ta_top(){ return uLength*rxLife(0.0, 0.5, 0.32); }
+// The tower narrows in tiers, softly, up to a long spire.
+float ta_half(float y){
+  float top = ta_top();
+  if (y > top) return 0.0;
+  float L = max(uLength, 1.0), s = y/L*5.0, i = floor(s), f = s - i;
+  float w = mix(0.66, 0.34, (i + smoothstep(0.82, 1.0, f))/5.0);
+  float e = 1.0 - clamp((top - y)/5.0, 0.0, 1.0);
+  return w*sqrt(max(1.0 - e*e, 0.0));
+}
+// Bombardment, every 15 seconds; three strikes one after the other.
+float ta_q(float k){ return (mod(uClock, 15.0) - 9.0 - k*0.75)/1.5; }
+float ta_ya(float k){ return uLength*(0.25 + 0.24*k) + 2.0*sin(floor(uClock/15.0)*2.3 + k*1.7); }
+float ta_dark(float y){
+  return 0.0;
+}
+float ta_dark_old(float y){
+  float d = 0.0;
+  for (int i = 0; i < 3; i++){
+    float k = float(i), q = ta_q(k);
+    if (q > 0.0) d = max(d, (1.0 - smoothstep(q*5.5 - 2.0, q*5.5 + 1.0, abs(y - ta_ya(k))))*(1.0 - smoothstep(1.6, 3.6, q)));
+  }
+  return d;
+}
+vec3 sig_glow_grown(vec3 g, vec2 b, float r, float px){
+  float top = ta_top(), yc = clamp(b.y, 0.0, top);
+  float d = max(length(vec2(b.x, b.y - yc)) - ta_half(yc), 0.0);
+  float city = 1.0 - 0.75*ta_dark(b.y);
+  vec3 col = g*(0.5 + 0.1*sin(b.y*0.4 - uClock*1.2))*city;
+  col += Am*(halo(d, 0.6)*0.5 + halo(d, 2.4)*0.2)*city + Te*halo(d, 4.6)*0.09;
+  for (int i = 0; i < 3; i++){
+    float k = float(i), q = ta_q(k);
+  }
+  return (col + g*0.6*clamp(uClash, 0.0, 1.0))*tipFadeB(b)*roomFade(abs(b.x));
+}
+vec3 sig_core(vec3 c, vec2 b, float px){ return c*0.0; }
+vec4 sig_solid_night(vec4 o, vec2 b, float px){
+  float L = uLength;
+  if (b.y < -0.3 || b.y > L + 0.3) return o;
+  float half = ta_half(b.y);
+  float cov = (1.0 - smoothstep(half - 0.04 - px, half + 0.03 + px, abs(b.x)))*smoothstep(0.02, 0.1 + px, half);
+  if (cov <= 0.0) return o;
+  float u = clamp(b.x/max(half, 0.01), -1.0, 1.0), nz = sqrt(max(1.0 - u*u, 0.0));
+  vec3 col = Tw*(0.6 + 1.2*nz) + vec3(0.1, 0.11, 0.15)*pow(nz, 6.0)*0.4;
+  float s = b.y/max(L, 1.0)*5.0, f = fract(s);
+  col *= 1.0 - 0.7*smoothstep(0.86, 1.0, f);
+  if (part(0.0) > 0.5){
+    // windows: rows on the round of the tower, thousands of small lights
+    vec2 g = vec2(asin(u)*3.2, b.y*3.0);
+    vec2 id = floor(g), q = fract(g) - 0.5;
+    float h = h11(id.x*7.31 + id.y*3.17);
+    float on = step(0.42, h)*step(0.2, h11(id.x*2.1 + id.y*5.9 + floor(uClock*(0.7 + 1.3*h) + h*9.0)));
+    float w = (1.0 - smoothstep(0.2, 0.36, abs(q.x)))*(1.0 - smoothstep(0.18, 0.32, abs(q.y)));
+    vec3 tint = h > 0.93 ? Te : h > 0.86 ? H : Am;
+    col += tint*w*on*(0.55 + 0.75*h)*(0.35 + 0.75*nz)*(1.0 - ta_dark(b.y));
+    // lit spines climbing the corners, with light running up them
+    float run = pow(0.5 + 0.5*sin(b.y*0.7 - uClock*3.0), 5.0);
+    col += mix(Am, H, run)*smoothstep(0.88, 1.0, abs(u))*(0.25 + 1.3*run)*(1.0 - ta_dark(b.y));
+  }
+  float burn = ta_dark(b.y);
+  col += Fi*burn*smoothstep(0.4, 0.8, rxFlow(vec2(b.x*3.0, b.y*0.5 - uClock*1.5)))*1.6;
+  col = mix(col, H, 0.45*clamp(uClash, 0.0, 1.0));
+  col *= smoothstep(-0.25, 0.3, b.y);
+  return vec4(mix(o.rgb, col, cov), max(o.a, cov));
+}
+// A traffic lane: speeders with long curved streaks going round it; white one way, red the other.
+vec3 ta_lane(vec3 ro, vec3 rd, float px, float R, float y0, float pitch, float dir, float seed, vec3 hot, vec3 tint){
+  vec3 acc = vec3(0.0);
+  for (int i = 0; i < 4; i++){
+    float k = float(i), s;
+    float a = k/4.0 + 0.1*h11(k*3.1 + seed) + dir*uClock*(0.27 + 0.09*h11(k*5.7 + seed));
+    float span = 0.24 + 0.2*h11(k*2.3 + seed);
+    float yy = y0 + 3.2*(h11(k*7.9 + seed) - 0.5);
+    float bWs = 0.0;
+    float best = 1e3, f = 0.0;
+    vec3 prev = around(R, a - dir*span, yy + pitch*sin(6.2832*(a - dir*span)));
+    for (int j = 1; j <= 5; j++){
+      float g = float(j)/5.0;
+      float ag = a - dir*span*(1.0 - g);
+      vec3 q = around(R, ag, yy + pitch*sin(6.2832*ag));
+      float d = raySeg(ro, rd, prev, q, s);
+      { float wN = bW(d); bWs += wN; best = min(best, d); f += ((float(j) - 1.0 + s)/5.0 - f)*wN/bWs; }
+      prev = q;
+    }
+    acc += hot*halo(best, max(0.026, px))*1.25*f*f*f + tint*(halo(best, 0.08 + 0.05*f)*0.75 + halo(best, 0.38)*0.14)*f*f;
+    float t, dh = rayPt(ro, rd, prev, t);
+    acc += hot*halo(dh, max(0.05, px))*1.5 + tint*halo(dh, 0.26)*0.45;
+  }
+  return acc;
+}
+vec3 sig_vol_e3(vec3 ro, vec3 rd, float px){
+  vec3 fx = vec3(0.0);
+  float L = uLength;
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, L) > 16.0) return fx;
+  float aft = rxLife(0.2, 0.9, 0.35);
+  if (aft <= 0.01) return fx;
+  if (part(1.0) > 0.5 && fxNear(ro, rd, 0.0, L) < 7.0){
+    fx += ta_lane(ro, rd, px, 1.75, L*0.22, 0.9, 1.0, 11.0, H, Am);
+    fx += ta_lane(ro, rd, px, 2.5, L*0.43, 1.2, -1.0, 23.0, vec3(1.0, 0.5, 0.42), Rd);
+    fx += ta_lane(ro, rd, px, 3.3, L*0.64, 1.3, 1.0, 37.0, H, Te);
+    fx += ta_lane(ro, rd, px, 2.15, L*0.82, 0.7, -1.0, 41.0, vec3(1.0, 0.5, 0.42), Rd);
+  }
+  if (part(2.0) > 0.5) for (int i = 0; i < 3; i++){
+    // a searchlight: a soft cone out of the tower, sweeping
+    float k = float(i), s;
+    float a = 0.2 + k*0.37 + 0.11*sin(uClock*(0.42 + 0.1*k) + k*2.0);
+    float y = L*(0.26 + 0.27*k);
+    vec3 p0 = around(0.5, a, y), p1 = around(6.6, a, y + 3.2*sin(uClock*(0.35 + 0.08*k) + k*3.0));
+    float d = raySeg(ro, rd, p0, p1, s);
+    float wd = 0.07 + 0.72*s;
+    fx += mix(H, Te, 0.45)*exp(-d*d/(wd*wd))*(1.0 - s)*(1.0 - s)*0.42;
+  }
+  if (part(3.0) > 0.5){
+    fx += 1.1*syMistSpin(ro, rd, 0.3, L*0.7, 1.2, 4.8, 0.05, 103.0, Am*0.16 + Te*0.1, vec3(0.03, 0.035, 0.05));
+    fx += 0.8*fxFall(ro, rd, px, 1.0, L - 0.8, 3.6, 18.0, 4.4, 1.5, 0.05, 104.0, vec3(0.55, 0.62, 0.72));
+  }
+  return fx*aft*uFx*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+vec3 sig_glow(vec3 g, vec2 b, float r, float px){ return sig_glow_grown(g, b, r, px)*growGlow(b); }
+vec3 sig_vol(vec3 ro, vec3 rd, float px){
+  vec3 base = sig_vol_e3(ro, rd, px), a = vec3(0.0);
+  float L = uLength, C = uClock;
+  if (uFx <= 0.0 || fxNear(ro, rd, 0.0, L) > 16.0) return base;
+  // the lights of the towers all round it, hanging signs of amber and teal, and the rain coming down through them
+  a += 1.5*shMotes(ro, rd, 4.6, 0.5, L - 0.5, 34.0, 1.2, 0.0, 0.0, 0.04, 0.6, 0.25, 111.0, H, Am);
+  a += 1.2*shMotes(ro, rd, 3.2, 0.5, L - 0.5, 26.0, 1.6, 0.0, 0.0, 0.035, 0.5, 0.2, 112.0, Te + H*0.2, Te);
+  float t;
+  for (int i = 0; i < 6; i++){
+    float k = float(i), s, mo = mod(k, 2.0);
+    vec3 p0 = around(2.7 + 1.2*h11(k*3.1), h11(k*7.7) + C*0.006, L*(0.14 + 0.13*k));
+    float dq = raySegRaw(ro, rd, p0, p0 + vec3(0.0, 1.2, 0.0), s);
+    float blink = 0.65 + 0.35*sin(C*(0.6 + 0.4*h11(k)) + k*3.0);
+    a += mix(Am, Te, mo)*(halo(dq, 0.1)*1.3 + halo(dq, 0.42)*0.42)*blink;
+  }
+  return base + a*rxLife(0.3, 1.2, 0.4)*uFx*tipFade(ro, rd)*hiltFade(ro, rd)*growMask(ro, rd);
+}
+
+// Day over Taris: slowly from the hand to the point the black tower turns pale in the sun, its windows dark against it, and night comes back the same way.
+float ta_day(){ return part(4.0) > 0.5 ? rxCycle(58.0, 24.0, 32.0, 46.0, 54.0) : 0.0; }
+vec4 sig_solid(vec4 o, vec2 b, float px){
+  vec4 r = sig_solid_night(o, b, px);
+  if (uAge < 2000.0 && uAge < 3.2 && r.a > 0.0){
+    float front = smoothstep(0.1, 3.0, uAge)*(uLength + 8.0);
+    r.rgb *= mix(0.1, 1.0, 1.0 - smoothstep(front - 7.0, front, b.y));
+  }
+  if (uClashT < 1.2 && r.a > 0.0) r.rgb *= 1.0 + 1.4*pow(1.0 - uClashT/1.2, 2.0);
+  float d0 = ta_day();
+  if (d0 > 0.0 && r.a > 0.0 && abs(b.x) < 2.4){
+    float m = smoothstep(0.0, 1.0, (d0*(uLength + 12.0) - 6.0 - b.y)/6.0);
+    float lit = smoothstep(0.32, 0.7, max(r.r, max(r.g, r.b)));
+    vec3 tower = mix(vec3(0.78, 0.8, 0.84), vec3(0.16, 0.2, 0.28) + r.rgb*0.3, lit);
+    r.rgb = mix(r.rgb, tower, m);
+  }
+  return r;
+}

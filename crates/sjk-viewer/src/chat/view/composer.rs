@@ -57,6 +57,8 @@ impl ChatOverlay {
         // which moves the field and its notes down.
         let whisper = input.channel == Channel::Whisper;
         let sjk = input.channel == Channel::Sjk;
+        // The ×, + and cog (`chat/row_tools.rs`); the notes start after them.
+        let row_end = self.build_row_tools(font, g, &row[..count], row_end, y);
         let below = if whisper {
             recipient::ROW * g.scale
         } else {
@@ -135,6 +137,8 @@ impl ChatOverlay {
                 0.0,
             );
         }
+        // The + or cog menu lies over the feed, so it goes last.
+        self.build_row_menu(font, g, y);
         self.ui.pop_opacity();
     }
 }

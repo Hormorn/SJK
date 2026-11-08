@@ -31,6 +31,10 @@ impl ViewerConsole {
     pub(crate) fn fs_restart_task(&mut self) -> &mut crate::fs_restart::Task {
         &mut self.client_commands.fs_restart
     }
+    /// `rig_reload`'s mount in flight.
+    pub(crate) fn rig_reload_task(&mut self) -> &mut crate::fs_restart::Task {
+        &mut self.client_commands.rig_reload
+    }
 
     /// Queue and immediately execute typed console input.
     pub(crate) fn execute_console_line(

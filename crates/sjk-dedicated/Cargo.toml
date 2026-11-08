@@ -23,6 +23,8 @@ sjk-model.workspace = true
 sjk-network.workspace = true
 sjk-protocol.workspace = true
 sjk-server.workspace = true
+sjk-server-mod.workspace = true
+sjk-server-mod-japlus.workspace = true
 sjk-vfs.workspace = true
 
 [build-dependencies]

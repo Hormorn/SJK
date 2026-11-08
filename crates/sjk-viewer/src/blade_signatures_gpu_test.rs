@@ -7,7 +7,8 @@
 //! `SJK_SIGNATURE_ORBIT` set renders five views from a camera moving round it instead (to check
 //! that its effects stay with the blade as the view changes; `tip` looks down the blade's length
 //! instead, at its tip); `SJK_SIGNATURE_MORE` set adds
-//! three moments: just after it is out, half a second after a clash and while it goes out.
+//! three moments: just after it is out, half a second after a clash and while it goes out;
+//! `SJK_SIGNATURE_MOTION=<frames>,<step>` renders frames a fixed step apart.
 use super::*;
 use wgpu::util::DeviceExt;
 
@@ -48,6 +49,8 @@ fn every_signature_draws_its_blade_and_nothing_at_the_edge() {
             crate::texture_layout_entry(3),
             sampler_entry(2),
             sampler_entry(4),
+            crate::texture_layout_entry(5),
+            sampler_entry(6),
         ],
     });
     let skins_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -72,6 +75,7 @@ fn every_signature_draws_its_blade_and_nothing_at_the_edge() {
         ],
         immediate_size: 0,
     });
+    let volume_depth = crate::saber_gpu::volume::depth_layout(device);
     let pipeline =
         |module: &wgpu::ShaderModule, vertex: &str, fragment: &str, blend: wgpu::BlendState| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -266,9 +270,24 @@ fn every_signature_draws_its_blade_and_nothing_at_the_edge() {
         if picture {
             moments.truncate(1);
         }
+        // `SJK_SIGNATURE_MOTION=<frames>,<step>`: frames a fixed step apart, to judge its motion.
+        if let Ok(spec) = std::env::var("SJK_SIGNATURE_MOTION") {
+            let (frames, step) = spec.split_once(',').unwrap();
+            let step: f64 = step.parse().unwrap();
+            moments = (0..frames.parse::<u32>().unwrap())
+                .map(|i| {
+                    let seconds = 6.0 + f64::from(i) * step;
+                    (seconds, crate::saber_motion::STILL, color)
+                })
+                .collect();
+        }
         let orbit = std::env::var("SJK_SIGNATURE_ORBIT").ok();
         if orbit.is_some() {
-            moments = vec![(3.0, crate::saber_motion::STILL, color); 5];
+            let at = std::env::var("SJK_SIGNATURE_AT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(3.0);
+            moments = vec![(at, crate::saber_motion::STILL, color); 5];
         }
         let mut frames = Vec::new();
         for (index, (seconds, motion, color)) in moments.into_iter().enumerate() {
@@ -283,6 +302,18 @@ fn every_signature_draws_its_blade_and_nothing_at_the_edge() {
                 // Round 23 review (`SJK_SIGNATURE_ORBIT=tip`): down the blade's length, where
                 // players saw a box round the tip (Obsidian Edge): the first three from just
                 // beyond the tip looking back at it, the last two from behind the hilt.
+                if orbit.as_deref() == Some("close") {
+                    // Update 20: from where a player holds it, as in Creyon's videos.
+                    let yaw = [0.0f32, 0.5, 1.0, 1.6, 2.2][index];
+                    eye = glam::Vec3::new(9.0 * yaw.sin(), -9.0 * yaw.cos(), -6.0);
+                    at = glam::Vec3::new(0.0, 0.0, 2.0);
+                }
+                // Update 28: the point from the side, near, to check every blade's end.
+                if orbit.as_deref() == Some("point") {
+                    let yaw = [0.0f32, 0.9, 1.8, 2.7, 3.6][index];
+                    eye = glam::Vec3::new(14.0 * yaw.sin(), -14.0 * yaw.cos(), 14.0);
+                    at = glam::Vec3::new(0.0, 0.0, 14.0);
+                }
                 if orbit.as_deref() == Some("tip") {
                     let aside = [3.0f32, 1.5, 0.6, 4.0, 1.0][index];
                     let (height, look) = if index < 3 {
@@ -293,8 +324,19 @@ fn every_signature_draws_its_blade_and_nothing_at_the_edge() {
                     eye = glam::Vec3::new(aside, -aside * 0.5, height);
                     at = glam::Vec3::new(0.0, 0.0, look);
                 }
+                let mut fov = 0.75f32;
+                if orbit.as_deref() == Some("fp") {
+                    let aside = [10.0f32, 16.0, 22.0, 8.0, 5.0][index];
+                    eye = glam::Vec3::new(
+                        aside,
+                        -aside * 0.6,
+                        -40.0 - [0.0f32, 4.0, 8.0, 0.0, 0.0][index],
+                    );
+                    at = glam::Vec3::new(0.0, 0.0, 8.0);
+                    fov = 0.62;
+                }
                 let m = glam::camera::rh::proj::directx::perspective(
-                    0.75,
+                    fov,
                     WIDTH as f32 / HEIGHT as f32,
                     1.0,
                     400.0,

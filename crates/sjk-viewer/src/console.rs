@@ -289,6 +289,10 @@ pub(crate) struct ViewerConsole {
     fishing_card: crate::fishing_sell::Card,
     /// The Fishing card's Sell junk button was pressed.
     pending_fishing_sell: bool,
+    /// A WHEEL OF DOOM of the player's runs, mirrored as [`Self::order66_on`] is.
+    wheel_of_doom_on: bool,
+    /// The Toys tab pressed the WHEEL OF DOOM's switch, not yet taken.
+    pending_wheel_of_doom: bool,
     /// The Mining card's finds and sale, as the viewer last gave them.
     mining_card: crate::fishing_sell::Card,
     /// The Mining card's Sell rubble button was pressed.
@@ -336,9 +340,11 @@ pub(crate) struct ViewerConsole {
     remap_allowed_maps: console_cvars::RevisionSetting,
     /// Changes of `cg_serverRemapsMap`, the loaded map's choice.
     remap_map_choice: console_cvars::RevisionSetting,
+    /// Changes of `cg_remapsSharedMaps`, the hub's shared list as last seen.
+    remap_shared_maps: console_cvars::RevisionSetting,
+    /// Changes of `cg_remapsShared`, whether the shared list applies.
+    remap_shared: console_cvars::RevisionSetting,
     packet_dup: console_cvars::IntegerSetting,
-    /// `cl_packetdup_nocap`: 1 lifts the known servers' `cl_packetdup` caps.
-    packet_dup_lifted: console_cvars::IntegerSetting,
     max_packets: console_cvars::IntegerSetting,
     /// `gameplay_fps`, and the server's `pmove_fixed`/`pmove_msec` that override it.
     gameplay_fps: console_cvars::IntegerSetting,
@@ -352,6 +358,8 @@ pub(crate) struct ViewerConsole {
     server_family: Option<&'static sjk_mod::KnownServer>,
     /// `gameplay_fps_nocap`: 1 lifts the known caps.
     caps_lifted: console_cvars::IntegerSetting,
+    /// `cl_freshStamps`: 1 keeps the frame's own stamp on every server.
+    fresh_stamps: console_cvars::IntegerSetting,
     /// Whether the server takes the inputs at that step ([`crate::input_health`]).
     input_health: crate::input_health::InputHealth,
     pmove_fixed: console_cvars::IntegerSetting,
@@ -468,24 +476,11 @@ impl ViewerConsole {
         self.time_nudge.millis()
     }
 
-    /// Cached `cl_packetdup`, clamped like the stock client (0 to 5), and to the
-    /// server's known [`crate::server_caps::ServerCap::max_packet_dup`] (JoF's 0)
-    /// unless the player lifted that.
+    /// Cached `cl_packetdup`, clamped like the stock client (0 to 5).
     pub(crate) fn packet_dup(&self) -> usize {
-        let wanted =
-            self.packet_dup
-                .value()
-                .clamp(0, sjk_client::command_history::MAX_PACKET_DUP as i64) as usize;
-        self.server_packet_dup_cap()
-            .map_or(wanted, |cap| wanted.min(cap))
-    }
-
-    /// The most packets a packet repeats on this server, when it is known to take
-    /// fewer than `cl_packetdup` allows and the player has not lifted that.
-    pub(crate) fn server_packet_dup_cap(&self) -> Option<usize> {
-        self.server_cap
-            .and_then(|cap| cap.max_packet_dup)
-            .filter(|_| !self.packet_dup_lifted.enabled())
+        self.packet_dup
+            .value()
+            .clamp(0, sjk_client::command_history::MAX_PACKET_DUP as i64) as usize
     }
 
     /// Cached `cl_maxpackets`; [`sjk_client::command_rate::PacketPacer`] clamps it.
@@ -533,6 +528,14 @@ impl ViewerConsole {
         self.server_cap
             .filter(|_| !self.server_caps_lifted() && self.pmove_fixed_msec().is_none())
             .map_or_else(Default::default, |cap| cap.pacing)
+    }
+
+    /// Whether commands carry the clock as the previous frame read it, as stock's
+    /// do: on every server but SJK's own ([`crate::server_caps::FRESH_STAMPS`]),
+    /// unless `cl_freshStamps` 1 keeps the fresh stamp everywhere.
+    pub(crate) fn command_stamps_previous_frame(&self) -> bool {
+        !self.fresh_stamps.enabled()
+            && crate::server_caps::stamps_previous_frame(self.server_family)
     }
 
     /// The server's known command cap ([`crate::server_caps`]), lifted or not.
@@ -1337,13 +1340,16 @@ impl ViewerConsole {
         self.map_edits.value() != 0
     }
 
-    /// How often `cg_remapsBlockedMaps`, `cg_remapsAllowedMaps` and
-    /// `cg_serverRemapsMap` have changed, read without a name lookup.
+    /// How often `cg_remapsBlockedMaps`, `cg_remapsAllowedMaps`, `cg_serverRemapsMap`,
+    /// `cg_remapsSharedMaps` and `cg_remapsShared` have changed, read without a name
+    /// lookup.
     pub(crate) fn remap_maps_revisions(&self) -> crate::remap_blocked_maps::Revisions {
         [
             self.remap_blocked_maps.value(),
             self.remap_allowed_maps.value(),
             self.remap_map_choice.value(),
+            self.remap_shared_maps.value(),
+            self.remap_shared.value(),
         ]
     }
 }

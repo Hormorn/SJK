@@ -49,6 +49,13 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
              (a quarter of their video memory); the next map applies it",
         ),
         CvarDefinition::new(
+            mips::MAX_SIZE_CVAR,
+            i64::from(mips::MAX_SIZE_DEFAULT),
+            CvarFlags::ARCHIVE,
+            "Largest texture side in pixels (0 for none): larger map and model textures \
+             are halved down to it; the next map applies it",
+        ),
+        CvarDefinition::new(
             mips::compress::CVAR,
             0_i64,
             CvarFlags::ARCHIVE,
@@ -74,6 +81,11 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
     cvars.on_change(mips::PICMIP_CVAR, |change| {
         if let sjk_shell::CvarValue::Integer(levels) = change.current {
             mips::set_picmip(levels);
+        }
+    })?;
+    cvars.on_change(mips::MAX_SIZE_CVAR, |change| {
+        if let sjk_shell::CvarValue::Integer(size) = change.current {
+            mips::set_max_size(size);
         }
     })?;
     cvars.on_change(mips::compress::CVAR, |change| {

@@ -12,6 +12,13 @@
 //! loaded map's choice, for the Settings row: it is rewritten from the lists when
 //! the map or a list changes, and setting it rewrites the lists. The frame reads a
 //! cached answer, refreshed only after one of these changes.
+//!
+//! SJK's creator also keeps a shared list on the hub (`PROTOCOL.md`, "Remap blocks",
+//! since 05/11/2026), given with presence. This client keeps it in
+//! `cg_remapsSharedMaps` (archived, so it holds from the start of the next run) and,
+//! while `cg_remapsShared` is on (the default, Sol's choice), ignores server remaps on
+//! those maps whose own choice is `default`. A map the player set `on` keeps them.
+//! `syncBlockRemaps` / `syncUnblockRemaps [map]` change the shared list (creator only).
 
 /// Maps whose server remaps are ignored, archived with the player's settings.
 pub(crate) const CVAR: &str = "cg_remapsBlockedMaps";
@@ -19,6 +26,10 @@ pub(crate) const CVAR: &str = "cg_remapsBlockedMaps";
 pub(crate) const ALLOWED_CVAR: &str = "cg_remapsAllowedMaps";
 /// The loaded map's [`Choice`], by name; not archived.
 pub(crate) const MAP_CVAR: &str = "cg_serverRemapsMap";
+/// Whether the hub's shared list applies (on by default), archived.
+pub(crate) const SHARED_CVAR: &str = "cg_remapsShared";
+/// The hub's shared list as presence last gave it, written by the client, archived.
+pub(crate) const SHARED_LIST_CVAR: &str = "cg_remapsSharedMaps";
 /// `cg_serverRemaps`: servers' shader remaps apply only while it is on (off by default
 /// since 18/10/2026); `cg_remaps` then filters them as in EternalJK.
 pub(crate) const SERVER_CVAR: &str = "cg_serverRemaps";
@@ -151,8 +162,19 @@ impl Choice {
     }
 }
 
-/// The change counts of [`CVAR`], [`ALLOWED_CVAR`] and [`MAP_CVAR`].
-pub(crate) type Revisions = [u64; 3];
+/// The change counts of [`CVAR`], [`ALLOWED_CVAR`], [`MAP_CVAR`], [`SHARED_LIST_CVAR`]
+/// and [`SHARED_CVAR`].
+pub(crate) type Revisions = [u64; 5];
+
+/// What [`Cache::update`] reads after a change.
+pub(crate) struct Lists<'a> {
+    pub blocked: &'a str,
+    pub allowed: &'a str,
+    /// [`MAP_CVAR`] as it stands.
+    pub shown: &'a str,
+    /// The shared list, or `None` while [`SHARED_CVAR`] is off.
+    pub shared: Option<&'a str>,
+}
 
 /// What [`Cache::update`] wants written after a change.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,6 +193,10 @@ pub(crate) struct Cache {
     revisions: Option<Revisions>,
     map: String,
     choice: Choice,
+    /// Whether the shared list applies and names the loaded map.
+    shared: bool,
+    /// When the hub's shared list was last looked at, and its revision then.
+    polled: Option<(std::time::Instant, u64)>,
 }
 
 impl Cache {
@@ -178,27 +204,49 @@ impl Cache {
         self.choice
     }
 
-    /// Notice changes; `cvars` reads `(blocked, allowed, map cvar)` only after one.
-    /// A [`MAP_CVAR`] change alone, on the same map, is the player's choice; any
-    /// other change takes the choice from the lists.
+    /// Whether the shared list ignores the loaded map's server remaps: it applies and
+    /// names the map, whose own choice is `default`.
+    pub(crate) fn shared_block(&self) -> bool {
+        self.shared && self.choice == Choice::Default
+    }
+
+    /// The server remap mode, as [`Choice::mode`] after the shared list.
+    pub(crate) fn mode(&self, server_on: bool, filter: i64) -> i64 {
+        if self.shared_block() {
+            0
+        } else {
+            self.choice.mode(server_on, filter)
+        }
+    }
+
+    /// Notice changes; `cvars` reads the [`Lists`] only after one. A [`MAP_CVAR`]
+    /// change alone, on the same map, is the player's choice; any other change takes
+    /// the choice from the lists.
     pub(crate) fn update<'a>(
         &mut self,
         revisions: Revisions,
         map: &str,
-        cvars: impl FnOnce() -> (&'a str, &'a str, &'a str),
+        cvars: impl FnOnce() -> Lists<'a>,
     ) -> Sync {
         let same_map = self.map == map;
         let seen = self.revisions.replace(revisions);
         if seen == Some(revisions) && same_map {
             return Sync::None;
         }
-        let only_map_cvar = same_map && seen.is_some_and(|seen| seen[..2] == revisions[..2]);
+        let only_map_cvar = same_map
+            && seen.is_some_and(|seen| seen[..2] == revisions[..2] && seen[3..] == revisions[3..]);
         if !same_map {
             self.map.clear();
             self.map.push_str(map);
         }
-        let (blocked, allowed, shown) = cvars();
+        let Lists {
+            blocked,
+            allowed,
+            shown,
+            shared,
+        } = cvars();
         let loaded = !map_name(map).is_empty();
+        self.shared = loaded && shared.is_some_and(|shared| lists(shared, map));
         if only_map_cvar && loaded {
             if let Some(choice) = Choice::parse(shown) {
                 self.choice = choice;
@@ -229,12 +277,19 @@ impl crate::GpuState {
         let Some(console) = self.console.as_mut() else {
             return 1;
         };
+        follow_hub_list(&mut self.remap_blocked_maps, console);
         let map = self.world_load_map.as_str();
         let sync = self
             .remap_blocked_maps
             .update(console.remap_maps_revisions(), map, || {
                 let text = |name| console.text_cvar(name).unwrap_or("");
-                (text(CVAR), text(ALLOWED_CVAR), text(MAP_CVAR))
+                Lists {
+                    blocked: text(CVAR),
+                    allowed: text(ALLOWED_CVAR),
+                    shown: text(MAP_CVAR),
+                    shared: (console.bool_cvar(SHARED_CVAR) != Some(false))
+                        .then(|| text(SHARED_LIST_CVAR)),
+                }
             });
         match sync {
             Sync::None => {}
@@ -260,10 +315,75 @@ impl crate::GpuState {
             self.remap_blocked_maps.seen(console.remap_maps_revisions());
         }
         self.remap_blocked_maps
-            .choice()
             .mode(console.server_remaps_on(), console.remap_filter())
     }
 
+    /// `syncBlockRemaps` and `syncUnblockRemaps` (`command` in lower case): SJK's
+    /// creator adds a map (the loaded one by default) to the hub's shared list, or
+    /// takes it off.
+    pub(crate) fn remap_shared_command(
+        &mut self,
+        command: &str,
+        args: &[String],
+    ) -> Result<Vec<String>, String> {
+        let (blocked, usage) = match command {
+            "syncblockremaps" => (true, "usage: syncBlockRemaps [map]"),
+            _ => (false, "usage: syncUnblockRemaps [map]"),
+        };
+        if !crate::player_identity::is_creator() {
+            return Err("Only SJK's creator changes the shared remap blocks".to_owned());
+        }
+        let map = match args {
+            [] => map_name(&self.world_load_map),
+            [map] => map_name(map),
+            _ => return Err(usage.into()),
+        }
+        .replace('\\', "/")
+        .to_ascii_lowercase();
+        if map.is_empty() {
+            return Err(format!("No loaded map; {usage}"));
+        }
+        let request = sjk_identity::StaffRequest::RemapBlock {
+            map: map.clone(),
+            blocked,
+        };
+        if !crate::player_identity::staff(request) {
+            return Err("The SJK hub is off (cl_identity 0)".to_owned());
+        }
+        Ok(vec![if blocked {
+            format!("Asked the SJK hub to ignore server remaps on {map} for every SJK player")
+        } else {
+            format!("Asked the SJK hub to take {map} off the shared remap blocks")
+        }])
+    }
+}
+
+/// How often the hub's shared list is looked at, at most.
+const POLL_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Copy the hub's shared list into [`SHARED_LIST_CVAR`] when presence gave a new one;
+/// looked at twice a second, it allocates only on a change.
+fn follow_hub_list(cache: &mut Cache, console: &mut crate::console::ViewerConsole) {
+    let now = std::time::Instant::now();
+    if cache
+        .polled
+        .is_some_and(|(polled, _)| now.duration_since(polled) < POLL_EVERY)
+    {
+        return;
+    }
+    let seen = cache.polled.map_or(0, |(_, revision)| revision);
+    let Some((revision, maps)) = crate::player_identity::remap_blocks(seen) else {
+        cache.polled = Some((now, seen));
+        return;
+    };
+    cache.polled = Some((now, revision));
+    let list = maps.join(" ");
+    if console.text_cvar(SHARED_LIST_CVAR).ok() != Some(list.as_str()) {
+        console.set_cvar(SHARED_LIST_CVAR, &list);
+    }
+}
+
+impl crate::GpuState {
     /// `blockRemaps`, `unblockRemaps`, `allowRemaps` and `unallowRemaps` (`command`
     /// in lower case): set a map's choice, the loaded map by default.
     pub(crate) fn remap_block_command(
@@ -410,41 +530,104 @@ mod tests {
         assert_eq!(Choice::parse("maybe"), None);
     }
 
+    /// The player's own lists, no shared one.
+    fn own<'a>(blocked: &'a str, allowed: &'a str, shown: &'a str) -> Lists<'a> {
+        Lists {
+            blocked,
+            allowed,
+            shown,
+            shared: None,
+        }
+    }
+
     #[test]
     fn the_cache_shows_the_lists_choice_on_each_map() {
         let mut cache = Cache::default();
-        let sync = cache.update([0, 0, 0], "maps/mp/ffa4.bsp", || ("", "mp/ffa4", "default"));
+        let sync = cache.update([0, 0, 0, 0, 0], "maps/mp/ffa4.bsp", || {
+            own("", "mp/ffa4", "default")
+        });
         assert_eq!(sync, Sync::Show(Choice::On));
-        cache.seen([0, 0, 1]);
-        let sync = cache.update([0, 0, 1], "maps/mp/ffa4.bsp", || panic!("read again"));
+        cache.seen([0, 0, 1, 0, 0]);
+        let sync = cache.update([0, 0, 1, 0, 0], "maps/mp/ffa4.bsp", || panic!("read again"));
         assert_eq!(sync, Sync::None);
         assert_eq!(cache.choice(), Choice::On);
         // The next map has no choice: "default" again.
-        let sync = cache.update([0, 0, 1], "maps/mp/ffa3.bsp", || ("", "mp/ffa4", "on"));
+        let sync = cache.update([0, 0, 1, 0, 0], "maps/mp/ffa3.bsp", || {
+            own("", "mp/ffa4", "on")
+        });
         assert_eq!(sync, Sync::Show(Choice::Default));
         // Already shown: nothing to write.
         let mut cache = Cache::default();
-        let sync = cache.update([0, 0, 0], "maps/mp/ffa3.bsp", || ("", "", "default"));
+        let sync = cache.update([0, 0, 0, 0, 0], "maps/mp/ffa3.bsp", || {
+            own("", "", "default")
+        });
         assert_eq!(sync, Sync::None);
     }
 
     #[test]
     fn setting_the_map_cvar_stores_the_choice() {
         let mut cache = Cache::default();
-        cache.update([0, 0, 0], "maps/mp/ffa4.bsp", || ("", "", "default"));
-        let sync = cache.update([0, 0, 1], "maps/mp/ffa4.bsp", || ("", "", "off"));
+        cache.update([0, 0, 0, 0, 0], "maps/mp/ffa4.bsp", || {
+            own("", "", "default")
+        });
+        let sync = cache.update([0, 0, 1, 0, 0], "maps/mp/ffa4.bsp", || own("", "", "off"));
         assert_eq!(sync, Sync::Store(Choice::Off));
         assert_eq!(cache.choice(), Choice::Off);
         // A word the cvar does not know shows the lists' choice again.
-        let sync = cache.update([0, 0, 2], "maps/mp/ffa4.bsp", || ("", "", "maybe"));
+        let sync = cache.update([0, 0, 2, 0, 0], "maps/mp/ffa4.bsp", || own("", "", "maybe"));
         assert_eq!(sync, Sync::Show(Choice::Default));
         // A list change is not the player's choice: the lists win.
-        let sync = cache.update([1, 0, 3], "maps/mp/ffa4.bsp", || ("", "", "off"));
+        let sync = cache.update([1, 0, 3, 0, 0], "maps/mp/ffa4.bsp", || own("", "", "off"));
         assert_eq!(sync, Sync::Show(Choice::Default));
         // With no map loaded the cvar stays "default".
         let mut cache = Cache::default();
-        cache.update([0, 0, 0], "", || ("", "", "default"));
-        let sync = cache.update([0, 0, 1], "", || ("", "", "on"));
+        cache.update([0, 0, 0, 0, 0], "", || own("", "", "default"));
+        let sync = cache.update([0, 0, 1, 0, 0], "", || own("", "", "on"));
+        assert_eq!(sync, Sync::Show(Choice::Default));
+    }
+
+    #[test]
+    fn the_shared_list_blocks_maps_left_at_default_while_followed() {
+        let shared = |shown, list| Lists {
+            blocked: "",
+            allowed: "",
+            shown,
+            shared: list,
+        };
+        let mut cache = Cache::default();
+        cache.update([0; 5], "maps/mp/ffa4.bsp", || {
+            shared("default", Some("mp/ffa4"))
+        });
+        assert!(cache.shared_block());
+        assert_eq!(cache.mode(true, 2), 0);
+        // The hub took it off the list.
+        cache.update([0, 0, 0, 1, 0], "maps/mp/ffa4.bsp", || {
+            shared("default", Some(""))
+        });
+        assert!(!cache.shared_block());
+        assert_eq!(cache.mode(true, 2), 2);
+        // Back on the list, but the player stopped following it.
+        cache.update([0, 0, 0, 2, 1], "maps/mp/ffa4.bsp", || {
+            shared("default", None)
+        });
+        assert_eq!(cache.mode(true, 2), 2);
+        // Following again: a map the player set on keeps its remaps.
+        let mut cache = Cache::default();
+        cache.update([0; 5], "maps/mp/ffa4.bsp", || Lists {
+            blocked: "",
+            allowed: "mp/ffa4",
+            shown: "on",
+            shared: Some("mp/ffa4"),
+        });
+        assert_eq!(cache.choice(), Choice::On);
+        assert!(!cache.shared_block());
+        assert_eq!(cache.mode(false, 1), 1);
+        // A change of the shared list is not the player's choice for the map.
+        let mut cache = Cache::default();
+        cache.update([0; 5], "maps/mp/ffa4.bsp", || shared("default", Some("")));
+        let sync = cache.update([0, 0, 1, 1, 0], "maps/mp/ffa4.bsp", || {
+            shared("off", Some(""))
+        });
         assert_eq!(sync, Sync::Show(Choice::Default));
     }
 }

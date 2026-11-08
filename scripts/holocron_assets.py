@@ -31,17 +31,19 @@ Per form `<id>` it writes the parts' models (`holocron_<id>.md3`, the body, and
 `holocron_<id>_light.jpg`, and the UI icons `holocron_<id>.png` (256x256, drawn from the
 parts) and `holocron_<id>_small.png` (64x64); the engram also its seams' and core's
 pictures (and locked) and its reflection `holocron_mythical_env.jpg`. Shared: the steel
-and the dark metal (`holocron_steel.jpg`, `holocron_dark.jpg`, and locked), the locked
+(`holocron_steel.jpg`, and locked), the locked
 light, the sheen, four shaders (`holocron_tiers.shader`: the holocrons' faces;
 `holocron_kyber.shader`: the crystals' faces and lights; `holocron_parts.shader`: steel,
-dark metal, the holocrons' lights and the engram's seams and core;
+the Sith pyramid's cap, the holocrons' lights and the engram's seams and core;
 `holocron_locked.shader`: the locked look, every material drained and dark, without
 glow), and two Rust tables the client includes (`holocron_parts.rs`: every form's parts
-and motion; `holocron_files.rs`: every file above at its game path). The Jedi cube's
-face is the shipped face in the tier's colour; the Great Holocron's and the Sith
-pyramid's come from Sol's pictures (17/10/2026) in the folder's `art/` (`rare.jpg`,
-`legendary.jpg`), and the kyber crystals' facets from `art/kyber.jpg` (ART below), or
-are drawn here when one is missing; the engram's plates are drawn here. `--art
+and motion; `holocron_files.rs`: every file above at its game path). The Great
+Holocron's face comes from Sol's picture (17/10/2026) in the folder's `art/`
+(`rare.jpg`), and the kyber crystals' facets from `art/kyber.jpg` (ART below), or are
+drawn here when one is missing. The Jedi cube, the Sith pyramid and the engram are Sol's
+sculpted models (05/11 and 08/11/2026, SCULPTS below): their low polys and the pictures
+baked from them are in `art/<folder>/` (holocron_forms.py reads the models; their colour,
+glow and normal maps are copied from there). `--art
 <key>=<picture>` gives another picture for an ART key:
 
     python scripts/holocron_assets.py tiers crates/sjk-viewer/assets/holocron --art rare=pentagon.png
@@ -49,9 +51,7 @@ are drawn here when one is missing; the engram's plates are drawn here. `--art
 A face picture shows its shape on black, in any colour and any size: the shape is cut
 out and fitted to where the form's picture coordinates expect it (ART), and its lit
 parts (bright, or strongly coloured) are painted along the tier's ramp and glow. The
-rare one is a pentagon, a corner at the top; the legendary one a triangle, its tip at
-the top: the Sith pyramid's sides take its foot up to PYRAMID_TOP of its width, the
-floating cap the tip above it, so the runes run on across the seam. The kyber one is
+rare one is a pentagon, a corner at the top. The kyber one is
 a tiling crystal texture, its light worked into the crystal's facets. The whole table
 (colours, glow ladder, shader waves, point lights) is TIERS below (KYBER_TIERS copies
 it); the output is deterministic.
@@ -228,9 +228,6 @@ def cube_md3(output: Path, file: str = "holocron", shader: str = SHADER) -> None
 
 TIER_ICON_SIZE = 256
 TIER_SMALL_SIZE = 64
-# Seen from the centre of the face, the ring is an octagon: flat sides at m = |dx| or
-# |dy| and corners cut where (|dx| + |dy|) / RING_CUT = m.
-RING_CUT = 1.475
 # How much of the icon the holocron spans; the rest is the halo's room.
 ICON_FILL = 0.8
 SHEEN_SIZE = 128
@@ -240,16 +237,11 @@ SHEEN_NAME = "holocron_sheen"
 # the Holocrons tab gives it, and in the shape).
 LOCKED_KEEP = 0.14
 LOCKED_DIM = 0.42
-# The Sith pyramid's side: its top's width against its foot's (`holocron_forms.py`);
-# its face picture is the whole triangle, the side its foot up to this share of its
-# height, the cap the tip above.
-PYRAMID_TOP = 1.6 / 3.0
 # Sol's face pictures, by tier, in the folder's `art/`, and where each one's shape goes
 # in the face picture (left, top, right, bottom, in shares of it; None: a texture that
 # tiles, taken whole). The pentagon's corners are on the picture's inscribed circle.
 ART = {
     "rare": (0.5 - 0.5 * math.sin(math.radians(72)), 0.0, 0.5 + 0.5 * math.sin(math.radians(72)), 0.5 + 0.5 * math.cos(math.radians(36))),
-    "legendary": (0.0, 0.0, 1.0, 1.0),
     "kyber": None,
 }
 # A picture's black ground: anything darker is not the shape.
@@ -327,33 +319,6 @@ def smoothstep(edge0, edge1, x):
     return t * t * (3.0 - 2.0 * t)
 
 
-def octagon_metric(n: int, cut: float):
-    ys, xs = np.mgrid[0:n, 0:n]
-    dx, dy = np.abs(xs - (n - 1) / 2), np.abs(ys - (n - 1) / 2)
-    return np.maximum(np.maximum(dx, dy), (dx + dy) / cut)
-
-
-def face_masks(face_rgb: np.ndarray):
-    """The shipped face's emblem (with its halo) and ring (runes and bevels), 0..1."""
-    n = face_rgb.shape[0]
-    r, g, b = face_rgb[..., 0], face_rgb[..., 1], face_rgb[..., 2]
-    ys, xs = np.mgrid[0:n, 0:n]
-    from_centre = np.hypot(xs - n / 2, ys - n / 2) / n
-    luminance = 0.3 * r + 0.59 * g + 0.11 * b
-    # As face() cuts the emblem, but inside the emblem's own reach only: the base's
-    # glow picture keeps a few warm specks of the ring, a tier's must not.
-    warm = np.clip((r - b - 12) / 90.0, 0, 1)
-    bright = np.clip((luminance - 150) / 70.0, 0, 1) * (from_centre < 0.246)
-    reach = 1.0 - smoothstep(0.27, 0.31, from_centre)
-    emblem = ndimage.gaussian_filter(np.maximum(warm, bright) * reach, 0.7)
-    # The ring: the bevels' and runes' highlights inside the octagonal band.
-    metric = octagon_metric(n, RING_CUT)
-    band = smoothstep(126, 130, metric) * (1.0 - smoothstep(179, 183, metric))
-    high_pass = luminance - ndimage.gaussian_filter(luminance, 6)
-    ring = np.clip(high_pass / 25.0, 0, 1) * band * (1.0 - emblem)
-    return emblem, ring
-
-
 def ramp(values: np.ndarray, stops) -> np.ndarray:
     """Colour the 0..1 `values` along the four stops of a tier's ramp."""
     at = [0.12, 0.50, 0.80, 0.97]
@@ -362,27 +327,6 @@ def ramp(values: np.ndarray, stops) -> np.ndarray:
 
 def luminance_of(rgb: np.ndarray) -> np.ndarray:
     return 0.3 * rgb[..., 0] + 0.59 * rgb[..., 1] + 0.11 * rgb[..., 2]
-
-
-def tier_layers(face_rgb: np.ndarray, tier: Tier):
-    """The Jedi cube's face and glow pictures (float RGB 0..255) from the base face."""
-    emblem, ring = face_masks(face_rgb)
-    luminance = luminance_of(face_rgb)[..., None]
-    paint = ramp(luminance[..., 0] / 255.0, tier.ramp) * tier.emblem
-    mid = np.array(tier.ramp[1], float)
-    pale = np.array(tier.ramp[2], float)
-    # The plate: steel with a faint tint of the tier's colour, the emblem's light
-    # spilling over it, the ring's bevels and runes lit.
-    plate = face_rgb + tier.tint * (luminance * (mid / mid.max()) - face_rgb)
-    spill = ndimage.gaussian_filter(emblem, 14)[..., None]
-    plate = plate + tier.halo * spill * pale
-    ring_light = tier.ring * ring[..., None]
-    plate = plate + ring_light * (mid * 0.55 + pale * 0.45)
-    face = plate * (1.0 - emblem[..., None]) + paint * emblem[..., None]
-    # The glow picture, on black: the emblem and the lit ring (what the additive
-    # stage and the glow pass pick up).
-    glow = paint * emblem[..., None] + ring_light * (mid * 0.55 + pale * 0.45)
-    return face.clip(0, 255), glow.clip(0, 255)
 
 
 def fitted_art(picture: Path, place) -> np.ndarray:
@@ -442,14 +386,6 @@ def steel_picture(base: np.ndarray, n: int = 256) -> np.ndarray:
     mottle = noise_field(n, 12, 9.0)
     value = 1.0 + 0.07 * brushed + 0.08 * mottle
     return (plate * 1.05 * value[..., None]).clip(0, 255)
-
-
-def dark_picture(n: int = 256) -> np.ndarray:
-    """The Sith pyramid's dark metal, a little warm, tiling."""
-    mottle = noise_field(n, 13, 7.0)
-    grain = noise_field(n, 14, 1.2)
-    value = 64.0 + 9.0 * mottle + 3.0 * grain
-    return (value[..., None] * np.array((1.04, 0.93, 1.12))).clip(0, 255)
 
 
 def tiled(picture: np.ndarray, n: int) -> np.ndarray:
@@ -518,50 +454,6 @@ def pentagon_layers(steel: np.ndarray, tier: Tier):
     return face.clip(0, 255), glow.clip(0, 255)
 
 
-def glyph_mask(n: int, centres, size: float, seed: int) -> np.ndarray:
-    """Made-up runes at `centres` (picture fractions), each a few strokes between the
-    points of a three by three grid, drawn large and brought down smooth."""
-    rng = np.random.default_rng(seed)
-    big = n * 4
-    mask = Image.new("L", (big, big), 0)
-    draw = ImageDraw.Draw(mask)
-    for cx, cy in centres:
-        grid = [(cx + (i - 1) * size / 2, cy + (j - 1) * size / 2) for j in range(3) for i in range(3)]
-        strokes = [(1, 7)] + [tuple(rng.choice(9, 2, replace=False)) for _ in range(3)]
-        for a, b in strokes:
-            draw.line(
-                [(grid[a][0] * big, grid[a][1] * big), (grid[b][0] * big, grid[b][1] * big)],
-                fill=255, width=max(1, round(size * big * 0.14)),
-            )
-    return np.asarray(mask.resize((n, n), Image.LANCZOS)).astype(float) / 255.0
-
-
-def sith_layers(dark: np.ndarray, tier: Tier):
-    """The Sith pyramid's side and cap: dark metal on a triangle (its tip at the
-    picture's top middle, its foot along the bottom), an engraved border with a lit
-    line, and a column of runes glowing in the tier's colour."""
-    n = FACE_SIZE
-    ys, xs = (np.mgrid[0:n, 0:n] + 0.5) / n
-    half = np.maximum(0.5 * ys, 1e-3)
-    across = np.abs(xs - 0.5) / half
-    mid = np.array(tier.ramp[1], float)
-    pale = np.array(tier.ramp[2], float)
-    plate = tiled(dark, n).copy()
-    streaks = noise_field(n, 16, (14.0, 0.8), wrap=False)
-    plate *= (1.0 + 0.06 * streaks)[..., None]
-    border = np.maximum(smoothstep(0.84, 0.86, across), np.maximum(smoothstep(0.06, 0.04, ys), smoothstep(0.94, 0.96, ys)))
-    plate *= (1.0 - 0.45 * border)[..., None]
-    line = smoothstep(0.012, 0.0, np.abs(across - 0.8)) * (ys > 0.08) * (ys < 0.92)
-    centres = [(0.5, y) for y in (0.25, 0.45, 0.65, 0.84)]
-    runes = glyph_mask(n, centres, 0.16, 66)
-    glyph = ramp(np.full_like(xs, 0.9), tier.ramp) * tier.emblem
-    edge = (0.25 + 0.5 * tier.ring) * line[..., None] * (mid * 0.6 + pale * 0.4)
-    halo = ndimage.gaussian_filter(runes, 10)[..., None] * tier.halo * mid
-    face = plate * (1.0 - runes[..., None]) + glyph * runes[..., None] + edge + halo
-    glow = glyph * runes[..., None] + edge
-    return face.clip(0, 255), glow.clip(0, 255)
-
-
 def crystal_layers(tier: Tier, texture: Path | None = None):
     """The kyber prism's facet: tip at the picture's top middle, the girdle along its
     bottom; brighter toward the girdle, with streaks running to the tip and lit edges,
@@ -583,48 +475,6 @@ def crystal_layers(tier: Tier, texture: Path | None = None):
     face = ramp(value.clip(0, 1), tier.ramp) * tier.emblem
     glow = face * (0.45 + 0.4 * streak.clip(0, 1) + 0.3 * edges)[..., None]
     return face.clip(0, 255), glow.clip(0, 255)
-
-
-def engram_layers(tier: Tier):
-    """The engram's plate: gold on a triangle (its tip at the picture's top middle, its
-    foot along the bottom) with a rim that catches the light, an engraved groove and a
-    thin lit line inside it, and a seal: an engraved ring round the middle with an
-    old-republic rune in it and three small ones by the foot, faintly lit."""
-    n = FACE_SIZE
-    ys, xs = (np.mgrid[0:n, 0:n] + 0.5) / n
-    mid = np.array(tier.ramp[1], float)
-    pale = np.array(tier.ramp[2], float)
-    # Distance to the triangle's nearest edge, in shares of the picture.
-    edge = np.minimum((0.5 * ys - np.abs(xs - 0.5)) / math.sqrt(1.25), 1.0 - ys)
-    from_middle = np.hypot(xs - 0.5, ys - ENGRAM_INCENTRE)
-    value = (
-        0.43
-        + 0.05 * noise_field(n, 21, (0.7, 16.0))
-        + 0.04 * noise_field(n, 22, 10.0)
-        + 0.08 * np.clip(1.0 - from_middle / 0.42, 0, 1)
-    )
-    rim = smoothstep(0.04, 0.012, edge)
-    groove = smoothstep(0.011, 0.0, np.abs(edge - 0.06))
-    line = smoothstep(0.006, 0.0, np.abs(edge - 0.08)) * (edge > 0.0)
-    ring = smoothstep(0.008, 0.0, np.abs(from_middle - 0.2))
-    rune = glyph_mask(n, [(0.5, ENGRAM_INCENTRE)], 0.2, 41)
-    small = glyph_mask(n, [(0.4, 0.905), (0.5, 0.905), (0.6, 0.905)], 0.055, 43)
-    engraved = np.maximum(np.maximum(ring, rune), small)
-    value = value + 0.24 * rim - 0.24 * groove - 0.2 * engraved
-    lit = (0.32 * engraved + 0.5 * line)[..., None] * (0.5 * mid + 0.5 * pale) + (0.1 * rim)[..., None] * pale
-    # The four tones, each plate at half size in its cell (holocron_forms.engram_tone).
-    face, glow = np.zeros((n, n, 3)), np.zeros((n, n, 3))
-    half = n // 2
-    for tone, shade in enumerate(ENGRAM_TONES):
-        plate = ramp((value * shade).clip(0, 1), tier.ramp) * tier.emblem
-        cell = (slice((tone // 2) * half, (tone // 2 + 1) * half), slice((tone % 2) * half, (tone % 2 + 1) * half))
-        face[cell] = plate.reshape(half, 2, half, 2, 3).mean((1, 3))
-        glow[cell] = lit.reshape(half, 2, half, 2, 3).mean((1, 3))
-    return face.clip(0, 255), glow.clip(0, 255)
-
-
-# The engram's plates' shades, from the facet most toward its key light to the least.
-ENGRAM_TONES = (1.28, 1.05, 0.84, 0.66)
 
 
 # The engram's reflection, read by the view (`tcGen environment`): a warm sky over a
@@ -663,20 +513,46 @@ def engram_extras(tier: Tier) -> dict:
     return {"seam": seam.clip(0, 255), "core": core.clip(0, 255)}
 
 
-def form_layers(base: np.ndarray, steel: np.ndarray, dark: np.ndarray, tier: Tier, art: dict):
+def sculpt_picture(folder: str, name: str) -> np.ndarray:
+    """A picture baked from one of Sol's sculpted models (`art/<folder>/`), float RGB."""
+    return np.asarray(Image.open(forms.ART / folder / f"{name}.jpg").convert("RGB")).astype(float)
+
+
+# The sculpted forms (Sol's models, their low polys and baked pictures in
+# `art/<folder>/`): the tier, its folder, and the share of the baked glow picture its
+# glow stage adds (at full strength, over the face's own light, the Sith pyramid's runes
+# bloomed to white).
+SCULPTS = {
+    "uncommon": (forms.JEDI_CUBE, 0.5),
+    "legendary": ("sith_pyramid", 0.55),
+    "mythical": (forms.GOLD_ENGRAM, 0.35),
+}
+# The sculpted forms' tangent-space normal maps: the shader's material, then the
+# picture in `art/` it is baked into (`<material>_n.png`, `normalMap` in the shader).
+NORMAL_MAPS = (
+    *((f"holocron_{tier}", forms.ART / folder / "body_n.png") for tier, (folder, _) in SCULPTS.items()),
+    ("holocron_legendary_cap", forms.SITH_SCULPT / "cap_n.png"),
+)
+# The Sith pyramid's cap's own light: its face's, a little under the body's.
+SITH_CAP_OWN = 0.3
+
+
+def normal_map_line(material: str) -> tuple:
+    """The `normalMap` line of a material's lit stage, when it has one."""
+    return tuple(f"normalMap models/sjk/{material}_n" for name, _ in NORMAL_MAPS if name == material)
+
+
+def form_layers(base: np.ndarray, steel: np.ndarray, tier: Tier, art: dict):
     """The face and glow pictures of a form: Sol's picture for it when given, else the
     one made here."""
     if tier.id in forms.KYBER_IDS:
         return crystal_layers(tier, art.get("kyber"))
-    if tier.id == "mythical":
-        return engram_layers(tier)
+    if tier.id in SCULPTS:
+        folder, glow = SCULPTS[tier.id]
+        return sculpt_picture(folder, "body"), sculpt_picture(folder, "body_glow") * glow
     if tier.id in art:
         return art_layers(art[tier.id], tier)
-    if tier.id == "uncommon":
-        return tier_layers(base, tier)
-    if tier.id == "rare":
-        return pentagon_layers(steel, tier)
-    return sith_layers(dark, tier)
+    return pentagon_layers(steel, tier)
 
 
 def tier_icon(tier: Tier, looks: dict) -> Image.Image:
@@ -749,9 +625,9 @@ def face_shader(tier: Tier, sheen_lines=(), sheen_name=SHEEN_NAME) -> list:
     lines = [name, "{", "\tq3map_nolightmap"]
     if tier.id == "mythical":
         lines.append(f"\tdeformVertexes wave {ENGRAM_BREATH}")
-    lines += stage(f"map {name}", "rgbGen lightingDiffuse")
-    # The engram's plates are metal: barely a light of their own, so the seams and the
-    # core are what glows.
+    lines += stage(f"map {name}", *normal_map_line(name.removeprefix("models/sjk/")), "rgbGen lightingDiffuse")
+    # The engram's plates are metal: barely a light of their own, so the seams are
+    # what glows.
     own = ENGRAM_OWN_GLOW if tier.id == "mythical" else tier.self_glow
     lines += stage(f"map {name}", "blendFunc GL_ONE GL_ONE", wave(own))
     lines += stage(f"map {name}_glow", "blendFunc GL_ONE GL_ONE", wave(tier.breath), "glow")
@@ -761,7 +637,8 @@ def face_shader(tier: Tier, sheen_lines=(), sheen_name=SHEEN_NAME) -> list:
 
 
 # How the engram's plates breathe: `deformVertexes wave` with a spread so wide every
-# plate moves as one (its vertices carry the plate's normal), out by 0 to 0.4 units, so the core shows between them at the top of the breath.
+# plate moves as one (its vertices carry the plate's normal), out by 0 to 0.4 units, so
+# the core shows between them at the top of the breath.
 ENGRAM_BREATH = "1000 sin 0.2 0.2 0 0.35"
 # The engram's plates' own light (the face's second stage), far under the tier's.
 ENGRAM_OWN_GLOW = (0.35, 0.08, 0.25, 0.35)
@@ -770,11 +647,11 @@ ENGRAM_OWN_GLOW = (0.35, 0.08, 0.25, 0.35)
 def tier_shader() -> str:
     lines = [
         "// The holocron's loot-box tiers (SJK; see README.md): each tier's face (the Jedi",
-        "// cube's plates, the Great Holocron's pentagons, the Sith pyramid's sides, the",
-        "// engram's plates). Lit, also glowing faintly of itself, and its lit parts kept bright",
-        "// and in the dynamic glow, breathing; the tiers climb in how bright. The engram's",
-        "// plates also breathe out and back (deformVertexes) and its facets flash with a sheen",
-        "// read by the view as they turn.",
+        "// cube, the Great Holocron's pentagons, the Sith pyramid, the engram). Lit (through",
+        "// its baked normal map when sculpted), also glowing faintly of itself, and its lit",
+        "// parts kept bright and in the dynamic glow, breathing; the tiers climb in how",
+        "// bright. The engram's plates also breathe out and back (deformVertexes) and flash",
+        "// with a sheen read by the view as they turn.",
         "// Made by scripts/holocron_assets.py from its TIERS table: edit that, not this.",
     ]
     for tier in TIERS:
@@ -814,12 +691,13 @@ def kyber_shader() -> str:
     return "\n".join(lines) + "\n"
 
 
-def lit_shader(name: str, own: float) -> list:
+def lit_shader(name: str, own: float, extra=()) -> list:
     """A material lit by the world that also glows faintly of itself (a wave of no
-    amplitude is a constant), so it never reads black with the light behind it."""
+    amplitude is a constant), so it never reads black with the light behind it;
+    `extra` lines go in its lit stage."""
     return (
         [name, "{", "\tq3map_nolightmap"]
-        + stage(f"map {name}", "rgbGen lightingDiffuse")
+        + stage(f"map {name}", *extra, "rgbGen lightingDiffuse")
         + stage(f"map {name}", "blendFunc GL_ONE GL_ONE", f"rgbGen wave sin {own:g} 0 0 0")
         + ["}"]
     )
@@ -827,22 +705,23 @@ def lit_shader(name: str, own: float) -> list:
 
 def parts_shader() -> str:
     lines = [
-        "// The holocrons' other materials (SJK; see README.md): steel (the cube's edges, the",
-        "// pyramid's foot, the kyber crystals' sheaths and rings), the Sith pyramid's dark",
-        "// metal, each tier's light (lamps, edges, halo, seam, eye, motes, sparks): full",
-        "// bright, breathing in the glow as the tier's face does; and the engram's seams",
-        "// (pulsing, breathing with the plates) and its white-hot core (pulsing in the glow).",
+        "// The holocrons' other materials (SJK; see README.md): steel (the kyber crystals'",
+        "// sheaths and rings), the Sith pyramid's sculpted cap, each tier's light (edges,",
+        "// halo, eye, motes, sparks): full bright, breathing in the glow as the tier's face",
+        "// does; and the engram's seams (pulsing, breathing with the plates) and its",
+        "// white-hot core (pulsing in the glow).",
         "// Made by scripts/holocron_assets.py: edit that, not this.",
     ]
     lines += lit_shader(f"models/sjk/{forms.STEEL}", 0.3)
-    lines += lit_shader(f"models/sjk/{forms.DARK}", 0.35)
+    cap = "holocron_legendary_cap"
+    lines += lit_shader(f"models/sjk/{cap}", SITH_CAP_OWN, normal_map_line(cap))
     for tier in TIERS:
         lines += light_shader(tier)
     name = "models/sjk/holocron_mythical"
     lines += (
         [f"{name}_seam", "{", "\tq3map_nolightmap", f"\tdeformVertexes wave {ENGRAM_BREATH}"]
         + stage(f"map {name}_seam", "rgbGen identity")
-        + stage(f"map {name}_seam", "blendFunc GL_ONE GL_ONE", "rgbGen wave sin 0.3 0.25 0 0.8", "glow")
+        + stage(f"map {name}_seam", "blendFunc GL_ONE GL_ONE", "rgbGen wave sin 0.2 0.18 0 0.8", "glow")
         + ["}"]
     )
     lines += (
@@ -978,7 +857,6 @@ def tiers(output: Path, art: dict) -> None:
     }
     base = np.asarray(Image.open(output / "holocron.jpg").convert("RGB")).astype(float)
     steel = steel_picture(base)
-    dark = dark_picture()
     files = []
 
     def picture(name: str, rgb: np.ndarray) -> None:
@@ -987,10 +865,9 @@ def tiers(output: Path, art: dict) -> None:
 
     looks = {
         forms.STEEL: forms.Look(steel, own_light=0.3),
-        forms.DARK: forms.Look(dark, own_light=0.35),
     }
     for tier in ALL_TIERS:
-        face_picture, glow_picture = form_layers(base, steel, dark, tier, art)
+        face_picture, glow_picture = form_layers(base, steel, tier, art)
         name = f"holocron_{tier.id}"
         files += [("model", model) for model in write_form(output, tier)]
         picture(name, face_picture)
@@ -1001,6 +878,11 @@ def tiers(output: Path, art: dict) -> None:
         own = ENGRAM_OWN_GLOW[0] if tier.id == "mythical" else tier.self_glow[0]
         looks[name] = forms.Look(face_picture, glow_picture, own_light=own * 0.5)
         looks[forms.light(tier.id)] = forms.Look(lit, lit=False)
+        if tier.id == "legendary":
+            cap = sculpt_picture("sith_pyramid", "cap")
+            picture(f"{name}_cap", cap)
+            picture(f"{name}_cap_locked", locked_face(cap))
+            looks[f"{name}_cap"] = forms.Look(cap, own_light=SITH_CAP_OWN * 0.5)
         if tier.id == "mythical":
             extras = engram_extras(tier)
             for part, rgb in extras.items():
@@ -1017,11 +899,12 @@ def tiers(output: Path, art: dict) -> None:
         small_icon(icon_picture).save(output / f"holocron_{tier.id}_small.png", optimize=True)
     picture(forms.STEEL, steel)
     picture(forms.locked_material(forms.STEEL), locked_face(steel))
-    picture(forms.DARK, dark)
-    picture(forms.locked_material(forms.DARK), locked_face(dark))
     picture(forms.LIGHT_LOCKED, locked_face(light_picture(TIERS[1])))
     sheen(output)
     files.append(("picture", SHEEN_NAME))
+    for material, source in NORMAL_MAPS:
+        Image.open(source).convert("RGB").save(output / f"{material}_n.png", optimize=True)
+        files.append(("normal_map", f"{material}_n"))
     for file, text in (
         ("holocron_tiers", tier_shader()),
         ("holocron_kyber", kyber_shader()),

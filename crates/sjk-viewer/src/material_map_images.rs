@@ -244,6 +244,26 @@ fn load(
     Ok(Some(MapImage { key, pixels }))
 }
 
+/// The normal map a stage names with `normalMap` (or `normalHeightMap`), decoded and
+/// converted like a found one; never one found by name next to the diffuse image.
+pub(super) fn explicit_normal(
+    vfs: &VirtualFileSystem,
+    shaders: &ShaderCatalog,
+    stage: &ShaderStage,
+    cache: &mut HashMap<String, Arc<RgbaImage>>,
+) -> Result<Option<MapImage>, Box<dyn Error>> {
+    let material = &stage.material;
+    let Some(name) = material.normal_map.as_deref() else {
+        return Ok(None);
+    };
+    let Some(path) = shaders.resolve_stage_image(vfs, name)? else {
+        return Ok(None);
+    };
+    load(vfs, path.as_str(), "normal", cache, |pixels| {
+        convert_normal(pixels, material.normal_height)
+    })
+}
+
 /// RGB stays the encoded normal; alpha becomes depth (`255 - height`) for parallax,
 /// or opaque when the map carries no height.
 pub(super) fn convert_normal(source: &RgbaImage, height: bool) -> RgbaImage {
