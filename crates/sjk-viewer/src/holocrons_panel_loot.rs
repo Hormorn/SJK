@@ -90,7 +90,12 @@ fn notes() -> [String; 7] {
         ),
         "The card is picked evenly among the cards of its rarity; a rarity with no card yet stays sealed.".to_owned(),
         "Gifts from the SJK team are given, not found; they open the same way.".to_owned(),
-        format!("Bonus banner, on top: {} / {} / {} / {} (Uncommon to Mythical).", loot::percent(f64::from(table.banner[0])/1000.0), loot::percent(f64::from(table.banner[1])/1000.0), loot::percent(f64::from(table.banner[2])/1000.0), loot::percent(f64::from(table.banner[3])/1000.0)),
+        // Said only while the hub drops banners (off since 08/11/2026: unfinished).
+        if table.banner.iter().all(|odds| *odds == 0) {
+            String::new()
+        } else {
+            format!("Bonus banner, on top: {} / {} / {} / {} (Uncommon to Mythical).", loot::percent(f64::from(table.banner[0])/1000.0), loot::percent(f64::from(table.banner[1])/1000.0), loot::percent(f64::from(table.banner[2])/1000.0), loot::percent(f64::from(table.banner[3])/1000.0))
+        },
         EDITION_NOTE.to_owned(),
     ]
     .map(crate::terms::say_owned)
@@ -853,7 +858,7 @@ impl Panel {
             "How it rolls",
         );
         let mut y = GRID_TOP - 6.0;
-        for note in &notes() {
+        for note in notes().iter().filter(|note| !note.is_empty()) {
             for (line, part) in wrap(note, NOTES_CHARS).enumerate() {
                 if line == 0 {
                     let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {

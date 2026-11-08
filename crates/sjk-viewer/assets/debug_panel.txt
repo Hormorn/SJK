@@ -24,6 +24,16 @@
 
 # ---- Console & chat ----
 
+[banners-off]
+area: Menus & settings
+title: Profile banners out of the game for now (unfinished)
+change: Collection has no Banners tab; holocron odds no longer mention bonus banners.
+change: The hub drops none, shows no worn or held banner and refuses equipping one.
+test: Collection row: Cards then History, no Banners; Tab cycles past it.
+test: Profile header, player card and chat sender cards: no cover, even one worn before.
+test: Holocrons > loot odds: no "Bonus banner" note.
+note: Needs the hub's banners-off change deployed and SJK_HUB_BANNER_MIN_CLIENT off.
+
 [spawn-panel]
 area: Console & chat
 title: Spawn list: NPCs, vehicles and cheats picked from a list (spawn_panel)
