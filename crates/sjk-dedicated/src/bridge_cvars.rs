@@ -37,11 +37,15 @@ impl NativeGame {
     /// settings, the server-info string everyone is sent, and the announcement of a
     /// tracked variable (`print "Server: %s changed to %s\n"`).
     pub(super) fn apply_cvars(&mut self) {
+        self.update_mod_info();
         let mut seen = std::mem::take(&mut self.cvars_seen);
         let changed = self.cvars.changed_since(&mut seen);
         self.cvars_seen = seen;
         if !changed.is_empty() {
             self.cvars_generation += 1;
+            self.update_mod_movement();
+            self.mod_combat = crate::server_mods::combat(self.server_mod, &self.cvars);
+            self.mod_force = crate::server_mods::force(self.server_mod, &self.cvars);
         }
         for name in changed {
             let Some(var) = self.cvars.var(&name) else {
@@ -80,8 +84,59 @@ impl NativeGame {
         self.cvars_primed = true;
     }
 
+    /// The movement a player of this server moves by: the bare `Pmove`, with the rules of
+    /// the running server mod (`crate::server_mods`).
+    pub(super) fn movement_config(&self) -> sjk_game_jka::pmove::MovementConfig {
+        let mut config = super::bridge_maps::authoritative();
+        self.mod_movement.apply(&mut config);
+        config
+    }
+
+    /// The Force rules every Force update and throw runs by: the running server mod's
+    /// (`crate::server_mods`), the base game's without one.
+    pub(super) fn force_rules(&self) -> sjk_game_jka::force_rules::ForceRules {
+        self.mod_force
+    }
+
+    /// The server info the running mod works out from its settings (JA+'s `jp_cinfo`),
+    /// written into those settings before the changes are looked at, so that it goes out
+    /// with the change that caused it.
+    fn update_mod_info(&mut self) {
+        let Some(server_mod) = self.server_mod else {
+            return;
+        };
+        for (name, value) in server_mod.derived_info(&self.cvars) {
+            if self.cvars.string(name.as_bytes()) != value.as_bytes() {
+                self.cvars.set(name.as_bytes(), value.as_bytes());
+            }
+        }
+    }
+
+    /// The movement rules the mod's settings select now, put into every player's moves
+    /// at once, as the clients predict them from the server info just changed. The
+    /// animation fixes are the mod's for the server's whole life, so the level's
+    /// `CS_LEGACY_FIXES` stays as it is. Its private-duel rules follow too.
+    fn update_mod_movement(&mut self) {
+        self.duel_rules = crate::server_mods::duels(self.server_mod, &self.cvars);
+        let movement = crate::server_mods::movement(self.server_mod, &self.cvars);
+        if movement == self.mod_movement {
+            return;
+        }
+        debug_assert_eq!(movement.legacy_fixes, self.mod_movement.legacy_fixes);
+        self.mod_movement = movement;
+        if let Some(world) = self.server.world_mut(self.world) {
+            for (_, peer) in world.entities_mut() {
+                let mut config = peer.movement.config();
+                movement.apply(&mut config);
+                peer.movement.set_config(config);
+            }
+        }
+    }
+
     /// `Cvar_Get` of a latched variable when a level is built (`SV_Map_f`'s
-    /// `g_gametype`): a change waiting for the next map takes effect.
+    /// `g_gametype`, and the running mod's latched settings, which its game module
+    /// registers again as every level starts): a change waiting for the next map takes
+    /// effect.
     pub(super) fn take_latched_cvars(&mut self) {
         self.cvars.get(
             b"g_gametype",
@@ -89,6 +144,18 @@ impl NativeGame {
             CVAR_SERVERINFO | crate::cvars::CVAR_LATCH,
             None,
         );
+        if let Some(server_mod) = self.server_mod {
+            for cvar in server_mod.cvars() {
+                if cvar.flags & sjk_server_mod::flags::LATCH != 0 {
+                    self.cvars.get(
+                        cvar.name.as_bytes(),
+                        cvar.default.as_bytes(),
+                        cvar.flags | crate::cvars::CVAR_VM_CREATED,
+                        None,
+                    );
+                }
+            }
+        }
         self.apply_cvars();
     }
 
@@ -227,3 +294,186 @@ pub(super) const SERVERINFO_DEFAULTS: [(&str, &str); 20] = [
     ("g_redTeam", "Empire"),
     ("g_blueTeam", "Rebellion"),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::NativeGame;
+    use crate::bridge::Identity;
+    use crate::cvars::Cvars;
+    use sjk_network::LegacyGameHost;
+    use sjk_protocol::InfoString;
+
+    /// A server without a map whose start had `g_mod` set to `server_mod`, as a
+    /// `+set g_mod japlus` gives it.
+    fn started(server_mod: &str) -> NativeGame {
+        let mut cvars = Cvars::new();
+        cvars.set(b"g_mod", server_mod.as_bytes());
+        cvars.register_server();
+        let identity = Identity {
+            hostname: b"test".to_vec(),
+            mapname: b"mp/ffa3".to_vec(),
+        };
+        NativeGame::with_cvars(identity, None, 4, 4, cvars).unwrap()
+    }
+
+    fn info(game: &NativeGame, key: &str) -> Option<String> {
+        let text = String::from_utf8(game.status_info.clone()).unwrap();
+        InfoString::parse(&text)
+            .unwrap()
+            .get(key)
+            .map(str::to_owned)
+    }
+
+    fn legacy_fixes(game: &NativeGame) -> Vec<u8> {
+        let index = sjk_game_jka::pmove_rules::CS_LEGACY_FIXES;
+        let (_, value) = game
+            .config_strings
+            .iter()
+            .find(|(known, _)| *known == index)
+            .unwrap();
+        value.clone()
+    }
+
+    #[test]
+    fn the_base_game_announces_and_moves_as_before() {
+        let game = started("base");
+        assert_eq!(info(&game, "gamename").as_deref(), Some("basejka"));
+        assert_eq!(info(&game, "jp_cinfo"), None);
+        assert!(!game.movement_config().ja_plus.enabled);
+        assert_eq!(legacy_fixes(&game), b"7");
+        assert!(game.cvars.var(b"jp_allowflipkick").is_none());
+        assert_eq!(game.server_info().game_directory, b"");
+    }
+
+    #[test]
+    fn ja_plus_announces_itself_and_moves_by_what_it_announces() {
+        let game = started("japlus");
+        assert_eq!(info(&game, "gamename").as_deref(), Some("JA+ Mod v2.4 B7"));
+        assert_eq!(info(&game, "V").as_deref(), Some("2.4B7"));
+        assert_eq!(info(&game, "sjk").as_deref(), Some("1"));
+        assert_eq!(game.server_info().game_directory, b"japlus");
+        // Flip kick, roll fix 1 and the improved yellow DFA: JA+'s defaults that run.
+        assert_eq!(info(&game, "jp_cinfo").as_deref(), Some("19"));
+        assert_eq!(info(&game, "jp_gripSpeedScale").as_deref(), Some("0.8"));
+        let config = game.movement_config();
+        assert!(config.ja_plus.enabled && config.ja_plus.flip_kick && config.ja_plus.yellow_dfa);
+        assert_eq!(config.roll_rules.fix_roll, 1);
+        assert!(config.authoritative);
+        // JA+ runs none of OpenJK's animation fixes, and says so.
+        assert_eq!(config.legacy_fixes, 0);
+        assert_eq!(legacy_fixes(&game), b"0");
+    }
+
+    #[test]
+    fn a_ja_plus_setting_changed_in_game_reaches_the_info_and_the_moves() {
+        let mut game = started("JAPLUS");
+        game.set_cvar("jp_allowflipkick", "0");
+        game.set_cvar("jp_fixRoll", "3");
+        assert_eq!(info(&game, "jp_cinfo").as_deref(), Some("30"));
+        let config = game.movement_config();
+        assert!(!config.ja_plus.flip_kick);
+        assert_eq!(config.roll_rules.fix_roll, 3);
+    }
+
+    #[test]
+    fn the_combat_rules_follow_the_mod_and_its_settings() {
+        let game = started("base");
+        assert_eq!(game.mod_combat, sjk_server_mod::ModCombat::default());
+        let mut game = started("japlus");
+        let saber = game.mod_combat.saber;
+        assert!(saber.enabled && !saber.move_damage && !saber.touch_damage);
+        assert!(game.mod_combat.kill.suicide_credits_last_attacker);
+        assert!(game.mod_combat.kill.refused_in_team_games);
+        game.set_cvar("jp_alterDMG", "1");
+        game.set_cvar("jp_SingleFastOtherAttack", "20");
+        game.set_cvar("jp_allowTeamKill", "1");
+        let saber = game.mod_combat.saber;
+        assert!(saber.move_damage && saber.halved_on_sabers);
+        assert_eq!(saber.moves.fast_other, 20);
+        assert_eq!(saber.throw_scale, Some(1.0));
+        assert!(!game.mod_combat.kill.refused_in_team_games);
+    }
+
+    #[test]
+    fn the_duel_rules_are_the_base_games_or_follow_the_ja_plus_settings() {
+        let game = started("base");
+        assert_eq!(game.duel_rules, sjk_game_jka::duel::DuelRules::default());
+        let mut game = started("japlus");
+        assert!(game.duel_rules.ja_plus && game.duel_rules.isolation);
+        assert_eq!(info(&game, "jp_DuelAlpha").as_deref(), Some("100"));
+        game.set_cvar("jp_DuelAlpha", "-1");
+        game.set_cvar("jp_removeDistanceDuelLimit", "0");
+        assert!(!game.duel_rules.isolation && game.duel_rules.distance_limit);
+        assert_eq!(info(&game, "jp_DuelAlpha").as_deref(), Some("-1"));
+    }
+
+    #[test]
+    fn g_mod_waits_for_the_next_start_and_an_unknown_one_is_the_base_game() {
+        let mut game = started("japlus");
+        game.cvar_line(b"g_mod base", &mut |_| {});
+        assert_eq!(info(&game, "gamename").as_deref(), Some("JA+ Mod v2.4 B7"));
+        assert!(game.movement_config().ja_plus.enabled);
+        let game = started("nonesuch");
+        assert_eq!(info(&game, "gamename").as_deref(), Some("basejka"));
+        assert!(!game.movement_config().ja_plus.enabled);
+    }
+
+    #[test]
+    fn the_base_game_keeps_its_force_rules_whatever_ja_plus_settings_say() {
+        let mut game = started("base");
+        let base = sjk_game_jka::force_rules::ForceRules::default();
+        assert_eq!(game.force_rules(), base);
+        game.set_cvar("g_friendlyFire", "1");
+        game.set_cvar("jp_pushPullKnockDown", "1");
+        game.set_cvar("jp_cloakFuel", "0");
+        assert_eq!(game.force_rules(), base);
+        // Gripping keeps the base game's 0.4.
+        assert_eq!(info(&game, "jp_gripSpeedScale"), None);
+        assert!(!game.movement_config().ja_plus.enabled);
+    }
+
+    #[test]
+    fn ja_plus_force_rules_change_with_their_settings_at_once() {
+        use sjk_game_jka::force_rules::GripOpenSaber;
+        let mut game = started("japlus");
+        let rules = game.force_rules();
+        assert!(rules.throw_knocked_down && !rules.throw_teammates);
+        assert_eq!(rules.absorb_gain_scale, 2.0);
+        assert!(rules.grip_while_rolling && rules.cloak_drains);
+        game.set_cvar("g_friendlyFire", "1");
+        game.set_cvar("jp_gripOpenSaber", "2");
+        game.set_cvar("jp_fixRoll", "0");
+        game.set_cvar("jp_cloakFuel", "0");
+        let rules = game.force_rules();
+        assert!(rules.throw_teammates && !rules.grip_while_rolling && !rules.cloak_drains);
+        assert_eq!(rules.grip_open_saber, GripOpenSaber::LowForceDrops);
+    }
+
+    #[test]
+    fn ja_plus_grip_speed_reaches_the_info_and_the_moves() {
+        let mut game = started("japlus");
+        assert_eq!(game.movement_config().ja_plus.grip_speed, 0.8);
+        game.set_cvar("jp_gripSpeedScale", "1");
+        assert_eq!(info(&game, "jp_gripSpeedScale").as_deref(), Some("1"));
+        assert_eq!(game.movement_config().ja_plus.grip_speed, 1.0);
+        // What a client reads from that info is what the server moves by.
+        let mut state = sjk_protocol::GameState::empty_local(0);
+        state
+            .replace_config_string(0, game.status_info.clone())
+            .unwrap();
+        assert_eq!(
+            sjk_game_jka::pmove_japlus::JaPlusRules::from_game_state(&state),
+            game.movement_config().ja_plus
+        );
+    }
+
+    #[test]
+    fn a_latched_ja_plus_setting_waits_for_the_next_map() {
+        let mut game = started("japlus");
+        assert_eq!(game.force_rules().push_items, 1);
+        game.cvar_line(b"jp_pushAll 0", &mut |_| {});
+        assert_eq!(game.force_rules().push_items, 1);
+        game.take_latched_cvars();
+        assert_eq!(game.force_rules().push_items, 0);
+    }
+}

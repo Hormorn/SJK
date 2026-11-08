@@ -1,0 +1,15 @@
+[package]
+name = "sjk-server-mod-japlus"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "JA+ 2.4 B7's rules for SJK's dedicated server (g_mod japlus)"
+
+[lints]
+workspace = true
+
+[dependencies]
+sjk-game-jka.workspace = true
+sjk-protocol.workspace = true
+sjk-server-mod.workspace = true

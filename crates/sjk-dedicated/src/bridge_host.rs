@@ -57,7 +57,9 @@ impl LegacyGameHost for NativeGame {
         LegacyServerInfo {
             hostname: &self.identity.hostname,
             mapname: &self.identity.mapname,
-            game_directory: b"",
+            game_directory: self
+                .server_mod
+                .map_or(b"", |server_mod| server_mod.game_directory().as_bytes()),
             clients: peers,
             humans: peers,
             max_clients: self

@@ -97,9 +97,9 @@ const ACHIEVEMENT_PAGE_BASE: u16 = 6_200;
 /// found (`achievements::secret_kind`), up to the pages' switch after them.
 const WALL_MAX: usize = (ACHIEVEMENT_PAGE_BASE - ACHIEVEMENT_BASE) as usize;
 const _: () = assert!(crate::achievements::ALL.len() + 8 <= WALL_MAX);
-/// The shaders' rows have a range of their own, 7000 to 7299, for a catalogue of up
-/// to 299 skins (the stock blade is row 0).
-const SHADER_BASE: u16 = 7_000;
+/// The shaders' rows have a range of their own, 6900 to 7299, for a catalogue of up
+/// to 399 skins (the stock blade is row 0).
+const SHADER_BASE: u16 = 6_900;
 const SHADER_LIMIT: u16 = 7_300;
 /// The click every page plays for a press.
 fn ui_cues_click() {
@@ -140,6 +140,9 @@ const FISHING_TOKEN: u16 = 1_378;
 const SELL_JUNK_TOKEN: u16 = 1_395;
 /// Fishing's place among the toys (`collection_toys::TOYS`).
 const FISHING_TOY: usize = 10;
+/// The WHEEL OF DOOM's niche on Toys, and its place among the toys.
+const WHEEL_OF_DOOM_TOKEN: u16 = 1_396;
+const WHEEL_OF_DOOM_TOY: usize = 11;
 /// The Toys tab's "?", the Toy Master's (`collection_toys::Panel::toy_master_badge`): its
 /// hover card tells of the toys hidden on maps and names those the player found.
 const TOY_MASTER_TOKEN: u16 = 1_376;
@@ -161,9 +164,9 @@ const BOTH_TOKEN: u16 = 1_306;
 /// How far (frame pixels) a press on the lone saber may move and still be a click.
 const CLICK_SLOP: f32 = 6.0;
 /// The toys the Toys tab shows: Illuminate, the cardboard box, Order 66, the Hax, the
-/// Ragdoll, the Drone, the Boombox, the Monitor, Box hunt, the Banana peel, then
-/// Fishing.
-const TOY_COUNT: usize = 11;
+/// Ragdoll, the Drone, the Boombox, the Monitor, Box hunt, the Banana peel, Fishing,
+/// then the WHEEL OF DOOM.
+const TOY_COUNT: usize = 12;
 /// Each toy's row, in the order of [`Panel::toy`].
 const TOY_TOKENS: [u16; TOY_COUNT] = [
     TOY_TOKEN,
@@ -177,6 +180,7 @@ const TOY_TOKENS: [u16; TOY_COUNT] = [
     BOX_HUNT_TOKEN,
     BANANA_TOKEN,
     FISHING_TOKEN,
+    WHEEL_OF_DOOM_TOKEN,
 ];
 /// Each toy row's own switch (25/10/2026): it turns that toy on or off in place, a token
 /// a toy from here on, below [`FAVOURITE_TOKEN`].
@@ -263,6 +267,10 @@ const FILTER_FAVOURITE_TOKEN: u16 = 7_320;
 const _: () =
     assert!(SORT_BASE as usize + ShaderSort::ALL.len() <= FILTER_FAVOURITE_TOKEN as usize);
 const _: () = assert!(FILTER_FAVOURITE_TOKEN < CARD_BASE);
+/// The edition chip (06/11/2026, Sol's collections): All, then each edition by turn.
+const FILTER_EDITION_TOKEN: u16 = 7_321;
+const _: () = assert!(FILTER_FAVOURITE_TOKEN < FILTER_EDITION_TOKEN);
+const _: () = assert!(FILTER_EDITION_TOKEN < CARD_BASE);
 /// The most characters a search holds.
 const SEARCH_MAX: usize = 24;
 /// The tiers the Forge's chips filter by, after All, the commonest first, as its Craft
@@ -294,7 +302,8 @@ const STRIP_TIERS_WITH_UNIQUE: [unlockables::Rarity; 6] = [
 ];
 
 /// What the Shaders tab lists: a tier, the shaders held only, the chromas only, the
-/// favourites only (29/10/2026), and words of a name (or a tier) or a blade's number the
+/// favourites only (29/10/2026), one edition (06/11/2026, [`crate::editions`]: Sol's
+/// collections, Alpha and Beta), and words of a name (or a tier) or a blade's number the
 /// search names. The stock blade is always the first row.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct ShaderFilter {
@@ -302,6 +311,8 @@ pub(super) struct ShaderFilter {
     pub(super) owned: bool,
     pub(super) chroma: bool,
     pub(super) favourite: bool,
+    /// One edition's id (`crate::editions::ALL`), `None` for every edition.
+    pub(super) edition: Option<&'static str>,
     pub(super) query: String,
 }
 
@@ -312,6 +323,7 @@ impl ShaderFilter {
             || self.owned
             || self.chroma
             || self.favourite
+            || self.edition.is_some()
             || !self.query.trim().is_empty()
     }
 
@@ -326,6 +338,7 @@ impl ShaderFilter {
             || (self.owned && !owned)
             || (self.chroma && !skin.chroma)
             || (self.favourite && !favourite)
+            || self.edition.is_some_and(|edition| edition != skin.edition)
         {
             return false;
         }
@@ -438,6 +451,9 @@ pub(crate) enum PanelAction {
     Fishing(bool),
     /// Sell the fished junk to the hub: the same as `fishing_sell`.
     SellJunk,
+    /// Press the WHEEL OF DOOM's switch: the same as `toy_wheelofdoom` (the first shows
+    /// the price, a second spins).
+    WheelOfDoom,
     /// Set `cg_tag` to this tag's id: the one `toy_tag` sticks.
     /// Pick a tag (or a card) for `toy_tag`, in a finish (`cg_tag`, `cg_tagFinish`).
     ChooseTag(String, &'static str),
@@ -624,6 +640,8 @@ pub(crate) struct Inputs<'a> {
     /// The Fishing card's catches and junk sale, as the viewer last gave them; none
     /// lists nothing.
     pub(crate) fishing_card: Option<&'a crate::fishing_sell::Card>,
+    /// A WHEEL OF DOOM of the player's spins, or one of its effects runs.
+    pub(crate) wheel_of_doom: bool,
     /// The `name` cvar, for the nameplate.
     pub(crate) name: &'a str,
     /// The stock blade's colour (`color1`), for its swatch.
@@ -1283,6 +1301,7 @@ impl Panel {
             Tab::Toys if self.toy == 8 => PanelAction::BoxHunt(!self.box_hunt_on),
             Tab::Toys if self.toy == 9 => PanelAction::Banana(!self.banana_on),
             Tab::Toys if self.toy == FISHING_TOY => PanelAction::Fishing(!self.fishing_on),
+            Tab::Toys if self.toy == WHEEL_OF_DOOM_TOY => PanelAction::WheelOfDoom,
             Tab::Toys => PanelAction::Illuminate(!illuminate),
             Tab::Nameplates => PanelAction::SeeAndShare(!self.share_on),
             Tab::Tags => self.choose_tag(),
@@ -1501,6 +1520,7 @@ impl Panel {
                 KeyCode::KeyT => return self.cycle_tier(shift),
                 KeyCode::KeyO => return self.toggle_owned(),
                 KeyCode::KeyC if !control => return self.toggle_chroma(),
+                KeyCode::KeyE if !control => return self.cycle_edition(shift),
                 KeyCode::KeyS if !self.grid && !control => {
                     return self.sort_by(self.shader_sort.next(self.shader_numbers));
                 }
@@ -1665,6 +1685,25 @@ impl Panel {
             (at + 1) % count
         };
         self.shader_filter.tier = next.checked_sub(1).map(|index| tiers[index]);
+        self.filter_changed()
+    }
+
+    /// Show one edition of shaders (E): the next one (the previous with Shift), every
+    /// edition again after the last.
+    fn cycle_edition(&mut self, back: bool) -> PanelAction {
+        let editions = &crate::editions::ALL;
+        let at = self
+            .shader_filter
+            .edition
+            .and_then(|id| editions.iter().position(|edition| edition.id == id))
+            .map_or(0, |index| index + 1);
+        let count = editions.len() + 1;
+        let next = if back {
+            (at + count - 1) % count
+        } else {
+            (at + 1) % count
+        };
+        self.shader_filter.edition = next.checked_sub(1).map(|index| editions[index].id);
         self.filter_changed()
     }
 
@@ -2243,6 +2282,9 @@ impl Panel {
             if token == FILTER_FAVOURITE_TOKEN {
                 return self.toggle_favourites_only();
             }
+            if token == FILTER_EDITION_TOKEN {
+                return self.cycle_edition(false);
+            }
             if let Some(sort) = token
                 .checked_sub(SORT_BASE)
                 .and_then(|index| ShaderSort::ALL.get(usize::from(index)))
@@ -2419,7 +2461,8 @@ impl Panel {
             SEEN_ALL_TOKEN => self.see_all(),
             // A toy's row chooses it; its own switch runs it.
             TOY_TOKEN | BOX_TOKEN | ORDER_TOKEN | HAX_TOKEN | RAGDOLL_TOKEN | DRONE_TOKEN
-            | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN => {
+            | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN
+            | WHEEL_OF_DOOM_TOKEN => {
                 self.toy = TOY_TOKENS.iter().position(|&row| row == token).unwrap_or(0);
                 PanelAction::None
             }
@@ -2656,6 +2699,7 @@ mod tests {
             banana: false,
             fishing: false,
             fishing_card: None,
+            wheel_of_doom: false,
             name: "^1Sol^7Vulpes",
             stock: sjk_ui::Color::new(0.16, 0.48, 1.0, 1.0),
             grid: false,
@@ -2729,6 +2773,38 @@ mod tests {
         assert_eq!(found, [2]);
     }
 
+    /// The Edition chip (E, 06/11/2026) lists one edition alone: Alpha, then Beta
+    /// (Creyon's round, 130 blades), then every edition again; Shift goes back.
+    #[test]
+    fn the_edition_filter_lists_one_edition_and_comes_round() {
+        let held = [sun()];
+        let inputs = inputs(Holdings::Known(&held), "");
+        let mut panel = drawn(Tab::Shaders, &inputs);
+        let all = ids(&panel);
+        assert!(
+            panel.ui.rect_for(FILTER_EDITION_TOKEN).is_some(),
+            "the chip"
+        );
+        let _ = panel.cycle_edition(false);
+        redraw(&mut panel, &inputs);
+        assert_eq!(panel.shader_filter.edition, Some(crate::editions::ALPHA));
+        let alpha = ids(&panel);
+        let _ = panel.cycle_edition(false);
+        redraw(&mut panel, &inputs);
+        assert_eq!(panel.shader_filter.edition, Some(crate::editions::BETA));
+        let beta = ids(&panel);
+        assert_eq!(beta.len(), 130);
+        assert_eq!(alpha.len() + beta.len(), all.len());
+        assert!(beta.iter().all(|id| !alpha.contains(id)));
+        let _ = panel.cycle_edition(false);
+        redraw(&mut panel, &inputs);
+        assert_eq!(panel.shader_filter.edition, None);
+        assert_eq!(ids(&panel), all, "every edition again after the last");
+        let _ = panel.cycle_edition(true);
+        assert_eq!(panel.shader_filter.edition, Some(crate::editions::BETA));
+        assert!(panel.shader_filter.active());
+    }
+
     /// A tier's segment lists that tier's shaders alone, the rarest first as the wall
     /// stands; cycling comes round to All again.
     #[test]
@@ -2760,7 +2836,7 @@ mod tests {
         let _ = panel.cycle_tier(true);
         redraw(&mut panel, &inputs);
         assert_eq!(panel.shader_filter.tier, Some(unlockables::Rarity::Common));
-        assert_eq!(ids(&panel).len(), 43);
+        assert_eq!(ids(&panel).len(), 68);
         // C lists the chromas only.
         panel.shader_filter = ShaderFilter::default();
         let _ = panel.toggle_chroma();
@@ -2809,7 +2885,7 @@ mod tests {
         assert_eq!(ids(&panel), ["saber_tidal"]);
         panel.shader_filter.query = "creyon".to_owned();
         redraw(&mut panel, &inputs);
-        assert_eq!(ids(&panel).len(), 151, "the saber smith is searched");
+        assert_eq!(ids(&panel).len(), 281, "the saber smith is searched");
         panel.shader_filter.query = "mythical".to_owned();
         redraw(&mut panel, &inputs);
         assert_eq!(
@@ -2827,6 +2903,23 @@ mod tests {
                 "saber_world_shift",
                 "saber_exegol_rift",
                 "saber_varykino_blossom",
+                "saber_vulptex_crystalfire",
+                "saber_zeffo_thunderchorus",
+                "saber_moraband_erasure",
+                "saber_wellspring_triad",
+                "saber_atollon_gathering",
+                "saber_korriban_ragnos",
+                "saber_tatooine_krayt_spine",
+                "saber_dromund_kaas_vitiate",
+                "saber_utapau_whirlwind",
+                "saber_wayland_gravity_press",
+                "saber_lehon_maelstrom",
+                "saber_nihilus_hunger",
+                "saber_moon",
+                "saber_exar_kun_temple",
+                "saber_vergence_scatter",
+                "saber_taris_undercity",
+                "saber_angel",
             ]
         );
         panel.shader_filter.query = "nothing".to_owned();

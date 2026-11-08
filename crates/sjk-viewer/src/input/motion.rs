@@ -294,6 +294,11 @@ impl GpuState {
         } else {
             delta
         };
+        // The WHEEL OF DOOM's inverted, mirrored or drunk mouse (`wheel_of_doom`).
+        let delta = self
+            .wheel_of_doom
+            .effects
+            .shape_look(delta, std::time::Instant::now());
         self.camera_yaw = crate::input::view_authority::wrap_yaw(self.camera_yaw + delta[0]);
         self.camera_pitch = (self.camera_pitch + delta[1]).clamp(
             -crate::input::view_authority::PITCH_LIMIT,

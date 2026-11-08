@@ -10,6 +10,10 @@
 //! offers the finishes, Normal, Holo and Solar: one the player holds a copy in can be
 //! chosen, and `cg_tagFinish` keeps it. A tile shows the Holo and Solar copies held.
 //!
+//! Since 08/11/2026 (Sol) the tags stand under a heading for each of their collections
+//! ([`crate::tags::COLLECTIONS`]: Alpha, then Community), the card naming the chosen
+//! tag's.
+//!
 //! Since 03/11/2026 (Blep's idea, `crate::tag_copies`), on a hub that says `tag_copies`,
 //! the card of a dropped tag held twice or more offers Break down (one copy of the finish
 //! shown into kyber shards) and Craft (two spare copies of its tier and finish for a tag
@@ -44,8 +48,7 @@ const PROPOSE: &str = "New tag ideas: SJK's Discord, #tag-proposals";
 pub(super) const MAX_ENTRIES: usize = 100;
 const _: () = assert!(TAG_BASE as usize + MAX_ENTRIES <= 8_200);
 const _: () = assert!(crate::tags::CATALOGUE.len() < MAX_ENTRIES);
-/// The headings of the wall's two parts.
-const TAGS_HEAD: &str = "Tags";
+/// The heading of the credits cards' part of the wall (the tags' are their collections').
 const CARDS_HEAD: &str = "Credits cards";
 
 /// A tag copies button of the card.
@@ -159,17 +162,20 @@ impl Line {
     }
 }
 
-/// The wall's lines for `tags` tags and, under their own heading, `cards` cards.
-pub(super) fn lines(tags: usize, cards: usize) -> Vec<Line> {
+/// The wall's lines for its parts in order, each a heading and how many entries follow
+/// it (a part of none is left out).
+pub(super) fn lines(parts: &[(&'static str, usize)]) -> Vec<Line> {
     let mut lines = Vec::new();
-    for (head, start, count) in [(TAGS_HEAD, 0, tags), (CARDS_HEAD, tags, cards)] {
+    let mut start = 0;
+    for &(head, count) in parts {
         if count == 0 {
             continue;
         }
         lines.push(Line::Head(head));
         let mut at = start;
-        while at < start + count {
-            let end = (at + COLUMNS).min(start + count);
+        start += count;
+        while at < start {
+            let end = (at + COLUMNS).min(start);
             lines.push(Line::Row(at, end));
             at = end;
         }
@@ -389,8 +395,14 @@ impl Panel {
         };
         let cards = crate::tags::tag_cards(me);
         let room = MAX_ENTRIES - crate::tags::CATALOGUE.len();
-        self.tag_entries = crate::tags::CATALOGUE
+        let parts = wall_parts(cards.len().min(room));
+        self.tag_entries = crate::tags::COLLECTIONS
             .iter()
+            .flat_map(|collection| {
+                crate::tags::CATALOGUE
+                    .iter()
+                    .filter(|tag| tag.collection == collection.id)
+            })
             .map(Entry::Tag)
             .chain(cards.into_iter().take(room).map(Entry::Card))
             .collect();
@@ -401,7 +413,7 @@ impl Panel {
             .collect();
         let total = self.tag_entries.len();
         let tags = crate::tags::CATALOGUE.len();
-        self.tag_lines = lines(tags, total - tags);
+        self.tag_lines = lines(&parts);
         let owned = |range: std::ops::Range<usize>| {
             self.tag_held[range]
                 .iter()
@@ -588,7 +600,7 @@ impl Panel {
             TextAlign::Start,
         );
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
-            rect: frame.rect(LEFT_X + 200.0, y + 19.0, width - 200.0, 1.0),
+            rect: frame.rect(LEFT_X + 260.0, y + 19.0, width - 260.0, 1.0),
             radius: 0.5 * frame.s,
             color: color::alpha(color::HOLO, 0.18),
         });
@@ -811,7 +823,7 @@ impl Panel {
         let width = CARD_WIDTH - CARD_PAD * 2.0;
         let mut y = CARD_TOP + CARD_PAD;
         let kind = match entry {
-            Entry::Tag(_) => format!("Tag  ·  {tone_name}"),
+            Entry::Tag(tag) => format!("{} tag  ·  {tone_name}", tag.collection().name),
             Entry::Card(_) => format!("Card tag  ·  {tone_name}"),
         };
         text(
@@ -889,7 +901,7 @@ impl Panel {
             count => format!("Yours, {count} copies."),
         };
         let how = match entry {
-            Entry::Tag(tag) => tag.how_to_get().to_owned(),
+            Entry::Tag(tag) => format!("{} {}", tag.how_to_get(), tag.collection().about),
             Entry::Card(_) => {
                 "A credits card: stick the copies you hold, in their finishes.".to_owned()
             }
@@ -1073,6 +1085,22 @@ fn finish_badge(
     );
 }
 
+/// The wall's parts: each collection's heading and how many tags it holds, then the
+/// `cards` credits cards'.
+fn wall_parts(cards: usize) -> Vec<(&'static str, usize)> {
+    crate::tags::COLLECTIONS
+        .iter()
+        .map(|collection| {
+            let held = crate::tags::CATALOGUE
+                .iter()
+                .filter(|tag| tag.collection == collection.id)
+                .count();
+            (collection.heading, held)
+        })
+        .chain([(CARDS_HEAD, cards)])
+        .collect()
+}
+
 /// What an entry reads as: its name ("Gonk", a card's title), its tier's or kind's name
 /// ("Rare", "Credits") and colour (a card's rank's or rarity's).
 fn entry_words(entry: &Entry) -> (String, String, Color) {
@@ -1113,11 +1141,38 @@ fn picked_finish(inputs: &Inputs<'_>, held: Held) -> &'static str {
 mod tests {
     use super::*;
 
-    /// The tags' rows under their heading, the cards' under theirs.
+    const TAGS_HEAD: &str = "Alpha collection";
+
+    /// The tags stand under their collections, Alpha then Community, then the cards.
     #[test]
-    fn the_wall_has_a_heading_for_tags_and_for_cards() {
+    fn the_tags_stand_under_their_collections() {
+        let parts = wall_parts(2);
         assert_eq!(
-            lines(7, 3),
+            parts,
+            [
+                ("Alpha collection", crate::tags::CATALOGUE.len() - 3),
+                ("Community collection", 3),
+                (CARDS_HEAD, 2),
+            ]
+        );
+        let heads: Vec<_> = lines(&parts)
+            .into_iter()
+            .filter_map(|line| match line {
+                Line::Head(words) => Some(words),
+                Line::Row(..) => None,
+            })
+            .collect();
+        assert_eq!(
+            heads,
+            ["Alpha collection", "Community collection", CARDS_HEAD]
+        );
+    }
+
+    /// Each part's rows under its heading, a part of none left out.
+    #[test]
+    fn the_wall_has_a_heading_for_each_part() {
+        assert_eq!(
+            lines(&[(TAGS_HEAD, 7), (CARDS_HEAD, 3)]),
             [
                 Line::Head(TAGS_HEAD),
                 Line::Row(0, 5),
@@ -1126,14 +1181,17 @@ mod tests {
                 Line::Row(7, 10),
             ]
         );
-        assert_eq!(lines(3, 0), [Line::Head(TAGS_HEAD), Line::Row(0, 3)]);
+        assert_eq!(
+            lines(&[(TAGS_HEAD, 3), (CARDS_HEAD, 0)]),
+            [Line::Head(TAGS_HEAD), Line::Row(0, 3)]
+        );
     }
 
     /// The wall scrolls: from the last first line everything fits, and the arrows bring
     /// the choice into view with its heading.
     #[test]
     fn the_wall_scrolls_and_follows_the_choice() {
-        let wall = lines(17, 13);
+        let wall = lines(&[(TAGS_HEAD, 17), (CARDS_HEAD, 13)]);
         let shown = shown_from(&wall, 0);
         assert!(shown < wall.len(), "{shown} of {}", wall.len());
         let last = last_first(&wall);
@@ -1153,7 +1211,7 @@ mod tests {
     /// Up and Down go a row, past the headings, to the same column or the nearest.
     #[test]
     fn up_and_down_cross_the_headings() {
-        let wall = lines(7, 3);
+        let wall = lines(&[(TAGS_HEAD, 7), (CARDS_HEAD, 3)]);
         assert_eq!(vertical(&wall, 1, true), Some(6));
         assert_eq!(vertical(&wall, 3, true), Some(6), "the short row's last");
         assert_eq!(vertical(&wall, 6, true), Some(8), "into the cards");

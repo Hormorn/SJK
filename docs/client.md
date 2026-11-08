@@ -181,7 +181,12 @@ Presence here describes implemented surfaces; validation limits are in
 Create game starts a child `sjk-server`, normally found beside the client.
 Set `JKA_DEDICATED` to its executable path if installed elsewhere. The child
 lifetime is managed by the client and defaults to local access; see
-[local_server.rs](../crates/sjk-viewer/src/local_server.rs).
+[local_server.rs](../crates/sjk-viewer/src/local_server.rs). The server mod
+chosen on the screen (`ui_hostServerMod`, Base game by default, or JA+) is
+handed over as `--set g_mod <id>`, every time, so a `g_mod` the server
+archived never picks it; the choices are `local_server::SERVER_MODS` (id and
+name), checked by a test against the server's own `server_mods::SERVER_MODS`
+([JA+ mode](server.md#ja-mode)). `devmap` always runs the base game.
 
 Map previews (`levelshots/<map>.jpg`, `.tga` or `.png`) keep the resolution they
 ship in, so an HD levelshot pack stays sharp in a large preview and on the
@@ -1793,6 +1798,42 @@ tests: the hearing point, occlusion from rays and its glide, muffling, loops, th
 from its rays, the reverb bounded and dying away, a larger room ringing longer. Not yet
 heard in a game.
 
+## Weather sounds
+
+`s_weatherSounds` (Settings > Sound, Rain and wind sounds; off by default as it changes
+how stock Jedi Academy sounds, archived; Sol's request, 05/11/2026) plays the game's own
+outdoor loops with the weather ([weather_sound.rs](../crates/sjk-viewer/src/weather_sound.rs),
+[audio_weather.rs](../crates/sjk-viewer/src/audio_weather.rs)): `rainy_lp` and
+`windy1_lp` of `sound/ambience/outdoor/` (`assets0.pk3`), in both ears with the frame's
+loops, registered the first time they are heard.
+
+- Rain is as loud as the rain clouds' haze against a downpour's: `heavyrain` a full loop
+  (0.6 of the effects volume), `rain` 0.57 of it, `lightrain` 0.32; snow, sand and fog
+  make no rain sound.
+- Wind is as loud as the wind's speed across the ground against a gale of 3000 units a
+  second (the gusting wind's strongest, 0.5 of the effects volume), so it rises and falls
+  with the gusts; `constantwind ( -5000 0 0 )` blows at full.
+- Shelter: the weather cover's columns ([rendering.md](rendering.md#weather)) within 192
+  units of the listener, every 64, count by nearness; a column counts as open when its
+  weather comes down to 64 units above the listener and its sky is above them. Under open
+  sky the loops play fully, under a roof or indoors a fifth (the rain on the roof), in a
+  doorway about two thirds. Before the cover is surveyed, and on a map without sky whose
+  own weather falls everywhere, it is heard as open; weather chosen for a map without sky
+  (forced or a map edit's) is neither drawn nor heard.
+- Levels ease over 0.6 seconds; frozen weather and `r_weather 0` are silent. The listener
+  is the camera's position, so a free camera hears the weather where it flies.
+
+The loops are not positioned, so `s_spatial`'s muffling does not apply to them: shelter
+lowers them instead.
+
+With them (05/11/2026): **thunder** after each lightning strike (`r_weatherLightning`,
+[rendering.md](rendering.md#weather)), the game's `thunder_close1`/`2` for a near strike,
+`thunder1` to `4` for a far one, 0.45 to 0.9 loud and at least half of it under a roof (it
+carries indoors better than rain), and **single gusts**: when the wind rises past 55% of a
+gale one of the game's `windy_a` to `_d` plays, 0.35 to 0.8 loud by the gust's strength
+and the shelter, at most every 4 seconds and only once the wind has fallen below 40% again.
+They play in both ears on their own source, after the loops are registered.
+
 ## Muted sounds
 
 `s_muteSounds` (Settings > Sound > Muted sounds, empty by default; akr's and Neffie's
@@ -2292,7 +2333,7 @@ of VIDEO is gone (10/10/2026). The groups are:
 | IMAGE | HDR scene and exposure, eye adaptation (`r_autoExposure`) and its range in EV, filmic tone curve, bloom, dynamic glow (`r_DynamicGlow` 0-3), No glow on sabers (`r_dynamicGlowNoSabers`) and the glow's blur style (`r_dynamicGlowStyle`), FXAA, supersampling (`r_superSample`), render scale (`r_renderScale`, also in the SJK UI's Simple Display; see [Render scale](rendering.md#render-scale-and-supersampling)), soft particles, ambient occlusion (`r_ssao`), sunbeam dust (`r_dustMotes`), per-pixel model lighting, toon models (`r_toonModels`, see [Toon models](rendering.md#toon-models)), reflection probes (`r_cubeMapping`), floor mirrors (`r_floorReflections`), normal and specular maps (`r_normalMapping`, `r_specularMapping`), parallax mapping (`r_parallaxMapping`) and its depth (`r_parallaxStrength`), emission maps (`r_emissiveMaps`), their strength (`r_emissionStrength`) and glow halo (`r_emissiveGlow`) |
 | LIGHTING | Sun and sky (`r_dayNight`), live lighting tier, time of day, time of day from the PC's clock (`r_dayClock`), day length, sunlight brightness, ambient fill and its corner shading, indirect boost, emission-map lights (`r_emissiveLights`), light shafts (`r_volumetrics`) and their clarity |
 | SHADOWS | World and character sun shadows, shadow resolution, sharp and close cascade distances, filter taps, slit closing, contact shadows |
-| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`) and volumetric clouds (`r_clouds`); see [Weather](rendering.md#weather) |
+| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`), volumetric clouds (`r_clouds`) and lightning in storms (`r_weatherLightning`); see [Weather](rendering.md#weather) |
 
 Rows marked "(reload)" are read only when the graphics start and apply after a
 [graphics reload](#graphics-reload); "(next map)" applies when a map loads; the
@@ -2333,6 +2374,12 @@ Vanilla or SJK (alpha), and an SJK quality row of four levels, from 12/10/2026):
   shafts, the richest weather), still in alpha. Its values are the renderer cvars'
   registered defaults, the [default visual profile](rendering.md#default-visual-profile)
   the renderer was tuned for (the former High).
+
+The volumetric clouds (`r_clouds`, Settings > Graphics > WEATHER, "Volumetric clouds") are
+no preset's (Sol, 05/11/2026): off by default and left as the player sets them under every
+preset, so choosing a preset never turns them on or off. Until then Experimental turned them
+on; the release that changed it asks players once on its what's-new card (`= r_clouds
+reset`), starting from off.
 
 While the settings are not Vanilla style's, the detail column of every renderer
 setting carries the alpha warning in gold ([sjk-ui.md](sjk-ui.md#settings)).
@@ -2382,7 +2429,7 @@ surveyed on 26/10/2026 (Sol's request) from JoF EJK's `rd-vanilla/tr_init.cpp`,
 | `r_flares 0` | Off (the preset; SJK's own default is 1) |
 | No HDR, bloom, FXAA (`r_ext_multisample 0`), SSAO, soft particles, material or emission maps, sun, shadows or light shafts | All off (the preset); emission maps are SJK's own `_e` textures |
 | Lighting per vertex on models | `r_modelPixelLight 0` (the preset) |
-| The map's weather at the original density | Density 1, quality 0, no clouds (the preset) |
+| The map's weather at the original density | Density 1, quality 0 (the preset); no clouds (`r_clouds` 0, every preset's default) |
 | `r_picmip 0`, `r_textureMode GL_LINEAR_MIPMAP_LINEAR`, 16x anisotropy, no texture compression | SJK's defaults already |
 | `r_dynamiclight 1`, `r_drawfog 2`, `r_surfaceSprites 1`, `r_gamma 1` | SJK's defaults already |
 | `cg_shadows 1`, `cg_marks 1`, `cg_saberTrail 1`, `cg_fov 90` | SJK's defaults already (not graphics settings) |
@@ -3200,6 +3247,24 @@ and closing the composer shows everything again; `cg_chatTabFilter` 0 (Settings 
 Tabs hide other chat) keeps the feed whole while typing: every chat in view, each line
 labelled with its channel (TEAM, SJK, JoF, S), the button picking only where the
 message goes.
+
+The row has its own tools since 06/11/2026 (Sol's request;
+[chat/row_tools.rs](../crates/sjk-viewer/src/chat/row_tools.rs), drawn in
+[chat/view/row_tools.rs](../crates/sjk-viewer/src/chat/view/row_tools.rs) as strokes,
+not glyphs, set level with the middle of the words' capitals and as tall as them
+(`UiFont::capital_middle`, `capital_height`; 06/11/2026). Pointing at any button but All shows a small × right after its word; a
+click takes it off the row (its setting to 0, as Settings > Chat would), and a
+composer on it moves to All. After the words, a + (only while a usable chat is off the
+row: PM by default, Admin only on servers that have it, a clan chat only once joined)
+lists those chats in their colours, and a click puts one back (1); the menu closes
+once none is left. A cog opens quick settings: Show only this chat and Show every chat
+(`cg_chatTabFilter` 1 or 0, the picked one lit), Tab skips the chosen chat (its
+setting 2 or 1; not offered on All or PM) and Open on the last chat
+(`cg_chatRememberChannel`), each On or Off; the menu stays open for the next change.
+Both menus open in a dark panel above their button, over the feed; a press anywhere
+else, the same button again, or Escape (before the composer) closes them. The frame
+saves each change to the profile (`GpuState::save_chat_settings`), so Settings and the
+row always agree.
 
 Open the chat composer with your chat binding: the cursor is free while composing.
 Resting the pointer on a name (a sender's, or an SJK chat sender's) shows their
@@ -5949,6 +6014,12 @@ sees it there.
   Players propose them in the Discord's `#tag-proposals` channel (28/10/2026; a pinned
   post says how: one idea per post, voted with reactions, a bold square PNG, nothing
   taken from another game), which the tag card in Collection > Tags points to.
+- **Collections** (08/11/2026, Sol's decision): every tag is in one collection, **Alpha**
+  for SJK's own and **Community** for those players drew, picked from `#tag-proposals`
+  (Blep's EZ, Gonk and Geyon so far). A collection is only a label: Collection > Tags
+  lists each under its own heading and the tag's card names it ("Community tag · Rare").
+  It changes nothing in drops (a blade's edition does, [unlockables.md](unlockables.md)),
+  so the hub does not know it; a new collection is a line in `tags.rs`'s `COLLECTIONS`.
 - **Finishes and credits cards** (31/10/2026, Sol's decisions): a tag a holocron drops
   comes Holo (4 %) or Solar (0.5 %) now and then, whatever the holocron's tier
   ([holocrons.md](holocrons.md)); the hub counts those copies apart. The credits cards the
@@ -5970,8 +6041,8 @@ sees it there.
   yours."). Spare copies trade too: the trade window lists them with their finish beside
   the duplicate shaders, counted as duplicates in the day's limits
   ([tag_copies.rs](../crates/sjk-viewer/src/tag_copies.rs)).
-- **Choosing:** Collection > Tags shows every tag, then the credits cards under their own
-  heading, the ones the player lacks dimmed and the Holo and Solar copies held as badges;
+- **Choosing:** Collection > Tags shows every tag under its collection's heading, then
+  the credits cards under their own, the ones the player lacks dimmed and the Holo and Solar copies held as badges;
   the wall scrolls (the wheel, the arrows keeping the choice in view). The card on the right
   offers Normal, Holo and Solar (the finishes held), shown over the picture; Choose (or
   Enter) sets `cg_tag`, the tag or card `toy_tag` sticks (default `tag_sjk`), and
@@ -6118,7 +6189,8 @@ and everyone else's (`s_toyBoxSound`, `s_toyOrder66Sound`, `s_toyHaxSound`,
 [Banana peel](#banana-peel), 29/10/2026), `s_toyTagSound` (the [Tag](#tag)'s spray,
 03/11/2026), `s_toyMasterSound` (the toys [the Toy
 Master](toy-master.md) hides, 30/10/2026), `s_toyFishingSound`
-(the [Fishing](#fishing) toy), all
+(the [Fishing](#fishing) toy), `s_toyWheelOfDoomSound` (the
+[WHEEL OF DOOM](wheel-of-doom.md), 07/11/2026), all
 on by default,
 archived). The toy still
 runs and is still seen; nothing is sent to anyone. The Illuminate holocron makes no
@@ -6559,8 +6631,9 @@ its Toys page as it was, and gains them from Add a choice, Toys. The page holds 
 later toys are in the catalogue's Toys group only, to add from there: Box hunt
 (`toy_boxhunt`), the Tag (`toy_tag`) and since 29/10/2026 the
 [Banana peel](#banana-peel) (Banana peel, `toy_banana`, marked while it is on, and Drop
-banana peel, `banana_drop`) and [Fishing](#fishing) (`toy_fishing`, marked while the rod
-is out).
+banana peel, `banana_drop`), [Fishing](#fishing) (`toy_fishing`, marked while the rod
+is out) and since 07/11/2026 the [WHEEL OF DOOM](wheel-of-doom.md) (`toy_wheelofdoom`,
+a press: the first shows the price, a second spins).
 
 ### GIF wheel
 

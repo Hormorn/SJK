@@ -833,10 +833,13 @@ name or a clan tag:
 
 | Who | May read and write | Joined by default |
 | --- | --- | --- |
-| a verified JoF player (tick group `jof`) | JoF and S | JoF |
-| a verified S player (tick group `sith`) | S and JoF | S |
+| a verified JoF player (tick group `jof`) | JoF only | JoF |
+| a verified S player (tick group `sith`) | S only | S |
 | staff (and Sol) | JoF and S | both |
-| everyone else | neither: SJK chat only, as before | none |
+| everyone else, gold ticks included | neither: SJK chat only, as before | none |
+
+Until 05/11/2026 each clan could also join the other's chat; Sol closed that (hub
+`clan-chat-own`): a JoF player never reads or writes S, an S player never JoF.
 
 - **Joining** ([channels.rs](../crates/sjk-identity/src/channels.rs),
   [chat/tabs.rs](../crates/sjk-viewer/src/chat/tabs.rs)): every feed answer lists the

@@ -40,7 +40,7 @@ mod download_session;
 mod duel_isolation;
 pub mod player_model_eligibility;
 pub mod sent_commands;
-pub use duel_isolation::duel_passes_through;
+pub use duel_isolation::{DuelIsolation, duel_passes_through};
 mod duel_hide;
 pub use duel_hide::{
     DUEL_HIDE_SERVERS, DUEL_SEE_OTHERS, DuelHide, DuelHideMode, DuelHidePolicy, DuelHideRule,

@@ -4,7 +4,8 @@
 end, pale at its base and blushing toward its tip, in three tints; and the Thousand Cranes'
 paper crane, white paper in three shades that the particle tints (25/10/2026); and the
 Hearth's ash, a ragged grey flake, plain and with an edge still glowing; and the Sun's
-swing ember, a soft white spark (26/10/2026).
+swing ember, a soft white spark (26/10/2026); and the Moon's moondust, a speck of white light
+with four short rays that the particle tints and adds (26/10/2026).
 
     python3 scripts/petal_assets.py
 """
@@ -193,3 +194,26 @@ def ember():
 
 ember().save(OUT / "ember.png", optimize=True)
 print("written ember")
+
+
+def moon_dust():
+    """A speck of moondust with four short rays: white light, its alpha how bright it is."""
+    img = Image.new("RGBA", (SIZE, SIZE))
+    px = img.load()
+    for j in range(SIZE):
+        for i in range(SIZE):
+            light = 0.0
+            for sj in range(SAMPLES):
+                for si in range(SAMPLES):
+                    x = ((i + (si + 0.5) / SAMPLES) / SIZE) * 2.0 - 1.0
+                    y = 1.0 - ((j + (sj + 0.5) / SAMPLES) / SIZE) * 2.0
+                    r = math.hypot(x, y)
+                    rays = math.exp(-(abs(x) / 0.05) ** 2) * math.exp(-abs(y) * 3.0) + math.exp(-(abs(y) / 0.05) ** 2) * math.exp(-abs(x) * 3.0)
+                    light += min(1.0, math.exp(-(r / 0.14) ** 2) + 0.4 * math.exp(-(r / 0.4) ** 2) + 0.7 * rays)
+            v = min(1.0, light / SAMPLES ** 2)
+            px[i, j] = (255, 255, 255, int(round(v * 255)))
+    return img
+
+
+moon_dust().save(OUT / "moon_dust.png", optimize=True)
+print("written moon_dust")

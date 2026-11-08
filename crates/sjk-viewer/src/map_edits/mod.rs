@@ -17,7 +17,8 @@
 //! - placed models load on demand ([`crate::model_demand`]) and are drawn each frame;
 //! - remaps join the world's remaps as source `edit`, over the map's and the server's;
 //! - shown faces (caulk and nodraw brush sides) are built as small models once and drawn
-//!   each frame ([`faces`]).
+//!   each frame ([`faces`]);
+//! - a weather edit's commands replace the map's own weather ([`crate::weather`]).
 //!
 //! Staff edit in game ([`editor`], [`panel`]) or in a web browser ([`web`]).
 
@@ -568,8 +569,19 @@ impl GpuState {
                         ));
                     }
                 }
+                // One for the map, read below.
+                Kind::Weather { .. } => {}
             }
         }
+        let weather = self
+            .map_edits
+            .document
+            .as_ref()
+            .filter(|_| enabled)
+            .and_then(|document| document.weather(server))
+            .map(<[String]>::to_vec)
+            .unwrap_or_default();
+        self.weather.set_edit(&weather);
         self.map_edits.faces = shown_faces
             .into_iter()
             .filter_map(|(variant, polygon, normal, to)| {

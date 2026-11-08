@@ -27,6 +27,11 @@ pub(crate) use task::{JoinPoll, JoinTask, JoinedSession};
 impl crate::GpuState {
     /// End a failed live session and retain its reason on the connection screen.
     pub(crate) fn session_disconnected(&mut self, reason: String) {
+        // What the server saw of our commands before it dropped us (`server_view`):
+        // the evidence a time-nudge kick leaves on our side.
+        if let Some(line) = self.server_view.drop_report(std::time::Instant::now()) {
+            crate::log::progress(format_args!("{line}"));
+        }
         if let Some(menu) = &mut self.client_menu {
             menu.stop_local_server();
         }
@@ -159,6 +164,7 @@ impl crate::GpuState {
         self.resident.disconnect();
         self.world_load_map.clear();
         self.net_timing.end_session();
+        self.server_view.end();
         self.portal.aim(None, None);
         self.join_task = None;
         self.world_load_task = None;

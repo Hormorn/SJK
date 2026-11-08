@@ -52,6 +52,8 @@ fn blades_seen_as_players_see_them() {
             crate::texture_layout_entry(3),
             sampler_entry(2),
             sampler_entry(4),
+            crate::texture_layout_entry(5),
+            sampler_entry(6),
         ],
     });
     let skins_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

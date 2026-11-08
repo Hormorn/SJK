@@ -25,6 +25,8 @@ members = [
     "crates/sjk-runtime",
     "crates/sjk-scene",
     "crates/sjk-server",
+    "crates/sjk-server-mod",
+    "crates/sjk-server-mod-japlus",
     "crates/sjk-shader",
     "crates/sjk-shell",
     "crates/sjk-ui",
@@ -63,6 +65,8 @@ sjk-protocol = { path = "crates/sjk-protocol" }
 sjk-runtime = { path = "crates/sjk-runtime" }
 sjk-scene = { path = "crates/sjk-scene" }
 sjk-server = { path = "crates/sjk-server" }
+sjk-server-mod = { path = "crates/sjk-server-mod" }
+sjk-server-mod-japlus = { path = "crates/sjk-server-mod-japlus" }
 sjk-shader = { path = "crates/sjk-shader" }
 sjk-shell = { path = "crates/sjk-shell" }
 sjk-ui = { path = "crates/sjk-ui" }

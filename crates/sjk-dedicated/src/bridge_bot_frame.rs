@@ -184,6 +184,7 @@ impl NativeGame {
         let attacking = |side: usize| self.siege_attackers(side);
         let attackers = (attacking(0), attacking(1));
         let absorbed = Cell::new(false);
+        let full_force = self.full_force_duels();
         let enemy = self.bots.minds[client]
             .as_ref()
             .and_then(|mind| mind.current_enemy);
@@ -216,7 +217,7 @@ impl NativeGame {
             );
             let usable_on_enemy = |power: usize| match (own_state, enemy_state) {
                 (Some(own), Some(enemy)) => {
-                    match usable_on(own, enemy, power, level_time, gametype) {
+                    match usable_on(own, enemy, power, level_time, gametype, full_force) {
                         UsableOn::Yes => true,
                         UsableOn::No => false,
                         UsableOn::Absorbed => {

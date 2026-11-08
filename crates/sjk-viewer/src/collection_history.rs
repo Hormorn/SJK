@@ -518,6 +518,7 @@ pub(super) fn came_text(came: &Came) -> String {
         "achievement" => format!("Earned {a} {name} from an achievement"),
         "bought" => format!("Bought {a} {name}"),
         "box" => format!("{} {name} from a mystery box", capitalised(a)),
+        "wheel" => format!("{} {name} from the WHEEL OF DOOM", capitalised(a)),
         "toy" => format!("{} {name} a Toy Master's toy threw out", capitalised(a)),
         "reward" => with_note(format!("Reward: {a} {name}"), &came.note),
         _ => with_note(format!("Received {a} {name}"), &came.note),
@@ -574,6 +575,7 @@ pub(super) fn credits_text(ledger: &Ledger) -> String {
             "Another player's mystery box blew up: what they paid came to you".to_owned()
         }
         "mystery_box" => "Mystery box".to_owned(),
+        "wheel_of_doom" => "Spun the WHEEL OF DOOM".to_owned(),
         "toy" => "Taken from a Toy Master's toy".to_owned(),
         "box_hunt" if ledger.note == "survived" => {
             "Box hunt: you outlasted every hunter".to_owned()
@@ -743,6 +745,7 @@ pub(super) fn group_row(run: &[&HistoryLine]) -> Row {
                     "achievement" => format!("Earned {noun}{breakdown} from achievements"),
                     "bought" => format!("Bought {noun}{breakdown}"),
                     "box" => format!("{noun}{breakdown} from mystery boxes"),
+                    "wheel" => format!("{noun}{breakdown} from the WHEEL OF DOOM"),
                     "toy" => format!("{noun}{breakdown} the Toy Master's toys threw out"),
                     "reward" => with_note(format!("Reward: {noun}{breakdown}"), &came.note),
                     _ => format!("Received {noun}{breakdown}"),
@@ -1007,6 +1010,14 @@ pub(crate) mod tests {
             }),
             "A Legendary Holocron from a mystery box"
         );
+        assert_eq!(
+            came_text(&Came {
+                tier: "mythical".into(),
+                source: "wheel".into(),
+                ..Came::default()
+            }),
+            "A Mythical Holocron from the WHEEL OF DOOM"
+        );
         // A Toy Master's drop names no toy, whatever the hub noted.
         assert_eq!(
             came_text(&Came {
@@ -1080,6 +1091,10 @@ pub(crate) mod tests {
         assert_eq!(
             credits_text(&ledger(0, 100, "mystery_box", "explode_gift")),
             "Another player's mystery box blew up: what they paid came to you"
+        );
+        assert_eq!(
+            credits_text(&ledger(0, -100, "wheel_of_doom", "")),
+            "Spun the WHEEL OF DOOM"
         );
         assert_eq!(
             credits_text(&ledger(0, 300, "box_hunt", "survived")),

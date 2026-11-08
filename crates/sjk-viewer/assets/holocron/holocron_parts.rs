@@ -15,8 +15,8 @@ pub(crate) const FORMS: [Form; 8] = [
     ] },
     Form { id: "legendary", light: [1.25, 0.45, 1.75], parts: &[
         Part { model: "models/sjk/holocron_legendary.md3", locked: "models/sjk/holocron_legendary_locked.md3", at: [0.0, 0.0, 0.0], bob: [0.0, 0.0], orbit: [0.0, 0.0, 0.0], spin: [0.0, 0.0], tumble: [0.0, 0.0], precess: [0.0, 0.0] },
-        Part { model: "models/sjk/holocron_legendary_cap.md3", locked: "models/sjk/holocron_legendary_cap_locked.md3", at: [0.0, 0.0, 3.0], bob: [0.35, 1.5], orbit: [0.0, 0.0, 0.0], spin: [0.0, 0.35], tumble: [0.0, 0.0], precess: [0.0, 0.0] },
-        Part { model: "models/sjk/holocron_legendary_eye.md3", locked: "models/sjk/holocron_legendary_eye_locked.md3", at: [0.0, 0.0, 0.55], bob: [0.1, 1.5], orbit: [0.0, 0.0, 0.0], spin: [0.0, -1.2], tumble: [0.0, 0.0], precess: [0.0, 0.0] },
+        Part { model: "models/sjk/holocron_legendary_cap.md3", locked: "models/sjk/holocron_legendary_cap_locked.md3", at: [0.0, 0.0, 3.2], bob: [0.35, 1.5], orbit: [0.0, 0.0, 0.0], spin: [0.0, 0.35], tumble: [0.0, 0.0], precess: [0.0, 0.0] },
+        Part { model: "models/sjk/holocron_legendary_eye.md3", locked: "models/sjk/holocron_legendary_eye_locked.md3", at: [0.0, 0.0, 1.25], bob: [0.1, 1.5], orbit: [0.0, 0.0, 0.0], spin: [0.0, -1.2], tumble: [0.0, 0.0], precess: [0.0, 0.0] },
     ] },
     Form { id: "mythical", light: [1.85, 1.3, 0.4], parts: &[
         Part { model: "models/sjk/holocron_mythical.md3", locked: "models/sjk/holocron_mythical_locked.md3", at: [0.0, 0.0, 0.0], bob: [0.0, 0.0], orbit: [0.0, 0.0, 0.0], spin: [0.0, 0.0], tumble: [0.0, 0.0], precess: [0.0, 0.0] },

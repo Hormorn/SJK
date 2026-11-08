@@ -68,7 +68,7 @@ local-header validation. See [pk3_fingerprint.rs](../crates/sjk-vfs/src/pk3_fing
 
 ## Source map
 
-All 21 workspace crates are listed in [Cargo.toml](../Cargo.toml).
+All 31 workspace crates are listed in [Cargo.toml](../Cargo.toml).
 
 | Crate | Responsibility |
 | --- | --- |
@@ -94,6 +94,8 @@ All 21 workspace crates are listed in [Cargo.toml](../Cargo.toml).
 | [sjk-shell](../crates/sjk-shell/src/lib.rs) | Cvars, bindings and command processing |
 | [sjk-mod](../crates/sjk-mod/src/lib.rs) | The interface client mods are written against ([mods.md](mods.md)) |
 | [sjk-mod-japlus](../crates/sjk-mod-japlus/src/lib.rs), [sjk-mod-jof](../crates/sjk-mod-jof/src/lib.rs) | The JA+ and JoF tools mods |
+| [sjk-server-mod](../crates/sjk-server-mod/src/lib.rs) | The hooks a server mod has in the dedicated server ([server.md](server.md#ja-mode)) |
+| [sjk-server-mod-japlus](../crates/sjk-server-mod-japlus/src/lib.rs) | JA+ for the dedicated server (`g_mod japlus`) |
 | [sjk-jof-content](../crates/sjk-jof-content/src/lib.rs) | JoF content: JoF's repository manifest, checked downloads and the JoF folder ([jof-content.md](jof-content.md)) |
 | [sjk-game-stores](../crates/sjk-game-stores/src/lib.rs) | Jedi Academy installs that Steam (every library) and GOG know of, for the client's launch discovery and the SJK Launcher ([client.md](client.md#launch)) |
 | [sjk-materialgen](../crates/sjk-materialgen/src/lib.rs) | Offline tool: local material maps from installed textures |

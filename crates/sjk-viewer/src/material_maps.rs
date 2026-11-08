@@ -24,7 +24,8 @@
 //! and diffuse stages collapse into one pass, and vertex-lit world surfaces whose
 //! first stage is opaque `rgbGen vertex` paint (their vertex colours are the baked
 //! light). Models, the layers blended over vertex-lit paint and uncollapsed stacks
-//! keep their authored shading.
+//! keep their authored shading, except a model stage that names its normal map with
+//! `normalMap` ([`models`], SJK): it is lit per pixel through it.
 
 #[path = "material_map_frames.rs"]
 pub(crate) mod frames;
@@ -32,6 +33,8 @@ pub(crate) mod frames;
 pub(super) mod gpu;
 #[path = "material_map_images.rs"]
 mod images;
+#[path = "material_map_models.rs"]
+pub(crate) mod models;
 #[cfg(test)]
 #[path = "material_map_parallax_tests.rs"]
 mod parallax_tests;
@@ -209,8 +212,8 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
         (
             "r_normalMapping",
             i64::from(DEFAULT_ON),
-            "Normal maps on world surfaces (rend2 _n/_nh images and normalMap keywords); \
-             vid_restart applies it",
+            "Normal maps on world surfaces (rend2 _n/_nh images and normalMap keywords) and \
+             on models whose shader names one (normalMap); vid_restart applies it",
         ),
         (
             "r_specularMapping",

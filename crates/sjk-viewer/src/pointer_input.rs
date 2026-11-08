@@ -527,6 +527,7 @@ impl GpuState {
         }
         if self.chat.is_typing() {
             self.chat.pointer(event);
+            self.save_chat_settings();
             return true;
         }
         false
