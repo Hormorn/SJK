@@ -17,14 +17,21 @@
 //! once, and writes a line when the server drops the player ([`ServerView::drop_report`])
 //! and one a minute while playing ([`ServerView::frame`]), so a kicked player's
 //! logs show what the server measured before the kick.
+//!
+//! It also notes which stamp the commands carry (the previous frame's clock reading,
+//! as stock, or the frame's own, `cl_freshStamps`) and, [`WINDOW_MS`] after each
+//! switch, compares the [`WINDOW_MS`] before it with the [`WINDOW_MS`] after
+//! ([`ServerView::stamps`]): seconds side by side share most of the ping's wobble, so
+//! the switch's own shift (about one frame) shows (Sol, 07/11/2026).
 
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
 /// How much history a drop report covers.
 pub(crate) const WINDOW_MS: u32 = 10_000;
-/// Snapshots kept: [`WINDOW_MS`] at 100 snapshots a second.
-const SNAPSHOTS: usize = 1_024;
+/// Snapshots kept: twice [`WINDOW_MS`] (a stamp comparison's two sides) at 100
+/// snapshots a second.
+const SNAPSHOTS: usize = 2_048;
 /// Sent commands waiting for the snapshot that runs them: 2 s at 125 a second.
 const COMMANDS: usize = 256;
 /// Frames and packet gaps longer than this are kept for the drop report.
@@ -169,6 +176,30 @@ pub(crate) struct ServerView {
     last_packet: Option<Instant>,
     period: Period,
     next_summary: Option<Instant>,
+    /// Frames seen ([`Self::frame`]), for a comparison's frame time.
+    frames: u32,
+    /// Whether commands carry the frame's own clock reading, once known.
+    fresh: Option<bool>,
+    /// The last switch of stamps, until its comparison is written.
+    switch: Option<Switch>,
+    /// When the switch before it happened: a comparison's "before" starts no earlier.
+    previous_switch: u32,
+}
+
+/// A switch between the two stamps ([`ServerView::stamps`]).
+#[derive(Clone, Copy, Debug)]
+struct Switch {
+    at: u32,
+    fresh: bool,
+    frames: u32,
+}
+
+fn stamp_name(fresh: bool) -> &'static str {
+    if fresh {
+        "this frame's server time (cl_freshStamps 1 or an SJK server)"
+    } else {
+        "the previous frame's server time, as stock"
+    }
 }
 
 impl Default for ServerView {
@@ -182,6 +213,10 @@ impl Default for ServerView {
             last_packet: None,
             period: Period::default(),
             next_summary: None,
+            frames: 0,
+            fresh: None,
+            switch: None,
+            previous_switch: 0,
         }
     }
 }
@@ -194,6 +229,7 @@ impl ServerView {
     /// A frame of a live remote session began at `now`. Returns the summary line
     /// once [`SUMMARY_EVERY`] has passed since the first frame or the last line.
     pub(crate) fn frame(&mut self, now: Instant) -> Option<String> {
+        self.frames = self.frames.wrapping_add(1);
         if let Some(last) = self.last_frame.replace(now) {
             let ms =
                 u32::try_from(now.saturating_duration_since(last).as_millis()).unwrap_or(u32::MAX);
@@ -274,6 +310,104 @@ impl ServerView {
         self.commands.clear();
     }
 
+    /// This frame's commands carry the frame's own clock reading (`fresh`) or the
+    /// previous frame's. Hands `log` a line when the stamp is first known or
+    /// switches, and the comparison around a switch once [`WINDOW_MS`] has passed
+    /// (or at the next switch, if that comes sooner).
+    pub(crate) fn stamps(&mut self, fresh: bool, now: Instant, mut log: impl FnMut(String)) {
+        let at = self.millis(now);
+        let switched = self.fresh.is_some_and(|known| known != fresh);
+        if let Some(switch) = self.switch
+            && (switched || at.saturating_sub(switch.at) >= WINDOW_MS)
+        {
+            log(self.comparison(switch, at));
+            self.previous_switch = switch.at;
+            self.switch = None;
+        }
+        match self.fresh.replace(fresh) {
+            None => log(format!("command stamps: {}", stamp_name(fresh))),
+            Some(known) if known != fresh => {
+                log(format!(
+                    "command stamps switched to {}; comparison in {} s",
+                    stamp_name(fresh),
+                    WINDOW_MS / 1_000
+                ));
+                self.switch = Some(Switch {
+                    at,
+                    fresh,
+                    frames: self.frames,
+                });
+            }
+            Some(_) => {}
+        }
+    }
+
+    /// The [`WINDOW_MS`] before `switch` against the time from it to `end`.
+    fn comparison(&self, switch: Switch, end: u32) -> String {
+        let start = switch
+            .at
+            .saturating_sub(WINDOW_MS)
+            .max(self.previous_switch);
+        let mut before = Period::default();
+        let mut after = Period::default();
+        for sample in self.snapshots.newest_first().take_while(|s| s.at >= start) {
+            if sample.at >= switch.at {
+                if sample.at < end {
+                    after.add(*sample);
+                }
+            } else {
+                before.add(*sample);
+            }
+        }
+        let side = |period: &Period, ms: u32| {
+            let mut text = format!(
+                "{:.1} s: {} snapshots, age avg {} ms",
+                f64::from(ms) / 1_000.0,
+                period.snapshots,
+                average(period.age_sum, period.snapshots)
+            );
+            if period.trip_count > 0 {
+                let _ = write!(
+                    text,
+                    ", round trip avg {} ms, age minus round trip avg {} ms",
+                    average(period.trip_sum, period.trip_count),
+                    average(period.trail_sum, period.trip_count)
+                );
+            }
+            text
+        };
+        let mut line = format!(
+            "command stamps compared around the switch to {}: before {}; after {}",
+            stamp_name(switch.fresh),
+            side(&before, switch.at - start),
+            side(&after, end - switch.at),
+        );
+        if before.snapshots > 0 && after.snapshots > 0 {
+            let _ = write!(
+                line,
+                "; age changed {:+} ms",
+                average(after.age_sum, after.snapshots) - average(before.age_sum, before.snapshots)
+            );
+        }
+        if before.trip_count > 0 && after.trip_count > 0 {
+            let _ = write!(
+                line,
+                ", age minus round trip {:+} ms",
+                average(after.trail_sum, after.trip_count)
+                    - average(before.trail_sum, before.trip_count)
+            );
+        }
+        let frames = self.frames.wrapping_sub(switch.frames);
+        if frames > 0 && end > switch.at {
+            let _ = write!(
+                line,
+                " (a frame is {:.1} ms; fresh stamps should lower the age by about one)",
+                f64::from(end - switch.at) / f64::from(frames)
+            );
+        }
+        line
+    }
+
     /// The session is over: forget everything.
     pub(crate) fn end(&mut self) {
         self.snapshots.clear();
@@ -283,6 +417,9 @@ impl ServerView {
         self.last_packet = None;
         self.period = Period::default();
         self.next_summary = None;
+        self.fresh = None;
+        self.switch = None;
+        self.previous_switch = 0;
     }
 
     /// The line written when the server drops the player: the last [`WINDOW_MS`]
@@ -430,6 +567,45 @@ mod tests {
             stamps.push((real, stamp));
         }
         real
+    }
+
+    #[test]
+    fn a_stamp_switch_is_compared_with_the_seconds_before_it() {
+        let start = Instant::now();
+        let mut view = ServerView {
+            epoch: start,
+            ..Default::default()
+        };
+        let mut lines = Vec::new();
+        // 12 s of stock stamps, then commands 8 ms fresher for 12 s.
+        let mut next_snapshot = 33;
+        for real in (8..24_000_u64).step_by(8) {
+            let now = at(start, real);
+            view.frame(now);
+            let fresh = real >= 12_000;
+            view.stamps(fresh, now, |line| lines.push(line));
+            let lag = if fresh { 22 } else { 30 };
+            while next_snapshot + 40 <= real {
+                let built = next_snapshot as i32;
+                // The newest command at the server: sent 40 ms before it built this.
+                let sent = (built - 40) / 8 * 8;
+                let sent_lag = if sent >= 12_000 { 22 } else { 30 };
+                view.snapshot(10_000 + built, 10_000 + sent - sent_lag, now);
+                next_snapshot += 33;
+            }
+            view.command(10_000 + real as i32 - lag);
+            view.packet_sent(now);
+        }
+        assert_eq!(lines.len(), 3, "{lines:?}");
+        assert!(lines[0].starts_with("command stamps: the previous frame's"));
+        assert!(lines[1].starts_with("command stamps switched to this frame's"));
+        let compared = &lines[2];
+        assert!(compared.contains("age changed -8 ms"), "{compared}");
+        assert!(
+            compared.contains("age minus round trip -8 ms"),
+            "{compared}"
+        );
+        assert!(compared.contains("a frame is 8.0 ms"), "{compared}");
     }
 
     #[test]

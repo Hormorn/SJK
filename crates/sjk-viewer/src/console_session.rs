@@ -228,6 +228,11 @@ impl ViewerConsole {
         )?;
         let caps_lifted =
             console_cvars::IntegerSetting::bind(&mut cvars, crate::server_caps::OVERRIDE_CVAR, 0)?;
+        let fresh_stamps = console_cvars::IntegerSetting::bind(
+            &mut cvars,
+            crate::server_caps::FRESH_STAMPS_CVAR,
+            0,
+        )?;
         let pmove_fixed = console_cvars::IntegerSetting::bind(&mut cvars, "pmove_fixed", 0)?;
         let pmove_msec = console_cvars::IntegerSetting::bind(&mut cvars, "pmove_msec", 8)?;
         let socket = super::socket::State::bind(&mut cvars)?;
@@ -660,6 +665,8 @@ impl ViewerConsole {
             pending_fishing: None,
             fishing_card: Default::default(),
             pending_fishing_sell: false,
+            wheel_of_doom_on: false,
+            pending_wheel_of_doom: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,
@@ -694,6 +701,7 @@ impl ViewerConsole {
             server_cap: None,
             server_family: None,
             caps_lifted,
+            fresh_stamps,
             input_health: Default::default(),
             pmove_fixed,
             pmove_msec,

@@ -177,6 +177,7 @@ pub(crate) fn row_labels(
         banana: false,
         fishing: false,
         fishing_card: None,
+        wheel_of_doom: false,
         name: "",
         stock: color::HOLO,
         grid: false,

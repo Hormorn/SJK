@@ -20,15 +20,15 @@ use crate::menu_widgets::TextFamily;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign, TextureId};
 
 /// The rows: their left edge and width, where the column heads and the first row stand,
-/// a row's height and the room between rows, and its picture's side. Eleven fit over the
-/// keys.
+/// a row's height and the room between rows, and its picture's side. Twelve fit over
+/// the keys (the WHEEL OF DOOM's row made the rows 52 tall 2 apart, 58 and 3 before).
 const ROWS_X: f32 = LEFT_X - 12.0;
 const ROWS_WIDTH: f32 = 860.0;
 const HEADS_Y: f32 = 300.0;
 const ROWS_Y: f32 = 336.0;
-const ROW_HEIGHT: f32 = 58.0;
-const ROW_GAP: f32 = 3.0;
-const ROW_ART: f32 = 50.0;
+const ROW_HEIGHT: f32 = 52.0;
+const ROW_GAP: f32 = 2.0;
+const ROW_ART: f32 = 46.0;
 /// A row's key column: its width, and the room the switch keeps at the row's right.
 const KEY_WIDTH: f32 = 150.0;
 const SWITCH_ROOM: f32 = 130.0;
@@ -55,7 +55,7 @@ const SELL_ROW: f32 = 42.0;
 /// ([`Inputs::toy_keys`]): each toy's switch, Order 66's order after its own, the
 /// Monitor's throw (held, it charges) after its own, and the Banana peel's drop after its
 /// own.
-pub(crate) const COMMANDS: [&str; 14] = [
+pub(crate) const COMMANDS: [&str; 15] = [
     "toy_illuminate",
     "toy_box",
     "toy_order66",
@@ -70,6 +70,7 @@ pub(crate) const COMMANDS: [&str; 14] = [
     "toy_banana",
     "banana_drop",
     crate::fishing::COMMAND,
+    crate::wheel_of_doom::COMMAND,
 ];
 
 /// One toy as the tab shows it.
@@ -262,6 +263,21 @@ const TOYS: [Toy; TOY_COUNT] = [
         options: &[],
         token: FISHING_TOKEN,
     },
+    Toy {
+        icon: "wheel_of_doom",
+        name: "WHEEL OF DOOM",
+        tag: "Spin it for credits: a Mythical holocron, or doom.",
+        title: "WHEEL OF DOOM",
+        what: "A big dark wheel rises before you and spins. It may land on a Mythical holocron, on nothing, or on something terrible: your keys or mouse turned against you, the world mirrored or upside down, darkness, no saber, quacks, a curse, or a blast. Other SJK players see it spin.",
+        more: Some(
+            "Its switch shows the price; press it again within 5 s to pay and spin. One spin every 5 minutes, not in a duel. What it does lasts a few seconds and ends on a new map or when you die.",
+        ),
+        commands: &[(crate::wheel_of_doom::COMMAND, "Your key")],
+        switch: "Spin",
+        sight: None,
+        options: &[],
+        token: WHEEL_OF_DOOM_TOKEN,
+    },
 ];
 
 /// The Toy Master's achievements the player holds: the toys they found.
@@ -375,6 +391,7 @@ fn states(inputs: &Inputs<'_>) -> [bool; TOY_COUNT] {
         inputs.box_hunt,
         inputs.banana,
         inputs.fishing,
+        inputs.wheel_of_doom,
     ]
 }
 
@@ -387,7 +404,7 @@ impl Panel {
             0 => "Switch them here or in a match; other SJK players on your server see what you turn on.".to_owned(),
             lit => format!("{lit} on now. Switch them here or in a match; other SJK players on your server see what you turn on."),
         };
-        self.lead(frame, "10 toys", &line);
+        self.lead(frame, "12 toys", &line);
         self.toy_heads(frame);
         let chosen = self.toy.min(TOY_COUNT - 1);
         for (index, toy) in TOYS.iter().enumerate() {
