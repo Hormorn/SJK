@@ -9106,3 +9106,12 @@ test: Second SJK client nearby: sees the wheel spin and stop on the same segment
 test: Over several spins: mirror, blind, upside down, no saber, quack look and feel right.
 test: Settings > Sound > Toys, WHEEL OF DOOM sounds off: the wheel spins silently.
 note: Placeholder model (Sol's to come). Mirror flips the whole picture, HUD included.
+
+[model-texture-pin]
+area: Performance
+title: No hitch when a player puts on a model with big textures (creyonwolf: 743 ms)
+change: The worker's decoded textures stay held until the model's materials are made.
+change: Before, any image decoded meanwhile could drop them and the frame decoded them again.
+test: In a match, a second client switches to creyonwolf (or another HD model) several times.
+test: No hitch; last-client.log has no 'model install ... materials' line in the hundreds of ms.
+note: Same path for NPCs, the menu model stage and map models loaded mid-match.

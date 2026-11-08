@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
 - Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_
 - Tags come in collections: Collection > Tags lists the Alpha collection, SJK's own tags, and the Community collection, the tags players drew (EZ, Gonk and Geyon so far), each under its own heading, and a tag's card says which it is in _(Sol)_
 - The Uncommon and Mythical holocrons are sculpted by Sol too: a steel-framed Jedi cube with glowing green glass round an emblem plate on each face, and a gold engram of 38 engraved triangular plates that breathe out and back over a white-hot core, glowing seams between them, both detailed by a normal map _(Sol)_

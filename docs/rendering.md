@@ -470,6 +470,11 @@ memory. Once the images held grow 128 MiB past what the last sweep kept, the nex
 decoded sweeps out every image only the cache holds; an image a world's shared
 textures, the mip cache or a loader still holds stays, so an address used as a key is
 never freed and reused, and textures shared across a map change are shared as before.
+A model's warm-up (`warm_entity_materials`) returns its decoded images with its
+textures (`WarmTextures`), held until the model's materials are appended: held by the
+cache alone, any image decoded meanwhile could sweep them (two 4096x4096 RGBA images
+are the whole 128 MiB margin), and the append decoded them again on the render thread,
+743 ms for `creyonwolf` in Sol's 08/11/2026 log (`model install … materials 736.6`).
 `map_changes_vram` prints the bytes held: four maps cycled three times at r_picmip 2
 (an install with HD texture packs) held 1750 MiB from the third map
 on before, 906 to 1178 MiB after (the current map's own images), with the same video
