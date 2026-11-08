@@ -585,13 +585,15 @@ an unknown id.
 
 Where they show:
 
-- The scoreboard, every style: up to three small ribbon bars after the SJK emblem, on
+- The scoreboard, every style: up to six small ribbon bars after the SJK emblem (one
+  for each medal: all four of today's), on
   rows whose claim the emblem trusts (the claimed name matches the name the game shows).
   They are coloured rectangles drawn from the catalogue (Tester amber with black
   stripes, Contributor navy with a white centre stripe, Bug Hunter emerald with
   black edges, Supporter violet with gold edges and a gold centre stripe), sized after the emblem; they take room from the name,
   never the columns, and fewer show where the name would keep less than half its room
-  (the SJK UI: a third). Derived only when the roster or the rows change.
+  (the SJK UI: what the whole name leaves, and a third of its room at least, so a
+  short name shows every bar). Derived only when the roster or the rows change.
 - The player card (`inspect`): the medallions in a row under the hub name; a pinned card
   names them too in small print, with a repeatable one's count.
 - The SJK UI's Players page: the chosen player's card lists their medallions and names.

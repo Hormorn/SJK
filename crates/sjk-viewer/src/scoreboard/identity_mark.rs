@@ -1,7 +1,7 @@
 //! The mark after a player's name on the scoreboard when the SJK hub knows them
 //! (`player_identity.rs`): SJK's emblem in soft white (or, for a player who claimed
 //! from another client with its own icon, that icon in its own colours,
-//! `chat::client_icons`), then up to three ribbon bars for the medals the SJK team gave
+//! `chat::client_icons`), then up to six ribbon bars for the medals the SJK team gave
 //! them (`medals.rs`), plain coloured rectangles sized after the emblem. Their tick
 //! (gold, a group's, staff's, a creator's) or, without one, their trust mark sits small
 //! on the emblem's foot (`ui_renderer::mark_texture`; the emblem was gold for a verified
@@ -13,8 +13,9 @@ use crate::player_identity::Tag;
 use sjk_ui::{Color, DrawCommand, DrawList, Rect};
 
 const REGISTERED: Color = Color::new(0.92, 0.94, 1.0, 0.9);
-/// Most ribbon bars a row shows.
-const RIBBONS_MAX: usize = 3;
+/// Most ribbon bars a row shows: every medal of today's catalogue (four), with room
+/// for two more.
+const RIBBONS_MAX: usize = 6;
 /// A bar's width, height and the gap before it, as fractions of the emblem's side.
 const RIBBON_WIDTH: f32 = 1.05;
 const RIBBON_HEIGHT: f32 = 0.42;
@@ -45,7 +46,7 @@ pub(super) fn ribbon_size(side: f32) -> (f32, f32, f32) {
 }
 
 /// How many of `medals` show as bars after an emblem `side` across when the marks may
-/// take `room` pixels in all (the emblem's included): at most three, fewer where they
+/// take `room` pixels in all (the emblem's included): at most six, fewer where they
 /// do not fit.
 pub(super) fn ribbon_count(medals: Medals, side: f32, room: f32) -> usize {
     let (width, _, gap) = ribbon_size(side);
@@ -264,9 +265,22 @@ mod tests {
     }
 
     #[test]
-    fn at_most_three_bars_and_fewer_when_the_name_is_short() {
-        let all = tag(false, &["early_tester", "early_contributor", "bug_hunter"]);
-        assert_eq!(ribbon_count(all.medals, 20.0, 1_000.0), 3);
+    fn every_medal_shows_a_bar_and_fewer_when_the_name_is_short() {
+        let all = tag(
+            false,
+            &[
+                "early_tester",
+                "early_contributor",
+                "bug_hunter",
+                "supporter",
+            ],
+        );
+        assert_eq!(ribbon_count(all.medals, 20.0, 1_000.0), 4);
+        assert_eq!(ribbon_count(all.medals, 20.0, marks_width(20.0, 4)), 4);
+        assert_eq!(
+            ribbon_count(all.medals, 20.0, marks_width(20.0, 4) - 1.0),
+            3
+        );
         assert_eq!(ribbon_count(all.medals, 20.0, marks_width(20.0, 2)), 2);
         assert_eq!(ribbon_count(all.medals, 20.0, 25.0), 0);
         assert_eq!(ribbon_count(tag(false, &[]).medals, 20.0, 1_000.0), 0);

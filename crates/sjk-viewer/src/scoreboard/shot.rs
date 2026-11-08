@@ -99,14 +99,23 @@ fn row(client: u8, name: &str, team: u8, score: i32) -> ScoreRow {
         defends: i32::from(client % 4),
         assists: i32::from(client % 3),
         captures: i32::from(client % 2),
-        // A few players the hub knows, two of them vouched for, three with medals.
+        // A few players the hub knows, two of them vouched for, three with medals
+        // (the first with every medal there is).
         identity: match client {
             0 => Some(Tag {
                 verified: true,
                 tick: sjk_identity::Tick::None,
                 trust: None,
                 emoji: Default::default(),
-                medals: medals(&["early_tester", "early_contributor", "bug_hunter"], 3),
+                medals: medals(
+                    &[
+                        "early_tester",
+                        "early_contributor",
+                        "bug_hunter",
+                        "supporter",
+                    ],
+                    3,
+                ),
                 client: None,
             }),
             11 => Some(Tag {

@@ -4803,7 +4803,7 @@ are in [identity.md](identity.md).
   Settings > Sound > Unlock sound (`cg_achievementSound`) turns its chime off.
 - The scoreboard (every style) draws SJK's emblem at the end of the name of a
   player the hub knows (the SJK UI's right after the name), in gold when the
-  hub's operator vouches for them, then up to three ribbon bars for the medals the
+  hub's operator vouches for them, then up to six ribbon bars for the medals the
   SJK team gave them ([identity.md](identity.md#medals)); fewer bars show where the
   name would run short of room. It trusts
   a claim only when the claimed name matches the name the game shows in that slot.
