@@ -116,6 +116,8 @@ pub(crate) fn code_effects() -> impl Iterator<Item = &'static str> {
 /// sprites floated over players (`cg_players.c`) and the `white` lines of
 /// `CG_TestLine` (JA+ grapple ropes, `grapple_rope.rs`).
 pub(crate) const CODE_SHADERS: &[&str] = &[
+    "gfx/sjk/petals/feather",
+    "gfx/sjk/petals/puff",
     "gfx/damage/rivetmark",
     "gfx/effects/saberdamageglow",
     "gfx/misc/spark",
@@ -136,7 +138,7 @@ pub(crate) const CODE_SHADERS: &[&str] = &[
     "footstep_l",
     "footstep_heavy_r",
     "footstep_heavy_l",
-    // The blossoms and paper cranes a swung blade sheds (`saber_petals.rs`): without these
+    // The blossoms, paper cranes, ash and moonlight a swung blade sheds (`saber_petals.rs`): without these
     // the particles drew the stand-in sprite, yellow dots.
     crate::saber_petals::SHADERS[0],
     crate::saber_petals::SHADERS[1],
@@ -146,6 +148,7 @@ pub(crate) const CODE_SHADERS: &[&str] = &[
     crate::saber_petals::SHADERS[5],
     crate::saber_petals::SHADERS[6],
     crate::saber_petals::SHADERS[7],
+    crate::saber_petals::SHADERS[8],
     // The portable shield's looks (`portable_shields.rs`).
     crate::portable_shields::SHADERS[0],
     crate::portable_shields::SHADERS[1],

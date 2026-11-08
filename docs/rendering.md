@@ -470,6 +470,11 @@ memory. Once the images held grow 128 MiB past what the last sweep kept, the nex
 decoded sweeps out every image only the cache holds; an image a world's shared
 textures, the mip cache or a loader still holds stays, so an address used as a key is
 never freed and reused, and textures shared across a map change are shared as before.
+A model's warm-up (`warm_entity_materials`) returns its decoded images with its
+textures (`WarmTextures`), held until the model's materials are appended: held by the
+cache alone, any image decoded meanwhile could sweep them (two 4096x4096 RGBA images
+are the whole 128 MiB margin), and the append decoded them again on the render thread,
+743 ms for `creyonwolf` in Sol's 08/11/2026 log (`model install … materials 736.6`).
 `map_changes_vram` prints the bytes held: four maps cycled three times at r_picmip 2
 (an install with HD texture packs) held 1750 MiB from the third map
 on before, 906 to 1178 MiB after (the current map's own images), with the same video
@@ -557,7 +562,8 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 | `r_weatherQuality` | Weather quality, 0 low to 3 ultra, default 2; live; renderer WEATHER tab. See [Weather](#weather) |
 | `r_weatherForce` | Weather on every map with sky instead of the map's: 0 (default) the map's, 1 drizzle, 2 rain, 3 storm, 4 snow; live |
 | `r_weatherFog` | Ground fog: 0 none, 1 the map's (default), 2 on every map with sky; live |
-| `r_clouds` | Volumetric clouds over open sky, 1 (default) or 0; live |
+| `r_clouds` | Volumetric clouds over open sky, 0 (default, under every graphics preset) or 1; live |
+| `r_weatherLightning` | Lightning in storms, 0 (default) or 1; live; renderer WEATHER tab. See [Weather](#weather) |
 | `r_normalMapping` | Normal maps on lightmapped world surfaces (rend2 convention) and on models whose shader names one (`normalMap`); default 1 (rend2: 0), applies after a graphics reload |
 | `r_specularMapping` | Specular, roughness and metalness maps on the same surfaces; default 1 (rend2: 0), applies after a graphics reload |
 | `r_parallaxMapping` | Parallax from the height in `_nh`/`normalHeightMap` images; needs `r_normalMapping`; default 1 (at `r_parallaxStrength` 0.1; rend2: 0), applies after a graphics reload |
@@ -889,6 +895,14 @@ process's RAM in Task Manager.
   than 16:9 so they never see past it, which lines the 3D stage up with the picture.
   A world install that runs out of memory turns the setting on
   ([status](status.md#menu-pictures-and-readable-world-install-failures)).
+- Largest texture (`r_maxTextureSize`, SJK, 2048 by default, 0 for none; Settings,
+  "Largest texture") leaves off the mip levels of a texture larger than its size, so
+  the longest side kept is that size or less, whatever `r_picmip` (`mips::skipped`
+  takes the larger of the two). It takes every path `r_picmip` takes, and also the
+  `nopicmip` stages and sky boxes. Added 08/11/2026 for community player models with
+  4096x4096 textures (`creyonwolf`): at 2048 such a texture is a quarter of its video
+  memory and upload. The whole chain is still decoded and built on a worker, so the
+  cap does not shorten that part of a load. From the next map, as `r_picmip`.
 - Texture detail (`r_picmip`, 0 to 3, as in Jedi Academy,
   [world_texture_mips.rs](../crates/sjk-viewer/src/world_texture_mips.rs)) leaves a
   material texture's largest mip levels off the card: each step halves its sides, a
@@ -2799,6 +2813,16 @@ at that point and returning the blade's own: `sig_glow(g, b, r, px)` the glow's 
   arcs and the Void's orbiting black holes are; no volume is marched. `sig_edge` fades
   everything out before the quad's edges, and `uFx` is 0 when the wearer turns the
   effects off. `@solid 1` marks a signature with `sig_solid` or `sig_vol_solid`.
+  A solid layer is cut just past the tip the blade has (so a crust follows the blade as it
+  grows); `@solidpast 1` (`Signature::solid_past`, `SIG_SOLID_PAST_TIP`) leaves a fully
+  grown blade's solid layer uncut there, for one that closes itself past the point: Angel's
+  cloud bank rounds off in a billowed crown a little above the tip, where the cut drew a
+  flat top seen up close (Creyon, 5/11/2026).
+  `@nearpull <units>` (`Signature::near_pull`, `SIG_NEAR_PULL`) sets how far a `@solidnear`
+  layer's depth is pulled toward the camera (14 by default, so a wide plane does not slice
+  its wearer); Angel pulls 3, as its bank covered its wearer's head and face. Its bank is also
+  narrow from the hand up to head height and thins away with the camera within some 17 units
+  of the blade (Creyon, 6/11/2026).
 - **A fixed frame and the full length (round 9, 20/10/2026).** Until round 9 the frame's x
   pointed to the camera's side, so every effect turned round the blade with the view: in
   Creyon's test they raced round it whenever he turned the mouse. The hand path now stamps
@@ -3147,7 +3171,11 @@ at that point and returning the blade's own: `sig_glow(g, b, r, px)` the glow's 
   (largest difference 0.001), on Linux with lavapipe.
 - **Drawing.** [blade_signatures.rs](../crates/sjk-viewer/src/blade_signatures.rs) names
   the signature skins (`SIGNATURES`); a loaded skin with one carries `LAB_SIGNATURE`
-  (100) in its `design` lane, with its `@room` (units, in the lane's metres) and `@solid`
+  (100) in its `design` lane, with its `@room` (units, in the lane's metres; its solid parts are cut at the tip the blade has
+  grown to, and once it is all out only past its rounded tip, 27/10/2026) and `@solid`
+  (`@speed <factor>` sets how fast a signature's motion runs, `uTime` through `SIG_SPEED` in
+  `sig_take`, 1 by default; its cycles and moments (`uClock`), lighting, swings and clashes keep
+  real time)
   (`@moments own` keeps a mythical out of `sig_mythic`: the Sun draws its own sunrise and
   eclipse),
   and its chroma's own hue in `design_color.w` (-1 for none). A signature replaces a
@@ -3182,6 +3210,10 @@ at that point and returning the blade's own: `sig_glow(g, b, r, px)` the glow's 
   own colours, as do Obsidian Edge, Quicksilver, Mortis (day and night) and the Bleeding
   Kyber (its red corruption). A signature's solid layer may keep its own colours where it
   sets `uOwn` (0 to 1; the Abyssal Eye's amber eye, round 9).
+  `uTurn` is the chroma's turn (0 with none), for a blade that colours parts of itself under an RGB
+  (Lotho Minor Lavaglass). `liveArcs` draws lightning that moves every frame and fades in and out
+  (`fxArcs` holds a shape and swaps it); `tipFade` and `tipFadeB` end effects in a soft dome round the
+  tip, where a cut on height alone would show as a straight line.
 - **Options.** Every signature skin offers its wearer `Effects round the blade` (off: only
   the blade itself, nothing past a stock glow's width or the tip), `Swing and clash
   bursts` (off: swings and clashes set nothing off) and `Ignition show` (off: lit at
@@ -3250,7 +3282,10 @@ tip, 132 blades) within 1/255 of `main`'s:
   did with the cache switched off by a constant or reached through a wrapper, though the same
   arithmetic in one function did not. Its header says `@raycache off`: `module_source` renames
   `behindBladeFull` to `behindBlade` in its module, so its pieces call the old body and the kept
-  one goes uncalled (`Signature::ray_cache`, test `world_shift_alone_goes_without_the_ray_cache`).
+  one goes uncalled (`Signature::ray_cache`, test `world_shift_moon_and_vulptex_go_without_the_ray_cache`).
+  Since 1/11/2026 (update 15 of Creyon's round) the Moon and Vulptex Spiritfire do too: Creyon's
+  RTX fell to 60-70 frames a second on them though on llvmpipe they cost less than Abyssal Eye in
+  every scene, the pattern World Shift showed; not yet timed on his GPU.
 - `bolt3` takes `px` and skips its ten segments when the whole bolt (within half its length and
   0.71 of its zigzag of its middle) is more than six units and three pixels off the ray: every
   caller turns its distance into Gaussian glows at most 1.5 wide, under a ten-thousandth there.
@@ -3281,6 +3316,31 @@ blades' `game` total fell by 2.9 of 54.6 ms, 0.29 ms at most for one blade (Star
 Its noise has no exact shortcut, so it is left as it is. Measuring while the client runs is
 unreliable: during one run the stand-in blade went from 0.57 to 2.57 ms and the switched-off
 helpers seemed to cost time; check the stand-in line of each run.
+
+Shells and coarse outlines (1/11/2026, Creyon's Star Wars round, blades 170 to 270): Zeffo
+Thunderchorus fell from 125 to 30 frames a second in his game when he zoomed in on it, its loops
+of 3D bolts run for every pixel of a quad that filled the screen. Two kinds of change, timed with
+`scripts/blade_cost.py` (scene `close`, llvmpipe; the Sun 20.8 to 27.2 ms in the same runs):
+
+- **Shells** (`sh*` at the end of `lab.glsl`): `shT` finds where the view ray crosses a cylinder
+  of radius R round the axis (at most twice), `shAt` weighs each crossing (none behind the camera
+  or hidden by the body, fading where the ray grazes the cylinder and over soft ends, so its
+  outline never shows) and gives its place on the shell, and a pattern is read there: motes,
+  flakes, glints, streaks, strands, sheaths of flowing light, fire, veins, bolts drawn in the
+  shell's own flat coordinates, curtains, caustics, facets, and `shSmokeA` for a solid layer. A
+  quadratic and a few noise reads a pixel; particles live in cells at least eight sizes across,
+  so none is cut at its cell's edge. Zeffo Thunderchorus, redrawn on them, 63.4 to 15.4 ms.
+- **Coarse outlines first** in `rxRibbon`, `rxTongue` and `rxHelix`: four chords of the curve
+  first; every point of it lies within their sagitta (and its sway's bend), so a ray past that
+  and 3.2 widths of its widest glow (under a ten-thousandth) skips the 10 to 24 segments
+  (`rxHelix` returns the chords' distance less their error, a lower bound, past three units).
+  `rxMist` and `rxMistSpin` read their second wave first and skip the first where it cannot be
+  dense; `rxStarCloud` skips a star before its twinkle where the ray is past its glow. The same
+  pictures. Utapau Whirlwind 168.3 to 33.1 ms, Zonama Starlight 66.7 to 27.4, Nur Shadowflame 57.3
+  to 26.6, Nihilus Hunger 48.6 to 25.2, Cantonica Ascension 48.5 to 25.4, Bastila Battle
+  Meditation 47.2 to 25.5; Dume Wolfspirit (its tails read off a three-point outline first, six
+  segments for eight) 49.1 to 40.3. Not timed on a real GPU here: run the script on main and the
+  branch in one sitting before review, as AGENTS.md asks.
 
 ### Falling blossoms
 
@@ -3338,6 +3398,20 @@ when it is swung, which its own quad could not hold: they are particles in the w
   settle as the petals do: a ragged grey flake (`ash_grey.png`) and, one in three, the same
   flake with its edge still glowing orange (`ash_ember.png`), both drawn by
   `scripts/petal_assets.py`, tumbling as they fall.
+- **Moondust** (26/10/2026, the Moon, Creyon's): `"kind": "moon"` sheds moondust, switched with
+  its "Moon glitter" part: `// @petals {"part":1,"kind":"moon",
+  "per_unit":0.6,"life":3.4,"size":1.1,"fall":0.0,"drift":20.0,"rise":30.0,"moving":0.8}`.
+  Specks of moondust with four short rays (`moon_dust.png`,
+  white light added with `blendFunc GL_SRC_ALPHA GL_ONE` and tinted by the particle a colour
+  of the blade's moonlight: silver, white, lilac or purple, turned to the wearer's saber colour
+  on a chroma by the skin's turn, `PetalSpec::turn`, which only the shedding blade sets) that float up through the world as
+  the cranes do, drawn by `scripts/petal_assets.py`, shrinking a little as they fade. At first
+  half were ragged flakes of moon rock that dropped and settled; Creyon did not want stones
+  falling out of the saber, and that picture is gone.
+- **Shed while moving** (26/10/2026): a line's optional `moving` sheds that many for each unit
+  the tip travels through the world beyond its swing (the wearer running, jumping or riding:
+  the world travel less the swing's), as well as the swing's `per_unit`. 0 (the default)
+  keeps the old rule, so a turn of the view or a run sheds nothing; the Moon blade's is 0.8.
 
 ## Saber trails
 
@@ -3383,7 +3457,21 @@ the Sun blade (Sol: a sun or fire trail; 1 the default, the Solar card unlocking
   units (never more than 2 % of the screen, `HAZE_REACH`, the room the effect rectangle
   keeps), gone at the slice's edges and as it ages, so the merge sees no seam.
 
-The plasma, flare and a wake live three times as long as the blur (`LONG_LIFE`: 90 to 120 ms
+Built 27/10/2026 for the Moon blade (Creyon, after Sol's Sun trails: the Sun's night sister):
+
+- **Moonlight** (style 7, every Moon's, `// @trail moonlight`): a soft silver ribbon where the
+  blade just passed, light rippling across it as moonlight on water (the plasma's world noise,
+  slower), cooling through the trail colour (lilac, the wearer's on a chroma) to deep violet,
+  its trailing edge dissolving into stardust: specks in world cells (`moon_glitter`), drifting
+  down as they age where the plasma's flames rise, twinkling out; a fine silver seam where the
+  tip went.
+- **Eclipse** (style 8, the Moon's Eclipse trail extra): the ribbon hollowed into a ring of
+  light along its edges, as the corona round an eclipsed moon, white within and the trail
+  colour without, a diamond-ring flash where the tip just passed, stardust still drifting.
+- **Starfall** (style 9, the Moon's Starfall trail extra): a faint moonlight ribbon with
+  shooting stars in nine lanes across the band, each a bright head and a fading silver tail.
+
+The plasma, flare, moonlight, eclipse, starfall and a wake live three times as long as the blur (`LONG_LIFE`: 90 to 120 ms
 for most moves): the cooling and the shimmer need that time to be seen. Each slice's age
 reaches the fragment shader in the colour's alpha, which the additive blend ignores. Verified
 by unit tests (the styles and the wake bit from the Sun's choices, the shader validated by
@@ -4410,18 +4498,31 @@ Drizzle wets about half as much as a downpour (`SOAKING_HAZE`), snow not at all,
 a map without sky (no cover) is never wet. Wet surfaces darken by up to 36% as water
 fills their pores, and a film mirrors the overcast sky (the clouds' skylight, dimmer at
 night and in a storm) with water's Fresnel term, strongest at grazing angles and only
-where the mirrored ray points above the horizon. Level 2 adds running water on walls
-and steep slopes: thin noise streaks, 40 units to a noise tile across and 520 along,
-darker and glossier, running down at 110 units a second while their pattern slowly
-changes. They are laid on each wall's plane in world coordinates (across y and up z for
-a wall facing x, across x for one facing y, blended between the two on a slanted wall;
-on a slope the height runs downhill), and the scroll and change are kept wrapped to
-one noise tile on the CPU, so the streaks stay put on the wall. The first version took
-its coordinates from the face's normal, which the depth gives a little unsteadily, times
-world positions in the thousands, and its scroll from the time since the map loaded
-times a slope-dependent speed: the streaks flickered and slid as the camera moved
-(Sol, 08/10/2026). They fade out between 500 and 1400 units and at grazing views, where
-they would shimmer. Level 3 adds puddles on
+where the mirrored ray points above the horizon. Level 2 adds running water
+(`running` in weather.wgsl, reworked 05/11/2026, Sol: "the rain flowing on angled planes,
+it's not good enough"): on every slope from about 10 degrees a thin film, glossier in
+bands that run down and broken up by the noise; on walls and slopes past about 30 degrees
+rivulets, in lanes 14 units wide across the way down, two lanes in five carrying one along
+a line that wanders across its lane as it goes down (fixed on the surface: the water
+keeps to its paths), in stretches of 240 to 460 units with dry gaps, at least about a
+pixel wide (fainter instead); along each rivulet three to seven drops a scroll's wrap run
+down, a bright head with a short tail, catching the overcast light, until they are too
+small to see. Everything runs down at 110 units a second of height, the scroll and the
+film's change kept wrapped on the CPU (520 units, one noise tile; the drops' spacing
+divides it), so nothing jumps when it wraps.
+
+The way down is laid in one of 16 headings round the vertical: across it runs level
+along the surface, down it runs the height, so a lane follows the slope's fall line on a
+ramp facing any way, not only on walls facing x or y. The face's normal, which the depth
+gives a little unsteadily, only chooses the heading nearest its own (and blends the two
+nearest within a twentieth of a turn of half way); a flat face's heading never changes,
+so the water stays put however the camera moves. Until 05/11/2026 the streaks were one
+noise stretched 40 by 520 units, laid across y or x and blended between the two by the
+normal, so a ramp facing a diagonal showed two crossed patterns and gentle slopes none
+at all. (The version before 08/10/2026 took its coordinates from the normal times world
+positions in the thousands and its scroll from the time since the map loaded times a
+slope-dependent speed: it flickered and slid as the camera moved.) Running water fades out
+between 600 and 1600 units and at grazing views, where it would shimmer. Level 3 adds puddles on
 flat ground (about a third of it, in noise patches 1100 units across), darker and an
 almost full mirror, with thin rain rings within 700 units. The pass blends
 `scene × alpha + colour`; the price is that light painted into a wet wall's texture
@@ -4469,7 +4570,8 @@ map's weather; `r_we` commands still add to it. Forced weather is drawn only on 
 with sky, so it never falls indoors on a map without one; so is a map edit's weather.
 
 **Clouds** ([weather_clouds.rs](../crates/sjk-viewer/src/weather_clouds.rs),
-[clouds.wgsl](../crates/sjk-viewer/src/clouds.wgsl), `r_clouds`, on by default).
+[clouds.wgsl](../crates/sjk-viewer/src/clouds.wgsl), `r_clouds`, off by default and no
+graphics preset's since 05/11/2026: a player's own choice).
 A layer of cloud 6000 units above the camera and 3200 deep covers every map with sky
 faces, except maps whose weather is space dust. It is drawn on the visible sky faces
 right after the sky, with the sky faces' own geometry and depth test, half as far
@@ -4491,6 +4593,27 @@ run on a worker thread, and the clouds and the fog's billows appear when it is r
 
 Rain and wind can be heard with `s_weatherSounds` ([client.md](client.md#weather-sounds)),
 quieter under a roof by the same cover.
+
+**Lightning** (`r_weatherLightning`, off by default; 05/11/2026, Sol: "add more
+atmospheric stuff"; [weather_lightning.rs](../crates/sjk-viewer/src/weather_lightning.rs)).
+In a storm (a haze at least three quarters of a downpour's: `heavyrain`, the map editor's
+Storm, `r_weatherForce 3`) a strike comes every 7 to 22 seconds (a fiercer storm more
+often; the first 4 seconds in): two or three pulses 70 to 230 ms apart, each falling to a
+third in 70 ms, brighter when it falls near, over within 0.9 s. Its light is not a light
+in the world: it lights what the storm puts in the air and on the ground, the fog and haze
+(3.5 times as bright at a full flash), the falling rain (2.5 times), what wet surfaces and
+puddles mirror (5 times) and the volumetric clouds from within. The world's own lighting
+and the skybox stay as they are; instead the fog pass lays a cool white veil of the flash's
+light over the view, up to 12% of it over a wall near the eye and 55% where the ray runs
+6000 units or more into the open sky (`fragment_volume`, the flash in `rain.w`), so the
+storm's air lights up as it does seen through rain. Its thunder follows after the time the sound takes to come (0.25
+to 4 s: the game's `thunder_close` for a strike within a quarter of the range, else
+`thunder1` to `4`, quieter the farther), with `s_weatherSounds`
+([client.md](client.md#weather-sounds)). `cg_reduceFlashes` keeps a flash to a third of
+its light, easing in and out over 0.15 s instead of flickering. Frozen weather holds the
+strike; weather chosen for a map without sky (forced, or a map edit's) never flashes; the
+multiplayer game has no lightning of its own to follow (single player's `fx_rain` flag is
+ignored there), so nothing on a server asks for it.
 
 `r_weather 0` turns weather off (the clouds stay with `r_clouds`);
 `r_weatherDensity` scales the counts (1 is the original's, SJK's default 2).
@@ -4515,10 +4638,9 @@ alone cannot. `r_weather 0` suppresses it. `clear` removes rain while preserving
 freeze; `die` also clears freeze. This affects presentation only.
 
 Secondary views (portals, mirrors, sky portals) show no weather or clouds. Not
-implemented: the outside camera shake (`outsideshake`), acid rain's pain hint, the
-lightning flashes (a single-player `fx_rain` flag the
-multiplayer game ignores), wind zones with bounds, and clouds casting shadows on the
-world. A map's skybox may already paint clouds; the volumetric ones go over them.
+implemented: the outside camera shake (`outsideshake`), acid rain's pain hint, lightning
+lighting the world itself (see Lightning above), wind zones with bounds, and clouds
+casting shadows on the world. A map's skybox may already paint clouds; the volumetric ones go over them.
 Full visual and cost verification of the weather remains incomplete. The cover,
 commands, wind, settings,
 noise, cloud and fog parameters and the translation of both shaders have unit

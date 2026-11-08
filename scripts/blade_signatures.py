@@ -474,7 +474,7 @@ class Translator:
                 return self.functions[name][0]
             if name in SCALAR_RESULT:
                 return SCALAR_RESULT[name]
-            if name == "cross":
+            if name == "cross" or name == "skinBody":
                 return "vec3"
             if name in GEN_SAME:
                 types = [self.type_of(a) for a in args]
@@ -651,6 +651,8 @@ class Translator:
         if name in GEN_SAME or name in SCALAR_RESULT or name == "cross":
             parts = [self.as_type(a, "float") if self.type_of(a) == "int" and name not in ("abs", "sign", "min", "max", "clamp") else self.emit(a) for a in args]
             return f"{name}({', '.join(parts)})"
+        if name == "skinBody":
+            return f"skinBody({self.as_type(args[0], 'vec2')})"
         raise Error(f"unknown function {name}")
 
     # ---- statements
@@ -958,9 +960,15 @@ def translate(src, uniforms, helpers=None, module_names=(), prefix_clash="sig_")
 # ---------------------------------------------------------------- the repository's signatures
 
 UNIFORMS = {name: "float" for name in
-            "uTime uLength uSwing uClash uIgn uAge uSeed uChroma uRoom uReach uFx uOwn uParts uSince".split()}
+            "uTime uClock uLength uSwing uClash uIgn uAge uSeed uChroma uRoom uReach uFx uOwn uParts uSince".split()}
 # Light a signature keeps in its own colours under a chroma (round 12: Between Worlds' duel).
 UNIFORMS["uKeep"] = "vec3"
+UNIFORMS["uTurnFx"] = "vec3"
+UNIFORMS["uTurn"] = "float"
+UNIFORMS["uBend"] = "float"
+UNIFORMS["uSide"] = "float"
+UNIFORMS["uAirCover"] = "float"
+UNIFORMS["uClashT"] = "float"
 HERE = Path(__file__).resolve().parent.parent
 FOLDER = HERE / "crates" / "sjk-viewer" / "src" / "blade_signatures"
 SABER = HERE / "crates" / "sjk-viewer" / "src" / "saber.wgsl"

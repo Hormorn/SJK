@@ -221,6 +221,12 @@ impl UiFont {
         (capital.offset_y + capital.height * 0.5) * scale
     }
 
+    /// How tall the capitals of a line drawn at `scale` are: what an icon set in the
+    /// line is sized from to match its words.
+    pub(crate) fn capital_height(&self, scale: f32) -> f32 {
+        self.glyph(TextFace::Regular, b'H').height * scale
+    }
+
     /// Whether this is the bundled vector font rather than the retail HUD font.
     pub(crate) const fn is_modern(&self) -> bool {
         self.modern

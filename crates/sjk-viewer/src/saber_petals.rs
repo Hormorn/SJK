@@ -11,7 +11,10 @@
 //! (`"kind": "ash"`): grey flakes, some still glowing at their edge, that drift down and settle.
 //! The Sun's Swing embers (26/10/2026, one of its extras, `blade_extras.rs`) are sparks
 //! (`"kind": "ember"`) flung off along the swing, rising as hot air does, cooling from white
-//! gold to deep red and going out in the air.
+//! gold to deep red and going out in the air. The Moon (26/10/2026, Creyon's) sheds moondust
+//! (`"kind": "moon"`): glittering specks in silver, lilac and purple that float up and fade, as
+//! its blade swings and as its wearer moves (`moving`); on a chroma the coloured dust takes its
+//! wearer's saber colour (`PetalSpec::turn`).
 
 use glam::Vec3;
 use serde::Deserialize;
@@ -31,6 +34,11 @@ pub(crate) enum PetalKind {
     /// Sparks flung off the swing that rise, cool from white gold to red and go out in the
     /// air, glowing (drawn added to what is behind them).
     Ember,
+    /// Moondust that floats up and fades: specks of added light in the Moon's silver, lilac and
+    /// purple.
+    Moon,
+    /// An angel's feathers, turning as they sink slowly and settle.
+    Feather,
 }
 
 /// A skin's falling blossoms, as its signature's `@petals` line gives them.
@@ -59,6 +67,16 @@ pub(crate) struct PetalSpec {
     /// ember is flung off far harder than a petal is let go.
     #[serde(default = "default_fling")]
     pub(crate) fling: f32,
+    /// Petals for each unit the tip travels through the world beyond its swing (the wearer
+    /// running, jumping, riding): the Moon sheds moondust as its wearer moves. 0 for none.
+    #[serde(default)]
+    pub(crate) moving: f32,
+    /// Turns from the skin's own hue to its wearer's saber colour (a chroma's
+    /// [`crate::saber_skins::Chroma::turn`]), set where the blade sheds them, never in the
+    /// signature's line: the Moon's coloured moondust takes the wearer's colour (Creyon's
+    /// wish), white dust stays white.
+    #[serde(skip)]
+    pub(crate) turn: f32,
 }
 
 /// A petal's share of the tip's speed (the swing's breath).
@@ -80,6 +98,7 @@ impl PetalSpec {
             && (0.0..=100.0).contains(&self.drift)
             && (0.0..=200.0).contains(&self.rise)
             && (0.0..=0.5).contains(&self.fling)
+            && (0.0..=2.0).contains(&self.moving)
     }
 }
 
@@ -136,7 +155,10 @@ impl PetalEmitter {
             self.carry = 0.0;
             return;
         };
-        self.carry += body_tip.distance(last_body) * spec.per_unit;
+        let swung = body_tip.distance(last_body);
+        // What the tip travelled through the world beyond its swing: the wearer moving.
+        let moved = (tip.distance(last_tip) - swung).max(0.0);
+        self.carry += swung * spec.per_unit + moved * spec.moving;
         let count = (self.carry.floor() as u32).min(MOST_A_FRAME);
         self.carry -= self.carry.floor();
         // A share of the tip's speed carries them on (a little: the swing's breath; an
@@ -177,8 +199,8 @@ macro_rules! bundled {
 }
 /// Their shaders, which the frame's effect materials must load (`effect_assets::CODE_SHADERS`):
 /// the blossoms' three tints, then the crane flying right and flying left, then grey ash and
-/// ash still glowing, then the ember.
-pub(crate) const SHADERS: [&str; 8] = [
+/// ash still glowing, then the ember, then the Moon's moondust.
+pub(crate) const SHADERS: [&str; 11] = [
     "gfx/sjk/petals/blossom_pink",
     "gfx/sjk/petals/blossom_pale",
     "gfx/sjk/petals/blossom_white",
@@ -187,6 +209,9 @@ pub(crate) const SHADERS: [&str; 8] = [
     "gfx/sjk/petals/ash_grey",
     "gfx/sjk/petals/ash_ember",
     "gfx/sjk/petals/ember",
+    "gfx/sjk/petals/moon_dust",
+    "gfx/sjk/petals/feather",
+    "gfx/sjk/petals/puff",
 ];
 const BLOSSOMS: usize = 3;
 const CRANES: usize = 2;
@@ -194,6 +219,22 @@ const ASHES: usize = 2;
 /// An ember's colour as it leaves the blade and as it goes out.
 const EMBER_HOT: [f32; 3] = [1.0, 0.92, 0.62];
 const EMBER_COOL: [f32; 3] = [0.95, 0.22, 0.04];
+/// The Moon's moondust (`moon.glsl`'s `MO_WHITE`, `MO_SILVER`, `MO_LILAC` and `MO_PURPLE`).
+const MOONLIGHT: [[f32; 3]; 4] = [
+    [0.94, 0.97, 1.0],
+    [0.78, 0.85, 0.98],
+    [0.8, 0.62, 1.0],
+    [0.62, 0.3, 1.0],
+];
+
+/// A speck of moondust's colour for `seed`, turned `turn` round to its wearer's saber colour
+/// (a chroma's turn; 0 keeps the Moon's own).
+fn moonlight(seed: u32, turn: f32) -> [f32; 3] {
+    crate::saber_skins::turn_hue(
+        MOONLIGHT[((seed >> 3) % MOONLIGHT.len() as u32) as usize],
+        turn,
+    )
+}
 /// The cranes' paper, as the Thousand Cranes' flock wears it (`tc_paper`): vermilion, indigo,
 /// sakura, jade, gold, sky, plum and cream.
 const PAPER: [[f32; 3]; 8] = [
@@ -206,7 +247,7 @@ const PAPER: [[f32; 3]; 8] = [
     [0.6, 0.32, 0.56],
     [0.97, 0.93, 0.84],
 ];
-const FILES: [(&str, &[u8]); 9] = [
+const FILES: [(&str, &[u8]); 12] = [
     ("shaders/sjk_petals.shader", bundled!("petals.shader")),
     (
         "gfx/sjk/petals/blossom_pink.png",
@@ -225,6 +266,9 @@ const FILES: [(&str, &[u8]); 9] = [
     ("gfx/sjk/petals/ash_grey.png", bundled!("ash_grey.png")),
     ("gfx/sjk/petals/ash_ember.png", bundled!("ash_ember.png")),
     ("gfx/sjk/petals/ember.png", bundled!("ember.png")),
+    ("gfx/sjk/petals/moon_dust.png", bundled!("moon_dust.png")),
+    ("gfx/sjk/petals/feather.png", bundled!("feather.png")),
+    ("gfx/sjk/petals/puff.png", bundled!("puff.png")),
 ];
 
 /// Mount the bundled petal files.
@@ -237,7 +281,7 @@ pub(crate) fn mount(vfs: &mut sjk_vfs::VirtualFileSystem) -> Result<(), sjk_vfs:
 /// camera, turning as it sinks, settling where it lands (it stops on the floor) and fading
 /// over its last third. A crane keeps nearly upright as it climbs, flies on through the world
 /// rather than landing, and takes a colour of paper. An ember flies on too, shrinking and
-/// cooling as it goes.
+/// cooling as it goes; moondust floats up like a crane, turning, in a colour of moonlight.
 pub(crate) fn frame(gpu: &mut crate::GpuState, now: Instant) {
     use crate::particle_types::{Particle, PrimitiveShape};
     let queue = gpu.saber_states.petals();
@@ -256,10 +300,13 @@ pub(crate) fn frame(gpu: &mut crate::GpuState, now: Instant) {
         let size = spec.size * (0.75 + 0.5 * unit(seed, 7));
         let crane = spec.kind == PetalKind::Crane;
         let ember = spec.kind == PetalKind::Ember;
-        // Cranes and embers fly on through the world; petals and ash settle.
-        let flies = crane || ember;
+        let moon = spec.kind == PetalKind::Moon;
+        // Cranes, embers and moondust fly on through the world; petals and ash settle.
+        let flies = crane || ember || moon;
         let (angle, spin) = if crane {
             ((unit(seed, 9) - 0.5) * 30.0, (unit(seed, 8) - 0.5) * 12.0)
+        } else if moon {
+            (unit(seed, 9) * 360.0, (unit(seed, 8) - 0.5) * 120.0)
         } else {
             (unit(seed, 9) * 360.0, (unit(seed, 8) - 0.5) * 50.0)
         };
@@ -269,9 +316,16 @@ pub(crate) fn frame(gpu: &mut crate::GpuState, now: Instant) {
             // One flake in three still glows.
             PetalKind::Ash => SHADERS[BLOSSOMS + CRANES + usize::from(seed % 3 == 0)],
             PetalKind::Ember => SHADERS[BLOSSOMS + CRANES + ASHES],
+            PetalKind::Moon => SHADERS[BLOSSOMS + CRANES + ASHES + 1],
+            // About every other one a small cloud comes away with the feathers.
+            PetalKind::Feather => {
+                SHADERS[BLOSSOMS + CRANES + ASHES + 2 + usize::from(seed % 2 == 0)]
+            }
         };
         let [r, g, b] = if crane {
             PAPER[(seed % PAPER.len() as u32) as usize]
+        } else if moon {
+            moonlight(seed, spec.turn)
         } else {
             [1.0; 3]
         };
@@ -332,8 +386,8 @@ pub(crate) fn frame(gpu: &mut crate::GpuState, now: Instant) {
             rgb,
             seed,
             shader: gpu.effects.shader(shader),
-            // Falling onto the floor, it stays there (no bounce) until it fades; a crane or an
-            // ember flies on through.
+            // Falling onto the floor, it stays there (no bounce) until it fades; a crane, an
+            // ember or moondust flies on through.
             physics: crate::particle_physics::State::new(
                 gpu.effects.code_primitive_definition(),
                 0,
@@ -363,6 +417,8 @@ mod tests {
         drift: 10.0,
         rise: 0.0,
         fling: DEFAULT_FLING,
+        moving: 0.0,
+        turn: 0.0,
     };
 
     #[test]
@@ -436,6 +492,70 @@ mod tests {
         let spec: PetalSpec = serde_json::from_str(line).unwrap();
         assert_eq!((spec.kind, spec.rise), (PetalKind::Blossom, 0.0));
         assert_eq!(spec.fling, DEFAULT_FLING);
+        // The Moon's moondust rises as cranes do.
+        let moon = crate::blade_signatures::of("saber_moon")
+            .and_then(|signature| signature.petals())
+            .expect("the Moon sheds moondust");
+        assert!(moon.valid() && moon.kind == PetalKind::Moon && moon.rise > moon.fall);
+    }
+
+    /// The Moon's purple moondust takes its wearer's colour on a chroma (here a third of a turn
+    /// round), its white stays white, and no signature line may set the turn itself.
+    #[test]
+    fn moondust_takes_its_wearers_colour() {
+        let purple = (0..64)
+            .find(|&seed| moonlight(seed, 0.0) == MOONLIGHT[3])
+            .unwrap();
+        let hue = |rgb| crate::saber_skins::hue_of(rgb).unwrap();
+        let moved = (hue(moonlight(purple, 1.0 / 3.0)) - hue(MOONLIGHT[3])).rem_euclid(1.0);
+        assert!((moved - 1.0 / 3.0).abs() < 0.01, "{moved}");
+        let white = (0..64)
+            .find(|&seed| moonlight(seed, 0.0) == MOONLIGHT[0])
+            .unwrap();
+        let turned = moonlight(white, 1.0 / 3.0);
+        assert!(
+            turned
+                .iter()
+                .zip(MOONLIGHT[0])
+                .all(|(a, b)| (a - b).abs() < 0.08),
+            "{turned:?}"
+        );
+        let line = r#"{"part":1,"kind":"moon","per_unit":0.3,"life":2.6,"size":1.1,"fall":0.0,"drift":14.0,"turn":0.5}"#;
+        assert!(serde_json::from_str::<PetalSpec>(line).is_err());
+    }
+
+    /// A blade held still while its wearer runs sheds nothing, unless its skin sheds as it
+    /// moves (the Moon's moondust).
+    #[test]
+    fn moving_sheds_only_for_a_skin_that_asks() {
+        let run = |spec: PetalSpec| {
+            let mut emitter = PetalEmitter::default();
+            let mut queue = Vec::new();
+            for step in 0..20 {
+                // The body carries the blade 10 units a frame; the tip keeps its place on it.
+                let base = Vec3::new(10.0 * step as f32, 0.0, 0.0);
+                emitter.shed(
+                    base,
+                    Vec3::Z,
+                    40.0,
+                    Vec3::new(0.0, 0.0, 40.0),
+                    1_000 + step * 16,
+                    3,
+                    spec,
+                    &mut queue,
+                );
+            }
+            queue.len()
+        };
+        assert_eq!(run(SPEC), 0);
+        // 190 units moved at 0.05 a unit: nine.
+        assert_eq!(
+            run(PetalSpec {
+                moving: 0.05,
+                ..SPEC
+            }),
+            9
+        );
     }
 
     #[test]

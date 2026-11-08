@@ -216,11 +216,6 @@ impl ViewerConsole {
         )?;
         let draw_fog = console_cvars::IntegerSetting::bind(&mut cvars, "r_drawfog", 2)?;
         let packet_dup = console_cvars::IntegerSetting::bind(&mut cvars, "cl_packetdup", 1)?;
-        let packet_dup_lifted = console_cvars::IntegerSetting::bind(
-            &mut cvars,
-            crate::server_caps::PACKET_DUP_OVERRIDE_CVAR,
-            0,
-        )?;
         let max_packets = console_cvars::IntegerSetting::bind(
             &mut cvars,
             "cl_maxpackets",
@@ -233,6 +228,11 @@ impl ViewerConsole {
         )?;
         let caps_lifted =
             console_cvars::IntegerSetting::bind(&mut cvars, crate::server_caps::OVERRIDE_CVAR, 0)?;
+        let fresh_stamps = console_cvars::IntegerSetting::bind(
+            &mut cvars,
+            crate::server_caps::FRESH_STAMPS_CVAR,
+            0,
+        )?;
         let pmove_fixed = console_cvars::IntegerSetting::bind(&mut cvars, "pmove_fixed", 0)?;
         let pmove_msec = console_cvars::IntegerSetting::bind(&mut cvars, "pmove_msec", 8)?;
         let socket = super::socket::State::bind(&mut cvars)?;
@@ -665,6 +665,8 @@ impl ViewerConsole {
             pending_fishing: None,
             fishing_card: Default::default(),
             pending_fishing_sell: false,
+            wheel_of_doom_on: false,
+            pending_wheel_of_doom: false,
             monitor_on: false,
             pending_monitor: None,
             box_hunt_on: false,
@@ -693,13 +695,13 @@ impl ViewerConsole {
             remap_shared_maps,
             remap_shared,
             packet_dup,
-            packet_dup_lifted,
             max_packets,
             gameplay_fps,
             frame_cap: crate::runtime_settings::STOCK_FPS_CAP,
             server_cap: None,
             server_family: None,
             caps_lifted,
+            fresh_stamps,
             input_health: Default::default(),
             pmove_fixed,
             pmove_msec,
@@ -1049,17 +1051,6 @@ impl ViewerConsole {
                     " (gameplay_fps_nocap 1 lifts it)"
                 }
             ));
-            if let Some(most) = cap.max_packet_dup {
-                self.shell.push_log(format!(
-                    "cl_packetdup: {} servers take {most} repeated packets at most{}",
-                    cap.name,
-                    if self.server_packet_dup_cap().is_none() {
-                        ", but cl_packetdup_nocap 1 lifts the cap"
-                    } else {
-                        " (cl_packetdup_nocap 1 lifts it)"
-                    }
-                ));
-            }
         }
         self.input_health.reset();
         // The same server's free-saber word survives its map changes.

@@ -6,6 +6,7 @@
 //! not to have run out of room. Ignored like the other world shots.
 
 use super::*;
+use crate::menu::create_game::{ROWS, Row};
 
 /// Wait for the shown map's levelshot, then save `name`.
 fn settle_and_shoot(gpu: &mut GpuState, name: &str) {
@@ -35,12 +36,19 @@ fn show(gpu: &mut GpuState, selected: usize, filter: Option<&str>) {
     }
 }
 
+/// The position of `kind` among the screen's rows.
+fn row(kind: Row) -> usize {
+    ROWS.iter()
+        .position(|row| *row == kind)
+        .expect("a row of the screen")
+}
+
 /// A client on duel6 at `size` with `cvars`, its menu opened on Create game.
 fn client(size: [u32; 2], cvars: &[(&str, &str)]) -> Option<(GpuState, tempfile::TempDir)> {
     let menu = menu::ClientMenu::new(true, String::new());
     let (mut gpu, profile) = open("maps/mp/duel6.bsp", size, Some(menu), cvars)?;
     let _ = frame(&mut gpu, 10);
-    show(&mut gpu, 8, None);
+    show(&mut gpu, row(Row::Start), None);
     gpu.ui_epoch -= std::time::Duration::from_millis(2_000);
     Some((gpu, profile))
 }
@@ -59,7 +67,7 @@ fn duel6_sjk_create_game() {
         settle_and_shoot(&mut gpu, "duel6-create-game");
         show(&mut gpu, 1, None);
         settle_and_shoot(&mut gpu, "duel6-create-game-map");
-        show(&mut gpu, 6, None);
+        show(&mut gpu, row(Row::Hostname), None);
         if let Some(menu) = gpu.client_menu.as_mut() {
             menu.create_game_name_for_shot("Sol's saber school");
         }

@@ -321,6 +321,8 @@ mod propgun_shots;
 mod ragdoll_shots;
 #[path = "world_shot_toy_master.rs"]
 mod toy_master_shots;
+#[path = "world_shot_wheel_of_doom.rs"]
+mod wheel_of_doom_shots;
 
 #[path = "world_shot_blade_cards.rs"]
 mod blade_cards;
@@ -396,6 +398,9 @@ mod find_blades_shots;
 
 #[path = "world_shot_text_sizes.rs"]
 mod text_sizes_shots;
+
+#[path = "world_shot_chat_tools.rs"]
+mod chat_tools_shots;
 
 #[path = "world_shot_chat_reactions.rs"]
 mod chat_reactions_shots;
@@ -1350,6 +1355,8 @@ Found the fog bug, ask me about it!"
             mystery_box: None,
             junk: None,
             junk_sale: None,
+            wheel_of_doom: None,
+            wheel_of_doom_spin: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,
@@ -1576,6 +1583,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
                 sjk_identity::Holocron {
                     id: 42,
@@ -1587,6 +1595,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
                 sjk_identity::Holocron {
                     id: 41,
@@ -1598,6 +1607,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
                 sjk_identity::Holocron {
                     id: 39,
@@ -1609,6 +1619,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
             ],
             ..profile("44f3d0b36c9b2510", "^1Sol^7Vulpes")

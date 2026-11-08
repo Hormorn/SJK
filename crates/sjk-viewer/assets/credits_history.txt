@@ -9,6 +9,64 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 07/11/2026 | - | Shelve Support SJK: hide the donation links on the main page
+- ed9f00f |  | Shelve Support SJK: hide the donation links on the main page
++ 07/11/2026 | - | Release 2026.1107.1
+- 2c5853e |  | Release 2026.1107.1
++ 06/11/2026 | - | JoF: take cl_packetdup as set again (revert the cap at 0)
+- 4439cbf |  | JoF: take cl_packetdup as set again (revert the cap at 0)
++ 06/11/2026 | - | Credits history after the editions, saber_loadall and the new blades' tiers
+- 48ccdbf |  | Credits history after the editions, saber_loadall and the new blades' tiers
++ 06/11/2026 | - | Sol's tiers for Creyon's round: 19 blades up a tier after his tests
+- da28de9 |  | Sol's tiers for Creyon's round: 19 blades up a tier after his tests
++ 06/11/2026 | - | saber_loadall: build every blade's shader at once, to see each blade's real look right away
+- c59b6f0 |  | saber_loadall: build every blade's shader at once, to see each blade's real look right away
++ 06/11/2026 | - | Collections: Alpha and Beta editions, an Edition filter, holocrons stamped with theirs
+- 0b8a114 |  | Collections: Alpha and Beta editions, an Edition filter, holocrons stamped with theirs
++ 06/11/2026 | - | Credits history after PR #370 (Creyon's 130 blades)
+- d50ddac |  | Credits history after PR #370 (Creyon's 130 blades)
++ 06/11/2026 | - | Creyon's round waits for Sol's tests: blades 170 to 299 do not drop yet
+- c8b733a |  | Creyon's round waits for Sol's tests: blades 170 to 299 do not drop yet
++ 06/11/2026 | - | Leave the God Ki blade out of Creyon's round (Dragon Ball material)
+- 86f20d7 |  | Leave the God Ki blade out of Creyon's round (Dragon Ball material)
++ 06/11/2026 | - | Chat row tools: icons level with the words and as tall as their capitals
+- 9adc530 |  | Chat row tools: icons level with the words and as tall as their capitals
++ 06/11/2026 | - | Chat row: x on a hovered button, + to put chats back, cog for quick settings
+- 43c861f |  | Chat row: x on a hovered button, + to put chats back, cog for quick settings
++ 06/11/2026 | - | JA+ server mode, step 2: saber damage and the /kill frag
+- f2e0866 |  | JA+ server mode, step 2: saber damage and the /kill frag
++ 06/11/2026 | - | debug_panel: put the JA+ mode note back in its entry after the merge
+- a409377 |  | debug_panel: put the JA+ mode note back in its entry after the merge
++ 06/11/2026 | - | JA+ duels on the server: isolation, the JA+ challenge, full-force duels, the winner's report
+- 8b37447 |  | JA+ duels on the server: isolation, the JA+ challenge, full-force duels, the winner's report
++ 06/11/2026 | - | JA+ server mode: JA+'s Force rules (push, absorb, grip, cloak, items) and the grip speed
+- 438327a |  | JA+ server mode: JA+'s Force rules (push, absorb, grip, cloak, items) and the grip speed
++ 06/11/2026 | - | Create game: Server mod row, Base game (default) or JA+ (g_mod)
+- 375327b |  | Create game: Server mod row, Base game (default) or JA+ (g_mod)
++ 06/11/2026 | - | JA+ server mode, step 1: g_mod japlus announces JA+ and moves by its rules
+- b187ba3 |  | JA+ server mode, step 1: g_mod japlus announces JA+ and moves by its rules
++ 05/11/2026 | - | Lightning, thunder and gusts; clouds in no preset; running water reworked
+- 879f2dd |  | Lightning, thunder and gusts; clouds in no preset; running water reworked
++ 05/11/2026 | - | Rig models: plant the feet by their soles, eased over 50 ms
+- 5179fb1 |  | Rig models: plant the feet by their soles, eased over 50 ms
++ 05/11/2026 | - | Rig models: variants (sjk_rig_<variant>.cfg), add-on 1.12 Variant field
+- 7629f7e |  | Rig models: variants (sjk_rig_<variant>.cfg), add-on 1.12 Variant field
++ 05/11/2026 | - | Rig models: lineup test beside a stock model (size, proportions, stretch)
+- 5764857 |  | Rig models: lineup test beside a stock model (size, proportions, stretch)
++ 05/11/2026 | - | Clan chats: each clan its own (docs and texts)
+- d5517a1 |  | Clan chats: each clan its own (docs and texts)
++ 05/11/2026 | - | Debug panel: clan chats each clan its own
+- c850e57 |  | Debug panel: clan chats each clan its own
++ 05/11/2026 | - | Fog at half size (about 3x cheaper), sun glow, puddles that mirror far off
+- 41e5ae6 |  | Fog at half size (about 3x cheaper), sun glow, puddles that mirror far off
++ 05/11/2026 | - | Map edits keep weather: rain, snow, fog and wind synced to every SJK player
+- 7083870 |  | Map edits keep weather: rain, snow, fog and wind synced to every SJK player
++ 05/11/2026 | - | Rain and wind sounds with the weather (s_weatherSounds, off by default)
+- 6b86cc4 |  | Rain and wind sounds with the weather (s_weatherSounds, off by default)
++ 05/11/2026 | - | Puddles mirror the world at ultra weather quality (after VisionJK)
+- 9a8ac0e |  | Puddles mirror the world at ultra weather quality (after VisionJK)
++ 05/11/2026 | - | World shot: time the storm's GPU cost on T2_Rogue per weather setting
+- 7a734b9 |  | World shot: time the storm's GPU cost on T2_Rogue per weather setting
 + 05/11/2026 | - | Model picker: read the stage model on a worker, a texture a frame
 - 8afefdc |  | Model picker: read the stage model on a worker, a texture a frame
 + 05/11/2026 | - | Log how old our commands are at the server (Heimdall kicks)
@@ -2705,6 +2763,13 @@
 - 46efdd7 |  | Predict the JA+ dual jump-attack hull over a player ahead
 
 = Creyon
++ 06/11/2026 | SJK #370 | Add 131 new blades
+- 6a5b19f |  | Add 131 new blades
+- 1f3518d |  | Angel: no hard lines at the tip or across the view
+- 11d4e3a |  | Angel: a round cloud top at the tip, not a flat cut
+- bfb6339 |  | New blades: RGB only where a colour makes sense
+- ae579a6 |  | Angel: keep the cloud bank off its wearer's head and face
+- 507831f |  | New blades: RGB on most Legendaries, colours that stay apart
 + 02/11/2026 | SJK #321 | Trading: say what a finished trade gave, show names in full, keep the toast's line whole
 - cdfac4c |  | Trading: say new items are in the collection only when some were received
 - 6274f27 |  | Trading: show names in full in trade endings, keep the toast's line whole
@@ -2974,6 +3039,25 @@
 + 06/10/2026 | SJK #2 | Fix crash and ? on duel challenges from names with x
 - 8db7327 |  | Wrap centre prints at 50 characters, not UTF-8 bytes
 - 0874042 |  | Decode print and cp text as legacy bytes
+
+= Kushina
++ 07/11/2026 | SJK #377 | Let rig chains feel the player's movement and keep out of the arms
+- d2bc221 |  | Let rig chains feel the player's movement and keep out of the arms
+- dbb19fa |  | Record rig chain drag and arms in the status page
+- f23a217 |  | Record the in-game test of rig chain drag and arms
+- d19081a |  | Record the review's changes and the measured cost in the status page
+- eb58eda |  | Run the checks again
++ 07/11/2026 | SJK #374 | Add limits, clearance, layers and levers to rig chains
+- 961c98a |  | Add limits, clearance, layers and levers to rig chains
+- 5ffce94 |  | Record the in-game test of rig cloth in the status page
+- 62a2e70 |  | Give a joint and its bone's middle separate at-rest exemptions
+- 480b6f1 |  | Spare rig chain collision the work of pairs that do not touch
+- 8e70c9f |  | Check rig chain collision's two samples directly
+- d1c3dfe |  | Record the in-game test of the review's changes in the status page
++ 07/11/2026 | - | Pass the variant to manifest in the installed rig test
+- 5c3a43a |  | Pass the variant to manifest in the installed rig test
++ 06/11/2026 | SJK #373 | Fix rig chains that fork or stack joints jumping
+- d38c7b3 |  | Fix rig chains that fork or stack joints jumping
 
 = Lukas
 + 02/11/2026 | SJK #306 | Send long chat drafts as complete messages
@@ -3284,6 +3368,9 @@
 - 8d21001 |  | Clip visible saber blades at world walls
 
 = Milamber
++ 07/11/2026 | SJK #380 | Stamp commands with the previous frame's server time, as stock
+- f89a623 |  | Stamp commands with the previous frame's server time, as stock
+- 31d61a3 | Sol | Keep the frame's own stamp on SJK's servers
 + 03/11/2026 | - | Add the Saber Lab handover and Milamber's blade
 - c2b9e80 |  | Add the Saber Lab handover and Milamber's blade
 + 03/11/2026 | - | Add the Saber Lab: a live blade-skin lab with new effects and a builder

@@ -21,7 +21,7 @@ pub(crate) fn rig_folders<'a>(
     old: Option<&VirtualFileSystem>,
 ) -> BTreeSet<String> {
     let is_rig = |vfs: &VirtualFileSystem, model: &str| {
-        crate::rig_model::manifest(vfs, model.trim_end_matches('/'))
+        crate::rig_model::manifest(vfs, model.trim_end_matches('/'), "default")
             .ok()
             .flatten()
             .is_some()

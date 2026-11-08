@@ -23,6 +23,7 @@ impl NativeGame {
             None
         };
         let duel_fraglimit = self.limits.duel_fraglimit;
+        let movement_config = self.movement_config();
         let Self {
             server,
             world,
@@ -168,7 +169,7 @@ impl NativeGame {
         }
         peer.movement = Predictor::from_state(
             MovementState::from_player_state(&peer.state),
-            authoritative(),
+            movement_config,
         );
         if let Some(lengths) = map.as_ref().and_then(|map| map.animations.clone()) {
             peer.movement.set_animation_lengths(lengths);

@@ -91,6 +91,17 @@ test: Bind it (bind v lowjump), jump with it and with Space: the low jump is low
 test: With Force jump 3, hold Space and press it: the held jump goes on as before.
 note: Nothing the server would not take from a quick tap; no restriction applies.
 
+[chat-tab-tools]
+area: Console & chat
+title: Chat row: x on a button, + to put chats back, cog for quick settings
+change: Point at Team/SJK/JoF/S/Admin/PM while typing: an x after it takes it off the row.
+change: + after the row lists the chats taken off (PM by default); a click puts one back.
+change: Cog: only this chat / every chat, Tab skips this chat, open on the last chat.
+test: Open chat, point at Team, click its x: Team leaves the row and Settings > Chat says Off.
+test: Click +, pick Team: it comes back. With nothing hidden, the + is gone.
+test: Cog > Show every chat: other channels' lines stay in view while on Team.
+test: Esc closes an open menu first, then the composer. Restart: the choices stayed.
+
 [clan-chat-own]
 area: Console & chat
 title: Clan chats: JoF players see JoF only, S players S only
@@ -369,6 +380,40 @@ test: toy_fishing on duel6: pond, float dips, +use within 1 s lands a fish in th
 test: Move or take damage: the rod goes away. Another SJK player sees rod and bucket.
 test: debug_holocron while fishing: card at once, no Echo on the line, no Echo Angler count.
 note: Achievements need hub-shared #9 imported and deployed before they record online.
+
+[creyon-new-blades-370]
+area: Rendering & effects
+title: 130 new blades (Creyon #370), blades 170 to 299: not in holocrons yet
+change: Star Wars round: 25 Common, 21 Uncommon, 29 Rare, 38 Legendary, 17 Mythical.
+change: Their effects in the air draw in a half-size layer; older blades draw as before.
+change: Hub: in the catalogue and sjk_skins_2, droppable false until Sol opens them.
+test: Staff panel > Unlock a few (Angel, Rakata Infinite, Moon): they wear and swing.
+test: Close to the camera at 4K: FPS holds; effects line up with walls and players.
+test: Chroma blades take your colour; Shaders tab pictures and parts switch on and off.
+note: God Ki left out (Dragon Ball material). Make droppable on the hub once tested.
+note: 06/11 Sol raised 19 a tier: 170 171 175 191 198 206 272 278 Mythical, 197 212 214
+note: 215 223 279 281 286 Legendary, 180 288 293 Rare.
+
+[editions-alpha-beta]
+area: Menus & settings
+title: Collections: Alpha and Beta editions (blades 170-299 Beta), holocrons stamped
+change: Blades 1-169 and everything else are Alpha Edition, Creyon's 130 (170-299) Beta.
+change: Collection > Shaders: Edition chip or E (Shift+E back): All, Alpha, Beta.
+change: Holocrons and crystals show their edition; Alpha ones bring Alpha things only.
+test: Shaders tab: E lists Alpha only, then Beta only (130), then all; tier counts follow.
+test: Hover a Beta blade: "Beta Edition"; search "beta" finds the 130.
+test: Holocrons tab: recent rows show "Alpha" before the date; a tier hover says the editions.
+test: Loot table (L), holocron and crystal: a note says what each edition brings.
+note: Needs the hub editions branch; it stamps Beta only once SJK_HUB_BETA_MIN_CLIENT is set.
+
+[blade-loadall]
+area: Rendering & effects
+title: saber_loadall: build every blade's shader now (to class the new blades)
+change: Console saber_loadall asks for every blade's own shader, after the worn and shown.
+change: Typed again: "Blade shaders: N of M built", then "All M ... built (in T)".
+test: debug_collectibles 1, saber_loadall, wait for "All ... built", open Shaders.
+test: Scroll the Beta blades: each shows its real look at once, no plain blade first.
+note: This run only; the next start builds on demand again.
 
 [finishers]
 area: Gameplay
@@ -2715,6 +2760,15 @@ test: Esc menu: the Credits icon is a grey disc with a silver laurel.
 test: Settings rail: every category icon is grey; Chat, Mods and Quick wheel have one too.
 test: What's new card: the headings' icons are grey discs.
 
+[shelve-support-links]
+area: Menus & settings
+title: Support SJK shelved: no donation links on the main page
+change: The GitHub Sponsors and Ko-fi line at the top left of the SJK UI main page is hidden.
+change: Settings > Interface no longer has a Support SJK row.
+test: SJK UI main page: no Support SJK line top left, at 1080p and 4K (150 %).
+test: Settings > Interface: no Support SJK row.
+test: ui_supportLinks 1 in the console: the line still stays hidden.
+
 [support-links]
 area: Menus & settings
 title: Support SJK on the main page: GitHub Sponsors and Ko-fi, x hides it for good
@@ -3647,6 +3701,32 @@ note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab
 
 # ---- Rendering & effects ----
 
+[rig-chain-motion]
+area: Rendering & effects
+title: Rig chains trail the player (drag) and keep out of the arms (Kushina, #377)
+change: New dynamic options drag (air against the player's movement and turn) and arms.
+test: A rig with drag on its hair or cape: run, it trails behind; stop, it swings back.
+test: Teleport or respawn: no sudden whip of the chain. Toggle freecam: no gust.
+test: A rig with arms on its hair: swing the saber, the arms push the hair aside.
+
+[rig-chain-cloth]
+area: Rendering & effects
+title: Rig chains: limit, clearance, layer and levers (Kushina, #374)
+change: New dynamic options limit and clearance, and layer <outer> over <inner> lines.
+change: Every colliding chain now also keeps the middle of each bone out of the body.
+test: A rig tail or cape near the legs: run and turn, it stays out of hips and thighs.
+test: A rig with limit on its hair: strands stay near their animated direction, no flips.
+test: A rig with a layer line (hair over a cape): the hair stays on the cape's outer side.
+
+[rig-forked-chains]
+area: Rendering & effects
+title: Rig chains that fork or stack joints no longer jump (Kushina, #373)
+change: Dynamic chains are simulated in one pass, parents first; a joint stacked on its
+change: parent (under 0.01 units) no longer turns the parent at random.
+test: Wear a rig model with dynamic hair (a stem with several strands) and run, jump, turn.
+test: The strands swing smoothly; no bone flips or jitters from frame to frame.
+test: A rig tail or cape without forks moves as before.
+
 [sun-trails]
 area: Rendering & effects
 title: Sun blade trails: plasma for all, Solar card 000 unlocks Flare, Embers, Heat wake
@@ -3971,6 +4051,26 @@ change: Ignored test lineup_beside_a_stock_model poses a rig and a stock model a
 change: Writes both as OBJ per pose and prints sizes, to compare proportions.
 test: Nothing in game. solfox5 was resized with it: same height as solfox now.
 note: Recipe in docs/rig-models.md (Rerun the checks).
+
+[rig-variants]
+area: Rendering & effects
+title: Rig models: variants (solfox5/cloth)
+change: A rig model can have variants: sjk_rig_<variant>.cfg, worn as /model <name>/<variant>.
+change: The character grid lists each variant with its icon_<variant> picture.
+change: Blender add-on 1.12: a Variant field exports one without touching the default.
+test: /model solfox5/cloth: the OG Solfox's hood, cape and loincloth on solfox5.
+test: Run, crouch, jump: the cape and loincloth swing on their own, the hood stays on the head.
+test: /model solfox5: the plain fox again. Both show in the character grid.
+note: The raised tail comes out through the cape (cloth does not collide with the tail).
+
+[rig-plant]
+area: Rendering & effects
+title: Rig models: feet planted by their soles, eased (no bobbing walk)
+change: The rig's lowest sole point goes onto the driver's each frame, not its ankle.
+change: The rise eases over 50 ms, so a step lands without a jolt.
+test: /model solfox5, walk (and run): the body no longer bobs up and down twice a step.
+test: Paws stay on the ground walking, running and crouching; other rig models stand as before.
+note: solfox5's paw now follows JKA's foot (manifest map ball_l ltalus), lift 0.
 
 [rig-cloth]
 area: Rendering & effects
@@ -8722,14 +8822,25 @@ test: on JoF with gameplay_fps 0, play 30 min with com_maxfps 60: no Heimdall ki
 test: movement and jumps feel as before at 125+ FPS; at 60 FPS like JoF EJK.
 test: on a non-JoF server at 60 FPS, gameplay_fps 333 still moves like 333.
 
-[jof-packetdup]
+[command-stamp-previous-frame]
 area: Gameplay
-title: JoF: no repeated commands in packets (Heimdall kicks)
-change: On JoF, cl_packetdup counts as 0: a packet carries only its new commands.
-change: cl_packetdup_nocap 1 keeps the cvar; gameplay_fps_nocap does not lift it.
-test: join JoF: the console says JoF servers take 0 repeated packets at most.
-test: play 30 min on JoF with cl_packetdup 1 (default): no Heimdall kick.
-test: on a non-JoF server the console names no cl_packetdup cap; movement as before.
+title: Commands carry the previous frame's server time, as stock (not on SJK servers)
+change: Off SJK servers, commands are stamped a frame older, as JoF EJK's (Milamber's Heimdall fix).
+change: On SJK's own servers (Create game, devmap) commands keep this frame's time, as before.
+test: play on JoF for a while, idle and moving: no Heimdall kick, movement and hits as before.
+test: Create game: movement and hits feel as before.
+change: Made on the frame's clock, stamped older; cl_freshStamps 1 keeps the fresh stamp everywhere.
+test: JoF, cl_freshStamps 0 then 1: input feels the same both ways (2026.1107.1 felt slower on 0).
+test: cl_freshStamps 1 on JoF: the frame's own stamp again (Heimdall may kick); 0 back to stock.
+test: flip cl_freshStamps every ~20 s a few times: each compared line shows age about -1 frame on 1.
+
+[jof-packetdup-back]
+area: Gameplay
+title: JoF: packets repeat the packet before again (cl_packetdup default 1)
+change: The JoF-only cl_packetdup cap at 0 is gone (Milamber confirmed the default is right).
+change: cl_packetdup_nocap no longer exists; cl_packetdup applies as set on every server.
+test: join JoF: the console no longer names a cl_packetdup cap, only the 8 ms command step.
+test: play on JoF as usual: no Heimdall kick, movement and hits as before.
 
 [picker-worker]
 area: Menus & settings
@@ -8912,3 +9023,114 @@ test: Look past a pole or a player into the fog: its edge stays sharp, no bright
 test: Face the sun on a map with sun, light rain: the fog brightens that way, rain streaks shine.
 test: r_weatherQuality 3: puddles show the buildings and sky round them, upside down, rippling.
 test: Compare FPS in a storm with the last release: higher, most at Ultra.
+
+[weather-atmosphere]
+area: Rendering & effects
+title: Lightning in storms, thunder and gusts; clouds off in every preset; new running water
+change: r_weatherLightning (off): strikes light storm air; thunder and gusts with s_weatherSounds.
+change: r_clouds off by default and in no preset; what's-new card asks once.
+change: Running water: film on slopes, rivulets with drops on walls, along each slope's fall.
+test: Settings > Graphics > WEATHER: Lightning in storms on; r_weatherForce 3: flashes come.
+test: s_weatherSounds 1: thunder follows each flash, sooner for bright near ones; gusts heard.
+test: cg_reduceFlashes 1: flashes are soft and slow, no flicker.
+test: Switch presets: Volumetric clouds stays as you set it; a new profile has it off.
+test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
+test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
+
+[japlus-mode]
+area: Gameplay
+title: SJK's server as a JA+ server (g_mod japlus), step 1: identity, settings, movement
+change: +set g_mod japlus: gamename JA+ Mod v2.4 B7, V 2.4B7, jp_cinfo, the 187 jp_* settings.
+change: Players move by the JA+ rules it announces (flip kick, roll fix, yellow DFA).
+change: Duels, saber damage, emotes and admin commands are not built yet (later steps).
+test: In a terminal: target\release\sjk-server.exe --game-data <GameData> --map mp/ffa3
+test: ... --bind 127.0.0.1:29071 +set dedicated 1 +set g_mod japlus; then connect 127.0.0.1:29071
+test: serverinfo: gamename JA+ Mod v2.4 B7 and jp_cinfo 19. JA+ tools mod loads (japlus.* cmds).
+test: Wall flip off another player (bot), roll, yellow DFA: no pulling back, as on JA+ servers.
+test: rcon jp_allowflipkick 0: the flip off a player stops, still no pulling back.
+note: Not run with a client yet. Or host it from Create game > Server mod JA+.
+
+[japlus-saber-damage]
+area: Gameplay
+title: JA+ server mode: saber damage (jp_alterDMG, move table) and the /kill frag
+change: g_mod japlus: jp_alterDMG 1/2 deals JA+'s per-move saber damage (jp_*Attack Min/Max).
+change: jp_SaberThrowScaleDMG, jp_reduceSaberBlock, jp_allowSaberTouchDMG; no cuts while chatting.
+change: /kill right after a push or hit gives the frag to that player; no /kill in duels.
+test: Start sjk-server as for japlus-mode with +set jp_alterDMG 1 and bot_minplayers 2.
+test: Strong swings hit far harder than base (each trace adds up to 110, x1.5 on players).
+test: rcon jp_SingleStrongNormalAttackMax 50: strong hits weaker at once; jp_alterDMG 0: as base.
+test: Get Force-pushed by a bot, /kill within 5 s: the bot scores the frag.
+test: Team game: /kill does nothing; rcon jp_allowTeamKill 1: it works.
+note: Server only; base servers (no g_mod) deal damage exactly as before.
+
+[create-game-server-mod]
+area: Menus & settings
+title: Create game: Server mod row, Base game (default) or JA+ (g_mod)
+change: Create game > Server: Server mod cycles Base game / JA+, kept in ui_hostServerMod.
+change: The hosted sjk-server gets --set g_mod <id>; the figure reads "Free for all, JA+".
+change: Same screen in the SJK and classic menu styles; devmap always runs the base game.
+test: Create game: the new row under Server shows Base game; Left/Right and clicks cycle it.
+test: Pick JA+, Start: the client log's "local server:" line has --set g_mod japlus.
+test: In the match: serverinfo shows gamename JA+ Mod v2.4 B7; japlus.* commands load.
+test: Back to Create game: JA+ is still chosen, also after a restart; Base game: plain JKA.
+test: ui_menuStyle classic, Play > Create Server: the same Server mod row is there.
+note: The rows moved: Start sits a little lower to make room for the row.
+
+[japlus-force]
+area: Gameplay
+title: JA+ server mode: JA+'s Force rules (push, absorb, grip, cloak, items)
+change: g_mod japlus: push/pull reach players on the ground, teammates with g_friendlyFire 1.
+change: Items fly when pushed (jp_pushAll), absorb gains more (jp_fixAbsorb), grip while rolling.
+change: jp_gripSpeedScale is read from server info by SJK's prediction on every JA+ server.
+test: Local sjk-server +set g_mod japlus with a bot: push the bot while it lies knocked down.
+test: Push a medpack or ammo: it flies, and is back at its place 30 seconds later.
+test: rcon jp_gripSpeedScale 1: grip and run, no pulling back; same on a real JA+ server.
+test: rcon jp_gripOpenSaber 2, get gripped with little Force: your saber drops from the hand.
+test: rcon jp_cloakFuel 0: the cloak stays on, its bar does not drain.
+note: Not run with a client yet. Base servers (no g_mod) must play as before.
+
+[japlus-duels]
+area: Gameplay
+title: JA+ duels on SJK's server (g_mod japlus): isolation, JA+ challenge, full force
+change: Duellists and the others pass through each other (jp_DuelAlpha 0+), SJK predicts it.
+change: Any weapon challenges; start at 100 health, full Force, 100 armour; bow; sabers unlit.
+change: engage_FullForceDuel: Force works between the two. Winner's health/armour told.
+test: Start sjk-server with +set g_mod japlus (as in japlus-mode), join with a bot (addbot).
+test: Duel the bot (duel key on it, then its acceptance) or a second client: both bow.
+test: Walk through a third player while duelling, and as the third through the duellists.
+test: rcon jp_DuelAlpha -1: duellists collide again, still no pulling back.
+test: /engage_FullForceDuel on a second client, accept: push and lightning work in the duel.
+test: Win: centre print with health and armour; console line for everyone.
+note: Not run with a client yet. No 3 s pass-through after a duel (no JA+ client predicts it).
+
+[wheel-of-doom]
+area: Gameplay
+title: WHEEL OF DOOM toy: spin for credits, a Mythical holocron or doom (needs hub wheel-of-doom)
+change: toy_wheelofdoom (Collection > Toys, a bind, quick wheel): first press shows the price.
+change: A second within 5 s spins a wheel before you; others see it; 16 outcomes, 5 min cooldown.
+change: Effects on your own keys, mouse, view for 15-30 s; HUD line; end on new map or death.
+test: Join a server, toy_wheelofdoom: price card by the crosshair; again: wheel spins, ticks, stops.
+test: Wait out an effect: HUD line counts down, the effect ends; die or change map: it ends.
+test: Press again at once: "Your next spin in N s"; in a duel: refused in the centre.
+test: Second SJK client nearby: sees the wheel spin and stop on the same segment.
+test: Over several spins: mirror, blind, upside down, no saber, quack look and feel right.
+test: Settings > Sound > Toys, WHEEL OF DOOM sounds off: the wheel spins silently.
+note: Placeholder model (Sol's to come). Mirror flips the whole picture, HUD included.
+
+[model-texture-pin]
+area: Rendering & effects
+title: No hitch when a player puts on a model with big textures (creyonwolf: 743 ms)
+change: The worker's decoded textures stay held until the model's materials are made.
+change: Before, any image decoded meanwhile could drop them and the frame decoded them again.
+test: In a match, a second client switches to creyonwolf (or another HD model) several times.
+test: No hitch; last-client.log has no 'model install ... materials' line in the hundreds of ms.
+note: Same path for NPCs, the menu model stage and map models loaded mid-match.
+
+[texture-size-cap]
+area: Rendering & effects
+title: Textures capped at 2048 pixels a side (r_maxTextureSize, Settings: Largest texture)
+change: Textures larger than the cap lose their top mip levels, on every r_picmip path.
+change: 0 keeps every size; nopicmip stages and sky boxes take the cap too. From the next map.
+test: Look at creyonwolf (4096 textures) on a map: still sharp up close, not blurry.
+test: Settings: Largest texture 4096, change map: creyonwolf a little sharper; 1024: softer.
+test: A map with a 4096 sky box: the sky at 2048 still looks right.

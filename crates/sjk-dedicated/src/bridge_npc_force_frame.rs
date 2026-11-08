@@ -82,10 +82,14 @@ impl NativeGame {
         // `g_forceRegenTime`: the milliseconds a point of Force takes to come back; in a
         // private duel EternalJK's `g_saberDuelForceRegenTime`, the duel key's duel being
         // its no-force duel (`dueltypes` 0).
+        // A server mod may set the duel's own (JA+'s `jp_privateDuelForceRegen`).
         let regen_time = (
             self.cvars.integer(b"g_forceRegenTime"),
-            self.cvars.integer(b"g_saberDuelForceRegenTime"),
+            self.duel_rules
+                .force_regen_time
+                .unwrap_or_else(|| self.cvars.integer(b"g_saberDuelForceRegenTime")),
         );
+        let full_force = self.full_force_duels();
         // The Jedi Master's rule for the user's blows on an NPC, which is never the master.
         let spared_by_master = self.jedi_master_spares(Some(client as u16), usize::MAX);
         let mut scratch = std::mem::take(&mut self.force_scratch);
@@ -105,6 +109,7 @@ impl NativeGame {
                 gametype,
                 spared_by_master,
                 regen_time,
+                full_force,
             ),
             run,
         );
@@ -176,13 +181,22 @@ fn run_frame<T>(
     scratch: &mut ForceScratch,
     client: usize,
     server_time: i32,
-    (since_last_frame, saber_only, duel_fraglimit, gametype, spared_by_master, regen_time): (
+    (
+        since_last_frame,
+        saber_only,
+        duel_fraglimit,
+        gametype,
+        spared_by_master,
+        regen_time,
+        full_force,
+    ): (
         i32,
         bool,
         i32,
         i32,
         bool,
         (i32, i32),
+        sjk_game_jka::duel::FullForce,
     ),
     run: impl FnOnce(&mut PlayerState, &mut ForcePowers, &mut ForceFrame) -> T,
 ) -> Option<(T,)> {
@@ -232,6 +246,7 @@ fn run_frame<T>(
         regen_time
     };
     touched.clear();
+    let rules = host.force_rules;
     let mut others = ServerOthers {
         host,
         roster,
@@ -259,6 +274,8 @@ fn run_frame<T>(
         invulnerable_until: &mut invulnerable,
         others: &mut others,
         saber_off_sounds,
+        rules,
+        full_force,
     };
     let result = run(state, &mut force, &mut frame);
     let world = host.server.world_mut(host.world)?;

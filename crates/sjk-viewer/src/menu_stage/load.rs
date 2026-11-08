@@ -29,7 +29,7 @@ pub(super) struct Read {
     /// The skeletons it parsed, kept for the next loads.
     cache: GlaCache,
     /// Its textures' mip chains, built there.
-    textures: Vec<crate::world_materials::PreparedTexture>,
+    textures: crate::world_materials::WarmTextures,
 }
 
 /// What the worker reads from.

@@ -18,6 +18,7 @@ pub(crate) mod options;
 pub(crate) mod pm_only;
 pub(crate) mod quiet;
 pub(crate) mod reply;
+mod row_tools;
 pub(crate) mod server_copy;
 pub(crate) mod sjk;
 mod substitutions;
@@ -189,6 +190,12 @@ pub(crate) struct ChatOverlay {
     card: Option<card::Card>,
     /// Mute or Unmute asked from the card, until the frame takes it.
     mute_request: Option<card::MuteRequest>,
+    /// Settings the composer row's tools changed, until the frame saves them
+    /// (`chat/row_tools.rs`).
+    settings: Vec<(&'static str, &'static str)>,
+    /// Where this frame drew the button of the open + or cog menu, which the menu
+    /// lines up with.
+    menu_left: f32,
     /// A block for this map a card asked for (`chat/card.rs`).
     map_block_request: Option<card::MapBlockRequest>,
     /// The map blocks as the frame last said: the player's own slots, staff's, and
@@ -336,6 +343,8 @@ impl ChatOverlay {
             visible_blades: [None; MAX_VISIBLE],
             card: None,
             mute_request: None,
+            settings: Vec::new(),
+            menu_left: 0.0,
             map_block_request: None,
             map_blocks: (0, 0, false),
             muted_slots: 0,

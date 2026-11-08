@@ -270,6 +270,12 @@ impl GpuState {
         } else {
             base
         };
+        // The WHEEL OF DOOM's Tunnel vision and Fisheye force theirs (`wheel_of_doom`).
+        let base = self
+            .wheel_of_doom
+            .effects
+            .fov(std::time::Instant::now())
+            .unwrap_or(base);
         let (horizontal, sound) = self.scope.frame(
             time,
             base,

@@ -247,6 +247,8 @@ pub(crate) struct Entry {
     /// It came in a trade: when (unix seconds), and from whom (colour codes kept), when
     /// the hub knows.
     pub(crate) traded: Option<(i64, Option<String>)>,
+    /// The edition the hub stamped on it ([`crate::editions`]): what opening it may bring.
+    pub(crate) edition: String,
 }
 
 impl Entry {
@@ -265,6 +267,7 @@ impl Entry {
                 .traded
                 .filter(|_| holocron.traded_from_key.is_some())
                 .map(|at| (at, holocron.traded_from.clone())),
+            edition: holocron.edition.clone(),
         })
     }
 
@@ -514,6 +517,7 @@ mod tests {
             traded: None,
             traded_from_key: None,
             traded_from: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
             id,
             tier: tier.to_owned(),
             dropped: 1_791_641_100,

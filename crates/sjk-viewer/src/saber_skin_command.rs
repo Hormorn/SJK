@@ -401,9 +401,9 @@ mod tests {
             "{}",
             lines[1]
         );
-        let lines = listing("saber_moon", Holdings::IdentityOff);
+        let lines = listing("saber_starfall", Holdings::IdentityOff);
         assert!(lines[2].contains("locked^7: Found in holocrons."));
-        assert!(lines[1 + skins].contains("\"saber_moon\", which this client does not know"));
+        assert!(lines[1 + skins].contains("\"saber_starfall\", which this client does not know"));
         assert!(
             lines[2 + skins].contains("need the SJK identity"),
             "{}",
@@ -424,7 +424,7 @@ mod tests {
             "the catalogue's spelling is kept"
         );
         assert!(
-            parse("saber_moon")
+            parse("saber_starfall")
                 .unwrap_err()
                 .contains("saberskin alone lists them")
         );
@@ -454,7 +454,7 @@ mod tests {
         assert!(lines[1].contains("chosen"));
         run(&mut console, &words("none"), None, no_parts).unwrap();
         assert_eq!(console.text_cvar(SABER_SKIN_CVAR).unwrap(), "");
-        assert!(run(&mut console, &words("saber_moon"), None, no_parts).is_err());
+        assert!(run(&mut console, &words("saber_starfall"), None, no_parts).is_err());
         assert_eq!(console.text_cvar(SABER_SKIN_CVAR).unwrap(), "");
         assert!(run(&mut console, &words("a b"), None, no_parts).is_err());
     }
@@ -479,7 +479,15 @@ mod tests {
         );
         run(&mut console, &words("second same"), None, no_parts).unwrap();
         assert_eq!(console.text_cvar(second).unwrap(), "");
-        assert!(run(&mut console, &words("second saber_moon"), None, no_parts).is_err());
+        assert!(
+            run(
+                &mut console,
+                &words("second saber_starfall"),
+                None,
+                no_parts
+            )
+            .is_err()
+        );
         assert_eq!(
             console.text_cvar(SABER_SKIN_CVAR).unwrap(),
             "",

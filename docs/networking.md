@@ -303,11 +303,19 @@ view/duck details still require the corresponding vehicle context.
 JA+ and TaystJK/jaPRO isolate private duels: the two duellers and everyone else
 pass through each other. A JA+ 2.4 server leaves part of that to client-plugin
 users, sending them a dueller as a solid player box flagged with `bolt1`, so on
-those profiles prediction skips duelling players for a bystander and every player
-or NPC but the opponent for a dueller
+those profiles prediction skips duelling players for a bystander and, for a dueller,
+every player but the opponent, and on jaPRO every NPC too
 ([duel_isolation.rs](../crates/sjk-client/src/duel_isolation.rs), applied where
 [prediction_movers.rs](../crates/sjk-viewer/src/prediction_movers.rs) builds the
-entity solids). Stock and unknown servers keep duellers solid.
+entity solids). On a JA+ server it does so only while the server info's `jp_DuelAlpha`
+is 0 or more (`atoi`, so a server without the key isolates) and in a free-for-all or
+team deathmatch, as VisionJK's rebuild of the JA+ module isolates
+(`g_japlus_dim.c:130-164`) and its port of the plugin predicts from `jp_DuelAlpha`
+(`cg_predict.c:465-497`); NPCs stay solid there, as the module leaves out players only.
+SJK's own server in [JA+ mode](server.md#ja-mode) runs the same rule
+(`sjk_game_jka::duel::isolated`). EternalJK ignores `jp_DuelAlpha` and the game type,
+so it mispredicts with `jp_DuelAlpha -1`, and the plugin isolates in Holocron and Jedi
+Master too. Stock and unknown servers keep duellers solid.
 
 ## JA+ grapple hook
 
@@ -343,7 +351,7 @@ Stock and other servers, SJK's dedicated server included, keep the stock rules.
 | Head slide | `jp_cinfo` head slide (`jp_slideOnPlayer`, default off) | Without it, standing on a player has ground friction instead of stock's frictionless slide |
 | Yellow DFA | `jp_cinfo` yellow DFA (`jp_improveYellowDFA`, default on) | The medium flip over leaps 60 forward (stock 150) and neither turns nor locks the view |
 | Wall run from flips | Every JA+ server | A run up a wall may start from the Force jump's forward, left and right flips, not only from a plain jump |
-| Grip speed | Every JA+ server | Gripping keeps 0.8 of the run speed (stock 0.4; `jp_gripSpeedScale` default) |
+| Grip speed | Every JA+ server | Gripping keeps the server's `jp_gripSpeedScale` of the run speed, read from `CS_SERVERINFO` as VisionJK's cgame reads it (`atof`, held within 0.4 and 1.01; 0.8, JA+'s default, if the key is missing); stock 0.4 |
 | Melee buttons | Every JA+ server | With melee, an attack pressed with the holdable button is not cancelled |
 | Taunts | Every JA+ server | Meditation keeps the player in place but the view free; other taunts leave movement and view free |
 | Staff kick | Every JA+ server | A staff's alternate attack standing still is a front kick |
@@ -673,8 +681,28 @@ from `cl.serverTime`, which the cgame draws at and `CL_CreateCmd` stamps command
 (`cmd->serverTime = cl.serverTime`), so a stock player's nudge reaches the server in
 every command. Stock also stamps a frame's commands with the previous frame's
 `cl.serverTime` (`CL_Frame` runs `CL_SendCmd` before `CL_SetCGameTime`, JoF EJK
-`cl_main.cpp`), where SJK reads its clock in the frame that makes the command: SJK's
-stamps are a frame fresher than JoF EJK's (8 ms at 125 FPS, 33 ms at 30). The delta
+`cl_main.cpp`), and so does SJK since 07/11/2026 (`ServerClock::command_time`): a
+frame's commands carry the time the frame before read, while the frame itself draws
+and predicts at its own reading. A command is still made as soon as the frame's own
+reading says it is due, and only then stamped with the older time
+(`CommandSchedule::stock_stamps`: JoF's one command a frame takes the previous
+frame's reading, the grid's keep their spacing a step older, and no stamp goes back
+to or before the one before it). Release 2026.1107.1 ran the schedule on the older
+time itself, so each command was made, and read the keys, a frame late: a frame of
+input delay stock does not have (3 ms at 350 FPS, 17 ms at 60), which Sol felt
+(07/11/2026). Until 07/11/2026 SJK read its clock in the frame that made
+the command, so its stamps were a frame fresher than every other client's (8 ms at
+125 FPS, 33 ms at 30), and Heimdall reads a command stamped ahead of a stock client's
+as a negative `cl_timeNudge`, the one it kicks for (Milamber, who maintains Heimdall,
+06/11/2026); commands that trail the server read as a positive nudge, which it does
+not kick. A new timeline (a gamestate, a new connection, a re-anchor or a 500 ms
+reset) forgets the previous reading, so no command carries the old timeline's time,
+and after a hitch commands trail the frame's reading by at most 50 ms (a frame at the
+slowest gameplay FPS) where a stock client's carry the time from before it. SJK's own
+servers (`sjk 1` in the serverinfo, `server_caps::FRESH_STAMPS`) run no such check, so
+there commands still carry the frame's own reading (Sol, 07/11/2026), and
+`cl_freshStamps 1` (archived, 0) keeps the frame's own reading on every server (Sol,
+07/11/2026), at the risk of Heimdall's kick on JoF. The delta
 is adjusted once a frame, on the newest snapshot, and only once the frame has read
 every queued snapshot (a frame reads at most 8, `SNAPSHOTS_PER_FRAME` in
 [live_session.rs](../crates/sjk-viewer/src/live_session.rs)): stock reads the whole
@@ -689,7 +717,7 @@ that as a large `cl_timeNudge`; JoF's anti-cheat (Heimdall) kicked Slash for it 
 On JoF (a server in
 [server_caps.rs](../crates/sjk-viewer/src/server_caps.rs)) commands are paced as JoF EJK's
 `cl_cmdratecap` instead of on the grid: at most one a frame, stamped with the frame's
-server time, on an accumulator that keeps 125 a second on average and starts again after a
+command time, on an accumulator that keeps 125 a second on average and starts again after a
 hitch (`Pacing::OnePerFrame`). The grid's catch-up commands, stamped up to 32 ms in the
 past whenever the frame rate fell below 125, made SJK's commands trail the server 10 to
 40 ms more than JoF EJK's, and Heimdall kicked for a time nudge again (02/11/2026).
@@ -712,7 +740,16 @@ in storage allocated once, with every frame and packet gap over 40 ms, and write
 s:` line a minute while playing a remote server. Followed players' states, the
 intermission and the map load before the clock is anchored are left out. JoF's
 servers run `sv_fps 30` (Turin's log, 04/11/2026): a snapshot every 33 ms, so a
-normal age is the clock's lag, the way up and up to 33 ms of waiting for a frame.
+normal age is the clock's lag, the frame a command's time trails it by (8 ms at
+125 FPS, since 07/11/2026), the way up and up to 33 ms of waiting for a frame.
+The log also names the stamp a session's commands carry (`command stamps:`) and every
+switch of `cl_freshStamps`; 10 seconds after a switch a `command stamps compared
+around the switch` line sets the 10 seconds before it against the 10 after (age,
+round trip, age minus round trip, their change and the frame time). Seconds side by
+side share most of the ping's wobble, which buries a one-frame shift in the minute
+lines (Sol's JoF test at 350 FPS, 07/11/2026, a 3 ms frame under 10 to 25 ms of
+minute-to-minute swing); flip it a few times and read the changes. The kept
+snapshots cover 20 seconds at 100 a second for it.
 
 `rate` defaults to 90000 bytes a second (11/10/2026, Sol's choice): stock's 25000
 leaves about 600 bytes a snapshot at a server's 40 a second, less than a busy
@@ -732,13 +769,13 @@ previous packet, and with `cl_packetdup` (0 to 5) the commands of that many earl
 packets as well, at most 32 (`MAX_PACKET_USERCMDS`)
 ([command_history.rs](../crates/sjk-client/src/command_history.rs)). At 125 or
 more each command leaves in a packet of its own; stock's 30 batches about four.
-A server family in [server_caps.rs](../crates/sjk-viewer/src/server_caps.rs) may take
-fewer repeats (`max_packet_dup`): on JoF's servers packets repeat none, whatever
-`cl_packetdup` says, since Milamber, who maintains Heimdall, named `cl_packetdup` as
-what it kicked SJK players for (Turin's kicks, 04/11/2026). JoF EJK itself repeats one
-packet whatever its `cl_packetdup` (`CL_WritePacket` reads `outgoingSequence - 1 - 1`).
-`cl_packetdup_nocap 1` (archived, 0) lifts these caps; `gameplay_fps_nocap` does not,
-and the log names the cap when a listed server is joined.
+Every server takes `cl_packetdup` as set, 1 by default, the one earlier packet JoF EJK
+always repeats (`CL_WritePacket` reads `outgoingSequence - 1 - 1`). From 04/11 to
+06/11/2026 JoF's servers took none (`max_packet_dup` in
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs), lifted by
+`cl_packetdup_nocap`), on a reading of Milamber's remark about Turin's Heimdall kicks;
+Milamber, who maintains Heimdall, has since confirmed the default is right, and the cap
+and its cvar are gone.
 Losing window focus lets the next packet leave at once with the released keys.
 Prediction keeps 512 unacknowledged commands (JoF EJK's `cl_commandsize` ceiling),
 1.5 seconds at a gameplay FPS of 333. The flip kick's frame cvars stay EJK's frames
