@@ -15,26 +15,41 @@ pub(crate) const COMMAND: &str = "fishing_sell";
 /// The console command that prints the fish log in full.
 pub(crate) const LOG_COMMAND: &str = "fishing_log";
 /// How often the card asks the hub what it still pays, while it is on show.
-const READ_EVERY: Duration = Duration::from_secs(30);
+pub(crate) const READ_EVERY: Duration = Duration::from_secs(30);
 /// How long a sale waits for the hub's answer before another may be asked.
-const ASK_TIMEOUT: Duration = Duration::from_secs(20);
+pub(crate) const ASK_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// The sale's state, kept with the toy.
+/// The sale's state, kept with the toy (Fishing's junk, and since 05/11/2026 Mining's
+/// rubble, [`crate::mining_sell`], by the same hub routes: one sale runs at a time, and
+/// each toy acts only on the answer to its own).
 #[derive(Debug, Default)]
 pub(crate) struct Sale {
     /// A sale was asked then and waits for its answer.
-    asked: Option<Instant>,
-    /// The last answer acted on.
-    seen: u64,
+    pub(crate) asked: Option<Instant>,
+    /// The last answer acted on (or passed over, the other toy's).
+    pub(crate) seen: u64,
     /// The last sale's result, for the card.
-    line: Option<String>,
+    pub(crate) line: Option<String>,
     /// When the hub was last asked what it pays.
-    read_at: Option<Instant>,
+    pub(crate) read_at: Option<Instant>,
 }
 
-/// What the Fishing card shows of the log and the sale.
+impl Sale {
+    /// Whether a sale asked waits for the hub's answer at `now`.
+    pub(crate) fn waiting(&self, now: Instant) -> bool {
+        self.asked
+            .is_some_and(|asked| now.duration_since(asked) < ASK_TIMEOUT)
+    }
+}
+
+/// What a toy's card shows of its log and the sale (the Fishing card's fish log, the
+/// Mining card's mining log).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Card {
+    /// The log's heading: "Fish log", "Mining log".
+    pub(crate) title: &'static str,
+    /// What sells, for the button and its notes: "junk", "rubble".
+    pub(crate) goods: &'static str,
     /// "23 fish, 7 of 12 kinds", or that none were caught yet.
     pub(crate) summary: String,
     /// The fish caught, with their counts.
@@ -107,6 +122,8 @@ pub(crate) fn card(
         None => format!("Junk: {pieces} {piece}"),
     };
     Card {
+        title: "Fish log",
+        goods: "junk",
         summary,
         fish: listed(log, Kind::Fish, Log::count),
         junk: listed(log, Kind::Junk, Log::held),
@@ -161,12 +178,8 @@ impl GpuState {
     /// is not waiting already.
     pub(crate) fn sell_fishing_junk(&mut self) {
         let now = Instant::now();
-        if self
-            .fishing
-            .sale
-            .asked
-            .is_some_and(|asked| now.duration_since(asked) < ASK_TIMEOUT)
-        {
+        // One sale at a time, the Mining card's too: the hub answers one.
+        if self.fishing.sale.waiting(now) || self.mining.sale.waiting(now) {
             return;
         }
         let Some(directory) = self
@@ -244,11 +257,7 @@ impl GpuState {
         else {
             return;
         };
-        let selling = self
-            .fishing
-            .sale
-            .asked
-            .is_some_and(|asked| now.duration_since(asked) < ASK_TIMEOUT);
+        let selling = self.fishing.sale.waiting(now);
         let line = self.fishing.sale.line.clone();
         let log = self.fishing.log_in(&directory);
         let held = log.junk_held();
@@ -280,7 +289,10 @@ impl GpuState {
             return;
         };
         self.fishing.sale.seen = serial;
-        self.fishing.sale.asked = None;
+        // The Mining card's sale, not this one's (`mining_sell`).
+        if self.fishing.sale.asked.take().is_none() {
+            return;
+        }
         let said = match outcome {
             Ok(sold) => {
                 let Some(directory) = self

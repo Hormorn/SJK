@@ -164,6 +164,7 @@ pub(crate) fn row_labels(
         mining: false,
         fishing_card: None,
         wheel_of_doom: false,
+        mining_card: None,
         name: "",
         stock: color::HOLO,
         grid: false,

@@ -6347,9 +6347,21 @@ gives nothing the economy counts: finds go to the player's own mining log, and f
 achievements count them on servers as the rest do (in a Mining category on the board's
 Hobbies page, beside Fishing's; [identity.md](identity.md)): First Strike (a boulder
 broken), Stonebreaker (500), Sharp Eye (250 clean strikes), Prospector (every kind of
-ore, the Heart among them) and the hidden Heart of the Mountain. Selling them
-(phase 2) is to share Fishing junk's daily cap (one cap for both, so mining earns nothing
-on top of fishing); that needs the hub.
+ore, the Heart among them) and the hidden Heart of the Mountain.
+
+- **Selling rubble** (phase 2, 05/11/2026): the hub buys the four kinds of rubble by the
+  Fishing junk's routes and under its cap (`junk` prices name them: `rubble` and `slag`
+  1 credit, `drill_bit` 2, `fossil` 3; one daily sum of 15 for junk and rubble together,
+  so mining earns nothing on top of fishing). The Mining card in Collection > Toys shows
+  the mining log under its switch ("Mining log: N ores, K of 9 kinds", then "Rubble: N
+  pieces, worth X credits (Y left today)") and a **Sell rubble (+N credits)** button,
+  hidden while the hub buys no rubble from this player (its switch off, an older hub whose
+  prices name none, no connection); `mining_sell` does the same, `mining_log` prints the
+  log in full. One sale runs at a time across both cards, and each toy takes only the
+  answer to its own sale: the pieces the hub's `sold` names go to `sold <id> <count>`
+  lines in `mining_log.txt`, the counts of what was dug unchanged (`mining_sell.rs`; the
+  card and the sale state are `fishing_sell`'s). Ore never sells: it stays in the log for
+  the achievements.
 
 - **`toy_mining`** (a bind, the quick wheel's Toys catalogue, Collection > Toys, "Pickaxe
   out") takes the pickaxe in hand or puts it away. The player may walk with it;

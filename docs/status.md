@@ -376,6 +376,18 @@ hub leaves the list out and clients keep the one they had. With `cg_serverRemaps
 (the default) server remaps are already ignored, and a map the player allowed is `on`,
 which the list leaves alone: the list matters to players who turned Server remaps on.
 
+## Mining rubble selling (phase 2)
+
+05/11/2026, `feat/mining-sell-rubble` on `feat/mining` (#363); hub side
+`feat/mining-rubble-sell` (four rubble prices in `junk::PRICES`, the cap shared). The
+Mining card shows the mining log and a Sell rubble button by the Fishing card's own
+(`fishing_sell::Card` takes a title and what it sells; one button token, read by the
+chosen toy), `mining_sell` and `mining_log` in the console, `sold` lines in
+`mining_log.txt`. Both toys' sales share the identity service's one answer: each acts
+only on its own (`Sale::asked`), and neither asks while the other waits. Verified: fmt,
+the viewer's tests (new ones for the sold rubble arithmetic, the card, a hub pricing no
+rubble, the Mining card's button), the hub's tests (rubble under the junk's cap).
+
 ## Mining toy (phase 1)
 
 04/11/2026, `feat/mining`, based on `main` `c0d603eb` (vinry's idea, built by Slash): `toy_mining` puts a

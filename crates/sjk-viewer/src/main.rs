@@ -203,6 +203,7 @@ mod menu_widgets;
 mod menu_world;
 mod mimic;
 mod mining;
+mod mining_sell;
 mod missile_trails;
 mod mod_notice_card;
 mod model_materials;

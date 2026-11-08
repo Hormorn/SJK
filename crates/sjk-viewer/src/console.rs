@@ -301,6 +301,10 @@ pub(crate) struct ViewerConsole {
     wheel_of_doom_on: bool,
     /// The Toys tab pressed the WHEEL OF DOOM's switch, not yet taken.
     pending_wheel_of_doom: bool,
+    /// The Mining card's finds and sale, as the viewer last gave them.
+    mining_card: crate::fishing_sell::Card,
+    /// The Mining card's Sell rubble button was pressed.
+    pending_mining_sell: bool,
     /// The Monitor toy is on, mirrored as [`Self::order66_on`] is.
     monitor_on: bool,
     /// The Toys tab asked to turn the Monitor on (`true`) or off, not yet taken.

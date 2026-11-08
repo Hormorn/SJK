@@ -145,6 +145,8 @@ const FISHING_TOY: usize = 10;
 /// The WHEEL OF DOOM's niche on Toys, and its place among the toys.
 const WHEEL_OF_DOOM_TOKEN: u16 = 1_396;
 const WHEEL_OF_DOOM_TOY: usize = 11;
+/// Mining's, whose card sells rubble by the same button token.
+const MINING_TOY: usize = 12;
 /// The Toys tab's "?", the Toy Master's (`collection_toys::Panel::toy_master_badge`): its
 /// hover card tells of the toys hidden on maps and names those the player found.
 const TOY_MASTER_TOKEN: u16 = 1_376;
@@ -463,6 +465,8 @@ pub(crate) enum PanelAction {
     /// Press the WHEEL OF DOOM's switch: the same as `toy_wheelofdoom` (the first shows
     /// the price, a second spins).
     WheelOfDoom,
+    /// Sell the dug rubble to the hub: the same as `mining_sell`.
+    SellRubble,
     /// Set `cg_tag` to this tag's id: the one `toy_tag` sticks.
     /// Pick a tag (or a card) for `toy_tag`, in a finish (`cg_tag`, `cg_tagFinish`).
     ChooseTag(String, &'static str),
@@ -656,6 +660,8 @@ pub(crate) struct Inputs<'a> {
     pub(crate) fishing_card: Option<&'a crate::fishing_sell::Card>,
     /// A WHEEL OF DOOM of the player's spins, or one of its effects runs.
     pub(crate) wheel_of_doom: bool,
+    /// The Mining card's finds and rubble sale, the same way.
+    pub(crate) mining_card: Option<&'a crate::fishing_sell::Card>,
     /// The `name` cvar, for the nameplate.
     pub(crate) name: &'a str,
     /// The stock blade's colour (`color1`), for its swatch.
@@ -1166,6 +1172,11 @@ impl Panel {
         self.toy == FISHING_TOY
     }
 
+    /// Whether the Toys tab's chosen toy is Mining, whose card lists the finds.
+    pub(crate) fn mining_chosen(&self) -> bool {
+        self.toy == MINING_TOY
+    }
+
     /// Whether the page is the SJK UI's Collection screen.
     pub(crate) fn is_hub(&self) -> bool {
         self.hub
@@ -1319,7 +1330,7 @@ impl Panel {
             Tab::Toys if self.toy == 9 => PanelAction::Banana(!self.banana_on),
             Tab::Toys if self.toy == FISHING_TOY => PanelAction::Fishing(!self.fishing_on),
             Tab::Toys if self.toy == WHEEL_OF_DOOM_TOY => PanelAction::WheelOfDoom,
-            Tab::Toys if self.toy == 12 => PanelAction::Mining(!self.mining_on),
+            Tab::Toys if self.toy == MINING_TOY => PanelAction::Mining(!self.mining_on),
             Tab::Toys => PanelAction::Illuminate(!illuminate),
             Tab::Nameplates => PanelAction::SeeAndShare(!self.share_on),
             Tab::Tags => self.choose_tag(),
@@ -2454,6 +2465,8 @@ impl Panel {
             GRID_VIEW_TOKEN => self.set_grid(true),
             WEAR_TOKEN | TOY_SWITCH_TOKEN | SHARE_TOKEN => self.activate(illuminate),
             TOY_SIGHT_TOKEN => self.toy_sight(),
+            // One card shows at a time: the button sells what that toy's log holds.
+            SELL_JUNK_TOKEN if self.toy == MINING_TOY => PanelAction::SellRubble,
             SELL_JUNK_TOKEN => PanelAction::SellJunk,
             loadouts::OPEN_TOKEN => {
                 self.loadouts.open();
@@ -2714,6 +2727,7 @@ mod tests {
             mining: false,
             fishing_card: None,
             wheel_of_doom: false,
+            mining_card: None,
             name: "^1Sol^7Vulpes",
             stock: sjk_ui::Color::new(0.16, 0.48, 1.0, 1.0),
             grid: false,
@@ -3266,6 +3280,41 @@ hilt 1
         .find(|action| *action != PanelAction::None)
         .unwrap_or(PanelAction::None);
         assert_eq!(action, PanelAction::SellJunk);
+    }
+
+    /// The Mining card's Sell rubble button, the same token on its own card.
+    #[test]
+    fn the_mining_cards_sell_button_sells_rubble() {
+        let log = crate::mining::Log::parse(
+            "rubble 3
+fossil 1
+",
+        );
+        let card = crate::mining_sell::card(&log, Some((6, 15)), false, None);
+        let mut shown = inputs(Holdings::Known(&[]), "");
+        shown.mining_card = Some(&card);
+        let mut panel = drawn(Tab::Toys, &shown);
+        panel.toy = MINING_TOY;
+        redraw(&mut panel, &shown);
+        let rect = panel.ui.rect_for(SELL_JUNK_TOKEN).expect("the Sell button");
+        let at = sjk_ui::Vec2::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+        let button = sjk_ui::PointerButton::Primary;
+        let action = [
+            InputEvent::PointerMove(at),
+            InputEvent::PointerPress {
+                position: at,
+                button,
+            },
+            InputEvent::PointerRelease {
+                position: at,
+                button,
+            },
+        ]
+        .into_iter()
+        .map(|event| panel.pointer_at(event, true, Instant::now()))
+        .find(|action| *action != PanelAction::None)
+        .unwrap_or(PanelAction::None);
+        assert_eq!(action, PanelAction::SellRubble);
     }
 
     /// Order 66 is the third toy: chosen, then turned on or off by the state the page
