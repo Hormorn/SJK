@@ -199,6 +199,16 @@ test: Save here over slot 1 asks a second press; Empty asks a second press.
 test: In a match, wear a loadout: others see the hilts and shader change.
 note: The slots are GameData/SJK/loadouts.json.
 
+[hud-clock]
+area: HUD
+title: Local time clock on the HUD (Slash, after Nib's idea)
+change: cg_drawClock 1 the PC's time, 2 time and date (dd/mm/yyyy), 3 the date; off by default.
+change: cg_clock12h: hours 1-12 with am/pm. Moves in hud_edit (cg_clockX/Y), cg_clockSize scales.
+test: Settings > HUD > Local time: Time, Time and date, Date; the clock shows at the bottom middle.
+test: Local time: 12-hour on: 9:07 pm style; off: 21:07. The minute turns with the PC's clock.
+test: hud_edit: drag the clock elsewhere, Done; it stays there. Right-click it: back to the middle.
+note: Off on a fresh install: nothing changes on screen until you turn it on.
+
 [hud-switch-parts]
 area: HUD
 title: Choose what the HUD switch (cg_drawHud 0) hides

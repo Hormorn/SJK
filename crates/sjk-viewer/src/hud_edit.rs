@@ -570,6 +570,26 @@ mod tests {
         assert_eq!(start_of(&console, Element::Chat), start);
     }
 
+    /// The clock (05/11/2026) drags like the speedometer: its centre and bottom in
+    /// `cg_clockX`/`cg_clockY`, and a reset puts it back.
+    #[test]
+    fn the_clock_drags_into_its_own_cvars() {
+        let (_directory, mut console) = console();
+        let viewport = [1_920.0, 1_080.0];
+        let start = start_of(&console, Element::Clock);
+        assert_eq!(start, [320.0, 476.0]);
+        // 300 pixels left (100 of 640) and 450 up (200 of 480) at 1920x1080.
+        store(
+            &mut console,
+            Element::Clock,
+            moved(Element::Clock, start, [-300.0, -450.0], viewport),
+        );
+        assert_eq!(start_of(&console, Element::Clock), [220.0, 276.0]);
+        assert_eq!(Element::from_id("clock"), Some(Element::Clock));
+        reset(&mut console, Element::Clock);
+        assert_eq!(start_of(&console, Element::Clock), [320.0, 476.0]);
+    }
+
     /// The pointer picks the smallest box it is in.
     #[test]
     fn the_pointer_picks_the_innermost_box() {

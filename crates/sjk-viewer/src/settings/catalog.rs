@@ -537,6 +537,16 @@ pub(super) const HUD_OPTIONS: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Local time",
+        cvar: crate::hud::clock::CVAR,
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
+    },
+    Setting {
+        label: "Local time: 12-hour",
+        cvar: crate::hud::clock::HOURS_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Movement keys",
         cvar: crate::hud::movement_keys::CVAR,
         kind: ValueKind::Bool,

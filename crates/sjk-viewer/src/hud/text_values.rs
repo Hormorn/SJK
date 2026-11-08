@@ -26,6 +26,7 @@ impl HudOverlay {
             312 => &self.warmup_text,
             313 => "CONNECTION INTERRUPTED",
             314 => &self.speed.text,
+            clock::TEXT => &self.clock.text,
             315 => &self.score_text,
             316 => &self.snapshot_text,
             317 => &self.targeting.position,
