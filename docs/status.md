@@ -1,3 +1,18 @@
+## Open: JoF's command pacing, to revisit
+
+08/11/2026, Sol asked to keep this on the list. Since 02/11/2026 (`211208b9`, the
+section "Heimdall's time nudge kicks at low frame rates" below) JoF's servers get one
+command a frame (`Pacing::OnePerFrame`) instead of one every 8 ms, so a command's length
+follows the frame rate (5 to 11 ms at 350 FPS) and the movement is not the steady 125
+steps the gameplay FPS stands for. It was meant to stop Heimdall's time-nudge kicks; it
+did not, and the cause found on 07/11/2026 was something else (stamps a frame fresher
+than stock's). It broke ghost replays until they took their recorded times (08/11/2026,
+"Ghost replay at the recorded times" below). Going back is one entry in
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs); what stops it is not knowing
+whether Heimdall accepts the grid's stamps under 125 FPS. The facts, the workaround Sol
+uses (`gameplay_fps_nocap 1` with `gameplay_fps 125`) and how to settle it are in
+[networking.md](networking.md#user-commands-and-move-packets) ("Open: JoF's pacing").
+
 ## WHEEL OF DOOM (client side)
 
 07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins
@@ -611,7 +626,9 @@ below 125 (asked). Verified on Windows 11: unit tests (59 FPS against 40 snapsho
 second with 17 to 1346 ms hitches: commands at most 31 ms behind the server, the
 clock's own lag, against 47 to 54 ms with the grid; 125 a second at 333 FPS; no stamp
 twice). Not verified: in a game, on JoF, or that Heimdall judges this (it is closed
-source).
+source). Since then the kicks went on with this pacing, their cause turned out to be
+something else, and the pacing is open to be reverted ("Open: JoF's command pacing, to
+revisit" above).
 
 ## Joining no longer overflows the main thread's stack
 

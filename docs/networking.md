@@ -721,6 +721,37 @@ command time, on an accumulator that keeps 125 a second on average and starts ag
 hitch (`Pacing::OnePerFrame`). The grid's catch-up commands, stamped up to 32 ms in the
 past whenever the frame rate fell below 125, made SJK's commands trail the server 10 to
 40 ms more than JoF EJK's, and Heimdall kicked for a time nudge again (02/11/2026).
+
+**Open: JoF's pacing, to revisit** (Sol, 08/11/2026). The reason for
+`Pacing::OnePerFrame` did not hold. The kicks went on with it (Sol twice while idle
+on 06/11/2026). Milamber traced them to stamps a frame fresher than stock's, fixed on
+07/11/2026 (above), and by his account Heimdall does not kick for commands that trail
+the server, which is what the grid's catch-up did. What it costs remains:
+
+- On JoF a command lasts as long as the frames that made it, not 8 ms: at 350 FPS
+  they are 5 to 11 ms apart (Sol's 2,351 commands recorded on JoFTemple on
+  07/11/2026: 5 ms 55, 6 ms 390, 7 ms 227, 8 ms 709, 9 ms 774, 10 ms 188, 11 ms 7).
+  Pmove's rounding moves jumps, acceleration and strafes with the command's length,
+  so a JoF player does not move in the steady 125 steps the gameplay FPS stands for.
+  JoF EJK's `cl_cmdratecap` moves the same way, so it matches JoF EJK.
+- Whatever needs even commands breaks. Ghost replays did: they sent the recorded
+  commands on the live stamps, so every run recorded on the grid before 02/11/2026
+  took other durations and drifted. They now take their recorded times
+  ([client.md](client.md#ghost-replay)), with a fallback tied to this pacing (a
+  recorded time 16 ms behind the clock gives way to the live stamp).
+
+Going back to the grid on JoF is one entry (`pacing` in `KNOWN`,
+[server_caps.rs](../crates/sjk-viewer/src/server_caps.rs)). For one player,
+`gameplay_fps_nocap 1` with `gameplay_fps 125` does it today (Sol since 08/11/2026);
+it also lifts JoF's floor of 125 commands a second, so the gameplay FPS must stay at 125.
+Not known: whether Heimdall accepts the grid's stamps under 125 FPS. They sit a step
+behind the newest slot (`CommandSchedule::stock_stamps`), which below 125 FPS can be
+fresher than the previous frame's reading that a stock client at that frame rate
+stamps, and always is below 62 FPS. That is harmless if Heimdall compares a stamp with
+the server's time only, and a kick if it expects a stamp to trail by a whole frame. To
+settle before changing the entry: ask Milamber what Heimdall compares a stamp with, or
+play JoF with `gameplay_fps_nocap 1` and `gameplay_fps 125` capped at 30, 60, 125 and
+350 FPS, reading the `server view` lines in the log (below) and watching for a kick.
 The userinfo's `cg_displayNetSettings` (JA+ and jaPRO read the time nudge from it)
 always says `125 0 125` ([compat_profile.rs](../crates/sjk-client/src/compat_profile.rs)).
 
