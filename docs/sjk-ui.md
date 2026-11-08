@@ -1109,7 +1109,7 @@ as Settings is, on the main page's 16:9 frame. The camera keeps touring behind i
   their info directly, so one no master server lists (a private server) still
   answers in the list.
 - **List:** a header line of sortable columns (Server, Mode, Map, Players,
-  Ping; the sorted one gold with a sort mark after it, three stacked bars
+  Ping; the sorted one gold with a sort mark just after it, three stacked bars
   longest at the top when descending, at the bottom when ascending; a click
   sorts or flips it), then fourteen rows of 52 that scroll (wheel, scrollbar).
   A row: a gold dot for a favourite, the name in its colours (faded when
