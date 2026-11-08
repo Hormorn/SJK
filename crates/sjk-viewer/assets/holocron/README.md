@@ -24,7 +24,8 @@ replaces them.
 The holocron drops come in four tiers, each a holocron of its own since 17/10/2026
 ([holocrons.md](../../../../docs/holocrons.md#the-four-holocrons)): the Jedi cube
 (uncommon, green), the Great Holocron (rare, blue), the Sith pyramid (legendary, purple)
-and, since 21/10/2026, the engram (mythical, gold: triangular plates with glowing seams).
+and, since 21/10/2026, the engram (mythical, gold: triangular plates with glowing seams
+and a white-hot core, breathing).
 The cube, the pyramid and the engram are Sol's sculpted models (below). The kyber crystals (`kyber_uncommon`, `kyber_rare`,
 `kyber_legendary`, `kyber_mythical`, 21/10/2026: the kyber prism that was the mythical
 holocron until then, in each tier's colours, plainer the commoner) are made with them
@@ -42,7 +43,7 @@ Per form `<tier>` (`uncommon`, `rare`, `legendary`, `mythical`, then `kyber_unco
 | File | Game path | What |
 | --- | --- | --- |
 | `holocron_<tier>.md3` | `models/sjk/holocron_<tier>.md3` | The body: the part that stands still against the holocron |
-| `holocron_<tier>_<part>.md3` | `models/sjk/holocron_<tier>_<part>.md3` | Each moving part, about its own centre: `rare_halo`; `legendary_cap`, `legendary_eye`; `mythical_mote` (a spark, drawn eight times); `kyber_<tier>_crystal`, `_ring_a`, `_ring_b` (legendary and mythical only), `_mote` (drawn 4, 6, 8, 10 times) |
+| `holocron_<tier>_<part>.md3` | `models/sjk/holocron_<tier>_<part>.md3` | Each moving part, about its own centre: `rare_halo`; `legendary_cap`, `legendary_eye`; `mythical_shell` (the engram's plates; its body is the core), `mythical_mote` (a spark, drawn eight times); `kyber_<tier>_crystal`, `_ring_a`, `_ring_b` (legendary and mythical only), `_mote` (drawn 4, 6, 8, 10 times) |
 | `..._locked.md3` | the same, `_locked` | Each of those in the locked look |
 | `holocron_<tier>.jpg` | `models/sjk/holocron_<tier>.jpg` | The face, 512x512: the pentagon, the kyber crystal's facet; 1024x1024 for a sculpted form (the cube, the pyramid, the engram), its baked colour |
 | `holocron_<tier>_glow.jpg` | `models/sjk/holocron_<tier>_glow.jpg` | Its lit parts alone, for the additive and glow stage |
@@ -60,10 +61,11 @@ Shared:
 | `holocron_uncommon_n.png`, `holocron_legendary_n.png`, `holocron_legendary_cap_n.png`, `holocron_mythical_n.png` | `models/sjk/...` | The sculpted forms' tangent-space normal maps (`normalMap` in the lit stage) |
 | `holocron_light_locked.jpg` | `models/sjk/holocron_light_locked.jpg` | Every tier's lit parts in the locked look |
 | `holocron_sheen.jpg` | `models/sjk/holocron_sheen.jpg` | A soft diagonal stripe (128x128, tiles along s + t) that the kyber crystals' shaders scroll over the crystal (`tcMod scroll`) |
+| `holocron_mythical_seam.jpg`, `_core.jpg` (and `_locked`) | `models/sjk/...` | The engram's seams' glow (the plates' walls and inner faces) and its core's facet (white-hot in the middle) |
 | `holocron_mythical_env.jpg` | `models/sjk/holocron_mythical_env.jpg` | The engram's reflection, read by the view (`tcGen environment`): a faint warm sky and two thin streaks that sweep the plates as it turns |
-| `holocron_tiers.shader` | `shaders/sjk_holocron_tiers.shader` | `models/sjk/holocron_<tier>`: the holocrons' faces, lit, glowing faintly of themselves, their lit parts breathing in the glow; the sculpted ones name their normal maps; the engram's plates also take a reflection read by the view |
+| `holocron_tiers.shader` | `shaders/sjk_holocron_tiers.shader` | `models/sjk/holocron_<tier>`: the holocrons' faces, lit, glowing faintly of themselves, their lit parts breathing in the glow; the sculpted ones name their normal maps; the engram's plates also breathe out and back (`deformVertexes wave`, every vertex of a plate carrying the plate's normal so the slab moves as one) and take a reflection read by the view |
 | `holocron_kyber.shader` | `shaders/sjk_holocron_kyber.shader` | `models/sjk/holocron_kyber_<tier>`: the crystals' facets (lit, own light, glow, sheen) and each crystal's light |
-| `holocron_parts.shader` | `shaders/sjk_holocron_parts.shader` | The steel, the dark metal, the Sith pyramid's cap, each holocron tier's light (full bright, breathing in the glow) |
+| `holocron_parts.shader` | `shaders/sjk_holocron_parts.shader` | The steel, the dark metal, the Sith pyramid's cap, each holocron tier's light (full bright, breathing in the glow), the engram's seams (pulsing, breathing with the plates) and core |
 | `holocron_locked.shader` | `shaders/sjk_holocron_locked.shader` | The locked look of every material: lit, a faint light of its own, no glow, nothing moving |
 | `holocron_parts.rs` | (not mounted) | The forms' table the client includes (`holocrons/stage.rs`, `FORMS`): each form's id and light, each part's models, where it rests and how it bobs, orbits and turns |
 | `holocron_files.rs` | (not mounted) | Every file above at its game path, included by `illuminate.rs`, which mounts them |
@@ -99,14 +101,17 @@ own centre; the eye is still drawn by the script. To change the shape, edit the 
 in Blender, bake again and export it triangulated with normals and picture coordinates.
 
 The Jedi cube and the engram are Sol's sculpted models too (08/11/2026), in
-`art/jedi_cube/` and `art/gold_engram/`, each one object `low_body` (`<folder>.obj`): Sol
-generated them (Tripo, about 1.9 million triangles with an 8K picture each), and each was
-brought down in Blender to the convex hull of the high one, dissolved flat and decimated
-(300 triangles for the cube, 400 for the engram), with `body.jpg` (the base colour baked
+`art/jedi_cube/` and `art/gold_engram/` (`<folder>.obj`): Sol generated them (Tripo, about
+1.9 million triangles with an 8K picture each). The cube is one object `low_body`, the
+convex hull of the high one dissolved flat and decimated to 300 triangles. The engram is
+38 objects `plate_NN`, one per tile: the high poly's faces within 2 % of its size of the
+convex hull fall apart at the grooves into one patch per tile, and each patch's outline in
+its own plane (grown by 6 %) is a flat plate, 301 triangles in all. Each has `body.jpg` (the base colour baked
 through an emission pass, as a diffuse bake drops a metal's colour, times 60 % of the
 baked ambient occlusion), `body_glow.jpg` (the cube's green glass alone; the engram's dark
-seams between plates, in a warm gold-white) and `body_n.png` (green flipped as above).
-The script centres each on the holocron and scales it (`JEDI_CUBE_SCALE`,
+rims round its plates, in a warm gold-white) and `body_n.png` (green flipped as above).
+The script centres each on the holocron and scales it (the engram's plates become slabs
+with walls and an inner face, `PLATE_DEPTH` deep, round a core it sizes inside them) (`JEDI_CUBE_SCALE`,
 `GOLD_ENGRAM_SCALE`); the share of each glow picture the glow stage adds is `SCULPTS` in
 holocron_assets.py.
 

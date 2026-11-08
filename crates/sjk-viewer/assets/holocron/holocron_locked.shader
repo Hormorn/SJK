@@ -67,6 +67,19 @@ models/sjk/holocron_legendary_cap_locked
 		rgbGen wave sin 0.16 0 0 0
 	}
 }
+models/sjk/holocron_mythical_core_locked
+{
+	q3map_nolightmap
+	{
+		map models/sjk/holocron_mythical_core_locked
+		rgbGen lightingDiffuse
+	}
+	{
+		map models/sjk/holocron_mythical_core_locked
+		blendFunc GL_ONE GL_ONE
+		rgbGen wave sin 0.16 0 0 0
+	}
+}
 models/sjk/holocron_mythical_locked
 {
 	q3map_nolightmap
@@ -76,6 +89,19 @@ models/sjk/holocron_mythical_locked
 	}
 	{
 		map models/sjk/holocron_mythical_locked
+		blendFunc GL_ONE GL_ONE
+		rgbGen wave sin 0.16 0 0 0
+	}
+}
+models/sjk/holocron_mythical_seam_locked
+{
+	q3map_nolightmap
+	{
+		map models/sjk/holocron_mythical_seam_locked
+		rgbGen lightingDiffuse
+	}
+	{
+		map models/sjk/holocron_mythical_seam_locked
 		blendFunc GL_ONE GL_ONE
 		rgbGen wave sin 0.16 0 0 0
 	}

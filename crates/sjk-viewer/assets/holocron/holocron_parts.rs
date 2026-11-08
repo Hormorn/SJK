@@ -20,6 +20,7 @@ pub(crate) const FORMS: [Form; 8] = [
     ] },
     Form { id: "mythical", light: [1.85, 1.3, 0.4], parts: &[
         Part { model: "models/sjk/holocron_mythical.md3", locked: "models/sjk/holocron_mythical_locked.md3", at: [0.0, 0.0, 0.0], bob: [0.0, 0.0], orbit: [0.0, 0.0, 0.0], spin: [0.0, 0.0], tumble: [0.0, 0.0], precess: [0.0, 0.0] },
+        Part { model: "models/sjk/holocron_mythical_shell.md3", locked: "models/sjk/holocron_mythical_shell_locked.md3", at: [0.0, 0.0, 0.0], bob: [0.0, 0.0], orbit: [0.0, 0.0, 0.0], spin: [0.0, 0.3], tumble: [0.0, 0.09], precess: [0.0, 0.0] },
         Part { model: "models/sjk/holocron_mythical_mote.md3", locked: "models/sjk/holocron_mythical_mote_locked.md3", at: [0.0, 0.0, -3.75], bob: [0.0, 0.0], orbit: [4.15, -0.562, 0.0], spin: [0.0, 2.2], tumble: [0.35, 0.0], precess: [0.0, 0.0] },
         Part { model: "models/sjk/holocron_mythical_mote.md3", locked: "models/sjk/holocron_mythical_mote_locked.md3", at: [0.0, 0.0, -0.675], bob: [0.0, 0.0], orbit: [3.955, 0.716, 0.79], spin: [0.0, 2.2], tumble: [0.35, 0.0], precess: [0.0, 0.0] },
         Part { model: "models/sjk/holocron_mythical_mote.md3", locked: "models/sjk/holocron_mythical_mote_locked.md3", at: [0.0, 0.0, 2.4], bob: [0.0, 0.0], orbit: [3.329, -0.63, 1.58], spin: [0.0, 2.2], tumble: [0.35, 0.0], precess: [0.0, 0.0] },

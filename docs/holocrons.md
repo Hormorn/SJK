@@ -64,7 +64,7 @@ set), not one cube in four colours:
 | Uncommon | The Jedi cube (Sol's sculpted model, 08/11/2026): a steel-framed cube with riveted corners, glowing green glass on each face round a raised emblem plate, baked onto a 300-triangle low poly with a normal map | nothing of its own |
 | Rare | The Great Holocron: a dodecahedron, a raised pentagon in each face with the Jedi Order's emblem and runes, lit edges | a broken halo, tilted, turning and bobbing around it |
 | Legendary | The Sith pyramid (Sol's sculpted model, 05/11/2026): a dark frustum on a carved plinth, glowing purple runes and lines down its sides, baked from a high-poly model onto a 58-triangle low poly with a normal map | its cap floats over it, turning and bobbing; a glowing eye turns between them |
-| Mythical | The engram (21/10/2026; until then the kyber prism, now the [Kyber crystal](#kyber-crystals); Sol's sculpted model since 08/11/2026): a lumpy gem of triangular gold plates, each with an engraved rim and seal, glowing gold seams between them, baked onto a 400-triangle low poly with a normal map | streaks of reflection sweep the plates as it turns; eight sparks circle it |
+| Mythical | The engram (21/10/2026; until then the kyber prism, now the [Kyber crystal](#kyber-crystals); Sol's sculpted model since 08/11/2026): a lumpy gem of 38 engraved triangular gold plates, each its own slab (its face baked from the high poly with a normal map) with glowing seams between them and a white-hot core inside | the shell turns about its length while it slowly tumbles over; the plates breathe out and back (up to 0.4 units, the core showing between them at the top of the breath); the seams and core pulse; streaks of reflection sweep the plates as they turn; eight sparks circle it |
 
 They are made by `scripts/holocron_assets.py` with the shapes in `scripts/holocron_forms.py`:
 a model per part (the body, which stands still against the holocron, and each moving
@@ -83,13 +83,16 @@ baked colour, glow and normal maps)
 about the same room on screen.
 
 Until 08/11/2026 the Jedi cube was drawn by the script (a plateau on each face with the
-shipped face on it, a lamp over each) and the engram was thirty plates drawn by the script
-that breathed out and back in their shader (`deformVertexes wave`) over a white-hot core.
-A sculpted low poly is flat-shaded with its corners split per face, so a vertex wave would
-crack it open: the sculpted engram stands still in its shader. A soft halo sprite was
-tried on the old engram (`deformVertexes autosprite`), but on the stage a surface whose
-only stage is added light did not show, so the halo comes from the glow pass around the
-seams instead.
+shipped face on it, a lamp over each) and the engram was thirty plates drawn by the script.
+The sculpted engram keeps that engram's life: Sol's model is split into its tiles (the
+faces of the high poly near its convex hull, cut apart by the grooves), each tile a flat
+plate of its outline, grown a little, baked from the high poly into one picture
+(`art/gold_engram/`, an object per plate). The script makes each plate a slab with walls
+and an inner face in the seams' glow, every vertex of a plate carrying the plate's normal,
+so the shader's `deformVertexes wave` moves the whole slab out along it as one. A soft halo
+sprite was tried on the old engram (`deformVertexes autosprite`), but on the stage a
+surface whose only stage is added light did not show, so the halo comes from the glow pass
+around the seams and core instead.
 
 ### Kyber crystals
 

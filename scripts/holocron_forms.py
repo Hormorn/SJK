@@ -11,8 +11,11 @@ Each tier is its own object (Sol's pick, 17/10/2026, from the proposals' second 
   plinth with glowing runes carved down its sides, its cap floating free over a glowing
   eye, both bobbing and turning (a low poly with its detail baked into pictures);
 - mythical, the engram (21/10/2026, Sol: "make a cool shader of it like Destiny"; Sol's
-  sculpted model since 08/11/2026): a lumpy gem of triangular gold plates with glowing
-  seams between them, a sheen running over the plates, eight sparks circling it.
+  sculpted model since 08/11/2026): a lumpy gem of 38 engraved triangular gold plates,
+  each a slab apart from the next with glowing seams between them and a white-hot core
+  showing through, the plates breathing outward and back (their shader's `deformVertexes
+  wave`), the shell turning and slowly tumbling, a sheen running over the plates, eight
+  sparks circling it.
 
 The kyber crystals (`kyber_<tier>`, 21/10/2026) are one more object in the four tiers'
 colours: what was the mythical holocron until then, the kyber prism, a broad
@@ -439,12 +442,81 @@ def kyber_crystal(form: str) -> dict:
     return parts
 
 
+# Each of the engram's plates is a slab: its outer face (the baked plate), walls
+# PLATE_DEPTH deep in the seams' glow, drawn in by PLATE_TAPER toward the inner face, so
+# the gaps open toward the core.
+PLATE_DEPTH = 0.4
+PLATE_TAPER = 0.08
+
+
+def icosahedron(mesh: Mesh, material: str, radius: float) -> None:
+    phi = (1 + 5 ** 0.5) / 2
+    corners = []
+    for a in (-1, 1):
+        for b in (-phi, phi):
+            corners += [(0, a, b), (a, b, 0), (b, 0, a)]
+    corners = np.array(corners, float)
+    corners *= radius / np.linalg.norm(corners[0])
+    for simplex in ConvexHull(corners).simplices:
+        mesh.polygon(material, list(corners[simplex]), (0, 0, 0), [(0.5, 0.0), (0.0, 1.0), (1.0, 1.0)])
+
+
+def engram_plates(tier: str) -> list:
+    """The engram's plates: each plate's triangles (scaled and centred on the holocron's
+    centre) and its normal (the area-weighted mean of its triangles')."""
+    objects = read_obj(ART / GOLD_ENGRAM / f"{GOLD_ENGRAM}.obj")
+    points = np.array([p for triangles in objects.values() for triangle in triangles for p, _, _ in triangle])
+    centre = (points.min(0) + points.max(0)) / 2
+    plates = []
+    for name in sorted(objects):
+        triangles = [[((p - centre) * GOLD_ENGRAM_SCALE, uv) for p, _, uv in triangle] for triangle in objects[name]]
+        normal = sum(np.cross(t[1][0] - t[0][0], t[2][0] - t[0][0]) for t in triangles)
+        plates.append((triangles, normal / np.linalg.norm(normal)))
+    return plates
+
+
+def engram_plate(mesh: Mesh, face: str, seam: str, triangles, normal) -> None:
+    """One plate: its outer face (the baked picture), its walls and inner face in the
+    seam's glow, every vertex with the plate's normal, so the shader's `deformVertexes
+    wave` moves the whole slab as one."""
+    for triangle in triangles:
+        mesh.triangle(face, [p for p, _ in triangle], [normal] * 3, [uv for _, uv in triangle])
+    # Its outline: the edges only one of its triangles has, in order round its middle.
+    count = {}
+    for triangle in triangles:
+        for k in range(3):
+            edge = tuple(sorted((tuple(triangle[k][0]), tuple(triangle[(k + 1) % 3][0]))))
+            count[edge] = count.get(edge, 0) + 1
+    corners = {corner for edge, n in count.items() if n == 1 for corner in edge}
+    outline = np.array(sorted(corners))
+    middle = outline.mean(0)
+    right, up = plane_basis(normal)
+    outline = outline[np.argsort([math.atan2(np.dot(p - middle, up), np.dot(p - middle, right)) for p in outline])]
+    inner = [middle + (p - middle) * (1 - PLATE_TAPER * 4) - normal * PLATE_DEPTH for p in outline]
+    deep = middle - normal * PLATE_DEPTH / 2
+    for k in range(len(outline)):
+        j = (k + 1) % len(outline)
+        mesh.polygon(seam, [outline[k], outline[j], inner[j], inner[k]], deep,
+                     [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], normal=normal)
+    mesh.polygon(seam, inner, middle + normal * 4.0, normal=normal)
+
+
 def engram(tier: str) -> dict:
-    """The engram: Sol's sculpted gold puzzle (08/11/2026), a lumpy gem of triangular
-    gold plates with glowing seams between them, and its sparks."""
+    """The engram: Sol's sculpted gold puzzle (08/11/2026) split into its plates, a
+    white-hot core inside them, and its sparks."""
+    face = f"holocron_{tier}"
+    shell = Mesh()
+    plates = engram_plates(tier)
+    for triangles, normal in plates:
+        engram_plate(shell, face, f"{face}_seam", triangles, normal)
+    # The core stays inside every plate's inner face.
+    nearest = min(np.dot(triangles[0][0][0], normal) for triangles, normal in plates)
+    radius = round(0.8 * (nearest - PLATE_DEPTH), 2)
+    body = Mesh()
+    icosahedron(body, f"{face}_core", radius)
     spark = Mesh()
     octahedron(spark, light(tier), (0, 0, 0), 0.16, stretch=2.0)
-    return {"body": sculpted_body(tier, GOLD_ENGRAM, GOLD_ENGRAM_SCALE), "mote": spark}
+    return {"body": body, "shell": shell, "mote": spark}
 
 
 FORMS = {
@@ -551,7 +623,9 @@ PARTS = {
         Motion("cap", at=(0.0, 0.0, 3.2), bob=(0.35, 1.5), spin=(0.0, 0.35)),
         Motion("eye", at=(0.0, 0.0, 1.25), bob=(0.1, 1.5), spin=(0.0, -1.2)),
     ],
-    "mythical": [Motion("body"), *sparks()],
+    # The core stands still in the middle; the shell of plates turns about its length
+    # while that slowly tips over (a tumble), and the plates breathe in their shader.
+    "mythical": [Motion("body"), Motion("shell", spin=(0.0, 0.3), tumble=(0.0, 0.09)), *sparks()],
     **{form: kyber_parts(form) for form in KYBER_IDS},
 }
 
