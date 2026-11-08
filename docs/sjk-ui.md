@@ -240,7 +240,9 @@ one (4:3, 5:4) scales the frame down to its width.
   hides the line for good (`ui_supportLinks 0`). While × is under the pointer, a quiet
   line under them says that Settings, Interface, "Support SJK" brings it back. It asks
   no server anything. Pointer only: its targets are the page's 80 and 81 (the links)
-  and 82 (×). Snapshot `sjk-home` (`menu_snapshot::sjk_home_snapshot`) and world shot
+  and 82 (×). Shelved since 07/11/2026 (Sol's request,
+  `support_links::SHELVED`): it never shows and its setting is out of Settings.
+  Snapshot `sjk-home` (`menu_snapshot::sjk_home_snapshot`) and world shot
   `duel6-menu` (`world_shot::duel6_sjk_menu`).
 - **Corners:** the player's [profile card](#profile-card), bottom left; the keys
   of the page, bottom centre; the version and a newer release found, bottom right.

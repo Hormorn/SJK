@@ -246,17 +246,17 @@ Blades 170 to 299, Creyon's Star Wars round (PR #370, merged 06/11/2026), do not
 | 167 | `saber_thousand_cranes` | Thousand Cranes blade | Unique | Sol | no |
 | 168 | `saber_hearth` | Hearth blade | Unique | Sol | no |
 | 169 | `saber_mystery` | Mystery blade | Legendary | Sol | no |
-| 170 | `saber_vulptex_crystalfire` | Vulptex Crystalfire blade | Legendary | Creyon | no |
-| 171 | `saber_zeffo_thunderchorus` | Zeffo Thunderchorus blade | Legendary | Creyon | no |
+| 170 | `saber_vulptex_crystalfire` | Vulptex Crystalfire blade | Mythical | Creyon | no |
+| 171 | `saber_zeffo_thunderchorus` | Zeffo Thunderchorus blade | Mythical | Creyon | no |
 | 172 | `saber_moraband_erasure` | Moraband Erasure blade | Mythical | Creyon | no |
 | 173 | `saber_wellspring_triad` | Wellspring Triad blade | Mythical | Creyon | no |
 | 174 | `saber_chirrut_whills` | Chirrut Whills blade | Rare | Creyon | no |
-| 175 | `saber_atollon_gathering` | Atollon Gathering blade | Legendary | Creyon | no |
+| 175 | `saber_atollon_gathering` | Atollon Gathering blade | Mythical | Creyon | no |
 | 176 | `saber_wobani_projection` | Wobani Projection blade | Rare | Creyon | no |
 | 177 | `saber_iridonia_rite` | Iridonia Rite blade | Legendary | Creyon | no |
 | 178 | `saber_rishi_ocean_flow` | Rishi Ocean Flow blade | Legendary | Creyon | no |
 | 179 | `saber_scipio_awakening` | Scipio Awakening blade | Legendary | Creyon | no |
-| 180 | `saber_nal_hutta_spicevine` | Nal Hutta Spicevine blade | Uncommon | Creyon | no |
+| 180 | `saber_nal_hutta_spicevine` | Nal Hutta Spicevine blade | Rare | Creyon | no |
 | 181 | `saber_korriban_ragnos` | Korriban Ragnos blade | Mythical | Creyon | no |
 | 182 | `saber_ossus_scroll` | Ossus Scroll blade | Legendary | Creyon | no |
 | 183 | `saber_kiros_echani` | Eshan Echani blade | Rare | Creyon | no |
@@ -267,14 +267,14 @@ Blades 170 to 299, Creyon's Star Wars round (PR #370, merged 06/11/2026), do not
 | 188 | `saber_tatooine_krayt_spine` | Tatooine Krayt Spine blade | Mythical | Creyon | no |
 | 189 | `saber_lahmu_sandveil` | Lah'mu Sandveil blade | Legendary | Creyon | no |
 | 190 | `saber_dromund_kaas_vitiate` | Dromund Kaas Vitiate blade | Mythical | Creyon | no |
-| 191 | `saber_utapau_whirlwind` | Utapau Whirlwind blade | Legendary | Creyon | no |
+| 191 | `saber_utapau_whirlwind` | Utapau Whirlwind blade | Mythical | Creyon | no |
 | 192 | `saber_umbara_gloaming` | Umbara Gloaming blade | Legendary | Creyon | no |
 | 193 | `saber_tython_jedaii` | Tython Je'daii blade | Rare | Creyon | no |
 | 194 | `saber_crait_salt_flats` | Crait Salt Flats blade | Rare | Creyon | no |
 | 195 | `saber_sullust_magma` | Sullust Magma blade | Legendary | Creyon | no |
 | 196 | `saber_kijimi_snowfall` | Kijimi Snowfall blade | Rare | Creyon | no |
-| 197 | `saber_saleucami_turbolaser` | Saleucami Turbolaser blade | Rare | Creyon | no |
-| 198 | `saber_wayland_gravity_press` | Wayland Gravity Press blade | Legendary | Creyon | no |
+| 197 | `saber_saleucami_turbolaser` | Saleucami Turbolaser blade | Legendary | Creyon | no |
+| 198 | `saber_wayland_gravity_press` | Wayland Gravity Press blade | Mythical | Creyon | no |
 | 199 | `saber_onderon_blazing_strike` | Onderon Blazing Strike blade | Uncommon | Creyon | no |
 | 200 | `saber_dantooine_grassland` | Dantooine Grassland blade | Uncommon | Creyon | no |
 | 201 | `saber_bracca_rust_spark` | Bracca Rust blade | Common | Creyon | no |
@@ -282,16 +282,16 @@ Blades 170 to 299, Creyon's Star Wars round (PR #370, merged 06/11/2026), do not
 | 203 | `saber_nevarro_ash` | Nevarro Ash blade | Common | Creyon | no |
 | 204 | `saber_vandor_whiteout` | Vandor Whiteout blade | Common | Creyon | no |
 | 205 | `saber_bendu_equilibrium` | Bendu Equilibrium blade | Legendary | Creyon | no |
-| 206 | `saber_lehon_maelstrom` | Lehon Maelstrom blade | Legendary | Creyon | no |
+| 206 | `saber_lehon_maelstrom` | Lehon Maelstrom blade | Mythical | Creyon | no |
 | 207 | `saber_zonama_starlight` | Zonama Starlight blade | Legendary | Creyon | no |
 | 208 | `saber_bastila_battle_meditation` | Bastila Battle Meditation blade | Legendary | Creyon | no |
 | 209 | `saber_cantonica_ascension` | Cantonica Champagne blade | Rare | Creyon | no |
 | 210 | `saber_nightsister_ichor` | Nightsister Ichor blade | Legendary | Creyon | no |
 | 211 | `saber_nihilus_hunger` | Nihilus Hunger blade | Mythical | Creyon | no |
-| 212 | `saber_rodia_toxic_bloom` | Rodia Toxic Bloom blade | Rare | Creyon | no |
+| 212 | `saber_rodia_toxic_bloom` | Rodia Toxic Bloom blade | Legendary | Creyon | no |
 | 213 | `saber_glee_anselm_rockpools` | Glee Anselm Rockpools blade | Rare | Creyon | no |
-| 214 | `saber_polis_massa_asteroid` | Polis Massa Asteroid blade | Rare | Creyon | no |
-| 215 | `saber_lotho_minor_lavaglass` | Lotho Minor Lavaglass blade | Rare | Creyon | no |
+| 214 | `saber_polis_massa_asteroid` | Polis Massa Asteroid blade | Legendary | Creyon | no |
+| 215 | `saber_lotho_minor_lavaglass` | Lotho Minor Lavaglass blade | Legendary | Creyon | no |
 | 216 | `saber_agamar_copper` | Agamar Copper blade | Uncommon | Creyon | no |
 | 217 | `saber_sorgan_lake` | Sorgan Lake blade | Uncommon | Creyon | no |
 | 218 | `saber_iego_lightglow` | Iego Lightglow blade | Rare | Creyon | no |
@@ -299,7 +299,7 @@ Blades 170 to 299, Creyon's Star Wars round (PR #370, merged 06/11/2026), do not
 | 220 | `saber_arkanis_teal` | Arkanis Teal blade | Uncommon | Creyon | no |
 | 221 | `saber_peridea_convergence` | Peridea Convergence blade | Legendary | Creyon | no |
 | 222 | `saber_byss_force_storm` | Byss Force Storm blade | Legendary | Creyon | no |
-| 223 | `saber_lira_san_starglass` | Lira San Starglass blade | Rare | Creyon | no |
+| 223 | `saber_lira_san_starglass` | Lira San Starglass blade | Legendary | Creyon | no |
 | 224 | `saber_mimban_marshlight` | Mimban Marshlight blade | Rare | Creyon | no |
 | 225 | `saber_zygerria_cleave` | Zygerria Whip blade | Rare | Creyon | no |
 | 226 | `saber_jabiim_siege` | Jabiim Siege blade | Uncommon | Creyon | no |
@@ -348,28 +348,28 @@ Blades 170 to 299, Creyon's Star Wars round (PR #370, merged 06/11/2026), do not
 | 269 | `saber_moon` | Moon blade | Mythical | Creyon | no |
 | 270 | `saber_kathol_rift` | Kathol Rift blade | Legendary | Creyon | no |
 | 271 | `saber_fondor_mass_driver` | Fondor Mass Driver blade | Legendary | Creyon | no |
-| 272 | `saber_exar_kun_temple` | Exar Kun Temple blade | Legendary | Creyon | no |
+| 272 | `saber_exar_kun_temple` | Exar Kun Temple blade | Mythical | Creyon | no |
 | 273 | `saber_naga_sadow_alchemy` | Naga Sadow Alchemy blade | Legendary | Creyon | no |
 | 274 | `saber_orbalisk_carapace` | Orbalisk Carapace blade | Legendary | Creyon | no |
 | 275 | `saber_ziost_silence` | Ziost Silence blade | Legendary | Creyon | no |
 | 276 | `saber_nathema_deadworld` | Nathema Deadworld blade | Legendary | Creyon | no |
 | 277 | `saber_amphistaff_serpent` | Amphistaff Serpent blade | Legendary | Creyon | no |
-| 278 | `saber_vergence_scatter` | Vergence Scatter blade | Legendary | Creyon | no |
-| 279 | `saber_voxyn_scream` | Voxyn Scream blade | Rare | Creyon | no |
+| 278 | `saber_vergence_scatter` | Vergence Scatter blade | Mythical | Creyon | no |
+| 279 | `saber_voxyn_scream` | Voxyn Scream blade | Legendary | Creyon | no |
 | 280 | `saber_ysalamir_hush` | Ysalamir Hush blade | Legendary | Creyon | no |
-| 281 | `saber_rakghoul_plague` | Rakghoul Plague blade | Rare | Creyon | no |
+| 281 | `saber_rakghoul_plague` | Rakghoul Plague blade | Legendary | Creyon | no |
 | 282 | `saber_taris_undercity` | Taris Undercity blade | Mythical | Creyon | no |
 | 283 | `saber_telos_restoration` | Telos Restoration blade | Rare | Creyon | no |
 | 284 | `saber_malevolence_ion_beam` | Malevolence Ion Beam blade | Rare | Creyon | no |
 | 285 | `saber_massassi_altar` | Massassi Altar blade | Rare | Creyon | no |
-| 286 | `saber_sith_tremor_sword` | Sith Tremor Sword blade | Rare | Creyon | no |
+| 286 | `saber_sith_tremor_sword` | Sith Tremor Sword blade | Legendary | Creyon | no |
 | 287 | `saber_eye_of_aldhani` | Eye of Aldhani blade | Uncommon | Creyon | no |
-| 288 | `saber_ferrix_foundry` | Ferrix Foundry blade | Uncommon | Creyon | no |
+| 288 | `saber_ferrix_foundry` | Ferrix Foundry blade | Rare | Creyon | no |
 | 289 | `saber_kenari_crash` | Kenari Crash blade | Uncommon | Creyon | no |
 | 290 | `saber_sarlacc_pit` | Sarlacc Pit blade | Uncommon | Creyon | no |
 | 291 | `saber_cloud_city_dusk` | Cloud City Dusk blade | Uncommon | Creyon | no |
 | 292 | `saber_ring_of_kafrene` | Ring of Kafrene blade | Uncommon | Creyon | no |
-| 293 | `saber_hypergate_drift` | Hypergate Drift blade | Uncommon | Creyon | no |
+| 293 | `saber_hypergate_drift` | Hypergate Drift blade | Rare | Creyon | no |
 | 294 | `saber_angel` | Angel blade | Mythical | Creyon | no |
 | 295 | `saber_bardotta_calm` | Bardotta Calm blade | Common | Creyon | no |
 | 296 | `saber_alzoc_ice` | Alzoc Ice blade | Common | Creyon | no |
@@ -783,7 +783,7 @@ the hub's, described in its `scripts/blade_skin_sounds.py` and `saber_skin_sound
   - **Ruusan Thoughtbomb** (Legendary, blade 232, `blade_signatures/ruusan_thoughtbomb.glsl`; Ruusan Westflame until 1/11/2026): the light of the Jedi bound into the Force on the field of Ruusan: a silver-white blade mended with seams of old gold, a soft dawn haze and splinters of kyber round it. Every 24 seconds all its light drains from both ends into one point, leaving dark steel and gold; it bursts, the white runs back along it and a golden dawn breaks.
   - **Wellspring Triad** (Mythical, blade 173, `blade_signatures/wellspring_triad.glsl`; Taris Fusion Trinity until 1/11/2026): The source of the Force the Priestesses guard: three living streams, gold, silver and sea-green, twist round each other up a dark blade and flare white where they cross. Out in the air the same three streams turn in slow beads of light.
   - **Chirrut Whills** (Rare, blade 174, `blade_signatures/chirrut_whills.glsl`; Chandrila Silver Instinct until 1/11/2026): Chirrut Imwe saw nothing and knew everything. Each tap of his staff sends a wave of sound up the dark blade, and the motes in the air round it exist only while the wave passes: touched by it they light, then go dark again. Rain falls, seen only the same way.
-  - **Atollon Gathering** (Legendary, blade 175, `blade_signatures/atollon_gathering.glsl`): the energy of everything round it, lent to one blade: great soft spheres of the sky's light drift in on long curves, each drawn out into a thread that pours into the blade. Sky-blue streams flow in beside them, and over a slow cycle its upper half fills, brightening, until it lets it all go in a soft wave.
+  - **Atollon Gathering** (Mythical, blade 175, `blade_signatures/atollon_gathering.glsl`): the energy of everything round it, lent to one blade: great soft spheres of the sky's light drift in on long curves, each drawn out into a thread that pours into the blade. Sky-blue streams flow in beside them, and over a slow cycle its upper half fills, brightening, until it lets it all go in a soft wave.
   - **Ossus Scroll** (Mythical, blade 182, `blade_signatures/ossus_scroll.glsl`; Ossus Ink Brush until 1/11/2026): A blade painted in one breath of a brush loaded with gold: warm rice-paper with veins of gold leaf, great strokes of gold drawn round it up to its very point and drying, gold stars standing in two even columns in slow incense and leaf falling through them. As it lights, a brush of gold runs up with it.
   - **Utapau Whirlwind** (Mythical, blade 191, `blade_signatures/utapau_whirlwind.glsl`): The winds of Utapau's sinkholes wound into a blade: the body is a tornado, a rope at the hand opening to a funnel, its banded walls spinning, great arms of wind winding up round it, dust thrown off in slow clouds, thin lightning in the storm. Every 16 seconds the spiral tightens.
   - **Umbara Gloaming** (Legendary, blade 192, `blade_signatures/umbara_gloaming.glsl`; Umbara Shadow Bind until 1/11/2026): Umbara, the shadow world where no sun reaches: dark indigo fading to nothing, rows of bioluminescent lume spots waking along it, silent lightning far off inside it, a cold mist hanging round it from hilt to point.
@@ -793,7 +793,7 @@ the hub's, described in its `scripts/blade_skin_sounds.py` and `saber_skin_sound
   - **Cantonica Champagne** (Rare, blade 209, `blade_signatures/cantonica_ascension.glsl`; Vjun Golden Ascension until 1/11/2026): The casinos of Canto Bight: a blade of struck gold, pale champagne bubbles streaming up inside it, a sweep of white light passing over the metal as if under chandeliers. Round it the soft lights of the casino floor drift out of focus, long streams of gold silk wind up it, and pale beams of chandelier light turn slowly through the air.
   - **Nightsister Ichor** (Legendary, blade 210, `blade_signatures/nightsister_ichor.glsl`): magick of the Nightsisters of Dathomir, thick as sap: a stream of glowing green ichor over a black stem, marbled with pale light. Heavy drops form on its edge, run down, stretch and fall away; witch-mist clings to it from hilt to point and spirit lights rise through it. Every 20 seconds the magick wells up and slowly eases back.
   - **Nihilus Hunger** (Mythical, blade 211, `blade_signatures/nihilus_hunger.glsl`; Nihilus Morgul until 1/11/2026): Darth Nihilus, a wound in the Force that eats worlds: a hollow black blade with a thin red edge and red veins draining toward the hand. Long soft streams of stolen life bend in from all round it and sink into the blade, dark fire rises off it and a slow red mist is pulled in. When it feeds, everything is drawn in faster.
-  - **Lira San Starglass** (Rare, blade 223, `blade_signatures/lira_san_starglass.glsl`): The Shard-world of Lira San in dark glass: a night sky closed inside the blade, its stars crossing slowly from hilt to tip, each glinting as it turns.
+  - **Lira San Starglass** (Legendary, blade 223, `blade_signatures/lira_san_starglass.glsl`): The Shard-world of Lira San in dark glass: a night sky closed inside the blade, its stars crossing slowly from hilt to tip, each glinting as it turns.
   - **Mimban Marshlight** (Rare, blade 224, `blade_signatures/mimban_marshlight.glsl`; Mimban Blackflame until 1/11/2026): The mud-war of Mimban: wet black-green muck sliding slowly down the blade, sour marsh gas glowing where it breaks the surface, and soft wisps of light drifting round it, leading nowhere.
   - **Garel Corona** (Uncommon, blade 233, `blade_signatures/garel_corona.glsl`; Garel Cloakfire until 1/11/2026): the corona of Garel's sun caught round a blade: soft gold fire burning round it, long ribbons of sunlight sweeping round it, motes of light and rising heat. Parts: Sun corona, Corona fire, Chakra motes, Rising heat. A chroma.
   - **Trandosha Scorekeeper** (Uncommon, blade 234, `blade_signatures/trandosha_scorekeeper.glsl`; Trandosha Kaioken until 1/11/2026): Trandoshan scales running up the blade, overlapping and glinting, with a scored ritual count burning between them; a red mist hangs round it for the Scorekeeper.
@@ -810,12 +810,12 @@ the hub's, described in its `scripts/blade_skin_sounds.py` and `saber_skin_sound
   - **Toydaria Gale Streamers** (Rare, blade 184, `blade_signatures/toydaria_gale_streamers.glsl`): Toydaria's bog-wind: cloud racing fast up the blade with sun breaking through the gaps, thin pennants of colour snapping round it, grit in the air.
   - **Sullust Magma** (Legendary, blade 195, `blade_signatures/sullust_magma.glsl`; Sullust Lava Release until 1/11/2026): the molten rivers of Sullust shaped into a blade: dark crusted lava with magma flowing up through it, bubbles of magma swelling and bursting on it and drops of lava spattering off it. Parts: Lava flow, Magma bubbles, Spatter, Heat glow.
   - **Kijimi Snowfall** (Rare, blade 196, `blade_signatures/kijimi_snowfall.glsl`; Kijimi Snow Lotus until 1/11/2026): A snowy night on Kijimi: blue-black ice, frost feathering in from its edges and melting back, big soft flakes falling slowly all round it.
-  - **Saleucami Turbolaser** (Rare, blade 197, `blade_signatures/saleucami_turbolaser.glsl`; Saleucami Ki Cannon until 1/11/2026): A turbolaser's barrel: blue energy coiled round a hard white core, one heavy bolt after another climbing it, every shot lighting its whole length and leaving it as a streak.
+  - **Saleucami Turbolaser** (Legendary, blade 197, `blade_signatures/saleucami_turbolaser.glsl`; Saleucami Ki Cannon until 1/11/2026): A turbolaser's barrel: blue energy coiled round a hard white core, one heavy bolt after another climbing it, every shot lighting its whole length and leaving it as a streak.
   - **Wayland Gravity Press** (Mythical, blade 198, `blade_signatures/wayland_gravity_press.glsl`): The weight hidden under Mount Tantiss on Wayland: a heavy blade of liquid violet metal, its gold veins pressed slowly toward the hand. Torn stones lift off the ground and rise past it, light bends round it in long slow veils and gold dust sinks. Every so often the press comes down, and everything falls.
-  - **Rodia Toxic Bloom** (Rare, blade 212, `blade_signatures/rodia_toxic_bloom.glsl`): the swamps of Rodia in one blade: a thick poison-green stalk, ribbed and wet, purple veins climbing it. Pods swell out of it one after another, glowing from within, until they split and let go a cloud of yellow spores, then wither back to grow again. Spores drift off slowly, twinkling.
+  - **Rodia Toxic Bloom** (Legendary, blade 212, `blade_signatures/rodia_toxic_bloom.glsl`): the swamps of Rodia in one blade: a thick poison-green stalk, ribbed and wet, purple veins climbing it. Pods swell out of it one after another, glowing from within, until they split and let go a cloud of yellow spores, then wither back to grow again. Spores drift off slowly, twinkling.
   - **Glee Anselm Rockpools** (Rare, blade 213, `blade_signatures/glee_anselm_rockpools.glsl`): A rock pool at Glee Anselm: sea stone wet with a sliding tide, sunlight netted over it, small bubbles rising from it, grains of sand turning in the water.
-  - **Polis Massa Asteroid** (Rare, blade 214, `blade_signatures/polis_massa_asteroid.glsl`): A blade of raw asteroid from the Polis Massa field: rough dark rock in one piece, cold blue light forcing through its cracks, a mist of ice crystals turning round it, and thin mining beams sweeping slowly past.
-  - **Lotho Minor Lavaglass** (Rare, blade 215, `blade_signatures/lotho_minor_lavaglass.glsl`): From Lotho Minor, the junk world whose fires never go out: a tall tube of dark glass holding molten rock. Soft blobs of melt rise slowly up it, stretch, join and part, cool at the top and sink back. Under an RGB its glass turns with the colours and every blob takes its own random colour.
+  - **Polis Massa Asteroid** (Legendary, blade 214, `blade_signatures/polis_massa_asteroid.glsl`): A blade of raw asteroid from the Polis Massa field: rough dark rock in one piece, cold blue light forcing through its cracks, a mist of ice crystals turning round it, and thin mining beams sweeping slowly past.
+  - **Lotho Minor Lavaglass** (Legendary, blade 215, `blade_signatures/lotho_minor_lavaglass.glsl`): From Lotho Minor, the junk world whose fires never go out: a tall tube of dark glass holding molten rock. Soft blobs of melt rise slowly up it, stretch, join and part, cool at the top and sink back. Under an RGB its glass turns with the colours and every blob takes its own random colour.
   - **Zygerria Whip** (Rare, blade 225, `blade_signatures/zygerria_cleave.glsl`): A Zygerrian slaver's energy whip stiffened into a blade, its plaited coils showing, charge running along it and snapping off in short arcs.
   - **Manaan Tidebreaker** (Rare, blade 241, `blade_signatures/manaan_tidebreaker.glsl`): A blade of kolto from the deeps of Manaan: thick healing green-blue liquid with fat bubbles wobbling up inside it and out into the air, light from far above moving through it.
   - **Cato Neimoidia Gilded** (Rare, blade 242, `blade_signatures/cato_neimoidia_gilded.glsl`): A rose-gold blade worked with fine gold filigree that winds up it, a sheen sliding over the metal, thin gold leaf falling round it in slow turns.
@@ -844,7 +844,7 @@ the hub's, described in its `scripts/blade_skin_sounds.py` and `saber_skin_sound
   - **Lola Sayu Watchbeam** (Common, blade 256, `blade_signatures/lola_sayu_watchbeam.glsl`): The Citadel on Lola Sayu: dark iron, one red scanning bar travelling up it and down again, and one red searchlight turning round it.
   - **Quell Embers** (Uncommon, blade 257, `blade_signatures/quell_embers.glsl`): The bridge of the Quell after it fell: burnt metal with wide slow burns glowing through it, cinders falling past.
   - **Skako Pressure** (Uncommon, blade 258, `blade_signatures/skako_pressure.glsl`): A world under crushing pressure: bulges of squeezed light are forced up the blade from the hand, its width swelling and pinching as they pass, vapour leaking out.
-  - **Nal Hutta Spicevine** (Uncommon, blade 180, `blade_signatures/nal_hutta_spicevine.glsl`; Nal Hutta Chakra Thread until 1/11/2026): A Hutt-world vine wound on itself, two dark stems twining up a sour green glow.
+  - **Nal Hutta Spicevine** (Rare, blade 180, `blade_signatures/nal_hutta_spicevine.glsl`; Nal Hutta Chakra Thread until 1/11/2026): A Hutt-world vine wound on itself, two dark stems twining up a sour green glow.
   - **Hosnian Daybreak** (Common, blade 186, `blade_signatures/hosnian_daybreak.glsl`): The sky at daybreak drawn up a blade: plum at the hand, rose in the middle, gold at the point, with the light rising through it and falling back.
   - **Mandalore Beskar** (Common, blade 202, `blade_signatures/mandalore_mythosaur.glsl`; Mandalore Ironsheen until 1/11/2026): Beaten Mandalorian beskar in long overlapping plates, hammer marks in its face and forge light moving slowly behind the seams.
   - **Nevarro Ash** (Common, blade 203, `blade_signatures/nevarro_ash.glsl`): A blade of cooled lava from Nevarro's black fields: charcoal crust, and hair-thin seams of fire crawling slowly through it.
@@ -871,22 +871,22 @@ the hub's, described in its `scripts/blade_skin_sounds.py` and `saber_skin_sound
   - **Ziost Silence** (Mythical, blade 275, `blade_signatures/ziost_silence.glsl`): Ziost as the Emperor eats it: pale stone split by black cracks, torn open in three wounds. Long rivers of life bend in to them from far off, an aurora of drained souls hangs round it and pieces of the world tear loose and spiral in. Then the silence: everything stops, and a cold shell is all that is left.
   - **Nathema Deadworld** (Mythical, blade 276, `blade_signatures/nathema_deadworld.glsl`): Nathema, where the Force was torn from every living thing: a charred black blade with fissures of dying fire. Great licks of dull flame leave it all along its length, black smoke rolls up it and a storm of embers and ash winds round it. Every so often a wave of death bursts all the way up.
   - **Amphistaff Serpent** (Legendary, blade 277, `blade_signatures/amphistaff_serpent.glsl`): A Yuuzhan Vong amphistaff, alive and awake: the whole blade hangs in slow serpent curves with scales, a pale belly and a swallow running up it. Venom drips from it, and when it strikes the curves whip fast and it spits a burst of venom.
-  - **Vergence Scatter** (Legendary, blade 278, `blade_signatures/vergence_scatter.glsl`): A knot in the Force where the galaxy runs together: the blade is a window into deep space, with lips of blue and gold. Great clouds of nebula turn round it, long loops of light rise and land, far light winds in, and now and then it lets go in bursts of stars.
-  - **Voxyn Scream** (Rare, blade 279, `blade_signatures/voxyn_scream.glsl`): The voxyn's scream made visible: waves of sound chase up a violet body while soft waves of sound ripple outward through the air. Every eleven seconds it opens up and howls: the blade shudders and the sound reaches twice as far.
+  - **Vergence Scatter** (Mythical, blade 278, `blade_signatures/vergence_scatter.glsl`): A knot in the Force where the galaxy runs together: the blade is a window into deep space, with lips of blue and gold. Great clouds of nebula turn round it, long loops of light rise and land, far light winds in, and now and then it lets go in bursts of stars.
+  - **Voxyn Scream** (Legendary, blade 279, `blade_signatures/voxyn_scream.glsl`): The voxyn's scream made visible: waves of sound chase up a violet body while soft waves of sound ripple outward through the air. Every eleven seconds it opens up and howls: the blade shudders and the sound reaches twice as far.
   - **Ysalamir Hush** (Mythical, blade 280, `blade_signatures/ysalamir_hush.glsl`): The forest of Myrkr, where the ysalamir silence the Force: a slim blade of living scales with two olbio branches winding round it, thick with bark, moss, hanging strands and glowing fronds that breathe. Rivers of fireflies circle it, a green aurora hangs in the air and a dark hush climbs the blade.
-  - **Rakghoul Plague** (Rare, blade 281, `blade_signatures/rakghoul_plague.glsl`): The rakghoul plague of Taris: sick yellow flesh full of black veins and raw sores. Boils swell slowly out of its outline until they burst in a spray of pus, spores sink off it and a low breath of plague hangs about the lower blade.
+  - **Rakghoul Plague** (Legendary, blade 281, `blade_signatures/rakghoul_plague.glsl`): The rakghoul plague of Taris: sick yellow flesh full of black veins and raw sores. Boils swell slowly out of its outline until they burst in a spray of pus, spores sink off it and a low breath of plague hangs about the lower blade.
   - **Taris Undercity** (Mythical, blade 282, `blade_signatures/taris_undercity.glsl`): Taris at night, the city-world before Malak burned it: the blade is a black tower climbing in tiers, thousands of windows alight. Rivers of speeder traffic circle it in three dimensions, searchlights sweep through the smog and rain falls past. Then the Sith fleet fires: beams strike the tower, its lights die and fire bursts from it.
   - **Telos Restoration** (Rare, blade 283, `blade_signatures/telos_restoration.glsl`): The Telos restoration, life returned to a burned world: a clean white blade with green rising up it in a slow year. Living shoots climb round it opening leaves as they go, pollen drifts off them, then they turn gold, wither and shed, and spring starts again.
   - **Malevolence Ion Beam** (Rare, blade 284, `blade_signatures/malevolence_ion_beam.glsl`): The ion cannons of the Malevolence: a narrow channel with charges racing up it faster and faster, and plasma tendrils wandering off it to earth in the air. Every thirteen seconds the guns fire: the whole blade goes white, swells, and a storm of ions leaves the point.
   - **Massassi Altar** (Rare, blade 285, `blade_signatures/massassi_altar.glsl`): An altar of the Massassi on Yavin 4: rough stones stacked into a blade, each slowly shifting on the next, with fire burning in the gaps between them. Flames lick up from every gap, fire runs through old carved channels and dark smoke turns round it.
-  - **Sith Tremor Sword** (Rare, blade 286, `blade_signatures/sith_tremor_sword.glsl`): The Sith tremor sword, whose blade shakes to cut: a true sword of dark steel with a fuller and burning edges, its outline blurred by a hard fast tremble that gets worse as you swing. The air cracks round it, sparks shake loose and old rage rises round it.
+  - **Sith Tremor Sword** (Legendary, blade 286, `blade_signatures/sith_tremor_sword.glsl`): The Sith tremor sword, whose blade shakes to cut: a true sword of dark steel with a fuller and burning edges, its outline blurred by a hard fast tremble that gets worse as you swing. The air cracks round it, sparks shake loose and old rage rises round it.
   - **Eye of Aldhani** (Uncommon, blade 287, `blade_signatures/eye_of_aldhani.glsl`): The Eye of Aldhani, when the sky over the valley fills with falling light: a deep blue night in the blade with fixed stars in it, while long bright streaks come slanting down past it.
-  - **Ferrix Foundry** (Uncommon, blade 288, `blade_signatures/ferrix_foundry.glsl`): A Ferrix foundry at the end of the shift: hammered steel with bands of forge heat sliding slowly up it. Weld sparks spit from wherever the heat has reached.
+  - **Ferrix Foundry** (Rare, blade 288, `blade_signatures/ferrix_foundry.glsl`): A Ferrix foundry at the end of the shift: hammered steel with bands of forge heat sliding slowly up it. Weld sparks spit from wherever the heat has reached.
   - **Kenari Crash** (Uncommon, blade 289, `blade_signatures/kenari_crash.glsl`): The mining ship down in the Kenari forest: burning at the hand and cooling toward the point, where it is only charcoal. Embers climb from the fire end and go out along the way.
   - **Sarlacc Pit** (Uncommon, blade 290, `blade_signatures/sarlacc_pit.glsl`): The Great Pit of Carkoon: a ribbed pink throat swallowing downward into pale desert. Tendrils reach out of the low end of it and sand blows round the top.
   - **Cloud City Dusk** (Uncommon, blade 291, `blade_signatures/cloud_city_dusk.glsl`): Bespin at the end of the day: gold at the hand, rose along the middle and violet at the point, with bright cloud moving through the blade. A few soft clouds drift past it.
   - **Ring of Kafrene** (Uncommon, blade 292, `blade_signatures/ring_of_kafrene.glsl`): The mining outpost in the belt round Kafrene: rough teal rock with ore in it that catches light and flashes as it turns. A slow band of mining dust winds up round it.
-  - **Hypergate Drift** (Uncommon, blade 293, `blade_signatures/hypergate_drift.glsl`): A hypergate seen from the side: light pulled into long lines that run the whole length of the blade in magenta and blue, with a few thin threads winding slowly round it.
+  - **Hypergate Drift** (Rare, blade 293, `blade_signatures/hypergate_drift.glsl`): A hypergate seen from the side: light pulled into long lines that run the whole length of the blade in magenta and blue, with a few thin threads winding slowly round it.
   - **Bardotta Calm** (Common, blade 295, `blade_signatures/bardotta_calm.glsl`): The stillness of the Dagoyan mystics of Bardotta: a soft lilac blade that does nothing but breathe, the breath moving slowly up it, with a little air breathing round it.
   - **Alzoc Ice** (Common, blade 296, `blade_signatures/alzoc_ice.glsl`): The buried ice of Alzoc III: clear blue with fine white fractures all through it, its surface catching light in small faces of frost.
   - **Fest Steppe** (Common, blade 297, `blade_signatures/fest_steppe.glsl`): The windy steppes of Fest: dry gold stalks running up the blade, bending together as gusts pass through them. Seed heads are carried off into the air.
@@ -1028,6 +1028,14 @@ Built.
   the same and the answer says it shows only once unlocked. An unknown id is refused.
   Tab completes the command's name; its argument has no completion (the console
   completes command and cvar names only).
+- `saber_loadall` ([blade_load_all.rs](../crates/sjk-viewer/src/blade_load_all.rs); Sol,
+  06/11/2026, to class the tiers of Creyon's new blades): builds every loaded blade's own
+  shader now, after the blades worn and shown, instead of when a blade first draws, so the
+  Collection's pictures and the preview show each blade's real look the moment it comes up
+  (until its shader is built a signature blade draws plain, from its skin's file). Typed
+  again it says how far the builds are ("Blade shaders: 120 of 262 built (48 s so far).",
+  then "All 262 blade shaders are built (in 1 min 40 s)."). This PC and this run only;
+  `debug_collectibles 1` shows every blade as held to go with it.
 - `unlockables` opens (or closes) the Collection on its Shaders tab: in the SJK UI
   the Collection screen ([sjk-ui.md](sjk-ui.md#collection)).
 - `debug_collectibles` (archived, default 0; 15/10/2026,
@@ -2308,7 +2316,8 @@ owned line and the hover card say ", 2 held". The tab's headline still counts sh
 owned out of the catalogue the player sees ("5 of 23 owned"; an unheld Unique shader is
 not counted), a duplicate counting once. The tab has a filter
 since 14/10/2026 for a catalogue near 200: chips for All and each tier (Unique's only for
-a player who holds one; T and Shift+T step through them), Owned (O) and a search field
+a player who holds one; T and Shift+T step through them), Owned (O), the edition (E,
+since 06/11/2026, [Alpha and Beta](#alpha-and-beta-the-collections)) and a search field
 (/ or Ctrl+F; Enter or Esc leave it, Esc first clears it) that matches a name or a tier's word; the stock blade stays first,
 the rack and the grid scroll as before and the lead line says "n of 23 shaders shown"
 while anything is filtered. Row numbers are of the list shown, so the choice goes back
@@ -2375,8 +2384,49 @@ holds the table (`id`, full name, short tag); a new edition is one line there.
   it with the item.
 - Where it reads: the shader's big card (top right of its details), the medal's line
   under its name, and the hover card of each shader, medal, achievement and toy; the
-  Shaders search matches an edition's name ("alpha"). Nothing drops by edition yet: later
-  an edition can end its drops or limit its items, which will be the hub's table too.
+  Shaders search matches an edition's name ("alpha", "beta").
+
+### Alpha and Beta: the collections
+
+06/11/2026 (Sol: "the blades we had before this merge will be the Alpha collection, this
+one is the Beta collection"). The editions are the Collection's collections:
+
+- **Alpha Edition**: every blade before Creyon's round (blades 1 to 169), and every
+  medal, achievement, banner, tag, finisher and toy so far.
+- **Beta Edition**: Creyon's round, PR #370, blades 170 to 299 (`edition:
+  crate::editions::BETA` on each; `unlockables.rs` tests that exactly those 130 are
+  Beta), and what comes after it.
+- The Shaders tab filters by one: the toolbar's **Edition** chip, or E (Shift+E back),
+  goes All, Alpha, Beta, All; the lit chip reads the edition shown ("Beta Edition"),
+  and the tiers' counts (the strip and each heading's "N of M") follow it.
+
+**Holocrons and kyber crystals carry an edition too**, stamped by the hub when one is
+given (a play drop, a staff or operator gift, a purchase, a mystery box, a toy, an
+achievement's crystal) and kept for good, through trades too. Opening one brings only
+things of its edition or an older one: an Alpha holocron or crystal only Alpha things, a
+Beta one Beta or Alpha: the hub picks its shaders, tags, banners and crystal shaders
+among those `editions::within(item, holocron)` allows. Cards are not gated yet: every
+card face is the SJK Alpha set. The Holocrons tab says each one's: the recent list puts it
+before the date
+("Beta · 06/11/2026 14:05"), a tier's hover card says the editions of those held ("Alpha
+Edition", or "2 Alpha, 1 Beta"), and both loot tables say the rule. The wire field is
+`edition` on each holocron ([holocrons.md](holocrons.md)); a hub before 06/11/2026 sends
+none, which reads as Alpha. The shop and crafting are not gated by edition.
+
+**The hub's switch.** The hub stamps Beta only while `--beta-min-client VERSION|off`
+(`SJK_HUB_BETA_MIN_CLIENT`) names a release, off by default, and only for a person whose
+newest client meets that release (SJK development builds pass, as for the other
+minimum-client switches): an older client keeps getting Alpha ones, so nobody gets a blade their game
+cannot show. Until it is set, every holocron and crystal is Alpha.
+
+**Opening Beta** (when Sol's tests are done):
+
+1. `droppable: true` on the 130 blades in the hub's catalogue and the client's
+   `unlockables.rs` together, and both `COMING_TO_HOLOCRONS` constants go (they make
+   "Coming to holocrons soon." and keep the blades out of drops, crafting, the shop and
+   trades).
+2. A client release with it.
+3. The hub deployed with it, `SJK_HUB_BETA_MIN_CLIENT` set to that release.
 
 ## Saber smiths
 

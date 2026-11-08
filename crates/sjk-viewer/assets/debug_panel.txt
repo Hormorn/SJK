@@ -384,13 +384,36 @@ note: Achievements need hub-shared #9 imported and deployed before they record o
 [creyon-new-blades-370]
 area: Rendering & effects
 title: 130 new blades (Creyon #370), blades 170 to 299: not in holocrons yet
-change: Star Wars round: 25 Common, 24 Uncommon, 34 Rare, 38 Legendary, 9 Mythical.
+change: Star Wars round: 25 Common, 21 Uncommon, 29 Rare, 38 Legendary, 17 Mythical.
 change: Their effects in the air draw in a half-size layer; older blades draw as before.
 change: Hub: in the catalogue and sjk_skins_2, droppable false until Sol opens them.
 test: Staff panel > Unlock a few (Angel, Rakata Infinite, Moon): they wear and swing.
 test: Close to the camera at 4K: FPS holds; effects line up with walls and players.
 test: Chroma blades take your colour; Shaders tab pictures and parts switch on and off.
 note: God Ki left out (Dragon Ball material). Make droppable on the hub once tested.
+note: 06/11 Sol raised 19 a tier: 170 171 175 191 198 206 272 278 Mythical, 197 212 214
+note: 215 223 279 281 286 Legendary, 180 288 293 Rare.
+
+[editions-alpha-beta]
+area: Menus & settings
+title: Collections: Alpha and Beta editions (blades 170-299 Beta), holocrons stamped
+change: Blades 1-169 and everything else are Alpha Edition, Creyon's 130 (170-299) Beta.
+change: Collection > Shaders: Edition chip or E (Shift+E back): All, Alpha, Beta.
+change: Holocrons and crystals show their edition; Alpha ones bring Alpha things only.
+test: Shaders tab: E lists Alpha only, then Beta only (130), then all; tier counts follow.
+test: Hover a Beta blade: "Beta Edition"; search "beta" finds the 130.
+test: Holocrons tab: recent rows show "Alpha" before the date; a tier hover says the editions.
+test: Loot table (L), holocron and crystal: a note says what each edition brings.
+note: Needs the hub editions branch; it stamps Beta only once SJK_HUB_BETA_MIN_CLIENT is set.
+
+[blade-loadall]
+area: Rendering & effects
+title: saber_loadall: build every blade's shader now (to class the new blades)
+change: Console saber_loadall asks for every blade's own shader, after the worn and shown.
+change: Typed again: "Blade shaders: N of M built", then "All M ... built (in T)".
+test: debug_collectibles 1, saber_loadall, wait for "All ... built", open Shaders.
+test: Scroll the Beta blades: each shows its real look at once, no plain blade first.
+note: This run only; the next start builds on demand again.
 
 [finishers]
 area: Gameplay
@@ -2727,6 +2750,15 @@ test: Esc menu: the Credits icon is a grey disc with a silver laurel.
 test: Settings rail: every category icon is grey; Chat, Mods and Quick wheel have one too.
 test: What's new card: the headings' icons are grey discs.
 
+[shelve-support-links]
+area: Menus & settings
+title: Support SJK shelved: no donation links on the main page
+change: The GitHub Sponsors and Ko-fi line at the top left of the SJK UI main page is hidden.
+change: Settings > Interface no longer has a Support SJK row.
+test: SJK UI main page: no Support SJK line top left, at 1080p and 4K (150 %).
+test: Settings > Interface: no Support SJK row.
+test: ui_supportLinks 1 in the console: the line still stays hidden.
+
 [support-links]
 area: Menus & settings
 title: Support SJK on the main page: GitHub Sponsors and Ko-fi, x hides it for good
@@ -3658,6 +3690,32 @@ note: Not tried in a running client: the HUD hiding and the compact board over a
 note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab is pressed again.
 
 # ---- Rendering & effects ----
+
+[rig-chain-motion]
+area: Rendering & effects
+title: Rig chains trail the player (drag) and keep out of the arms (Kushina, #377)
+change: New dynamic options drag (air against the player's movement and turn) and arms.
+test: A rig with drag on its hair or cape: run, it trails behind; stop, it swings back.
+test: Teleport or respawn: no sudden whip of the chain. Toggle freecam: no gust.
+test: A rig with arms on its hair: swing the saber, the arms push the hair aside.
+
+[rig-chain-cloth]
+area: Rendering & effects
+title: Rig chains: limit, clearance, layer and levers (Kushina, #374)
+change: New dynamic options limit and clearance, and layer <outer> over <inner> lines.
+change: Every colliding chain now also keeps the middle of each bone out of the body.
+test: A rig tail or cape near the legs: run and turn, it stays out of hips and thighs.
+test: A rig with limit on its hair: strands stay near their animated direction, no flips.
+test: A rig with a layer line (hair over a cape): the hair stays on the cape's outer side.
+
+[rig-forked-chains]
+area: Rendering & effects
+title: Rig chains that fork or stack joints no longer jump (Kushina, #373)
+change: Dynamic chains are simulated in one pass, parents first; a joint stacked on its
+change: parent (under 0.01 units) no longer turns the parent at random.
+test: Wear a rig model with dynamic hair (a stem with several strands) and run, jump, turn.
+test: The strands swing smoothly; no bone flips or jitters from frame to frame.
+test: A rig tail or cape without forks moves as before.
 
 [sun-trails]
 area: Rendering & effects
@@ -8754,14 +8812,25 @@ test: on JoF with gameplay_fps 0, play 30 min with com_maxfps 60: no Heimdall ki
 test: movement and jumps feel as before at 125+ FPS; at 60 FPS like JoF EJK.
 test: on a non-JoF server at 60 FPS, gameplay_fps 333 still moves like 333.
 
-[jof-packetdup]
+[command-stamp-previous-frame]
 area: Gameplay
-title: JoF: no repeated commands in packets (Heimdall kicks)
-change: On JoF, cl_packetdup counts as 0: a packet carries only its new commands.
-change: cl_packetdup_nocap 1 keeps the cvar; gameplay_fps_nocap does not lift it.
-test: join JoF: the console says JoF servers take 0 repeated packets at most.
-test: play 30 min on JoF with cl_packetdup 1 (default): no Heimdall kick.
-test: on a non-JoF server the console names no cl_packetdup cap; movement as before.
+title: Commands carry the previous frame's server time, as stock (not on SJK servers)
+change: Off SJK servers, commands are stamped a frame older, as JoF EJK's (Milamber's Heimdall fix).
+change: On SJK's own servers (Create game, devmap) commands keep this frame's time, as before.
+test: play on JoF for a while, idle and moving: no Heimdall kick, movement and hits as before.
+test: Create game: movement and hits feel as before.
+change: Made on the frame's clock, stamped older; cl_freshStamps 1 keeps the fresh stamp everywhere.
+test: JoF, cl_freshStamps 0 then 1: input feels the same both ways (2026.1107.1 felt slower on 0).
+test: cl_freshStamps 1 on JoF: the frame's own stamp again (Heimdall may kick); 0 back to stock.
+test: flip cl_freshStamps every ~20 s a few times: each compared line shows age about -1 frame on 1.
+
+[jof-packetdup-back]
+area: Gameplay
+title: JoF: packets repeat the packet before again (cl_packetdup default 1)
+change: The JoF-only cl_packetdup cap at 0 is gone (Milamber confirmed the default is right).
+change: cl_packetdup_nocap no longer exists; cl_packetdup applies as set on every server.
+test: join JoF: the console no longer names a cl_packetdup cap, only the 8 ms command step.
+test: play on JoF as usual: no Heimdall kick, movement and hits as before.
 
 [picker-worker]
 area: Menus & settings
@@ -9023,6 +9092,39 @@ test: rcon jp_DuelAlpha -1: duellists collide again, still no pulling back.
 test: /engage_FullForceDuel on a second client, accept: push and lightning work in the duel.
 test: Win: centre print with health and armour; console line for everyone.
 note: Not run with a client yet. No 3 s pass-through after a duel (no JA+ client predicts it).
+
+[wheel-of-doom]
+area: Gameplay
+title: WHEEL OF DOOM toy: spin for credits, a Mythical holocron or doom (needs hub wheel-of-doom)
+change: toy_wheelofdoom (Collection > Toys, a bind, quick wheel): first press shows the price.
+change: A second within 5 s spins a wheel before you; others see it; 16 outcomes, 5 min cooldown.
+change: Effects on your own keys, mouse, view for 15-30 s; HUD line; end on new map or death.
+test: Join a server, toy_wheelofdoom: price card by the crosshair; again: wheel spins, ticks, stops.
+test: Wait out an effect: HUD line counts down, the effect ends; die or change map: it ends.
+test: Press again at once: "Your next spin in N s"; in a duel: refused in the centre.
+test: Second SJK client nearby: sees the wheel spin and stop on the same segment.
+test: Over several spins: mirror, blind, upside down, no saber, quack look and feel right.
+test: Settings > Sound > Toys, WHEEL OF DOOM sounds off: the wheel spins silently.
+note: Placeholder model (Sol's to come). Mirror flips the whole picture, HUD included.
+
+[model-texture-pin]
+area: Rendering & effects
+title: No hitch when a player puts on a model with big textures (creyonwolf: 743 ms)
+change: The worker's decoded textures stay held until the model's materials are made.
+change: Before, any image decoded meanwhile could drop them and the frame decoded them again.
+test: In a match, a second client switches to creyonwolf (or another HD model) several times.
+test: No hitch; last-client.log has no 'model install ... materials' line in the hundreds of ms.
+note: Same path for NPCs, the menu model stage and map models loaded mid-match.
+
+[texture-size-cap]
+area: Rendering & effects
+title: Textures capped at 2048 pixels a side (r_maxTextureSize, Settings: Largest texture)
+change: Textures larger than the cap lose their top mip levels, on every r_picmip path.
+change: 0 keeps every size; nopicmip stages and sky boxes take the cap too. From the next map.
+test: Look at creyonwolf (4096 textures) on a map: still sharp up close, not blurry.
+test: Settings: Largest texture 4096, change map: creyonwolf a little sharper; 1024: softer.
+test: A map with a 4096 sky box: the sky at 2048 still looks right.
+
 [character-customizable]
 area: Menus & settings
 title: Character: species first under Customizable, their tiles marked (Blep idea)

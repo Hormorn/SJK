@@ -687,6 +687,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Play the Fishing toy's sounds (SJK)",
         ),
         CvarDefinition::new(
+            crate::toy_sounds::Toy::WheelOfDoom.cvar(),
+            true,
+            archive,
+            "Play the WHEEL OF DOOM's sounds: its ticks, stop, laugh, fanfare and quacks (SJK)",
+        ),
+        CvarDefinition::new(
             crate::fishing::CUE_CVAR,
             crate::fishing::CUE_DEFAULT,
             archive,
@@ -1518,6 +1524,15 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             archive,
             "1 ignores the servers SJK knows to cap commands (JoF's at 125 a second): gameplay_fps applies as set there too",
         ),
+        // SJK's: commands carry the previous frame's clock as stock's, but on SJK's
+        // own servers (`server_caps::FRESH_STAMPS`); 1 keeps the frame's own reading
+        // everywhere.
+        CvarDefinition::new(
+            crate::server_caps::FRESH_STAMPS_CVAR,
+            0_i64,
+            archive,
+            "1 stamps commands with this frame's server time on every server (0: the previous frame's, as stock, but on SJK servers); anti-cheats such as JoF's Heimdall may kick for it",
+        ),
         // SJK's: the frame rate whose movement the player wants, apart from the
         // frames drawn, or 0 to follow the FPS cap (`command_rate`, `gameplay_fps.rs`).
         CvarDefinition::new(
@@ -1531,15 +1546,7 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "cl_packetdup",
             1_i64,
             archive,
-            "Repeat the previous N packets' usercmds in every packet (0 to 5) so lost packets drop no move; servers SJK knows to take fewer get fewer (JoF's: none)",
-        ),
-        // SJK's: the servers known to take fewer repeated commands keep their cap
-        // unless lifted (`server_caps.rs`).
-        CvarDefinition::new(
-            crate::server_caps::PACKET_DUP_OVERRIDE_CVAR,
-            0_i64,
-            archive,
-            "1 ignores the servers SJK knows to take fewer repeated packets (JoF's: none, Heimdall kicks for them): cl_packetdup applies as set there too",
+            "Repeat the previous N packets' usercmds in every packet (0 to 5) so lost packets drop no move",
         ),
         CvarDefinition::new(
             "cl_timeNudge",

@@ -1,4 +1,5 @@
 use super::*;
+use glam::{Quat, Vec3A};
 use sjk_model::GlaBone;
 use sjk_model::gltf::{GltfAnimation, GltfChannel, GltfJoint, GltfPath, GltfPrimitive};
 
@@ -757,11 +758,52 @@ fn a_dynamic_tail_wags_while_the_body_stands_still() {
 }
 
 #[test]
+fn a_chains_limit_may_be_anything_from_none_to_no_limit() {
+    let limit = |line: &str| manifest(line).dynamic[0].1.limit;
+    assert_eq!(limit("dynamic tail limit 0"), 0.0);
+    assert_eq!(limit("dynamic tail limit 180"), dynamics::NO_LIMIT);
+}
+
+#[test]
+fn layer_lines_that_do_nothing_are_named() {
+    let names = ["a", "b", "c", "d"];
+    let problems = |layers: &[(usize, usize)], anchors: &[usize]| {
+        layer_problems(layers, anchors, |joint| names[joint])
+    };
+    assert!(problems(&[(0, 1), (0, 2), (1, 2)], &[0, 1, 2]).is_empty());
+    assert_eq!(
+        problems(&[(0, 0)], &[0]),
+        ["layer a over a: a chain cannot lie over itself"]
+    );
+    assert_eq!(
+        problems(&[(0, 3)], &[0]),
+        ["layer a over d: d has no dynamic line"]
+    );
+    assert_eq!(
+        problems(&[(3, 0)], &[0]),
+        ["layer d over a: d has no dynamic line"]
+    );
+    assert_eq!(
+        problems(&[(0, 1), (1, 0)], &[0, 1]),
+        [
+            "layer a over b: the layer lines go round in a circle",
+            "layer b over a: the layer lines go round in a circle"
+        ]
+    );
+    // Round three chains, each line named.
+    assert_eq!(problems(&[(0, 1), (1, 2), (2, 0)], &[0, 1, 2]).len(), 3);
+    // A line leading into a circle is not in it.
+    assert_eq!(problems(&[(2, 0), (0, 1), (1, 0)], &[0, 1, 2]).len(), 2);
+}
+
+#[test]
 fn a_manifest_names_its_dynamic_joints() {
     let parsed = manifest(
         "dynamic tail_root\ndynamic hair 0\n\
-         dynamic cape_l wag 0 stiffness 120 damping 9 nocollide\ndynamic cape_r 800 wag 0",
+         dynamic cape_l wag 0 stiffness 120 damping 9 nocollide\ndynamic cape_r 800 wag 0\n\
+         dynamic strand limit 4 clearance 1.5 drag 0.8 arms\nlayer strand over cape_l",
     );
+    assert_eq!(parsed.layers, [("strand".to_owned(), "cape_l".to_owned())]);
     let default = dynamics::Settings::default();
     assert_eq!(
         parsed.dynamic,
@@ -792,9 +834,21 @@ fn a_manifest_names_its_dynamic_joints() {
                     ..default
                 }
             ),
+            (
+                "strand".to_owned(),
+                dynamics::Settings {
+                    limit: 4.0,
+                    clearance: 1.5,
+                    drag: 0.8,
+                    arms: true,
+                    ..default
+                }
+            ),
         ]
     );
     for bad in [
+        "dynamic tail limit -1",
+        "dynamic tail limit 181",
         "dynamic tail heavy",
         "dynamic tail wag",
         "dynamic tail stiffness 0",
@@ -825,6 +879,43 @@ fn gravity_hangs_a_tail_and_a_dynamic_line_can_turn_it_off() {
     // `dynamic <joint> 0`: no gravity, the tip stays level with its rest.
     let level = tip_drop("dynamic tail_root 0");
     assert!(level.abs() < 1.0, "{level}");
+}
+
+/// A change of animation moves the body far at once: a limited chain's bones take that
+/// up over several frames, so its tip swings instead of jumping.
+#[test]
+fn a_limited_chain_takes_up_a_jump_of_the_body_gradually() {
+    let rig = tailed_with(
+        "dynamic tail_root gravity 0 wag 0 stiffness 200 damping 20 limit 20 nocollide",
+    );
+    let step = 1.0 / 142.0;
+    let direction = |scratch: &Scratch| {
+        (scratch.pose[4].translation - scratch.pose[3].translation).normalize_or_zero()
+    };
+    let mut bones = vec![identity_rows(); 3];
+    let mut scratch = Scratch::default();
+    rig.pose_after(&bones, None, &mut scratch, None);
+    rig.pose_after(&bones, None, &mut scratch, Some(step));
+    let mut last = direction(&scratch);
+    let mut turns = Vec::new();
+    // Ten units in the game's tenth of a second blend.
+    for tick in 0..30 {
+        if tick < 14 {
+            for row in &mut bones {
+                row[0][3] += 10.0 / 14.0;
+            }
+        }
+        rig.pose_after(&bones, None, &mut scratch, Some(step));
+        let now = direction(&scratch);
+        turns.push(now.dot(last).clamp(-1.0, 1.0).acos().to_degrees());
+        last = now;
+    }
+    let largest = turns.iter().copied().fold(0.0, f32::max);
+    assert!(largest > 0.2, "the chain did not answer: {turns:?}");
+    assert!(
+        turns[0] < largest * 0.5,
+        "the first frame took the jump at once: {turns:?}"
+    );
 }
 
 /// An installed rig model's dynamic chains settled in its bind pose: how far each
@@ -903,6 +994,517 @@ fn dynamic_chains_of_an_installed_rig() {
             offset.length()
         );
     }
+}
+
+/// The driver's bones at `time` seconds of a hard sway and bob, and the sway's angle.
+fn violent_sway(time: f32) -> ([[f32; 4]; 3], f32) {
+    let angle = (0.4 * (std::f32::consts::TAU * 1.2 * time).sin()).clamp(-1.0, 1.0);
+    let (sin, cos) = angle.sin_cos();
+    let z = 3.0 * (std::f32::consts::TAU * 2.0 * time).sin();
+    (
+        [
+            [cos, -sin, 0.0, 0.0],
+            [sin, cos, 0.0, 0.0],
+            [0.0, 0.0, 1.0, z],
+        ],
+        angle,
+    )
+}
+
+/// Under [`violent_sway`], each joint that swings on a lever: its name, how far the middle
+/// of what it carries gets from rest in units, and its largest step in a frame.
+fn lever_motion(rig: &RigModel, bone_count: usize, frames: usize) -> Vec<(String, f32, f32)> {
+    let step = 1.0 / 142.0;
+    let swings = rig.chains.swings();
+    let mut bones = vec![identity_rows(); bone_count];
+    let mut scratch = Scratch::default();
+    let mut last: Vec<Option<Vec3A>> = vec![None; swings.len()];
+    let mut worst = vec![(0.0f32, 0.0f32); swings.len()];
+    rig.pose_after(&bones, None, &mut scratch, None);
+    for frame in 0..frames {
+        let (rows, angle) = violent_sway(frame as f32 * step);
+        bones.fill(rows);
+        rig.pose_after(&bones, None, &mut scratch, Some(step));
+        let undo = Quat::from_rotation_z(-angle);
+        for (slot, &(joint, lever)) in swings.iter().enumerate() {
+            let arm = undo * (scratch.pose[joint].matrix3 * lever);
+            let rest = rig.joints[joint].bind.matrix3 * lever;
+            worst[slot].0 = worst[slot].0.max((arm - rest).length());
+            if let Some(before) = last[slot] {
+                worst[slot].1 = worst[slot].1.max((arm - before).length());
+            }
+            last[slot] = Some(arm);
+        }
+    }
+    swings
+        .iter()
+        .zip(worst)
+        .map(|(&(joint, _), (off, turn))| (rig.joints[joint].name.clone(), off, turn))
+        .collect()
+}
+
+/// For each (parent, child) of `joints`, while the driver `bones` named by `moved` sway
+/// and bob for `frames` frames at 142 FPS: how far the bone strays from its bind
+/// direction and the most it turns in one frame, in degrees, the sway's own turn taken
+/// out.
+fn largest_turn(
+    rig: &RigModel,
+    bones: &mut [[[f32; 4]; 3]],
+    moved: &[usize],
+    joints: &[(usize, usize)],
+    frames: usize,
+) -> Vec<(f32, f32)> {
+    let step = 1.0 / 142.0;
+    let mut scratch = Scratch::default();
+    let mut last: Vec<Option<Vec3A>> = vec![None; joints.len()];
+    let mut worst = vec![(0.0f32, 0.0f32); joints.len()];
+    rig.pose_after(bones, None, &mut scratch, None);
+    for frame in 0..frames {
+        let (rows, angle) = violent_sway(frame as f32 * step);
+        for &bone in moved {
+            bones[bone] = rows;
+        }
+        rig.pose_after(bones, None, &mut scratch, Some(step));
+        let undo = Quat::from_rotation_z(-angle);
+        for (slot, &(parent, child)) in joints.iter().enumerate() {
+            let bone = scratch.pose[child].translation - scratch.pose[parent].translation;
+            let Some(direction) = bone.try_normalize() else {
+                continue;
+            };
+            let direction = undo * direction;
+            let bind = (rig.joints[child].bind.translation - rig.joints[parent].bind.translation)
+                .try_normalize()
+                .unwrap_or(direction);
+            let off = direction.dot(bind).clamp(-1.0, 1.0).acos().to_degrees();
+            worst[slot].0 = worst[slot].0.max(off);
+            if let Some(before) = last[slot] {
+                let turn = direction.dot(before).clamp(-1.0, 1.0).acos().to_degrees();
+                worst[slot].1 = worst[slot].1.max(turn);
+            }
+            last[slot] = Some(direction);
+        }
+    }
+    worst
+}
+
+/// [`rig`] with a chain that forks: a stem under the pelvis, and two branches of two
+/// joints each under the stem, short ones like hair strands.
+fn forked(text: &str) -> RigModel {
+    let mut model = rig();
+    let joint = |name: &str, parent, x: f32, z: f32, rest: [f32; 2]| GltfJoint {
+        name: name.to_owned(),
+        parent: Some(parent),
+        bind: [[1.0, 0.0, 0.0, x], [0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, z]],
+        inverse_bind: [
+            [1.0, 0.0, 0.0, -x],
+            [0.0, 1.0, 0.0, -1.0],
+            [0.0, 0.0, 1.0, -z],
+        ],
+        rest: [
+            [1.0, 0.0, 0.0, rest[0]],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, rest[1]],
+        ],
+    };
+    model.joints.push(joint("root", 0, 0.0, -0.1, [0.0, -0.1]));
+    model.joints.push(joint("stem", 2, 0.0, -0.2, [0.0, -0.1]));
+    // On the stem's spot but for rounding, as some rigs stack joints.
+    model.joints.push(joint("pin", 3, 1e-6, -0.2, [1e-6, 0.0]));
+    for (name, parent, x, z, rest) in [
+        ("left", 4, -0.03, -0.25, [-0.03, -0.05]),
+        ("left_tip", 5, -0.06, -0.3, [-0.03, -0.05]),
+        ("right", 4, 0.03, -0.25, [0.03, -0.05]),
+        ("right_tip", 7, 0.06, -0.3, [0.03, -0.05]),
+    ] {
+        model.joints.push(joint(name, parent, x, z, rest));
+    }
+    RigModel::fit(model, "", &manifest(text), &driver()).unwrap()
+}
+
+const FORKED_BONES: [(usize, usize); 3] = [(2, 3), (5, 6), (7, 8)];
+
+#[test]
+fn a_joint_stacked_on_its_parent_and_a_fork_do_not_throw_a_chain_about() {
+    let rig = forked("dynamic root gravity 0 wag 0 stiffness 400 damping 24 nocollide");
+    let mut bones = vec![identity_rows(); 3];
+    let worst = largest_turn(&rig, &mut bones, &[0, 1, 2], &FORKED_BONES, 142 * 4);
+    for (bone, (_, turn)) in worst.into_iter().enumerate() {
+        assert!(turn < 6.0, "bone {bone} jumps {turn} degrees in a frame");
+    }
+}
+
+#[test]
+fn a_chains_limit_holds_each_bone_near_its_animated_direction() {
+    let rig = forked("dynamic root gravity 0 wag 0 stiffness 400 damping 24 limit 4 nocollide");
+    let mut bones = vec![identity_rows(); 3];
+    let worst = largest_turn(&rig, &mut bones, &[0, 1, 2], &FORKED_BONES, 142 * 4);
+    // Each bone answers to its parent, so the limits add up down the chain: the stem
+    // has one above it, the branches' tips three.
+    for (bone, (off, turn)) in worst.into_iter().enumerate() {
+        assert!(off < 4.0 * 3.0, "bone {bone} strays {off} degrees");
+        // Turns add up the same way. A hard clamp would throw a single bone across its
+        // limit, twice 4 degrees, as the lag turns round.
+        assert!(turn < 2.0, "bone {bone} jumps {turn} degrees in a frame");
+    }
+}
+
+/// How far each dynamic joint of an installed rig strays and how fast it turns while
+/// the body sways, worst first (`JKA_GAME_DATA`, `SJK_TEST_RIG`, `SJK_TEST_PACK`).
+#[test]
+#[ignore = "needs an installed rig model and the game's files"]
+fn dynamic_chain_motion_of_an_installed_rig() {
+    let (Some(data), Ok(name)) = (
+        std::env::var_os("JKA_GAME_DATA").map(std::path::PathBuf::from),
+        std::env::var("SJK_TEST_RIG"),
+    ) else {
+        println!("JKA_GAME_DATA or SJK_TEST_RIG is not set: skipped");
+        return;
+    };
+    let pack = std::env::var("SJK_TEST_PACK").unwrap_or_else(|_| format!("rig_{name}.pk3"));
+    let mut vfs = VirtualFileSystem::new();
+    for entry in std::fs::read_dir(data.join("base")).unwrap().flatten() {
+        let path = entry.path();
+        let file = path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_ascii_lowercase();
+        if file.starts_with("assets") && file.ends_with(".pk3") || file == pack.to_ascii_lowercase()
+        {
+            vfs.mount_pk3(&path).unwrap();
+        }
+    }
+    let read = |path: &str| vfs.read(path).unwrap().unwrap().bytes;
+    let gla = Gla::parse(&read("models/players/_humanoid/_humanoid.gla")).unwrap();
+    let glm = sjk_model::Glm::parse(&read("models/players/kyle/model.glm")).unwrap();
+    let directory = format!("models/players/{name}");
+    let manifest = super::manifest(&vfs, &directory, "default")
+        .unwrap()
+        .expect("a rig model");
+    let rig = RigModel::load(&vfs, &directory, &manifest, &gla, &glm).unwrap();
+    let pairs: Vec<(usize, usize)> = rig
+        .chains
+        .joints
+        .iter()
+        .filter_map(|&joint| Some((rig.joints[joint].parent?, joint)))
+        // A joint stacked on its parent's spot has no direction to measure.
+        .filter(|&(parent, joint)| {
+            (rig.joints[joint].bind.translation - rig.joints[parent].bind.translation).length()
+                > 0.05
+        })
+        .collect();
+    let mut bones = vec![identity_rows(); gla.bones.len()];
+    let every: Vec<usize> = (0..gla.bones.len()).collect();
+    let worst = largest_turn(&rig, &mut bones, &every, &pairs, 142 * 6);
+    let mut lines: Vec<(f32, f32, &str)> = worst
+        .iter()
+        .zip(&pairs)
+        .map(|(&(off, turn), &(_, joint))| (off, turn, rig.joints[joint].name.as_str()))
+        .collect();
+    lines.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let count = lines.len().max(1) as f32;
+    println!(
+        "{name}: {} joints, worst of each averaged: off {:.1} degrees, turn a frame {:.2} degrees",
+        lines.len(),
+        lines.iter().map(|line| line.0).sum::<f32>() / count,
+        lines.iter().map(|line| line.1).sum::<f32>() / count,
+    );
+    for (off, turn, joint) in lines.iter().take(12) {
+        println!("  {joint}: off {off:.1} degrees, turn a frame {turn:.2} degrees");
+    }
+    for (joint, off, turn) in lever_motion(&rig, gla.bones.len(), 142 * 6) {
+        println!("  lever {joint}: off {off:.2} units, step a frame {turn:.3} units");
+    }
+    legs_through_chains(&rig, &gla);
+    let config =
+        sjk_model::AnimationConfig::parse(&read("models/players/_humanoid/animation.cfg")).unwrap();
+    let sequence = |name: &str| config.get(name).unwrap();
+    for name in ["BOTH_WALK1", "BOTH_RUN1"] {
+        levers_in_a_cycle(&rig, &gla, name, sequence(name));
+    }
+    chains_on_a_change(&rig, &gla, sequence("BOTH_RUN1"), sequence("BOTH_STAND1"));
+}
+
+/// `a` and `b`'s bones `share` of the way across.
+fn mixed(a: &[[[f32; 4]; 3]], b: &[[[f32; 4]; 3]], share: f32) -> Vec<[[f32; 4]; 3]> {
+    a.iter()
+        .zip(b)
+        .map(|(a, b)| {
+            std::array::from_fn(|row| {
+                std::array::from_fn(|col| a[row][col] + (b[row][col] - a[row][col]) * share)
+            })
+        })
+        .collect()
+}
+
+/// `sequence`'s bones `time` seconds in, between its frames, looping.
+fn played(gla: &Gla, sequence: &sjk_model::AnimationSequence, time: f32) -> Vec<[[f32; 4]; 3]> {
+    let spot = time * sequence.frames_per_second.abs().max(1.0);
+    let index = spot.floor() as usize % sequence.frame_count;
+    let frame = |index: usize| {
+        gla.frame_matrices(sequence.first_frame + index % sequence.frame_count)
+            .unwrap()
+    };
+    mixed(&frame(index), &frame(index + 1), spot.fract())
+}
+
+/// Play `sequence` and print how far each lever joint's vertices get from where the
+/// animation alone puts them, after a cycle to settle.
+fn levers_in_a_cycle(
+    rig: &RigModel,
+    gla: &Gla,
+    name: &str,
+    sequence: &sjk_model::AnimationSequence,
+) {
+    let step = 1.0 / 142.0;
+    let cycle = sequence.frame_count as f32 / sequence.frames_per_second.abs().max(1.0);
+    let ticks = (cycle * 3.0 / step) as usize;
+    let swings = rig.chains.swings();
+    let carried: Vec<Vec<&Vertex>> = swings
+        .iter()
+        .map(|&(joint, _)| {
+            rig.surfaces
+                .iter()
+                .flat_map(|surface| &surface.vertices)
+                .filter(|vertex| {
+                    vertex
+                        .joints
+                        .iter()
+                        .zip(&vertex.weights)
+                        .any(|(j, weight)| usize::from(*j) == joint && *weight > 0.05)
+                })
+                .collect()
+        })
+        .collect();
+    let mut live = Scratch::default();
+    let mut still = Scratch::default();
+    let mut moved = vec![0.0f32; swings.len()];
+    rig.pose_after(&played(gla, sequence, 0.0), None, &mut live, None);
+    for tick in 0..ticks {
+        let bones = played(gla, sequence, tick as f32 * step);
+        rig.pose_after(&bones, None, &mut live, Some(step));
+        rig.pose_after(&bones, None, &mut still, None);
+        if tick > ticks / 3 {
+            for (worst, vertices) in moved.iter_mut().zip(&carried) {
+                for vertex in vertices {
+                    let now = Vec3A::from_array(skin(vertex, &live.palette).0);
+                    let rest = Vec3A::from_array(skin(vertex, &still.palette).0);
+                    *worst = worst.max((now - rest).length());
+                }
+            }
+        }
+    }
+    for (&(joint, _), worst) in swings.iter().zip(&moved) {
+        println!(
+            "  {name}: skin of {} up to {worst:.2} units",
+            rig.joints[joint].name
+        );
+    }
+}
+
+/// Run, stop and start again over the game's usual blend, and print how each bone of the
+/// chains turns in the half second after each change, under the first joint up that no
+/// chain moves: its largest turn in a tick and how often it turned back.
+fn chains_on_a_change(
+    rig: &RigModel,
+    gla: &Gla,
+    run: &sjk_model::AnimationSequence,
+    stand: &sjk_model::AnimationSequence,
+) {
+    const BLEND: f32 = 0.1;
+    let (stop_at, start_at, end) = (2.0, 4.0, 6.0);
+    let step = 1.0 / 142.0;
+    let bones_at = |time: f32| {
+        let standing = if time < stop_at {
+            0.0
+        } else if time < start_at {
+            ((time - stop_at) / BLEND).min(1.0)
+        } else {
+            1.0 - ((time - start_at) / BLEND).min(1.0)
+        };
+        mixed(&played(gla, run, time), &played(gla, stand, time), standing)
+    };
+    let pairs: Vec<(usize, usize, usize)> = rig
+        .chains
+        .joints
+        .iter()
+        .filter_map(|&joint| {
+            let parent = rig.joints[joint].parent?;
+            let mut anchor = parent;
+            while rig.chains.joints.contains(&anchor) {
+                anchor = rig.joints[anchor].parent?;
+            }
+            let bone = rig.joints[joint].bind.translation - rig.joints[parent].bind.translation;
+            (bone.length() > 0.05).then_some((anchor, parent, joint))
+        })
+        .collect();
+    let mut scratch = Scratch::default();
+    rig.pose_after(&bones_at(0.0), None, &mut scratch, None);
+    let mut last: Vec<Vec3A> = Vec::new();
+    let mut swing = vec![Vec3A::ZERO; pairs.len()];
+    let mut largest = vec![0.0f32; pairs.len()];
+    let mut backs = vec![0u32; pairs.len()];
+    for tick in 0..(end / step) as usize {
+        let time = tick as f32 * step;
+        rig.pose_after(&bones_at(time), None, &mut scratch, Some(step));
+        let now: Vec<Vec3A> = pairs
+            .iter()
+            .map(|&(anchor, parent, joint)| {
+                let bone = scratch.pose[joint].translation - scratch.pose[parent].translation;
+                (scratch.pose[anchor].matrix3.inverse() * bone).normalize_or_zero()
+            })
+            .collect();
+        if last.len() == now.len() {
+            let watched = (stop_at..stop_at + 0.5).contains(&time)
+                || (start_at..start_at + 0.5).contains(&time);
+            for slot in 0..now.len() {
+                let change = now[slot] - last[slot];
+                if watched {
+                    largest[slot] = largest[slot].max(change.length().to_degrees());
+                    if change.dot(swing[slot]) < 0.0 && change.length() > 0.002 {
+                        backs[slot] += 1;
+                    }
+                }
+                swing[slot] = change;
+            }
+        }
+        last = now;
+    }
+    let mut order: Vec<usize> = (0..pairs.len()).collect();
+    order.sort_by(|a, b| largest[*b].total_cmp(&largest[*a]));
+    for &slot in order.iter().take(5) {
+        println!(
+            "  stop and start: {}: {:.1} degrees a tick, turned back {} times",
+            rig.joints[pairs[slot].2].name, largest[slot], backs[slot]
+        );
+    }
+}
+
+/// Stride the driver's legs 35 degrees each way and print how deep each chain's joints and
+/// bones' middles get into the capsules that do not exempt them, in game units.
+fn legs_through_chains(rig: &RigModel, gla: &Gla) {
+    let mut bones = vec![identity_rows(); gla.bones.len()];
+    let leg = |bone: &sjk_model::GlaBone, side: &str| {
+        ["femur", "tibia", "talus", "foot"]
+            .iter()
+            .any(|part| bone.name.starts_with(&format!("{side}{part}")))
+    };
+    let hip = |side: &str| {
+        let bone = gla
+            .bones
+            .iter()
+            .find(|bone| bone.name.starts_with(&format!("{side}femur")))
+            .unwrap();
+        Vec3A::new(
+            bone.base_pose[0][3],
+            bone.base_pose[1][3],
+            bone.base_pose[2][3],
+        )
+    };
+    let step = 1.0 / 142.0;
+    let mut scratch = Scratch::default();
+    rig.pose_after(&bones, None, &mut scratch, None);
+    let chains = &rig.chains;
+    let mut lowest = f32::MAX;
+    let mut layered = 0;
+    let exempt: usize = chains
+        .ignored
+        .iter()
+        .map(|mask| mask.count_ones() as usize)
+        .sum();
+    println!(
+        "{} capsules, {} chain joints, {exempt} exemptions; radii {:?}",
+        chains.capsules.len(),
+        chains.joints.len(),
+        chains
+            .capsules
+            .iter()
+            .map(|capsule| (capsule.radius * 10.0).round() / 10.0)
+            .collect::<Vec<_>>(),
+    );
+    let mut deepest = vec![0.0f32; chains.joints.len()];
+    let mut moved = 0.0f32;
+    let mut first: Vec<Vec3A> = Vec::new();
+    for frame in 0..142 * 4 {
+        let phase = std::f32::consts::TAU * 1.2 * frame as f32 * step;
+        for (side, sign) in [("l", 1.0), ("r", -1.0)] {
+            let angle = sign * 35f32.to_radians() * phase.sin();
+            let (sin, cos) = angle.sin_cos();
+            let at = hip(side);
+            // About the side axis through the hip.
+            let rows = [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, cos, -sin, at.y - cos * at.y + sin * at.z],
+                [0.0, sin, cos, at.z - sin * at.y - cos * at.z],
+            ];
+            for (index, bone) in gla.bones.iter().enumerate() {
+                if leg(bone, side) {
+                    bones[index] = rows;
+                }
+            }
+        }
+        // The trunk sways too, so a cape swings against what lies on it.
+        let sway = (0.3 * (std::f32::consts::TAU * 0.9 * frame as f32 * step).sin()).sin_cos();
+        let bob = 3.0 * (std::f32::consts::TAU * 2.0 * frame as f32 * step).sin();
+        for (index, bone) in gla.bones.iter().enumerate() {
+            if !leg(bone, "l") && !leg(bone, "r") {
+                bones[index] = [
+                    [sway.1, 0.0, sway.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [-sway.0, 0.0, sway.1, bob],
+                ];
+            }
+        }
+        rig.pose_after(&bones, None, &mut scratch, Some(step));
+        let margins = chains.layer_margins(&scratch.pose);
+        layered = margins.len();
+        lowest = margins.iter().fold(lowest, |low, margin| low.min(*margin));
+        if first.is_empty() {
+            first = chains
+                .capsules
+                .iter()
+                .map(|capsule| scratch.pose[capsule.to].translation)
+                .collect();
+        }
+        for (capsule, start) in chains.capsules.iter().zip(&first) {
+            moved = moved.max((scratch.pose[capsule.to].translation - *start).length());
+        }
+        for (slot, &joint) in chains.joints.iter().enumerate() {
+            let Some(parent) = rig.joints[joint].parent else {
+                continue;
+            };
+            let tip = scratch.pose[joint].translation;
+            let middle = (scratch.pose[parent].translation + tip) / 2.0;
+            for (bit, capsule) in chains.capsules.iter().enumerate() {
+                if chains.ignored[slot] & (1 << bit) != 0 {
+                    continue;
+                }
+                let from = scratch.pose[capsule.from].translation;
+                let to = scratch.pose[capsule.to].translation;
+                for sample in [tip, middle] {
+                    let near = dynamics::closest(from, to, sample);
+                    let depth = capsule.radius - (sample - near).length();
+                    deepest[slot] = deepest[slot].max(depth);
+                }
+            }
+        }
+    }
+    println!("layers: {layered} joints layered; lowest margin {lowest:.2} units");
+    let mut lines: Vec<(f32, &str)> = deepest
+        .iter()
+        .zip(&chains.joints)
+        .map(|(depth, joint)| (*depth, rig.joints[*joint].name.as_str()))
+        .collect();
+    lines.sort_by(|a, b| b.0.total_cmp(&a.0));
+    println!(
+        "stride: knees travel up to {moved:.1} units; {} joints get in; deepest {:?}",
+        lines.iter().filter(|line| line.0 > 0.0).count(),
+        lines
+            .iter()
+            .take(6)
+            .map(|(depth, name)| format!("{name} {depth:.2}"))
+            .collect::<Vec<_>>(),
+    );
 }
 
 /// The test rig fitted to the test driver, as a stock skeleton's emote source.
@@ -1089,6 +1691,19 @@ fn the_pelvis_vertices_make_a_capsule_for_the_dynamic_chains() {
     let capsule = rig.chains.capsules[0];
     assert_eq!((capsule.from, capsule.to), (0, 2));
     assert!((capsule.radius - 8.0).abs() < 0.1, "{capsule:?}");
+    assert!(!capsule.arm);
+    // An arm makes a capsule only for a rig with a chain that asks.
+    let mut armed = driver();
+    armed.bones[1].name = "lhumerus".to_owned();
+    let map = "scale 40\nmap pelvis lhumerus hip cranium\n";
+    let arm = |line: &str| {
+        let text = format!("{map}{line}");
+        RigModel::fit(model.clone(), "", &manifest(&text), &armed).unwrap()
+    };
+    assert!(arm("dynamic tail_root").chains.capsules.is_empty());
+    let asked = arm("dynamic tail_root arms");
+    assert_eq!(asked.chains.capsules.len(), 1);
+    assert!(asked.chains.capsules[0].arm);
     // Without a dynamic chain no capsule is measured.
     let still = RigModel::fit(
         model,

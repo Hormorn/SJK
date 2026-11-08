@@ -9,6 +9,22 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 07/11/2026 | - | Shelve Support SJK: hide the donation links on the main page
+- ed9f00f |  | Shelve Support SJK: hide the donation links on the main page
++ 07/11/2026 | - | Release 2026.1107.1
+- 2c5853e |  | Release 2026.1107.1
++ 06/11/2026 | - | JoF: take cl_packetdup as set again (revert the cap at 0)
+- 4439cbf |  | JoF: take cl_packetdup as set again (revert the cap at 0)
++ 06/11/2026 | - | Credits history after the editions, saber_loadall and the new blades' tiers
+- 48ccdbf |  | Credits history after the editions, saber_loadall and the new blades' tiers
++ 06/11/2026 | - | Sol's tiers for Creyon's round: 19 blades up a tier after his tests
+- da28de9 |  | Sol's tiers for Creyon's round: 19 blades up a tier after his tests
++ 06/11/2026 | - | saber_loadall: build every blade's shader at once, to see each blade's real look right away
+- c59b6f0 |  | saber_loadall: build every blade's shader at once, to see each blade's real look right away
++ 06/11/2026 | - | Collections: Alpha and Beta editions, an Edition filter, holocrons stamped with theirs
+- 0b8a114 |  | Collections: Alpha and Beta editions, an Edition filter, holocrons stamped with theirs
++ 06/11/2026 | - | Credits history after PR #370 (Creyon's 130 blades)
+- d50ddac |  | Credits history after PR #370 (Creyon's 130 blades)
 + 06/11/2026 | - | Creyon's round waits for Sol's tests: blades 170 to 299 do not drop yet
 - c8b733a |  | Creyon's round waits for Sol's tests: blades 170 to 299 do not drop yet
 + 06/11/2026 | - | Leave the God Ki blade out of Creyon's round (Dragon Ball material)
@@ -3024,6 +3040,25 @@
 - 8db7327 |  | Wrap centre prints at 50 characters, not UTF-8 bytes
 - 0874042 |  | Decode print and cp text as legacy bytes
 
+= Kushina
++ 07/11/2026 | SJK #377 | Let rig chains feel the player's movement and keep out of the arms
+- d2bc221 |  | Let rig chains feel the player's movement and keep out of the arms
+- dbb19fa |  | Record rig chain drag and arms in the status page
+- f23a217 |  | Record the in-game test of rig chain drag and arms
+- d19081a |  | Record the review's changes and the measured cost in the status page
+- eb58eda |  | Run the checks again
++ 07/11/2026 | SJK #374 | Add limits, clearance, layers and levers to rig chains
+- 961c98a |  | Add limits, clearance, layers and levers to rig chains
+- 5ffce94 |  | Record the in-game test of rig cloth in the status page
+- 62a2e70 |  | Give a joint and its bone's middle separate at-rest exemptions
+- 480b6f1 |  | Spare rig chain collision the work of pairs that do not touch
+- 8e70c9f |  | Check rig chain collision's two samples directly
+- d1c3dfe |  | Record the in-game test of the review's changes in the status page
++ 07/11/2026 | - | Pass the variant to manifest in the installed rig test
+- 5c3a43a |  | Pass the variant to manifest in the installed rig test
++ 06/11/2026 | SJK #373 | Fix rig chains that fork or stack joints jumping
+- d38c7b3 |  | Fix rig chains that fork or stack joints jumping
+
 = Lukas
 + 02/11/2026 | SJK #306 | Send long chat drafts as complete messages
 - a7f9d96 |  | Split long chat messages before sending
@@ -3333,6 +3368,9 @@
 - 8d21001 |  | Clip visible saber blades at world walls
 
 = Milamber
++ 07/11/2026 | SJK #380 | Stamp commands with the previous frame's server time, as stock
+- f89a623 |  | Stamp commands with the previous frame's server time, as stock
+- 31d61a3 | Sol | Keep the frame's own stamp on SJK's servers
 + 03/11/2026 | - | Add the Saber Lab handover and Milamber's blade
 - c2b9e80 |  | Add the Saber Lab handover and Milamber's blade
 + 03/11/2026 | - | Add the Saber Lab: a live blade-skin lab with new effects and a builder

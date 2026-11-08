@@ -30,7 +30,7 @@ pub(crate) struct Loaded {
     /// Why the requested model could not be loaded; Kyle stands in.
     pub(crate) failed: Option<String>,
     /// Its textures' mip chains, built here.
-    pub(crate) textures: Vec<crate::world_materials::PreparedTexture>,
+    pub(crate) textures: crate::world_materials::WarmTextures,
     /// The same model again, for the body pool.
     pub(crate) body: Option<(ActorMesh, FlattenedScene)>,
 }

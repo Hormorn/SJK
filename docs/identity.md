@@ -223,7 +223,8 @@ a random id drawn once per game run. No key, signature, name, server or map goes
 it, and the hub keeps no address for it. With `cl_shareUsage 0` nothing is sent.
 
 Logs ([Log requests](#log-requests)) are sent only when the SJK team asked for them and
-the player chose Send logs on the card that asks: the newest console and diagnostic
+the player chose Send logs on the card that asks, or when the player sends them
+unasked from the launcher's Doctor after seeing what goes. A request's logs hold the newest console and diagnostic
 lines of this session and the one before (chat lines left out, the player's folder
 replaced by `%USERPROFILE%`), the last crash report when it is under 14 days old, the
 build, the operating system, the graphics adapter, the map and the game server, signed
@@ -377,6 +378,16 @@ under 4 MiB; the oldest lines go first, at a line) and sends it (`POST /v1/logs`
 Don't send (Escape) tells the hub (`POST /v1/logs/decline`). The request leaves the list
 at once either way; one the hub could not be reached for comes back with the next
 listing to answer again. The console says what became of the answer.
+
+**Unasked logs.** Since 08/11/2026 (Sol asked, after a friend's game never started and
+then froze on a white screen without sending anything) a player can send their logs
+without a request: the launcher's Doctor has Send my logs, for a game that does not
+start or freezes (sjk-launcher's `doctor.rs`). The player sees what goes and may write a
+note; `Hub::send_own_logs` sends it (`LogUpload::own_body`, the note one line of at most
+500 characters, `own_note`). The hub keeps it as a request already sent with no staff
+member; the Staff page's Logs tab marks it "unasked" (`LogRequestRow::own`). The hub's
+limits are its own: the same logs within a day refused, 3 an hour and 5 a day per
+person, 10 a day per address, 100 a day for the hub (hub `PROTOCOL.md`, "Log requests").
 
 **Reading.** The Logs tab lists the requests (newest first, 12 shown: player, state and
 date, size, who asked; Refresh reads them again). Open on a sent one reads its logs

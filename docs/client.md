@@ -5986,6 +5986,12 @@ sees it there.
   Players propose them in the Discord's `#tag-proposals` channel (28/10/2026; a pinned
   post says how: one idea per post, voted with reactions, a bold square PNG, nothing
   taken from another game), which the tag card in Collection > Tags points to.
+- **Collections** (08/11/2026, Sol's decision): every tag is in one collection, **Alpha**
+  for SJK's own and **Community** for those players drew, picked from `#tag-proposals`
+  (Blep's EZ, Gonk and Geyon so far). A collection is only a label: Collection > Tags
+  lists each under its own heading and the tag's card names it ("Community tag · Rare").
+  It changes nothing in drops (a blade's edition does, [unlockables.md](unlockables.md)),
+  so the hub does not know it; a new collection is a line in `tags.rs`'s `COLLECTIONS`.
 - **Finishes and credits cards** (31/10/2026, Sol's decisions): a tag a holocron drops
   comes Holo (4 %) or Solar (0.5 %) now and then, whatever the holocron's tier
   ([holocrons.md](holocrons.md)); the hub counts those copies apart. The credits cards the
@@ -6007,8 +6013,8 @@ sees it there.
   yours."). Spare copies trade too: the trade window lists them with their finish beside
   the duplicate shaders, counted as duplicates in the day's limits
   ([tag_copies.rs](../crates/sjk-viewer/src/tag_copies.rs)).
-- **Choosing:** Collection > Tags shows every tag, then the credits cards under their own
-  heading, the ones the player lacks dimmed and the Holo and Solar copies held as badges;
+- **Choosing:** Collection > Tags shows every tag under its collection's heading, then
+  the credits cards under their own, the ones the player lacks dimmed and the Holo and Solar copies held as badges;
   the wall scrolls (the wheel, the arrows keeping the choice in view). The card on the right
   offers Normal, Holo and Solar (the finishes held), shown over the picture; Choose (or
   Enter) sets `cg_tag`, the tag or card `toy_tag` sticks (default `tag_sjk`), and
@@ -6155,7 +6161,8 @@ and everyone else's (`s_toyBoxSound`, `s_toyOrder66Sound`, `s_toyHaxSound`,
 [Banana peel](#banana-peel), 29/10/2026), `s_toyTagSound` (the [Tag](#tag)'s spray,
 03/11/2026), `s_toyMasterSound` (the toys [the Toy
 Master](toy-master.md) hides, 30/10/2026), `s_toyFishingSound`
-(the [Fishing](#fishing) toy), all
+(the [Fishing](#fishing) toy), `s_toyWheelOfDoomSound` (the
+[WHEEL OF DOOM](wheel-of-doom.md), 07/11/2026), all
 on by default,
 archived). The toy still
 runs and is still seen; nothing is sent to anyone. The Illuminate holocron makes no
@@ -6596,8 +6603,9 @@ its Toys page as it was, and gains them from Add a choice, Toys. The page holds 
 later toys are in the catalogue's Toys group only, to add from there: Box hunt
 (`toy_boxhunt`), the Tag (`toy_tag`) and since 29/10/2026 the
 [Banana peel](#banana-peel) (Banana peel, `toy_banana`, marked while it is on, and Drop
-banana peel, `banana_drop`) and [Fishing](#fishing) (`toy_fishing`, marked while the rod
-is out).
+banana peel, `banana_drop`), [Fishing](#fishing) (`toy_fishing`, marked while the rod
+is out) and since 07/11/2026 the [WHEEL OF DOOM](wheel-of-doom.md) (`toy_wheelofdoom`,
+a press: the first shows the price, a second spins).
 
 ### GIF wheel
 
