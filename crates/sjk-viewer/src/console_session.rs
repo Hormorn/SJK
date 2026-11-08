@@ -662,6 +662,8 @@ impl ViewerConsole {
             pending_drone: None,
             boombox_on: false,
             pending_boombox: None,
+            quests_on: false,
+            pending_quests: None,
             fishing_on: false,
             pending_fishing: None,
             mining_on: false,

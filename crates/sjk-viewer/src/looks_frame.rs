@@ -127,7 +127,8 @@ impl GpuState {
                     .with_toy(crate::banana::TOY, self.banana.on())
                     .with_toy(crate::fishing::TOY, self.fishing.on())
                     .with_toy(crate::toon_choice::TOY, toon)
-                    .with_toy(crate::mining::TOY, self.mining.on()),
+                    .with_toy(crate::mining::TOY, self.mining.on())
+                    .with_toy(crate::quests::TOY, self.quests.on()),
             );
             (
                 own.saber_skin,
@@ -169,7 +170,8 @@ impl GpuState {
         .with_toy(crate::banana::TOY, self.banana.on())
         .with_toy(crate::fishing::TOY, self.fishing.on())
         .with_toy(crate::toon_choice::TOY, toon)
-        .with_toy(crate::mining::TOY, self.mining.on());
+        .with_toy(crate::mining::TOY, self.mining.on())
+        .with_toy(crate::quests::TOY, self.quests.on());
         if let Some(sent) = sent {
             let options = crate::blade_extras::gated(&options, player_identity::holds_card);
             let mut look = sent.to_look(&options);

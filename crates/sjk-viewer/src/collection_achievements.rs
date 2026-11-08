@@ -734,7 +734,7 @@ mod tests {
         );
         assert_eq!(
             layout(Page::Hobbies),
-            [("Fishing", 0, 0, 5), ("Mining", 0, 6, 5)]
+            [("Fishing", 0, 0, 7), ("Mining", 1, 0, 5)]
         );
         let all = |standings: &[Standing]| -> Vec<Slot> {
             Page::ALL

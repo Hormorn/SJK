@@ -693,6 +693,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Play the WHEEL OF DOOM's sounds: its ticks, stop, laugh, fanfare and quacks (SJK)",
         ),
         CvarDefinition::new(
+            crate::toy_sounds::Toy::Quests.cvar(),
+            true,
+            archive,
+            "Play the chimes as you are given a quest or finish one (SJK)",
+        ),
+        CvarDefinition::new(
             crate::fishing::CUE_CVAR,
             crate::fishing::CUE_DEFAULT,
             archive,
@@ -1046,6 +1052,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             false,
             archive,
             "Box hunt is on: you may become the mark (one every 10 minutes), and killing the mark wins you a free mystery box roll (toy_boxhunt switches it)",
+        ),
+        CvarDefinition::new(
+            crate::toy_saved::QUESTS_CVAR,
+            false,
+            archive,
+            "Quests are on: you may be given a quest, such as hugging or kissing two other players within a minute, for an Echo, or be named in one (toy_quests switches it)",
         ),
         CvarDefinition::new(
             crate::toy_saved::BANANA_CVAR,

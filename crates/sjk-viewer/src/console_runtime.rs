@@ -47,6 +47,9 @@ impl GpuState {
         if let Some(on) = console.take_banana_request() {
             self.banana.set_on(on);
         }
+        if let Some(on) = console.take_quests_request() {
+            self.quests.set_on(on);
+        }
         if let Some(on) = console.take_fishing_request()
             && on != self.fishing.on()
         {
@@ -117,7 +120,16 @@ impl GpuState {
         // Drone, the Monitor, Box hunt and the Banana peel stay as last switched, across
         // maps, servers and restarts (`toy_saved`).
         if let Some(console) = self.console.as_mut() {
-            let [order66, hax, drone, monitor, box_hunt, banana, propgun] = &mut self.toys_saved;
+            let [
+                order66,
+                hax,
+                drone,
+                monitor,
+                box_hunt,
+                banana,
+                propgun,
+                quests,
+            ] = &mut self.toys_saved;
             let on = order66.sync(console, crate::toy_saved::ORDER66_CVAR, self.order66.on());
             self.order66.set_on(on);
             let on = hax.sync(console, crate::toy_saved::HAX_CVAR, self.hax.on());
@@ -132,6 +144,8 @@ impl GpuState {
             self.banana.set_on(on);
             let on = propgun.sync(console, crate::toy_saved::PROPGUN_CVAR, self.propgun.on());
             self.propgun.set_on(on);
+            let on = quests.sync(console, crate::toy_saved::QUESTS_CVAR, self.quests.on());
+            self.quests.set_on(on);
             console.set_illuminate_lit(self.illuminate.lit());
             console.set_cardboard_box_on(self.cardboard_box.on());
             console.set_order66_on(self.order66.on());
@@ -145,6 +159,7 @@ impl GpuState {
             console.set_fishing_on(self.fishing.on());
             console.set_wheel_of_doom_on(self.wheel_of_doom.running());
             console.set_mining_on(self.mining.on());
+            console.set_quests_on(self.quests.on());
         }
         let connection = self
             .console

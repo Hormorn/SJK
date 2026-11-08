@@ -162,6 +162,7 @@ pub(crate) fn row_labels(
         banana: false,
         fishing: false,
         mining: false,
+        quests: false,
         fishing_card: None,
         wheel_of_doom: false,
         mining_card: None,
@@ -299,6 +300,7 @@ impl Panel {
         self.banana_on = inputs.banana;
         self.fishing_on = inputs.fishing;
         self.mining_on = inputs.mining;
+        self.quests_on = inputs.quests;
         self.share_on = inputs.share;
         self.toys_unseen = inputs.toys_unseen;
         self.toy_options = inputs.toy_options;
@@ -650,8 +652,10 @@ impl Panel {
                     (9, _, _) => "turn on",
                     (10, _, _) if inputs.fishing => "put away",
                     (10, _, _) => "get the rod out",
-                    (11, _, _) if inputs.mining => "put away",
-                    (11, _, _) => "take the pickaxe",
+                    (12, _, _) if inputs.mining => "put away",
+                    (12, _, _) => "take the pickaxe",
+                    (13, _, _) if inputs.quests => "turn off",
+                    (13, _, _) => "turn on",
                     (_, true, _) => "put out",
                     _ => "light",
                 },

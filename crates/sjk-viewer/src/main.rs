@@ -61,6 +61,7 @@ mod kyber;
 mod loot_odds;
 mod propgun;
 mod propgun_frame;
+mod quests;
 #[cfg(any(target_os = "linux", test))]
 #[path = "../stack_size.rs"]
 mod stack_size;
@@ -636,6 +637,7 @@ struct GpuState {
     monitor: monitor::Monitor,
     /// The Box hunt toy (`toy_boxhunt`): its switch, the consent to hunt and be the mark.
     box_hunt: box_hunt::BoxHunt,
+    quests: quests::Quests,
     /// The Banana peel toy (`toy_banana`): its switch and the peels on the floor.
     banana: banana::Banana,
     /// The Prop gun toy (`toy_propgun`): the gun held, the bolts and what others hold.
@@ -648,7 +650,7 @@ struct GpuState {
     ragdoll: ragdoll::Ragdoll,
     /// Order 66's, the Hax's, the Drone's, the Monitor's, Box hunt's, the Banana peel's and
     /// the Prop gun's switches as last saved (`toy_saved`).
-    toys_saved: [toy_saved::Saved; 7],
+    toys_saved: [toy_saved::Saved; 8],
     /// The Holocrons tab's 3D holocron ([`holocrons::stage`]).
     holocron_stage: holocrons::stage::Stage,
     /// The time its turn and bob are drawn at, instead of the clock's, for a world shot.
@@ -1665,6 +1667,7 @@ impl GpuState {
             boombox: Default::default(),
             monitor: Default::default(),
             box_hunt: Default::default(),
+            quests: Default::default(),
             banana: Default::default(),
             propgun: Default::default(),
             status_balloons: Default::default(),

@@ -441,6 +441,11 @@ pub(super) const AUDIO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Quests sounds",
+        cvar: crate::toy_sounds::Toy::Quests.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Fishing bite cue",
         cvar: crate::fishing::CUE_CVAR,
         kind: ValueKind::Choice(&["0", "1", "2"]),

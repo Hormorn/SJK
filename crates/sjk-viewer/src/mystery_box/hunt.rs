@@ -29,8 +29,8 @@ const READ_GAP: Duration = Duration::from_secs(2);
 /// after the end is not counted, so none is shown that could arrive late.
 const END_EARLY: Duration = Duration::from_secs(1);
 /// How high over a player's origin the mark's label stands, and the point it is seen by.
-const MARK_RISE: f32 = 70.0;
-const MARK_SIGHT: f32 = 20.0;
+pub(super) const MARK_RISE: f32 = 70.0;
+pub(super) const MARK_SIGHT: f32 = 20.0;
 /// `MAX_CLIENTS`: slots of players.
 const SLOTS: u16 = 32;
 /// How long the mark may type in the chat before blowing up, and when they are warned
@@ -720,7 +720,7 @@ impl GpuState {
     }
 
     /// Where the player on `slot` stands, when the game server sends them.
-    fn box_hunt_player_origin(&mut self, slot: u8) -> Option<Vec3> {
+    pub(super) fn box_hunt_player_origin(&mut self, slot: u8) -> Option<Vec3> {
         let session = self.live_session.as_ref()?;
         let sent = session
             .latest_snapshot()

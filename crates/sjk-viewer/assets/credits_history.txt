@@ -3457,6 +3457,27 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #365 | Quests toy: the hub gives a social quest, its targets' clients prove it
+- b136cc1 |  | Quests toy: the hub gives a social quest, its targets' clients prove it
+- 8ff6dae |  | Quests: a card counts the seconds down, gold arrows point the players at each other
+- a888e5f |  | Quests: chimes as a quest is given and done, with their own sound switch
+- f1a0b46 |  | Quests: rustfmt the toy row match after the merge
++ 09/11/2026 | SJK #364 | Mining: sell the dug rubble to the hub, under the fishing junk's cap
+- e757361 |  | Mining: sell the dug rubble to the hub under the fishing junk's cap; the Mining card's log and Sell rubble button
++ 09/11/2026 | SJK #363 | Mining toy (phase 1): a pickaxe, boulders to break, ores and five achievements
+- 77d9149 |  | Mining toy, phase 1: a pickaxe, veins and clean strikes on the glint
+- b65c4b0 |  | Mining: boulders on the ground and the whole body in the swing
+- 5c0a533 |  | Mining: the pickaxe held as a hilt, the strong style's swing
+- bd21798 |  | Mining: balanced against Fishing (two boulders, 10 to 14 blows, the Heart some 100 minutes)
+- 32cd928 |  | Mining: three boulders, the next 4 to 8 seconds after one breaks; the odds rescaled for the pace
+- c450cfa |  | Mining: the attack button swings the pickaxe (held, again and again), kept from the weapon
+- a38eecb |  | Mining: five achievements, and a Pastimes page on the board for Fishing and Mining
+- 3f53146 |  | Mining: no saber swooshes from the swing's animation while the pickaxe is held
+- 4c6ecda |  | Mining: the pickaxe straight in the plane the body faces; the board's third page is Hobbies
+- 5367763 |  | Mining: choosing a weapon puts the pickaxe away; a blow on nothing says nothing, so the find stays shown
+- 71c76e3 |  | Mining: the Heart some 40 minutes, near Old Whiskers after Fishing's balance; Sharp Eye, as #361 takes Steady Hand
+- 8280b5f |  | Mining: Vinra's idea, credited as such
+- 0d6944d |  | Mining: the idea is vinry's
 + 08/11/2026 | SJK #367 | The Forge: break several saber shaders down at once
 - 536784d |  | The Forge: break several saber shaders down at once
 - 816834f |  | Forge picking: choose how many copies of each, and name a refused shader

@@ -326,6 +326,9 @@ pub struct Snapshot {
     /// The box hunt as last read, by serial, for the server named
     /// ([`Service::read_box_hunt`]).
     pub box_hunt: Option<(u64, String, crate::mystery_box::HuntState)>,
+    /// The quests as last read, by serial, for the server named
+    /// ([`Service::read_quests`]).
+    pub quests: Option<(u64, String, crate::quests::QuestState)>,
     /// The Toy Master's toys, once read ([`Service::use_secret`]).
     pub secrets: Option<crate::toy_master::Secrets>,
     /// Counts the times [`Snapshot::secrets`] changed.
@@ -763,6 +766,7 @@ impl Snapshot {
             wheel_of_doom: None,
             wheel_of_doom_spin: None,
             box_hunt: None,
+            quests: None,
             secrets: None,
             secrets_revision: 0,
             secret_shows: None,
@@ -930,6 +934,13 @@ enum Command {
     /// Read the box hunt on `server`, the player away or not.
     BoxHunt {
         server: String,
+        away: bool,
+    },
+    /// Read the quests on `server`, the player away or not, first telling the hub the
+    /// player on slot `done` did what the quest asked of the player, when given.
+    Quests {
+        server: String,
+        done: Option<u8>,
         away: bool,
     },
     /// The player pressed Use `presses` times on the Toy Master's toy `id` on `server`,
@@ -1154,6 +1165,7 @@ struct Worker {
     junk_serial: u64,
     wheel_serial: u64,
     box_hunt_serial: u64,
+    quests_serial: u64,
     /// When the Toy Master's toys are next read, and the last request's serial.
     due_secrets: Instant,
     secret_serial: u64,
@@ -1489,6 +1501,7 @@ impl Worker {
             junk_serial: 0,
             wheel_serial: 0,
             box_hunt_serial: 0,
+            quests_serial: 0,
             due_secrets: now,
             secret_serial: 0,
             crash_dir: None,
@@ -1941,6 +1954,7 @@ impl Worker {
                     .map(|id| (BoxDone::Placed(id), None))
             }),
             Command::BoxHunt { server, away } => self.box_hunt(&server, None, away),
+            Command::Quests { server, done, away } => self.quests(&server, done, away),
             Command::BoxHuntKilled { server, by, away } => {
                 self.box_hunt(&server, Some(HuntReport::Killed(by)), away);
             }
@@ -3523,6 +3537,29 @@ impl Worker {
         self.update(|snapshot| snapshot.box_hunt = Some((serial, server, state)));
     }
 
+    /// Read the quests on `server` into [`Snapshot::quests`], first telling the hub the
+    /// player on slot `done` did what the quest asked (tried twice: a report lost is a
+    /// quest lost), and whether the player is `away`. A failed read leaves the last one.
+    fn quests(&mut self, server: &str, done: Option<u8>, away: bool) {
+        let (Some(hub), true) = (self.hub.as_mut(), self.registered) else {
+            return;
+        };
+        if let Some(by) = done {
+            for _ in 0..2 {
+                if hub.quest_done(&self.identity, server, by).is_ok() {
+                    break;
+                }
+            }
+        }
+        let Ok(state) = hub.quests(&self.identity, server, away) else {
+            return;
+        };
+        self.quests_serial += 1;
+        let serial = self.quests_serial;
+        let server = server.to_owned();
+        self.update(|snapshot| snapshot.quests = Some((serial, server, state)));
+    }
+
     /// Send a map's edits for staff; the folder is read again at once after.
     fn publish_map_edits(&mut self, map: &str, checksum: i32, edits: &Value, now: Instant) {
         self.map_edits_serial += 1;
@@ -4533,6 +4570,26 @@ impl Service {
         let _ = self
             .commands
             .send(Command::BoxHuntOut { server, out, away });
+    }
+
+    /// Read the quests on `server`, saying whether the player is `away` (in the chat, a
+    /// menu, idle: the hub gives them none): it arrives in [`Snapshot::quests`].
+    pub fn read_quests(&self, server: String, away: bool) {
+        let _ = self.commands.send(Command::Quests {
+            server,
+            done: None,
+            away,
+        });
+    }
+
+    /// The player, a target of the quest on `server`, was hugged or kissed as it asks
+    /// by the player on slot `by`; the quests are read again after.
+    pub fn quest_done(&self, server: String, by: u8, away: bool) {
+        let _ = self.commands.send(Command::Quests {
+            server,
+            done: Some(by),
+            away,
+        });
     }
 
     /// Staff: publish `edits` for `map` and `checksum`; the answer lands in

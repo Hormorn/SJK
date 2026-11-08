@@ -390,7 +390,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 123 merged pull requests
+role: Contributor: 126 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -516,6 +516,9 @@ did: #368 The spawn list: NPCs, vehicles and cheats from a list
 did: #362 Fishing counts as play for holocrons
 did: #361 Fishing balance: shorter bites, Old Whiskers pity, two achievements
 did: #367 The Forge breaks several saber shaders down at once
+did: #363 The Mining toy: a pickaxe, boulders, ores and five achievements
+did: #364 Mining's rubble sells to the hub, under the junk's cap
+did: #365 The Quests toy: social quests won as an Echo
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]

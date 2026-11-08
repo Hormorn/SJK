@@ -790,7 +790,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 123 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 126 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1005,6 +1005,11 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
 - #361 fishing balance: shorter bites, a pity rule for Old Whiskers, Echo Angler at 5, and
   the Beachcomber and Steady Hand achievements.
 - #367 the Forge breaks several saber shaders down at once, after Atrosex's idea.
+- #363 the Mining toy: a pickaxe, boulders to break, nine ores and five achievements, after
+  vinry's idea.
+- #364 mining's rubble sells to the hub under the fishing junk's daily cap.
+- #365 the Quests toy: social quests among players who opt in, won as an Echo within the
+  day's caps, after wonner67's idea.
 
 His Peek work in #199 (closed 24/10/2026, not merged) shaped the Drone toy: a player is
 asked before being peeked, told who watches, and can end it. His #206 (closed 25/10/2026,

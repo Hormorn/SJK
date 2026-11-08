@@ -9397,3 +9397,23 @@ change: A Mythical blade of pale rose light, Beta Edition, not droppable yet.
 test: Collection > Shaders: search malachor: it lists, its look plays on the stand.
 test: Wear it (a staff grant): the rose body, crescents and sounds show in a match.
 note: Its sounds come with hub shared #20's sjk_skins_2 pack.
+
+[mining-toy]
+area: Gameplay
+title: Mining toy and selling rubble (Slash, #363, #364, after vinry's idea)
+change: toy_mining: a pickaxe, boulders come up round you, Attack breaks them for ore or rubble.
+change: Collection > Toys > Mining: the log and Sell rubble; mining_sell, mining_log in console.
+test: toy_mining on a server: the pickaxe in hand, three boulders in sight on the ground.
+test: Hold Attack at one: swings, a blow on the glint is a clean strike, it breaks into a find.
+test: Choose a weapon, alt attack or get hurt: the pickaxe goes away. The rod puts it away too.
+test: Collection > Achievements: F to Hobbies: Fishing's seven, Mining's five.
+note: The achievements need the five ids on the hub; Sell rubble needs hub shared #14.
+
+[quests-toy]
+area: Gameplay
+title: Quests toy (Slash, #365, after wonner67's idea)
+change: toy_quests: the hub gives a player taking part a hug or kiss quest for an Echo.
+test: Collection > Toys lists 14 rows with the keys clear of the last one.
+test: Three players with toy_quests on a box server, hub on staff: a quest, card and arrows.
+test: Hug both targets (/amhug): each marks done, an Echo drops, the chime plays.
+note: Needs hub shared #15 deployed and --quests on; off by default.

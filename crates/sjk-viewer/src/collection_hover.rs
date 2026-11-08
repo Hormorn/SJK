@@ -187,6 +187,21 @@ impl Panel {
                 ],
             });
         }
+        if token == QUESTS_TOKEN {
+            return Some(Card {
+                title: "Quests".to_owned(),
+                colour: color::GOLD_BRIGHT,
+                lines: vec![
+                    Line::how(
+                        "Every SJK player has it. Turn it on here, from the quick wheel's Toys \
+                         page or with a key bound to toy_quests: now and then you may be given \
+                         a quest, such as hugging two players within a minute, for an Echo.",
+                    ),
+                    Line::status(crate::editions::name(crate::editions::ALPHA)),
+                    Line::held("Yours"),
+                ],
+            });
+        }
         if token == FISHING_TOKEN {
             return Some(Card {
                 title: "Fishing".to_owned(),

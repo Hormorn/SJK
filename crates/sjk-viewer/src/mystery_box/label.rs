@@ -1,8 +1,10 @@
-//! The words in the world over the mystery boxes (and the box hunt's mark): what a box is
-//! and costs, that it rolls, then what came out, for every SJK player who sees it. Drawn
-//! as the drone's pilot names are: projected over the point, hidden behind walls and far
-//! away. The mark has an arrow besides, seen through walls: over them when they are in
-//! view, on a ring round the crosshair pointing their way when not.
+//! The words in the world over the mystery boxes (and the box hunt's mark, and the
+//! players of a quest, `crate::quests`): what a box is and costs, that it rolls, then what
+//! came out, for every SJK player who sees it. Drawn as the drone's pilot names are:
+//! projected over the point, hidden behind walls and far away. The mark has an arrow
+//! besides, seen through walls: over them when they are in view, on a ring round the
+//! crosshair pointing their way when not; so have a quest's players, in gold, and the
+//! quest has a card of its own under the hunt's.
 
 use super::hunt::Card;
 use super::{Here, Opening, ROLL, wire};
@@ -30,6 +32,11 @@ const CARD_PULSE: f32 = 2.0;
 const ARROW_SIZE: f32 = 15.0;
 const ARROW_RING: f32 = 230.0;
 const ARROW_IN_VIEW: f32 = 0.9;
+/// Most arrows a quest draws: its two targets (each arrow two polygons, its shadow
+/// and itself).
+const QUEST_ARROWS: usize = 2;
+/// The room between the hunt's card and the quest's under it, in pixels at 1080 lines.
+const CARD_GAP: f32 = 10.0;
 
 /// How a label's headline is coloured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,6 +51,8 @@ pub(super) enum Tone {
     Empty,
     /// The box hunt's mark.
     Mark,
+    /// A quest's player or target.
+    Quest,
 }
 
 impl Tone {
@@ -54,6 +63,7 @@ impl Tone {
             Self::Jackpot => Color::new(1.0, 0.45, 0.3, alpha),
             Self::Empty => Color::new(0.72, 0.72, 0.72, alpha),
             Self::Mark => Color::new(1.0, 0.3, 0.25, alpha),
+            Self::Quest => Color::new(1.0, 0.76, 0.2, alpha),
         }
     }
 }
@@ -76,8 +86,8 @@ impl Default for Labels {
     fn default() -> Self {
         Self {
             // Each label two lines over their shadows, the hunt's card and the arrow to
-            // the mark.
-            list: DrawList::new(MOST * 4 + 12),
+            // the mark, the quest's card and its arrows.
+            list: DrawList::new(MOST * 4 + 12 + 6 + 2 * QUEST_ARROWS),
             lines: Vec::new(),
         }
     }
@@ -183,6 +193,25 @@ impl GpuState {
             .collect();
         let mark = self.box_hunt_mark_origin();
         wanted.extend(mark.map(GpuState::box_hunt_mark_label));
+        // A quest's players this one should find, where the game server sends them.
+        let quest_points: Vec<Vec3> = self
+            .quest_marked()
+            .into_iter()
+            .filter_map(|marked| {
+                let origin = self.box_hunt_player_origin(marked.slot)?;
+                wanted.push((
+                    origin + Vec3::Z * super::hunt::MARK_RISE,
+                    origin + Vec3::Z * super::hunt::MARK_SIGHT,
+                    Label {
+                        headline: marked.headline,
+                        line: marked.line,
+                        tone: Tone::Quest,
+                    },
+                ));
+                Some(origin + Vec3::Z * super::hunt::MARK_RISE)
+            })
+            .take(QUEST_ARROWS)
+            .collect();
         let unit = crate::ui_scale::height_scale(viewport[1]);
         let width = (420.0 * unit).min(viewport[0]);
         for (point, sight, label) in wanted.into_iter().take(MOST) {
@@ -247,11 +276,44 @@ impl GpuState {
         }
         if let Some(origin) = mark {
             let point = GpuState::box_hunt_mark_label(origin).0;
-            push_arrow(&mut self.mystery_boxes.labels, camera, point, unit);
+            push_arrow(
+                &mut self.mystery_boxes.labels,
+                camera,
+                point,
+                unit,
+                Tone::Mark,
+            );
         }
+        for point in quest_points {
+            push_arrow(
+                &mut self.mystery_boxes.labels,
+                camera,
+                point,
+                unit,
+                Tone::Quest,
+            );
+        }
+        let mut top = CARD_TOP;
         if let Some(card) = self.mystery_boxes.hunt.card() {
             let since = now.saturating_duration_since(card.since).as_secs_f32();
             push_card(&mut self.mystery_boxes.labels, card, since, viewport, unit);
+            top += CARD_HEIGHT + CARD_GAP;
+        }
+        if let Some(card) = self.quest_card(now) {
+            let since = now.saturating_duration_since(card.since).as_secs_f32();
+            let fill = if card.own {
+                Color::new(0.36, 0.25, 0.03, 0.88)
+            } else {
+                Color::new(0.06, 0.05, 0.03, 0.82)
+            };
+            let plate = Plate {
+                caption: card.caption,
+                line: card.line,
+                fill,
+                edge: Tone::Quest,
+                top,
+            };
+            push_plate(&mut self.mystery_boxes.labels, plate, since, viewport, unit);
         }
         if self.mystery_boxes.labels.list.commands().is_empty() {
             return;
@@ -285,6 +347,7 @@ fn push_arrow(
     camera: crate::hud::identification::Camera,
     point: Vec3,
     unit: f32,
+    tone: Tone,
 ) {
     let viewport = camera.viewport;
     let size = ARROW_SIZE * unit;
@@ -307,7 +370,7 @@ fn push_arrow(
     ];
     for (offset, color) in [
         (2.0 * unit, Color::new(0.0, 0.0, 0.0, 0.6)),
-        (0.0, Tone::Mark.colour(0.95)),
+        (0.0, tone.colour(0.95)),
     ] {
         let mut points = [[0.0; 2]; sjk_ui::POLYGON_POINTS];
         for (to, from) in points.iter_mut().zip(corners) {
@@ -364,16 +427,47 @@ fn card_words(card: &Card) -> (String, String) {
 /// at the top centre (red itself when the player is the mark), its edge flashing for
 /// [`CARD_PULSE`] seconds.
 fn push_card(labels: &mut Labels, card: &Card, since: f32, viewport: [f32; 2], unit: f32) {
-    let width = (CARD_WIDTH * unit).min(viewport[0]);
-    let height = CARD_HEIGHT * unit;
-    let rect = Rect::new((viewport[0] - width) * 0.5, CARD_TOP * unit, width, height);
-    let pulse = (1.0 - since / CARD_PULSE).clamp(0.0, 1.0);
-    let flash = pulse * (0.5 + 0.5 * (since * std::f32::consts::TAU * 2.0).cos());
+    let (caption, line) = card_words(card);
     let fill = if card.own {
         Color::new(0.42, 0.05, 0.04, 0.88)
     } else {
         Color::new(0.06, 0.04, 0.04, 0.82)
     };
+    let plate = Plate {
+        caption,
+        line,
+        fill,
+        edge: Tone::Mark,
+        top: CARD_TOP,
+    };
+    push_plate(labels, plate, since, viewport, unit);
+}
+
+/// A card at the top centre: a small caption over a line (colour codes kept), on a plate
+/// of `fill` edged in `edge`'s colour, its top `top` pixels down at 1080 lines.
+struct Plate {
+    caption: String,
+    line: String,
+    fill: Color,
+    edge: Tone,
+    top: f32,
+}
+
+/// Push `plate`, `since` seconds after it arrived, its edge flashing for [`CARD_PULSE`]
+/// seconds.
+fn push_plate(labels: &mut Labels, plate: Plate, since: f32, viewport: [f32; 2], unit: f32) {
+    let Plate {
+        caption,
+        line,
+        fill,
+        edge,
+        top,
+    } = plate;
+    let width = (CARD_WIDTH * unit).min(viewport[0]);
+    let height = CARD_HEIGHT * unit;
+    let rect = Rect::new((viewport[0] - width) * 0.5, top * unit, width, height);
+    let pulse = (1.0 - since / CARD_PULSE).clamp(0.0, 1.0);
+    let flash = pulse * (0.5 + 0.5 * (since * std::f32::consts::TAU * 2.0).cos());
     let radius = 10.0 * unit;
     let _ = labels.list.push(DrawCommand::RoundedRect {
         rect,
@@ -384,13 +478,12 @@ fn push_card(labels: &mut Labels, card: &Card, since: f32, viewport: [f32; 2], u
         rect,
         radius,
         width: (2.0 + 3.0 * flash) * unit,
-        color: Tone::Mark.colour(0.55 + 0.45 * flash),
+        color: edge.colour(0.55 + 0.45 * flash),
     });
-    let (caption, line) = card_words(card);
     let id = labels.lines.len() as u32;
     // Each line's shadow is the line without its colour codes, all of it dark.
     let plain = crate::text::Plain(&line).to_string();
-    labels.lines.push(caption.to_owned());
+    labels.lines.push(caption);
     labels.lines.push(line);
     labels.lines.push(plain);
     let pad = 14.0 * unit;

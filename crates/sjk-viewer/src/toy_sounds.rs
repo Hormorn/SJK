@@ -31,10 +31,12 @@ pub(crate) enum Toy {
     /// The WHEEL OF DOOM (`wheel_of_doom.rs`).
     WheelOfDoom,
     Mining,
+    /// The chimes as a quest is given and done (`quests.rs`).
+    Quests,
 }
 
 impl Toy {
-    pub(crate) const ALL: [Self; 15] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::Box,
         Self::Order66,
         Self::Hax,
@@ -50,6 +52,7 @@ impl Toy {
         Self::Fishing,
         Self::WheelOfDoom,
         Self::Mining,
+        Self::Quests,
     ];
 
     /// The switch that lets this toy be heard (on by default).
@@ -70,6 +73,7 @@ impl Toy {
             Self::Fishing => "s_toyFishingSound",
             Self::WheelOfDoom => "s_toyWheelOfDoomSound",
             Self::Mining => "s_toyMiningSound",
+            Self::Quests => "s_toyQuestsSound",
         }
     }
 }

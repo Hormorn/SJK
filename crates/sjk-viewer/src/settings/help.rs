@@ -619,6 +619,10 @@ const HELP: &[(&str, &str)] = &[
         "Off: every WHEEL OF DOOM spins silently on this PC, yours and other players', quacks included.",
     ),
     (
+        crate::toy_sounds::Toy::Quests.cvar(),
+        "Off: no chime as you are given a quest, named in one or finish one. Quests still work.",
+    ),
+    (
         crate::fishing::CUE_CVAR,
         "A \"!\" over the float and \"Bite! Press Use!\" when a fish bites. Sound off: only while the fishing sounds can't be heard.",
     ),

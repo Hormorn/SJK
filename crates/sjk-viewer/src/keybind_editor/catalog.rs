@@ -183,6 +183,7 @@ const FIXED: &[BindableAction] = &[
     ),
     // Box hunt: the switch, the consent to hunt and be the mark.
     action(Interaction, "Toy: Box hunt", crate::box_hunt::COMMAND, ""),
+    action(Interaction, "Toy: Quests", crate::quests::COMMAND, ""),
     // The Banana peel: the switch, the right to drop peels and the consent to slip.
     action(Interaction, "Toy: Banana peel", crate::banana::COMMAND, ""),
     action(

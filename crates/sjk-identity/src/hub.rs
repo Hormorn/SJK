@@ -717,6 +717,32 @@ pub trait Hub: Send {
         ))
     }
 
+    /// The quests on `server` as the player reads them (`POST /v1/quests`), saying
+    /// whether the player is `away` (in the chat, a menu, idle: the hub gives them none).
+    fn quests(
+        &mut self,
+        _identity: &Identity,
+        _server: &str,
+        _away: bool,
+    ) -> Result<crate::quests::QuestState, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not read quests".to_owned(),
+        ))
+    }
+
+    /// The player, a target of the quest on `server`, was hugged or kissed as it asks
+    /// by the player on slot `by` (`POST /v1/quests/done`); whether the hub counted it.
+    fn quest_done(
+        &mut self,
+        _identity: &Identity,
+        _server: &str,
+        _by: u8,
+    ) -> Result<bool, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not report quests".to_owned(),
+        ))
+    }
+
     /// The player is out of the box hunt's chase on `server` (`POST /v1/box-hunt/out`):
     /// killed by the mark, caught cheating (a teleport, noclip), or as the mark typing in
     /// the chat too long; whether the hub counted it.
@@ -2221,6 +2247,33 @@ impl Hub for HttpHub {
             "/v1/box-hunt",
             Some(json!({ "server": server, "away": away })),
         )?)
+    }
+
+    fn quests(
+        &mut self,
+        identity: &Identity,
+        server: &str,
+        away: bool,
+    ) -> Result<crate::quests::QuestState, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/quests",
+            Some(json!({ "server": server, "away": away })),
+        )?)
+    }
+
+    fn quest_done(&mut self, identity: &Identity, server: &str, by: u8) -> Result<bool, HubError> {
+        let answer = self.send(
+            Some(identity),
+            "POST",
+            "/v1/quests/done",
+            Some(json!({ "server": server, "by": by })),
+        )?;
+        Ok(answer
+            .get("counted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false))
     }
 
     fn box_hunt_killed(

@@ -3,13 +3,13 @@
 //! Cardboard box), Order 66 (`docs/client.md`, Order 66), the Hax (`docs/client.md`,
 //! Hax), the Ragdoll (`docs/client.md`, Ragdoll), the Drone (`docs/client.md`, Drone),
 //! the Boombox (`docs/client.md`, Boombox), the Monitor (`docs/client.md`, Monitor), Box
-//! hunt (`docs/client.md`, Box hunt) the Banana peel (`docs/client.md`, Banana peel) and
-//! Fishing (`docs/client.md`, Fishing),
+//! hunt (`docs/client.md`, Box hunt) the Banana peel (`docs/client.md`, Banana peel),
+//! Fishing (`docs/client.md`, Fishing) and Quests (`docs/quests.md`),
 //! a row to each on the left (Sol's pick of 25/10/2026, the Collection revamp's canvas):
 //! its picture, its name and a line of what it does, the key bound to it and its own
 //! switch, which runs it in place (`toy_illuminate`, `toy_box`, `toy_order66`, `toy_hax`,
 //! `toy_ragdoll`, `toy_drone`, `toy_boombox`, `toy_monitor`, `toy_boxhunt`,
-//! `toy_banana`, `toy_fishing`). The chosen one is described on a dark card beside the
+//! `toy_banana`, `toy_fishing`, `toy_quests`). The chosen one is described on a dark card beside the
 //! model, where its key is bound without the console (a click or K, then the key). The
 //! holocron floats lit by the model while it is chosen.
 
@@ -20,15 +20,15 @@ use crate::menu_widgets::TextFamily;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign, TextureId};
 
 /// The rows: their left edge and width, where the column heads and the first row stand,
-/// a row's height and the room between rows, and its picture's side. Thirteen fit over
-/// the keys (49 tall 2 apart with Mining, 08/11/2026; 52 and 2 for twelve, 58 and 3 for eleven).
+/// a row's height and the room between rows, and its picture's side. Fourteen fit over
+/// the keys (45 tall 2 apart with Mining and Quests, 09/11/2026; 49 and 2 for thirteen, 52 and 2 for twelve).
 const ROWS_X: f32 = LEFT_X - 12.0;
 const ROWS_WIDTH: f32 = 860.0;
 const HEADS_Y: f32 = 300.0;
 const ROWS_Y: f32 = 336.0;
-const ROW_HEIGHT: f32 = 49.0;
+const ROW_HEIGHT: f32 = 45.0;
 const ROW_GAP: f32 = 2.0;
-const ROW_ART: f32 = 46.0;
+const ROW_ART: f32 = 42.0;
 /// A row's key column: its width, and the room the switch keeps at the row's right.
 const KEY_WIDTH: f32 = 150.0;
 const SWITCH_ROOM: f32 = 130.0;
@@ -55,7 +55,7 @@ const SELL_ROW: f32 = 42.0;
 /// ([`Inputs::toy_keys`]): each toy's switch, Order 66's order after its own, the
 /// Monitor's throw (held, it charges) after its own, and the Banana peel's drop after its
 /// own.
-pub(crate) const COMMANDS: [&str; 16] = [
+pub(crate) const COMMANDS: [&str; 17] = [
     "toy_illuminate",
     "toy_box",
     "toy_order66",
@@ -72,6 +72,7 @@ pub(crate) const COMMANDS: [&str; 16] = [
     crate::fishing::COMMAND,
     crate::wheel_of_doom::COMMAND,
     crate::mining::COMMAND,
+    crate::quests::COMMAND,
 ];
 
 /// One toy as the tab shows it.
@@ -294,6 +295,21 @@ const TOYS: [Toy; TOY_COUNT] = [
         options: &[],
         token: MINING_TOKEN,
     },
+    Toy {
+        icon: "quests",
+        name: "Quests",
+        tag: "Take quests from the hub for Echoes.",
+        title: "Quests",
+        what: "Now and then one player with Quests on is given a quest with a minute to finish it, such as hugging two other players who have it on (/amhug). The players it names see it; a finished quest wins an Echo, a few times a day.",
+        more: Some(
+            "Its switch is all there is: on, you may be given a quest or named in one. A quest's Echo is one of the Echoes you find a day by playing, and you finish one quest a day with the same player. Quests run on JA+ servers.",
+        ),
+        commands: &[(crate::quests::COMMAND, "Your key")],
+        switch: "Take quests",
+        sight: None,
+        options: &[],
+        token: QUESTS_TOKEN,
+    },
 ];
 
 /// The Toy Master's achievements the player holds: the toys they found.
@@ -409,6 +425,7 @@ fn states(inputs: &Inputs<'_>) -> [bool; TOY_COUNT] {
         inputs.fishing,
         inputs.wheel_of_doom,
         inputs.mining,
+        inputs.quests,
     ]
 }
 
