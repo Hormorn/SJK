@@ -80,6 +80,19 @@ const MODEL_RGB_ROWS: [CharacterRow; 10] = [
     CharacterRow::Toon,
     CharacterRow::Apply,
 ];
+/// A species' Custom skin colour (Blep's idea, 06/11/2026): the same sliders under the
+/// Skin grid.
+const SKIN_RGB_ROWS: [CharacterRow; 9] = [
+    CharacterRow::Name,
+    CharacterRow::Search,
+    CharacterRow::Category,
+    CharacterRow::Grid,
+    CharacterRow::Red,
+    CharacterRow::Green,
+    CharacterRow::Blue,
+    CharacterRow::Toon,
+    CharacterRow::Apply,
+];
 const OTHER_ROWS: [CharacterRow; 6] = [
     CharacterRow::Name,
     CharacterRow::Search,
@@ -207,6 +220,8 @@ impl PlayerMenu {
             &MODEL_RGB_ROWS
         } else if self.category() == sjk_creator::Category::Model {
             &MODEL_ROWS
+        } else if self.category() == sjk_creator::Category::Skin && self.skin_custom() {
+            &SKIN_RGB_ROWS
         } else {
             &OTHER_ROWS
         }

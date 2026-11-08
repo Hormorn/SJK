@@ -318,7 +318,23 @@ on the 16:9 frame, dark behind the form on the left and clear over the model.
   (None first); the one chosen is ringed gold, the pointer or the keys' tile white,
   the wheel scrolls. A title line names the category and counts what is listed (and
   "found" under a search); the models' line holds the team (Default, Red, Blue)
-  as segments. **Jedi Academy first:** the models list the retail game's own under a
+  as segments. **Customizable first** (Blep's idea, 06/11/2026: players did not find
+  the species among the other models): the retail game's species (models built from a
+  head, torso, legs and skin colour, as single player's character) come first under a
+  "Customizable" heading with its count and "Choose the head, torso, legs and skin
+  colour" beside it, and every species' tile, the community's too, carries a gold
+  badge with three sliders in its top right corner (the classic menus' grid keeps
+  retail's order, species after the characters). **Custom skin colour** (with it): the
+  Skin category lists the species' colours (`playerchoice.txt`) and then a Custom tile;
+  Custom brings the Red, Green and Blue sliders of an RGB model (`model_rgb.rs`) under
+  the grid, the keys on Red, starting from the colour worn. They colour the stage at
+  once and Apply wears them as `char_color_red`, `_green` and `_blue` (0 to 255,
+  archived userinfo cvars, so every client, retail too, sees the tint). The worn
+  colour opens on its preset, or on Custom when no preset has it; a species picked
+  starts on its first preset, as before. Servers with `g_charRestrictRGB` 1 (OpenJK's
+  default, SJK's server too) wear a tint whose channels add up to under 100 as white,
+  so a note under the grid says so for one that dark. **Jedi Academy first:** the
+  retail game's other models follow under a
   "Jedi Academy" heading with a count, then the high quality models (SJK rig models,
   [rig-models.md](rig-models.md)) under "High quality" when one is installed, then the
   rest of the community's under "Community" (the rule in [AGENTS.md](../AGENTS.md);

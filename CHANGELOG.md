@@ -39,6 +39,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - A key can flip any on/off setting: Settings > Key bindings has a Toggles group, one row for every switch in Settings (search finds it by name), and `togglebind <key> <cvar>` binds one from the console (`togglebind F5 cg_drawFPS`; with values, `togglebind F6 cg_fov 80 100 120` steps through them) _(Slash, PR #387, after Blep's idea)_
 - Server browser: the sort mark stands just after the sorted column's name; it covered the name's first letters (Players, Ping) or its last ones _(Kushina, PR #389)_
 - Classic menus: the Collection has its own entry, SJK > COLLECTION on the main menu and Collection in the in-game SJK pop-up; the main menu's SJK page opens the SJK chat too (SJK > SJK CHAT), and the pop-up Camera control, which was only on F8 there _(Slash, PR #386)_
+- Characters you build yourself are easy to find: Profile > Character lists the game's species first, under Customizable, each tile marked; pick one to choose its head, torso, legs and skin colour, as in single player; after the skin colours, Custom gives red, green and blue sliders for any colour you like _(Slash, PR #375, after Blep's idea)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
