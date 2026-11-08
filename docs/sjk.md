@@ -95,6 +95,7 @@ migrated, except where the table says so. Where each is documented:
 | `cl_experimentalShowcase` | off (the experimental `ghost` and `mimic` commands, staff keys only) | [Ghost replay](client.md#ghost-replay) |
 | `ui_sliderPeek` | on: over a match, a Settings slider held a moment fades the rest of the screen away | [Settings](sjk-ui.md#settings) |
 | `cl_sjkChatJof`, `cl_sjkChatS` | -1, Auto: a verified JoF or S player reads their own clan's chat, staff both (Sol's spec, 03/11/2026); the other only when chosen | [Clan chats](hub-chat.md#clan-chats) |
+| `ui_launcherNotice` | on: without the SJK Launcher on the computer, the main page says it is out, with a link | [Main page](sjk-ui.md#main-page) |
 | `ui_supportLinks` | on, but shelved since 07/11/2026: Support SJK's links never show ([Donations](#donations)) | [Main page](sjk-ui.md#main-page) |
 
 The HUD look (`cg_hudStyle game`) and the console (`con_style auto`: the SJK UI's

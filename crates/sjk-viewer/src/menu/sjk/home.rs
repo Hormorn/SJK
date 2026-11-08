@@ -11,7 +11,9 @@
 //! Under the servers, the SJK chat is docked (`docs/hub-chat.md`): its last lines,
 //! who is online, a field to type in and Open chat for its page. Top left, Support SJK
 //! (`crate::support_links`): a link to each of SJK's donation pages, opened in the
-//! browser, and × to hide it for good (`ui_supportLinks 0`).
+//! browser, and × to hide it for good (`ui_supportLinks 0`). In its place for a player
+//! without the SJK Launcher (`crate::launcher_notice`): the launcher is out, a link to
+//! its release page and × (`ui_launcherNotice 0`).
 //!
 //! Keys: Up and Down move along the arc, Enter takes the entry, Right (or Tab)
 //! moves to the servers and Left (or Escape) back; Down past the last server
@@ -51,6 +53,9 @@ const SENDER_BAN_TOKEN: u16 = 72;
 /// Support SJK's links ([`crate::support_links::Link::ALL`]'s order) and its ×.
 const SUPPORT_TOKENS: [u16; 2] = [80, 81];
 const HIDE_SUPPORT_TOKEN: u16 = 82;
+/// The launcher notice's link and its ×.
+const LAUNCHER_TOKEN: u16 = 83;
+const HIDE_LAUNCHER_TOKEN: u16 = 84;
 /// The update line's button, bottom right.
 const UPDATE_TOKEN: u16 = 90;
 /// The dock's targets ([`chat_dock`]).
@@ -121,6 +126,10 @@ pub(crate) enum Action {
     Support(crate::support_links::Link),
     /// Hide Support SJK for good (its ×).
     HideSupport,
+    /// Open the SJK Launcher's release page (the launcher notice's link).
+    Launcher,
+    /// Hide the launcher notice for good (its ×).
+    HideLauncher,
     /// The update line's button: install the release waiting, open its page, or
     /// restart into the installed one (`update::click_notice`).
     Update,
@@ -250,6 +259,9 @@ pub(crate) struct HomeView<'a> {
     pub(crate) summary: &'a crate::profile_card::Summary,
     /// Support SJK shows top left (not with `ui_supportLinks 0`).
     pub(crate) support: bool,
+    /// The launcher notice shows top left, in Support SJK's place (no SJK Launcher on
+    /// this computer, and not `ui_launcherNotice 0`).
+    pub(crate) launcher: bool,
 }
 
 pub(crate) use super::chat_dock::ChatDock;
@@ -498,6 +510,8 @@ impl Home {
                 return activate.then_some(Action::Open(MainDestination::Profile));
             }
             HIDE_SUPPORT_TOKEN => return activate.then_some(Action::HideSupport),
+            LAUNCHER_TOKEN => return activate.then_some(Action::Launcher),
+            HIDE_LAUNCHER_TOKEN => return activate.then_some(Action::HideLauncher),
             UPDATE_TOKEN => return activate.then_some(Action::Update),
             _ => {}
         }
@@ -715,7 +729,9 @@ pub(crate) fn build(
     }
 
     servers(canvas, &frame, home, view);
-    if view.support {
+    if view.launcher {
+        launcher(canvas, &frame);
+    } else if view.support {
         support(canvas, &frame);
     }
     if let Some(dock) = &view.chat {
@@ -989,6 +1005,65 @@ fn support(canvas: &mut MenuCanvas, frame: &Frame) {
             TextAlign::Start,
         );
     }
+}
+
+/// The launcher notice's link pill.
+const LAUNCHER_LINK: f32 = 190.0;
+/// Its words' width before the pill.
+const LAUNCHER_WORDS: f32 = 250.0;
+
+/// The launcher notice, top left in Support SJK's place: "The SJK Launcher is out", a
+/// gold pill to its release page and ×, which hides it for good. Under them, a quiet
+/// line on what the launcher does (on ×, where to bring the notice back).
+fn launcher(canvas: &mut MenuCanvas, frame: &Frame) {
+    let s = frame.s;
+    let [left, top, height] = SUPPORT;
+    text(
+        canvas,
+        TextFamily::Display,
+        format_args!("The SJK Launcher is out"),
+        frame.rect(left, top + (height - 30.0) * 0.5, LAUNCHER_WORDS, 30.0),
+        22.0 * s,
+        color::TEXT,
+        FontWeight::Regular,
+        TextAlign::Start,
+    );
+    let x = left + LAUNCHER_WORDS;
+    super::kit::button(
+        canvas,
+        frame,
+        [x, top, LAUNCHER_LINK, height],
+        "Get it on GitHub",
+        true,
+        true,
+        false,
+        LAUNCHER_TOKEN,
+    );
+    super::kit::button(
+        canvas,
+        frame,
+        [x + LAUNCHER_LINK + 10.0, top, SUPPORT_HIDE, height],
+        "×",
+        false,
+        true,
+        false,
+        HIDE_LAUNCHER_TOKEN,
+    );
+    let hint = if canvas.token_hovered(HIDE_LAUNCHER_TOKEN) {
+        "Hides it for good: Settings > Interface > SJK Launcher notice brings it back"
+    } else {
+        "It installs and updates Sol JK for you, and helps when the game won't start"
+    };
+    text(
+        canvas,
+        TextFamily::Body,
+        format_args!("{hint}"),
+        frame.rect(left, top + height + 10.0, 720.0, 22.0),
+        15.0 * s,
+        color::QUIET,
+        FontWeight::Regular,
+        TextAlign::Start,
+    );
 }
 
 /// The keys of the page, bottom centre.
@@ -1328,11 +1403,43 @@ mod tests {
             chat,
             summary: &crate::profile_card::NOBODY,
             support: false,
+            launcher: false,
         }
     }
 
     // Support SJK and its hint line stay above the ring's top.
     const _: () = assert!(SUPPORT[1] + SUPPORT[2] + 10.0 + 22.0 < RING[1] - RING_RADIUS - 40.0);
+
+    #[test]
+    fn the_launcher_notice_links_its_page_and_hides_in_support_sjks_place() {
+        let mut home = Home::default();
+        let servers = [server("JoF")];
+        let mut with = view(&servers, None);
+        with.support = true;
+        with.launcher = true;
+        let mut canvas = MenuCanvas::new();
+        build(&mut canvas, [1920.0, 1080.0], &mut home, &with, 1.0);
+        assert!(canvas.rect_for(LAUNCHER_TOKEN).is_some());
+        assert!(canvas.rect_for(SUPPORT_TOKENS[0]).is_none());
+        assert_eq!(home.pointer(LAUNCHER_TOKEN, false, 1), None);
+        assert_eq!(
+            home.pointer(LAUNCHER_TOKEN, true, 1),
+            Some(Action::Launcher)
+        );
+        assert_eq!(
+            home.pointer(HIDE_LAUNCHER_TOKEN, true, 1),
+            Some(Action::HideLauncher)
+        );
+        let mut canvas = MenuCanvas::new();
+        build(
+            &mut canvas,
+            [1920.0, 1080.0],
+            &mut home,
+            &view(&servers, None),
+            1.0,
+        );
+        assert!(canvas.rect_for(LAUNCHER_TOKEN).is_none());
+    }
 
     #[test]
     fn support_sjk_opens_each_page_and_hides() {

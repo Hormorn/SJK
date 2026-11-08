@@ -1321,6 +1321,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Over a match, holding a Settings slider for a moment fades the rest of the screen away so its change shows on the game (0 keeps the screen)",
         ),
         CvarDefinition::new(
+            crate::launcher_notice::CVAR,
+            true,
+            archive,
+            "Show the SJK Launcher notice at the top left of the SJK UI's main page when this computer has no SJK Launcher: a link to its release page (0 hides it, as its x does)",
+        ),
+        CvarDefinition::new(
             crate::support_links::CVAR,
             true,
             archive,
