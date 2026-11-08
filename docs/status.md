@@ -60,6 +60,14 @@ clippy. Not verified: in a game or against the hub; the Mirror pass on a live su
 pinhole, the saber toggle on real servers, the wheel's placement against walls. The model is a
 placeholder for Sol's.
 
+## Toys page counts every toy (hub report #265)
+
+07/11/2026, `fix/toys-count-265` from `main` `b1ed113d`. The Toys page's headline was the
+fixed text "10 toys", written before Fishing came as the eleventh toy, while the tab's count
+(11/11) comes from the toys. The headline is now counted from `TOY_COUNT` too. Verified: the
+unit test `the_headline_counts_every_toy` (headline against the tab's count and the rows),
+the `collection` tests, fmt and clippy.
+
 ## Rig chains feel the player's movement, and can keep out of the arms
 
 06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only

@@ -395,6 +395,12 @@ fn states(inputs: &Inputs<'_>) -> [bool; TOY_COUNT] {
     ]
 }
 
+/// The Toys tab's headline, "12 toys": counted from the toys, as the tab's count is, so
+/// a new toy cannot leave it behind (hub report #265).
+fn headline() -> String {
+    format!("{TOY_COUNT} toys")
+}
+
 impl Panel {
     /// The Toys tab.
     pub(super) fn toys(&mut self, frame: &Frame, inputs: &Inputs<'_>) {
@@ -404,7 +410,7 @@ impl Panel {
             0 => "Switch them here or in a match; other SJK players on your server see what you turn on.".to_owned(),
             lit => format!("{lit} on now. Switch them here or in a match; other SJK players on your server see what you turn on."),
         };
-        self.lead(frame, "12 toys", &line);
+        self.lead(frame, &headline(), &line);
         self.toy_heads(frame);
         let chosen = self.toy.min(TOY_COUNT - 1);
         for (index, toy) in TOYS.iter().enumerate() {
@@ -1066,6 +1072,18 @@ pub(super) fn words(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Hub report #265 ({{S}}NX|LH{SW}): the page's headline names as many toys as the
+    /// tab's count and the rows.
+    #[test]
+    fn the_headline_counts_every_toy() {
+        let counts = super::super::view::counts(&super::super::tests::inputs(
+            unlockables::Holdings::Known(&[]),
+            "",
+        ));
+        assert_eq!(headline(), format!("{} toys", counts[3].total));
+        assert_eq!(headline(), format!("{} toys", TOYS.len()));
+    }
 
     /// Each toy's row, its switch and its card's keys and switch fit over the keys and
     /// answer the pointer, the rows left of the model's column and the card right of it,
