@@ -979,8 +979,10 @@ fn nameplate_snapshot() {
 /// (yellow "?"), a duelling staff player without SJK farther off (their model's head
 /// icon, the duel badge on the hexagon and a dotted line), an SJK player who does not
 /// share (the dotted line), the player's own plate (`cg_nameplateSelf`, blue team) over
-/// a large shield (199), and far away a player without SJK (a small grey hexagon and
-/// the name over a hairline).
+/// a large shield (199), far away a player without SJK (a small grey hexagon and
+/// the name over a hairline), and a JoF EternalJK player seen in SJK chat (their head
+/// icon, a grey frame, the client's icon small after the name, no tick; the verified
+/// player shows the icon after their tick, as a claim from that client would).
 fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
     use crate::hud::nameplate::{PreviewPlate, State, Style};
     use sjk_ui::TextureId;
@@ -999,6 +1001,13 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
     shots
         .icons
         .insert(crate::ui_renderer::duel_texture(0).0, duel);
+    let ejk = image::load_from_memory(include_bytes!("../../../assets/branding/jof-ejk-icon.png"))
+        .expect("the icon decodes")
+        .into_rgba8();
+    shots.icons.insert(
+        crate::ui_renderer::EJK_TEXTURE.0,
+        image::imageops::resize(&ejk, 128, 128, image::imageops::FilterType::Lanczos3),
+    );
     // Two pictures as a hub serves them, and a head icon, each cut round in a cell.
     let round = |mut cell: RgbaImage| {
         crate::avatars::picture::round(&mut cell, 128);
@@ -1070,6 +1079,7 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
             force: Some([0.35, 0.8, 0.85]),
             powers: (1 << 2) | (1 << 9),
             verified: true,
+            client: Some(crate::ui_renderer::EJK_TEXTURE),
             duelling: false,
             team: None,
             shared: true,
@@ -1087,6 +1097,7 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
             force: Some([0.1, 0.45, 0.6]),
             powers: (1 << 6) | (1 << 13) | (1 << 7),
             verified: false,
+            client: None,
             duelling: false,
             team: Some(true),
             shared: true,
@@ -1104,6 +1115,7 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
             force: Some([1.0, 1.0, 1.0]),
             powers: 0,
             verified: true,
+            client: None,
             duelling: true,
             team: None,
             shared: false,
@@ -1121,6 +1133,7 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
             force: Some([0.64, 0.64, 0.64]),
             powers: 0,
             verified: true,
+            client: None,
             duelling: false,
             team: Some(false),
             shared: false,
@@ -1138,6 +1151,7 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
             force: Some([0.0, 0.0, 0.0]),
             powers: 0,
             verified: false,
+            client: None,
             duelling: false,
             team: None,
             shared: false,
@@ -1156,6 +1170,26 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
             force: None,
             powers: 0,
             verified: false,
+            client: None,
+            duelling: false,
+            team: None,
+            shared: false,
+            withheld: false,
+            picture: shown(2),
+            stand_in: None,
+            sjk: false,
+        },
+        // On JoF EternalJK, named as an SJK chat reader.
+        PreviewPlate {
+            slot: 6,
+            point: [330.0, 610.0],
+            distance: 330.0,
+            health: None,
+            shield: None,
+            force: None,
+            powers: 0,
+            verified: false,
+            client: Some(crate::ui_renderer::EJK_TEXTURE),
             duelling: false,
             team: None,
             shared: false,
@@ -1173,6 +1207,7 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
         // A black name, edged in its halo.
         "^0Qu^7iet",
         "Jaden",
+        "^5JoF^7 Vinry",
     ];
     // The plates draw with the HUD font in game (`hud_runtime::append`).
     let hud = crate::text::load_classic().expect("build the HUD font");

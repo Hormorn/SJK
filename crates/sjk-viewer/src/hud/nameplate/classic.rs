@@ -159,7 +159,7 @@ impl State {
             let scale = size / font.height.max(1.0);
             let duel_badge = entry.duelling && self.settings.duel_badge;
             // Measured only for a badge beside the name.
-            let text = if duel_badge || entry.mark.is_some() {
+            let text = if duel_badge || entry.mark.is_some() || entry.client.is_some() {
                 crate::text::visible_text_width(font, label(id), scale).min(width)
             } else {
                 0.0
@@ -177,16 +177,28 @@ impl State {
                     side,
                 )
             });
+            let after = left + (width + text) * 0.5 + size * 0.15;
             let mark = entry.mark.map(|_| {
                 let side = size * 0.95;
                 Rect::new(
-                    (left + (width + text) * 0.5 + size * 0.15).min(viewport[0] - side),
+                    after.min(viewport[0] - side),
                     capitals - side * 0.5,
                     side,
                     side,
                 )
             });
-            self.badges(entry, mark, badge, opacity);
+            // Another client's icon after the mark, smaller.
+            let client = entry.client.map(|_| {
+                let side = size * 0.78;
+                let x = mark.map_or(after, |mark| mark.right() + size * 0.15);
+                Rect::new(
+                    x.min(viewport[0] - side),
+                    capitals - side * 0.5,
+                    side,
+                    side,
+                )
+            });
+            self.badges(entry, [mark, client], badge, opacity);
         }
         if entry.power_count > 0 && entry.proximity > 0.01 {
             // Centred over the name, as tall as it.

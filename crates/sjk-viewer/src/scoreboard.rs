@@ -3,7 +3,7 @@
 mod afk;
 pub(crate) use afk::CVAR as AFK_CVAR;
 pub(crate) mod behavior;
-mod chat_readers;
+pub(crate) mod chat_readers;
 mod classic;
 mod deaths;
 mod icons;

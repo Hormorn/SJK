@@ -9189,6 +9189,16 @@ test: Click List: a row per online player, icons on the right; the wheel over ro
 test: Faces, Escape or clicking a message brings the faces back; Escape again closes the page.
 test: Before the hub deploy: rows show without icons, cards say only Online now.
 
+[nameplate-client-icons]
+area: HUD
+title: Nameplates: the JoF EJK icon, small after the tick, for EJK players
+change: Same rule as the scoreboard: a claim from EJK (tick, then icon) or a name
+change: matching one online SJK chat reader (icon alone, no tick). SJK players: none.
+test: A JoF EJK player in SJK chat on your server: their plate shows the small EJK icon.
+test: Same in each style (cg_nameplateStyle 0, 1, 2), near and far; no tick for them.
+test: SJK players' plates are unchanged; bots never get the icon.
+test: cl_sjkChatClientIcons 0: no icon on any plate.
+
 [staff-tools-3]
 area: Menus & settings
 title: Staff page: Here/Online/Team lists, pages, shader filter, staff gifts and My gifts

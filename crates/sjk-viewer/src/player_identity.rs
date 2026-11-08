@@ -827,6 +827,51 @@ pub(crate) fn slot_marks(game_state: &GameState) -> SlotMarks {
 /// Each slot's mark after its nameplate's name ([`slot_marks`]).
 pub(crate) type SlotMarks = [Option<sjk_ui::TextureId>; MAX_CLIENTS];
 
+/// The icon of each slot's client, small after its nameplate's mark
+/// (`chat::client_icons::plate_texture`): the client the hub's claim for the slot names
+/// (presence `client`), none for SJK; for a slot no claim names and not a bot's, the
+/// client players who read SJK chat without claiming are taken to be on, where one
+/// such reader seems to sit (`scoreboard::chat_readers`, the scoreboard's rule: a name
+/// proves nothing, so the icon comes alone, without a tick). The player's own slot is
+/// SJK's.
+pub(crate) fn slot_clients(game_state: &GameState) -> SlotMarks {
+    let mut clients = [None; MAX_CLIENTS];
+    let own = usize::try_from(game_state.client_num).ok();
+    let mut rows: Vec<(u8, String, bool)> = (0..MAX_CLIENTS)
+        .filter(|&slot| {
+            game_state
+                .config_string(CS_PLAYERS + slot)
+                .is_some_and(|bytes| LegacyClientInfo::new(bytes).bytes("skill").is_none())
+        })
+        .filter_map(|slot| {
+            let name = shown_name(game_state, slot)?;
+            Some((u8::try_from(slot).ok()?, name, Some(slot) == own))
+        })
+        .collect();
+    with_snapshot(|snapshot| {
+        for (slot, name, claimed) in &mut rows {
+            if let Some(player) = snapshot.badge(*slot, name) {
+                *claimed = true;
+                clients[usize::from(*slot)] =
+                    crate::chat::client_icons::plate_texture(&player.client);
+            }
+        }
+    });
+    if let Some(icon) = crate::chat::client_icons::unclaimed() {
+        let shown: Vec<(u8, &str, bool)> = rows
+            .iter()
+            .map(|(slot, name, claimed)| (*slot, name.as_str(), *claimed))
+            .collect();
+        let slots = crate::scoreboard::chat_readers::slots(&shown);
+        for (slot, client) in clients.iter_mut().enumerate() {
+            if slot < 64 && slots & 1 << slot != 0 {
+                *client = Some(icon.texture);
+            }
+        }
+    }
+    clients
+}
+
 /// The pictures of the SJK players on this server, by slot, for their nameplates: each
 /// one whose claim names the name the game shows there, and the local player's own slot
 /// from their profile. A slot the hub knows nobody in is `None`: its nameplate shows the
@@ -1840,6 +1885,7 @@ mod tests {
         assert_eq!(revision(), 0);
         assert!(snapshot().is_none());
         assert_eq!(slot_marks(&GameState::empty_local(0)), [None; MAX_CLIENTS]);
+        assert_eq!(slot_clients(&GameState::empty_local(0)), [None; MAX_CLIENTS]);
         assert_eq!(report_gate(), crate::ingame_menu::players::Gate::NoIdentity);
         assert_eq!(hub_mark(3, "Sol"), None);
         assert!(player_report_outcome().is_none());

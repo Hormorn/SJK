@@ -158,6 +158,7 @@ did: SJK chat GIFs, who is online, chat sounds, reply and the last channel remem
 did: The SJK chat GIF picker: favourites, GIPHY search with your own key, the GIFs seen in the chat
 did: SJK chat from binds: sjksay, sjkgif and the GIF wheel of favourite GIFs
 did: Chat bans: verified players ban unverified ones from SJK chat for 24 hours
+did: JoF EJK players in SJK chat wear its icon on the scoreboard and their nameplate
 did: Trust marks: an empty tick for new players, green after 30 days, red after a ban
 did: Stop or mute other players' emotes on your screen (sjkemote stop all, sjkemote mute)
 did: The emote help card (help_emotes): the emote commands and the quick wheel
