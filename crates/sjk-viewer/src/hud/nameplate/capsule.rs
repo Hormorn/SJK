@@ -352,7 +352,12 @@ impl State {
             size,
             font,
         );
-        self.badges(entry, [capsule.mark, capsule.client], capsule.badge, opacity);
+        self.badges(
+            entry,
+            [capsule.mark, capsule.client],
+            capsule.badge,
+            opacity,
+        );
         if entry.power_count > 0 && entry.proximity > 0.01 {
             let shown = entry.powers[..usize::from(entry.power_count)]
                 .iter()
@@ -632,7 +637,10 @@ mod tests {
         assert!(inside(client, with.pill));
         assert!((client.y + client.height * 0.5 - with.middle).abs() < 1e-3);
         let grown = with.pill.width - without.pill.width;
-        assert!((grown - (MARK_GAP + CLIENT) * with.k).abs() < 1e-3, "{grown}");
+        assert!(
+            (grown - (MARK_GAP + CLIENT) * with.k).abs() < 1e-3,
+            "{grown}"
+        );
         assert!(without.client.is_none());
     }
 

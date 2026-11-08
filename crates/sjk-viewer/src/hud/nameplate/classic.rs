@@ -191,12 +191,7 @@ impl State {
             let client = entry.client.map(|_| {
                 let side = size * 0.78;
                 let x = mark.map_or(after, |mark| mark.right() + size * 0.15);
-                Rect::new(
-                    x.min(viewport[0] - side),
-                    capitals - side * 0.5,
-                    side,
-                    side,
-                )
+                Rect::new(x.min(viewport[0] - side), capitals - side * 0.5, side, side)
             });
             self.badges(entry, [mark, client], badge, opacity);
         }

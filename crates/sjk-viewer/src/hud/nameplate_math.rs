@@ -775,7 +775,10 @@ mod tests {
             })
         };
         let grown = long(true).plate.width - long(false).plate.width;
-        assert!((grown - (MARK_GAP + CLIENT) * holo.k).abs() < 1e-3, "{grown}");
+        assert!(
+            (grown - (MARK_GAP + CLIENT) * holo.k).abs() < 1e-3,
+            "{grown}"
+        );
         assert!(inside(long(true).client.unwrap(), long(true).plate));
     }
 

@@ -1885,7 +1885,10 @@ mod tests {
         assert_eq!(revision(), 0);
         assert!(snapshot().is_none());
         assert_eq!(slot_marks(&GameState::empty_local(0)), [None; MAX_CLIENTS]);
-        assert_eq!(slot_clients(&GameState::empty_local(0)), [None; MAX_CLIENTS]);
+        assert_eq!(
+            slot_clients(&GameState::empty_local(0)),
+            [None; MAX_CLIENTS]
+        );
         assert_eq!(report_gate(), crate::ingame_menu::players::Gate::NoIdentity);
         assert_eq!(hub_mark(3, "Sol"), None);
         assert!(player_report_outcome().is_none());
