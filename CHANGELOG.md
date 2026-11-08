@@ -30,7 +30,16 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1108.1 (Alpha) | 08/11/2026
+
+The WHEEL OF DOOM, a new Solfox, toon shading by choice, sculpted holocrons and smoother joins and inputs.
+
+> WHEEL OF DOOM: A new toy you spin for credits: it lands on a Mythical holocron, on nothing, or on a few seconds of doom.
+> Solfox: Sol's new fox model, with a second look whose hood, cape and skirt move as you run.
+> Toon by choice: Toon shading is now each player's pick for their own model, on the Profile's Character tab.
+> Holocrons and tags: The Jedi cube and the gold engram are sculpted, and tags come in Alpha and Community collections.
+> SJK chat: The Online list shows the clients each player is on, and JoF EJK players wear their icon on nameplates and the scoreboard.
+> Smoother: Inputs leave a frame sooner again, big model textures no longer freeze the game, and joins no longer loop.
 
 = r_toonModels reset: Toon models now shows the toon shading players chose for their own model; off, every model keeps stock shading.
 = cg_toonModel: Toon on my model: your model in toon shading for every SJK player; some models suit it, some don't. Also on the Character tab.
@@ -46,7 +55,6 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Status bubbles: the chat bubble over an SJK player can show why it is up: the dots lit in turn while they type, a pause sign while a menu or the console is open, a moon with a rising z while their game is alt-tabbed or minimised; other players keep the stock bubble. Off by default: Settings > Chat > Status bubbles (`cg_statusBalloons`) _(Sol)_
 - Textures larger than 2048 pixels are halved down to it (`r_maxTextureSize`, Settings: Largest texture; 0 keeps every size): a 4096 one takes a quarter of the video memory and loads faster _(Sol)_
 - A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
-- Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_
 - Tags come in collections: Collection > Tags lists the Alpha collection, SJK's own tags, and the Community collection, the tags players drew (EZ, Gonk and Geyon so far), each under its own heading, and a tag's card says which it is in _(Sol)_
 - The Uncommon and Mythical holocrons are sculpted by Sol too: a steel-framed Jedi cube with glowing green glass round an emblem plate on each face, and a gold engram of 38 engraved triangular plates that breathe out and back over a white-hot core, glowing seams between them, both detailed by a normal map _(Sol)_
 - The WHEEL OF DOOM: a new toy (`toy_wheelofdoom`, Collection > Toys) you spin for credits; it lands on a Mythical holocron, on nothing, or on doom: reversed keys, an inverted mouse, a mirrored or upside-down world, darkness, no saber, quacks, a curse or a blast, for a few seconds _(Sol)_
