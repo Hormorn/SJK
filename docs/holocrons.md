@@ -296,17 +296,23 @@ the person's own count) and where crystals come from.
   (rises of the game's hit counter, `PERS_HITS`), `hurt` (snapshots whose health or
   armour fell while the last attacker, `PERS_ATTACKER`, is another client: falls and
   self damage are not counted), `kills` and `deaths` (obituaries against or by another
-  client). The counts are kept only while the claim says `active`, sent with the next
+  client), and since 04/11/2026 `bites` (bites of the fishing toy hooked in time, so a
+  player standing at the water earns; headshots' question in #ideas). The counts are kept
+  only while the claim says `active`, sent with the next
   one and cleared once the hub accepted it (a failed claim keeps them for the next).
   [holocrons/signals.rs](../crates/sjk-viewer/src/holocrons/signals.rs) reads them from
   each live snapshot and command, with atomics and no allocation. The hub decides the
   pace: full while the claim shows moves or a fight and a fight came in the last 10
   minutes, and the same ("peaceful", 100 % since Sol's call on 03/11/2026; the hub
-  sends the share) while moving without a fight in that time, none standing
-  still, none for counts no one could make in that time (the hub's `PROTOCOL.md`). The
+  sends the share) while moving without a fight in that time, the same while standing
+  still within 5 minutes of a hooked bite ("fishing"; a bite comes at a random time and
+  a press of use without one scares the fish off, so a held key earns nothing), none
+  otherwise standing still, none for counts no one could make in that time (the hub's
+  `PROTOCOL.md`). The
   Holocrons tab says when the last claim earned less than full pace ("Half pace: no
   fight in the last 10 minutes. Fight, get hit or duel for full pace", "Not earning:
-  move around or fight to earn holocrons"), from `activity` in `GET /v1/holocrons`.
+  move around or fight to earn holocrons", "... move around, fight or fish ..." from a
+  hub that counts fishing), from `activity` in `GET /v1/holocrons`.
 - **Catch-up** (03/11/2026, Rollembones' idea, Sol: "x2 faster the next day"): when the
   previous day's drops by play fell short of the cap, the hub gives the day a catch-up
   pool, the shortfall, at most 4 (`catchup` in `GET /v1/holocrons`: `pool`, `left`,

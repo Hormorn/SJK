@@ -13,6 +13,8 @@
 //!   are not counted.
 //! - **kills** and **deaths**: obituaries of the player killing another client, and of
 //!   another client killing the player.
+//! - **bites**: bites of the fishing toy (`crate::fishing`) hooked in time (04/11/2026),
+//!   so a player standing at the water earns while they answer the bites.
 //!
 //! Only counted while the player is actively playing ([`super::activity`]): the viewer
 //! sets [`set_counting`] twice a second with the activity it tells the hub. The counts
@@ -46,6 +48,7 @@ static HITS: AtomicU64 = AtomicU64::new(0);
 static HURT: AtomicU64 = AtomicU64::new(0);
 static KILLS: AtomicU64 = AtomicU64::new(0);
 static DEATHS: AtomicU64 = AtomicU64::new(0);
+static BITES: AtomicU64 = AtomicU64::new(0);
 
 thread_local! {
     static WATCH: RefCell<Watch> = const { RefCell::new(Watch::new()) };
@@ -54,6 +57,13 @@ thread_local! {
 /// Whether what the player does counts now: the activity the claims say.
 pub(crate) fn set_counting(on: bool) {
     COUNTING.store(on, Ordering::Relaxed);
+}
+
+/// A bite of the fishing toy hooked in time.
+pub(crate) fn bite() {
+    if COUNTING.load(Ordering::Relaxed) {
+        BITES.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 /// A command the client sends: a press of attack or alt attack is an attack.
@@ -104,6 +114,7 @@ pub(crate) fn take() -> PlaySignals {
         hurt: HURT.swap(0, Ordering::Relaxed),
         kills: KILLS.swap(0, Ordering::Relaxed),
         deaths: DEATHS.swap(0, Ordering::Relaxed),
+        bites: BITES.swap(0, Ordering::Relaxed),
     }
 }
 

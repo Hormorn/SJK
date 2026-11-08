@@ -45,6 +45,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Kept outside the game's GameData, SJK finds a Steam copy of Jedi Academy by itself, in any Steam library (another drive too), and a GOG copy on Windows; and Steam's Play button can start SJK: set Jedi Academy's launch options to the path of sjk.exe followed by %command% _(Slash, PR #366)_
 - The E-Web works: use it from the inventory to set the heavy repeater down in front of you, aim with the mouse and fire, use it again (or back off) to put it away; it blows up when shot to pieces or when you die. The E-Webs of single-player maps such as hoth2 stand on the map too, and anyone facing one takes it with the use key (hub report #267) _(Slash, PR #384, after Hormorn's and AngeloPapaya's reports)_
 - Spawn list (`spawn_panel`): every NPC and vehicle of your game data and a few cheats (noclip, god, give all, remove all NPCs) in a list to filter by typing, spawned or run with Enter or a click instead of typed in the console; it needs a game with cheats on, such as `devmap mp/ffa3` _(Slash, PR #368)_
+- Fishing counts as play for holocrons: standing at the water earns while you hook the bites (within 5 minutes of the last one); pressing Use without a bite still scares the fish off _(Slash, PR #362, after headshotsmcgee117's question in #ideas)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
