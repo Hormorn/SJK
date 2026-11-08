@@ -20,7 +20,7 @@ struct Read {
     mesh: ActorMesh,
     scene: FlattenedScene,
     cache: GlaCache,
-    textures: Vec<crate::world_materials::PreparedTexture>,
+    textures: crate::world_materials::WarmTextures,
 }
 
 enum Stage {

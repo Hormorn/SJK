@@ -721,15 +721,21 @@ pub(super) fn compile_profile() -> [u64; 2] {
 /// `r_textureCompression`) and returned, for
 /// [`Runtime::upload_prepared_texture`]: resizing a model's textures down to one texel
 /// on the render thread cost 50 to 180 ms for some player models.
+///
+/// The decoded images are held by the result until it is dropped, after the append: held
+/// by the cache alone, the next image decoded anywhere could sweep them first, and the
+/// append decoded them again on the render thread (a 4096² PNG and JPEG held a frame
+/// 743 ms for `creyonwolf`, 08/11/2026).
 pub(crate) fn warm_entity_materials(
     vfs: &VirtualFileSystem,
     shaders: &ShaderCatalog,
     lightmap: &wgpu::TextureView,
     materials: &[ViewerMaterial],
     mipmapped: bool,
-) -> Vec<PreparedTexture> {
+) -> WarmTextures {
     let mut image_cache = ImageCache::with_capacity(64);
     let mut prepared: Vec<PreparedTexture> = Vec::new();
+    let mut held: Vec<Arc<RgbaImage>> = Vec::new();
     for key in materials {
         let Ok(material) = compile_material(
             vfs,
@@ -743,6 +749,17 @@ pub(crate) fn warm_entity_materials(
         ) else {
             continue;
         };
+        for stage in &material.stages {
+            for image in stage
+                .primary_pixels
+                .iter()
+                .chain(stage.secondary_pixels.iter().flatten())
+            {
+                if !held.iter().any(|kept| Arc::ptr_eq(kept, image)) {
+                    held.push(Arc::clone(image));
+                }
+            }
+        }
         if !mipmapped {
             continue;
         }
@@ -775,7 +792,24 @@ pub(crate) fn warm_entity_materials(
             }
         }
     }
-    prepared
+    WarmTextures {
+        textures: prepared,
+        _held: held,
+    }
+}
+
+/// What [`warm_entity_materials`] made: the textures to upload one a frame, and the
+/// decoded images their materials are compiled from, held until this is dropped.
+pub(crate) struct WarmTextures {
+    textures: Vec<PreparedTexture>,
+    _held: Vec<Arc<RgbaImage>>,
+}
+
+impl WarmTextures {
+    /// The next texture to upload.
+    pub(crate) fn pop(&mut self) -> Option<PreparedTexture> {
+        self.textures.pop()
+    }
 }
 
 /// One texture's mip chains (or their blocks, with `r_textureCompression`) built on a

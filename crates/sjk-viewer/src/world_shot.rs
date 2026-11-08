@@ -321,6 +321,8 @@ mod propgun_shots;
 mod ragdoll_shots;
 #[path = "world_shot_toy_master.rs"]
 mod toy_master_shots;
+#[path = "world_shot_wheel_of_doom.rs"]
+mod wheel_of_doom_shots;
 
 #[path = "world_shot_blade_cards.rs"]
 mod blade_cards;
@@ -1353,6 +1355,8 @@ Found the fog bug, ask me about it!"
             mystery_box: None,
             junk: None,
             junk_sale: None,
+            wheel_of_doom: None,
+            wheel_of_doom_spin: None,
             box_hunt: None,
             secrets: None,
             secrets_revision: 0,

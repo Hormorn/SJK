@@ -140,6 +140,9 @@ const FISHING_TOKEN: u16 = 1_378;
 const SELL_JUNK_TOKEN: u16 = 1_395;
 /// Fishing's place among the toys (`collection_toys::TOYS`).
 const FISHING_TOY: usize = 10;
+/// The WHEEL OF DOOM's niche on Toys, and its place among the toys.
+const WHEEL_OF_DOOM_TOKEN: u16 = 1_396;
+const WHEEL_OF_DOOM_TOY: usize = 11;
 /// The Toys tab's "?", the Toy Master's (`collection_toys::Panel::toy_master_badge`): its
 /// hover card tells of the toys hidden on maps and names those the player found.
 const TOY_MASTER_TOKEN: u16 = 1_376;
@@ -161,9 +164,9 @@ const BOTH_TOKEN: u16 = 1_306;
 /// How far (frame pixels) a press on the lone saber may move and still be a click.
 const CLICK_SLOP: f32 = 6.0;
 /// The toys the Toys tab shows: Illuminate, the cardboard box, Order 66, the Hax, the
-/// Ragdoll, the Drone, the Boombox, the Monitor, Box hunt, the Banana peel, then
-/// Fishing.
-const TOY_COUNT: usize = 11;
+/// Ragdoll, the Drone, the Boombox, the Monitor, Box hunt, the Banana peel, Fishing,
+/// then the WHEEL OF DOOM.
+const TOY_COUNT: usize = 12;
 /// Each toy's row, in the order of [`Panel::toy`].
 const TOY_TOKENS: [u16; TOY_COUNT] = [
     TOY_TOKEN,
@@ -177,6 +180,7 @@ const TOY_TOKENS: [u16; TOY_COUNT] = [
     BOX_HUNT_TOKEN,
     BANANA_TOKEN,
     FISHING_TOKEN,
+    WHEEL_OF_DOOM_TOKEN,
 ];
 /// Each toy row's own switch (25/10/2026): it turns that toy on or off in place, a token
 /// a toy from here on, below [`FAVOURITE_TOKEN`].
@@ -447,6 +451,9 @@ pub(crate) enum PanelAction {
     Fishing(bool),
     /// Sell the fished junk to the hub: the same as `fishing_sell`.
     SellJunk,
+    /// Press the WHEEL OF DOOM's switch: the same as `toy_wheelofdoom` (the first shows
+    /// the price, a second spins).
+    WheelOfDoom,
     /// Set `cg_tag` to this tag's id: the one `toy_tag` sticks.
     /// Pick a tag (or a card) for `toy_tag`, in a finish (`cg_tag`, `cg_tagFinish`).
     ChooseTag(String, &'static str),
@@ -633,6 +640,8 @@ pub(crate) struct Inputs<'a> {
     /// The Fishing card's catches and junk sale, as the viewer last gave them; none
     /// lists nothing.
     pub(crate) fishing_card: Option<&'a crate::fishing_sell::Card>,
+    /// A WHEEL OF DOOM of the player's spins, or one of its effects runs.
+    pub(crate) wheel_of_doom: bool,
     /// The `name` cvar, for the nameplate.
     pub(crate) name: &'a str,
     /// The stock blade's colour (`color1`), for its swatch.
@@ -1292,6 +1301,7 @@ impl Panel {
             Tab::Toys if self.toy == 8 => PanelAction::BoxHunt(!self.box_hunt_on),
             Tab::Toys if self.toy == 9 => PanelAction::Banana(!self.banana_on),
             Tab::Toys if self.toy == FISHING_TOY => PanelAction::Fishing(!self.fishing_on),
+            Tab::Toys if self.toy == WHEEL_OF_DOOM_TOY => PanelAction::WheelOfDoom,
             Tab::Toys => PanelAction::Illuminate(!illuminate),
             Tab::Nameplates => PanelAction::SeeAndShare(!self.share_on),
             Tab::Tags => self.choose_tag(),
@@ -2451,7 +2461,8 @@ impl Panel {
             SEEN_ALL_TOKEN => self.see_all(),
             // A toy's row chooses it; its own switch runs it.
             TOY_TOKEN | BOX_TOKEN | ORDER_TOKEN | HAX_TOKEN | RAGDOLL_TOKEN | DRONE_TOKEN
-            | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN => {
+            | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN
+            | WHEEL_OF_DOOM_TOKEN => {
                 self.toy = TOY_TOKENS.iter().position(|&row| row == token).unwrap_or(0);
                 PanelAction::None
             }
@@ -2688,6 +2699,7 @@ mod tests {
             banana: false,
             fishing: false,
             fishing_card: None,
+            wheel_of_doom: false,
             name: "^1Sol^7Vulpes",
             stock: sjk_ui::Color::new(0.16, 0.48, 1.0, 1.0),
             grid: false,
@@ -2891,13 +2903,21 @@ mod tests {
                 "saber_world_shift",
                 "saber_exegol_rift",
                 "saber_varykino_blossom",
+                "saber_vulptex_crystalfire",
+                "saber_zeffo_thunderchorus",
                 "saber_moraband_erasure",
                 "saber_wellspring_triad",
+                "saber_atollon_gathering",
                 "saber_korriban_ragnos",
                 "saber_tatooine_krayt_spine",
                 "saber_dromund_kaas_vitiate",
+                "saber_utapau_whirlwind",
+                "saber_wayland_gravity_press",
+                "saber_lehon_maelstrom",
                 "saber_nihilus_hunger",
                 "saber_moon",
+                "saber_exar_kun_temple",
+                "saber_vergence_scatter",
                 "saber_taris_undercity",
                 "saber_angel",
             ]

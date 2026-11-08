@@ -32,14 +32,38 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Textures larger than 2048 pixels are halved down to it (`r_maxTextureSize`, Settings: Largest texture; 0 keeps every size): a 4096 one takes a quarter of the video memory and loads faster _(Sol)_
+- A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
+- Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_
+- Tags come in collections: Collection > Tags lists the Alpha collection, SJK's own tags, and the Community collection, the tags players drew (EZ, Gonk and Geyon so far), each under its own heading, and a tag's card says which it is in _(Sol)_
+- The Uncommon and Mythical holocrons are sculpted by Sol too: a steel-framed Jedi cube with glowing green glass round an emblem plate on each face, and a gold engram of 38 engraved triangular plates that breathe out and back over a white-hot core, glowing seams between them, both detailed by a normal map _(Sol)_
+- The WHEEL OF DOOM: a new toy (`toy_wheelofdoom`, Collection > Toys) you spin for credits; it lands on a Mythical holocron, on nothing, or on doom: reversed keys, an inverted mouse, a mirrored or upside-down world, darkness, no saber, quacks, a curse or a blast, for a few seconds _(Sol)_
+- Your inputs leave as soon as before again: since 2026.1107.1 every command was made a frame late (3 ms at 350 FPS, 17 ms at 60) off SJK's servers; now only its time stamp is stock's _(Sol)_
+- `cl_freshStamps 1` stamps your commands with this frame's server time on every server again, as before 2026.1107.1 (0 keeps the stock stamp, but on SJK servers); Heimdall on JoF may kick for it _(Sol)_
+- Rig models' hair and capes can trail behind a running player and keep out of the arms (`drag`, `arms`) _(Kushina, PR #377)_
+- Rig models' chains can take `limit`, `clearance` and `layer` lines, and a bone's middle now collides with the body _(Kushina, PR #374)_
+
+## 2026.1107.1 (Alpha) | 07/11/2026
+
+Fixes for the Heimdall kicks on JoF, map weather, Creyon's 130 blades and JA+ games in Create game.
+
+> Heimdall kicks: The random "Set /cl_timeNudge 0" kicks on JoF are fixed: your commands are now timed the way other clients' are (found by Milamber).
+> Weather: Maps can get rain, storms, snow and fog, with lightning, rain-mirroring puddles and rain and wind sounds you can switch on.
+> New blades: 130 new blades by Creyon, 17 of them Mythical, in the new Beta Edition; they come to holocrons soon.
+> JA+ games: Create game can host a JA+ game, with JA+ Force rules, saber damage and duels.
+> Smoother: The model picker no longer freezes while you browse, and rain and fog cost far less on the GPU.
+
 = s_weatherSounds: Hear the rain and the wind when a map has weather, quieter under a roof.
 = r_clouds reset: Volumetric clouds over open sky are now off by default under every graphics preset; switch them on here if you like them.
 = r_weatherLightning: Lightning in storms: flashes light up the rain, the fog and the wet streets, and thunder rolls in after them.
 
+- Your commands carry the server time your previous frame read, as every other client's do (not on SJK's own servers): they went out a frame fresher (8 ms at 125 FPS), which JoF's anti-cheat (Heimdall) reads as a negative time nudge and kicks for with "Set /cl_timeNudge 0" _(Milamber, after OpenJK)_
+- Rig model hair and other chains that fork or stack joints no longer jump about from frame to frame _(Kushina, PR #373)_
 - The vote panel is easier to read: a centred SJK card under the match timer with the proposal in large text, the seconds left with a shrinking bar, the YES and NO counts in green and red with a bar of their share, and the keys to vote under them (`/vote yes` / `/vote no` when no key is bound); `testvote` shows a made-up vote to see it _(Slash)_
 - Create game can host a JA+ game: the new Server mod row (under Server) picks Base game, the default, or JA+, and the game you start runs that mod; your choice is kept for next time _(Sol)_
 - SJK's server in JA+ mode (`g_mod japlus`) plays JA+'s Force rules: push and pull reach players on the ground (`jp_pushPullKnockDown`) and teammates with `g_friendlyFire`, and fling items (`jp_pushAll`); absorb gains more (`jp_fixAbsorb`); a grip may start rolling (`jp_fixRoll`); `jp_gripOpenSaber`, `jp_cloakFuel` and `jp_gripSpeedScale` work, and SJK players predict a JA+ server's grip speed from its server info _(Sol, after VisionJK by Blackwolf)_
 - Browsing models no longer freezes the game: the model picker and the profile load a model in the background and swap it in once it is ready, as players' models already load in a match _(Sol)_
+- JoF: your packets repeat the packet before again, as `cl_packetdup`'s default (1) and JoF EJK do; the JoF-only cap at 0 and `cl_packetdup_nocap` are gone _(Sol, Milamber confirmed the default)_
 - Map edits keep weather: staff give a map rain, a storm, snow, fog and wind (`mapedit_weather`, the map editor's Weather page), and every SJK player sees it with the map's other edits; your own Force weather setting still comes first _(Sol)_
 - Puddles mirror the world at Ultra weather quality (`r_weatherQuality 3`): the streets, walls and sky round a puddle show in it, rippled by the rain rings, where before it mirrored only a grey sky _(Sol, after VisionJK by Blackwolf)_
 - Lightning in storms (Settings > Graphics > WEATHER, `r_weatherLightning`, off by default): now and then a strike flickers through a storm, lighting the haze, the ground fog, the rain, the clouds and the wet streets and puddles; with Rain and wind sounds on its thunder follows, sooner and sharper when it struck near, and single gusts of wind are heard as they rise. `cg_reduceFlashes` keeps the flashes soft _(Sol)_
@@ -50,7 +74,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - A JA+ server (`g_mod japlus`) deals JA+'s saber damage: `jp_alterDMG` gives each saber move the damage of JA+'s move table (set by the `jp_*Attack` settings with 1), with `jp_SaberThrowScaleDMG`, `jp_reduceSaberBlock` and `jp_allowSaberTouchDMG`; nobody is cut from under the chat bubble, and a `/kill` right after being pushed or hit gives the frag to the one who did it _(Sol, after VisionJK by Blackwolf)_
 - SJK's server can run as a JA+ server: started with `g_mod japlus`, it calls itself JA+ 2.4 B7, takes the JA+ settings (`jp_*`) of a JA+ server.cfg and plays the JA+ movement rules it announces in `jp_cinfo` (flip kick, roll fix, yellow DFA, slide on players), so SJK, EternalJK and JA+ plugin players all predict it. The rest of JA+ (duels, saber damage, emotes, admins) comes in later steps _(Sol, after VisionJK by Blackwolf)_
 - JA+ duels on SJK's server in JA+ mode: duellists and everybody else pass through each other and cannot hurt each other (`jp_DuelAlpha` 0 or more), any weapon challenges, both start with full health, Force and `jp_duelStartArmor`, bow (`jp_autoDuelBOW`) and light their own sabers, `engage_FullForceDuel` lets the Force work between the two, no distance limit (`jp_removeDistanceDuelLimit`), and the winner's health and armour are told (`jp_endDuelBroadcastMSG`). On JA+ servers SJK now predicts the pass-through only where the server plays it (`jp_DuelAlpha` 0 or more, free-for-all or team deathmatch, players only) _(Sol, after VisionJK by Blackwolf)_
-- 130 new blades, 9 of them Mythical, each with its own colours, trail and sounds _(Creyon; the Angel blade after Kushina's idea)_
+- 130 new blades, 17 of them Mythical, each with its own colours, trail and sounds _(Creyon; the Angel blade after Kushina's idea)_
 - Collections: every blade belongs to an edition, the Alpha Edition for the blades before Creyon's round and the Beta Edition for his 130. The Collection's Shaders tab filters by one (the Edition chip, or E), and each holocron and kyber crystal shows its edition: an Alpha one only ever brings Alpha things, a Beta one Beta or Alpha _(Sol)_
 - `saber_loadall` in the console builds every blade's shader at once, so the Collection shows each blade's real look as soon as it comes up instead of a plain blade first; typed again, it says how far it is _(Sol)_
 

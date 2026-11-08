@@ -3,8 +3,8 @@
 //! It turns and bobs as Illuminate's does ([`crate::illuminate`]) and is the holocron of
 //! the tier chosen in the list, each tier an object of its own (`docs/holocrons.md`, "The
 //! four holocrons"): the Jedi cube, the Great Holocron with its turning halo, the Sith
-//! pyramid with its floating cap and eye, the engram with its breathing plates, glowing
-//! seams and sparks, and a point light in the tier's colour. It also draws the four kyber
+//! pyramid with its floating cap and eye, the gold engram with its breathing plates,
+//! glowing seams and core and its sparks, and a point light in the tier's colour. It also draws the four kyber
 //! crystals (`kyber_<tier>`: a crystal in its sheath, tumbling rings, motes), asked by the
 //! hub's tier id ([`Request::of`]). For a tier the player holds none of
 //! it is the locked look: the same shape drained and dark, its parts at rest, with a faint
@@ -391,8 +391,8 @@ mod tests {
             "Illuminate's stays its own"
         );
         // The four holocrons: a still cube, a halo, a cap and an eye, the engram's shell
-        // with eight sparks round its core; then the kyber crystals, plainer the commoner:
-        // one ring and four motes, six, both rings and eight, ten.
+        // of plates with eight sparks round its core; then the kyber crystals, plainer the
+        // commoner: one ring and four motes, six, both rings and eight, ten.
         let lengths: Vec<_> = FORMS.iter().map(|form| form.parts.len()).collect();
         assert_eq!(lengths, [1, 2, 3, 10, 7, 9, 12, 14]);
         assert_eq!(all.len(), 2 * (1 + 2 + 3 + 3 + 4 + 4 + 5 + 5));
@@ -460,8 +460,8 @@ mod tests {
                         |(low, high), p| (low.min(*p), high.max(*p)),
                     );
                     if part.moves() {
-                        // The middle of its box, or (for a five-fold shape like the
-                        // engram's shell, whose box is lopsided) of its corners.
+                        // The middle of its box, or (for a lopsided shape, whose
+                        // box is off its centre) of its corners.
                         let middle = (low + high) * 0.5;
                         let mean = points.iter().sum::<Vec3>() / points.len() as f32;
                         let centre = if middle.length() < mean.length() {
