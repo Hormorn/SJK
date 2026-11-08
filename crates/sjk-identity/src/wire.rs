@@ -294,6 +294,18 @@ pub struct Holocron {
     /// when the hub knows it.
     #[serde(default)]
     pub traded_from: Option<String>,
+    /// The edition the hub stamped on it when it was given (since 06/11/2026): `alpha`
+    /// or `beta`. Opening it brings only things of that edition or an older one. Hubs
+    /// before then send none, which reads as [`EDITION_FIRST`].
+    #[serde(default = "first_edition")]
+    pub edition: String,
+}
+
+/// The first edition, the one a holocron the hub sent no edition for has.
+pub const EDITION_FIRST: &str = "alpha";
+
+fn first_edition() -> String {
+    EDITION_FIRST.to_owned()
 }
 
 impl Holocron {
@@ -2190,7 +2202,7 @@ mod tests {
         let profile: Profile = serde_json::from_str(
             r#"{"key_id":"aa","key":"bb","name":"Sol","bio":"","verified":true,"created":5,
                 "holocron_counts":{"uncommon":4,"rare":2,"legendary":1,"mythical":0},
-                "holocrons":[{"id":9,"tier":"legendary","dropped":1791000000,"source":"play","note":""},
+                "holocrons":[{"id":9,"tier":"legendary","dropped":1791000000,"source":"play","note":"","edition":"beta"},
                              {"id":7,"tier":"rare","dropped":1790990000,"source":"staff","note":"Thanks"},
                              {"id":3,"tier":"from_the_future","dropped":1}]}"#,
         )
@@ -2216,6 +2228,11 @@ mod tests {
         assert_eq!(profile.holocrons[1].source, "staff");
         assert_eq!(profile.holocrons[1].note, "Thanks");
         assert_eq!(profile.holocrons[2].source, "", "a missing field is empty");
+        assert_eq!(profile.holocrons[0].edition, "beta");
+        assert_eq!(
+            profile.holocrons[1].edition, EDITION_FIRST,
+            "a hub before 06/11/2026 sends no edition: Alpha"
+        );
         let old: Profile = serde_json::from_str(
             r#"{"key_id":"aa","key":"bb","name":"Sol","bio":"","verified":true,"created":5}"#,
         )

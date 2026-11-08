@@ -323,6 +323,7 @@ impl NativeGame {
     /// `G_RunFrame`'s jetpack and cloak batteries for a player (`g_main.c:3246-3301`):
     /// drained while on, recharged while off, the cloak dropped when it runs dry.
     pub(super) fn battery_frame(&mut self, client: usize, level_time: i32) {
+        let cloak_drains = self.mod_force.cloak_drains;
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
@@ -339,6 +340,7 @@ impl NativeGame {
             cloaked,
             thrusting,
             level_time,
+            cloak_drains,
         );
         if (jet, cloak)
             != (

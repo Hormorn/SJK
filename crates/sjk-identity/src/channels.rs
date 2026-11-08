@@ -1,7 +1,8 @@
 //! The hub chat's channels (Sol-Vulpes/SJK-hub `PROTOCOL.md`, "Clan chats", since
 //! 03/11/2026, Sol's decision from Lex's idea): the SJK chat every SJK player shares, and
 //! two clan chats beside it, JoF's and the Sith clan's (`{{S}}`). The hub decides who may
-//! read and write a clan chat (a verified player of that tick group's clans, or staff)
+//! read and write a clan chat (a verified player of that clan's tick group only, or
+//! staff: a JoF player never reads S nor an S player JoF, Sol 05/11/2026)
 //! and sends a reader only the channels it asks for ([`wanted_query`]); the feed lists the
 //! clan chats the reader may read ([`ListedChannel`]), with the ones it should join by
 //! default (`home`).

@@ -144,6 +144,16 @@ includes:
 - the Legendary holocron's Sith pyramid sculpted anew (05/11/2026, art by Sol,
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
   the high-poly model, and normal maps on models whose shader names one (`normalMap`);
+- the Uncommon holocron's Jedi cube and the Mythical holocron's engram sculpted anew
+  (08/11/2026, art by Sol, AI-assisted): a 300-triangle low poly and 38 plates split from
+  the high poly's tiles (they breathe over a glowing core), with their colour, glow and
+  normal maps baked from the high-poly models;
+- a texture size cap (08/11/2026, Sol's decision): `r_maxTextureSize`, 2048 by default,
+  halves larger map and model textures down to it, after a community player model's
+  4096x4096 textures held a frame 743 ms;
+- tag collections (08/11/2026, Sol's decision): Alpha for SJK's own tags, Community for
+  the ones players drew (Blep's EZ, Gonk and Geyon), each under its own heading in
+  Collection > Tags;
 - fourteen more achievements (26/10/2026, Sol's list): holocrons opened, crafting, a
   full card set, Order 66, the cardboard box, flawless and close duels, duel partners, a
   long saber throw and a thermal detonator sent back, a secret one, and Surveyor retired;
@@ -432,6 +442,24 @@ includes:
 - white edge on dark text (03/11/2026): `cg_darkTextOutline` rings black and other dark
   letters of nameplates and chat in a crisp white outline instead of the soft halo,
   off by default;
+- weather in map edits (05/11/2026, Sol's request): staff keep rain, storms, snow, fog
+  and wind for a map (`mapedit_weather`, the map editor's Weather page), synced through
+  the hub to every SJK player in place of the map's own weather;
+- rain and wind sounds (05/11/2026): `s_weatherSounds` plays the game's own outdoor
+  loops with the weather, as loud as it falls and blows, a fifth of it under a roof,
+  off by default;
+- puddles that mirror the world (05/11/2026, after VisionJK's `wet.frag`, Blackwolf's
+  work): at ultra weather quality the puddles reflect the streets, walls and drawn sky
+  round them, rippled by the rain rings;
+- JA+ server mode (06/11/2026, after VisionJK's port of the JA+ 2.4 B7 server module,
+  Blackwolf's work): `g_mod japlus` starts SJK's server as a JA+ server, with JA+'s
+  settings and the JA+ movement rules it announces to clients;
+- lighter rain and fog (05/11/2026): the fog worked out at half size and blended back by
+  depth, about three times cheaper at the default quality, glowing towards the sun with the
+  rain;
+- storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
+  the game's own thunder after it, single gusts of wind heard as they rise, and rain
+  running down walls and slopes in rivulets with drops along each slope's fall;
 - SJK Alpha (19/10/2026), the first collection of cards: the Mythical rarity, the
   Credits and Meme kinds, and card 1, "Bishop", honouring the author of JKR (art by
   Sol, AI-assisted: a rusted helmet portrait).
@@ -441,7 +469,7 @@ includes:
 Creyon and Lumaya wear the SJK team's Contributor medal, shown on their
 cards of the in-game credits page.
 
-Creyon ([Creyon94](https://github.com/Creyon94)), contributor and tester, has 77
+Creyon ([Creyon94](https://github.com/Creyon94)), contributor and tester, has 78
 pull requests merged into SJK, most of them bringing SJK in line with EternalJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ACreyon94)):
 
@@ -565,6 +593,9 @@ pull requests merged into SJK, most of them bringing SJK in line with EternalJK
   deaths (`cg_scoreboardDeathsRank`, off).
 - #321 a finished trade's toast says what it gave and received, names shown in full.
 - #236 JoF hats as in JoF EJK: their pictures from the old EternalJK folder, McFox two-sided.
+- #370 130 new blades from his Star Wars round (blades 170 to 299): 25 Common, 21 Uncommon,
+  29 Rare, 38 Legendary and 17 Mythical (Sol's tiers after testing them), each with its own colours, trail and sounds, and
+  their effects in the air drawn at half size so a close blade stays cheap.
 
 Lumaya ([lumayaa](https://github.com/lumayaa)), contributor, has 88 pull requests
 merged into SJK
@@ -968,8 +999,8 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
   ribbons, sparks, crackle, flash, unrest, chroma by file), and the burn on a saber kill,
   which became the first finisher, Disintegrate (04/11/2026).
 
-Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 1 pull
-request merged into SJK
+Blackwolf1337 ([Blackwolf1337](https://github.com/Blackwolf1337)), contributor, has 3 pull
+requests merged into SJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3ABlackwolf1337)):
 
 - #333 on JA+ servers the dual sabers' forward jump attack raises the feet only when another
@@ -983,11 +1014,37 @@ as VisionJK's does; SJK's code is its own.
 Blackwolf's VisionJK client and its 3D sound (`v_spatial`, Steam Audio) gave SJK the
 idea of its own 3D sound (`s_spatial`), built in SJK's mixer with his agreement.
 
+VisionJK's wet ground (`wet.frag`, GPL-2.0, with his approval) gave SJK's puddles their
+mirror (05/11/2026): the same screen-space march (32 steps from 2 units growing by 1.18,
+then five halvings) and pond blend, rewritten in SJK's weather shader.
+
 Blackwolf's VisionJK web admin page (GPL-2.0, used with his approval, 03/11/2026) draws
 the map in SJK's browser map editor (`mapedit_web`): its WebGL drawing of a map with its
 shader scripts, props and flares is copied into
 `crates/sjk-viewer/src/map_edits/web/page/vjk`, each file headed with what SJK changed.
 VisionJK credits that panel's origin to JKAdmin's web admin panel by Lixsl.
+
+Blackwolf's VisionJK rebuild of the JA+ 2.4 B7 server module from its Linux binary
+(GPL-2.0, approved for reuse) is the reference for SJK's JA+ server mode (06/11/2026,
+`g_mod japlus`): JA+'s settings and their defaults and the `jp_cinfo` bits come from it,
+and its behaviour is ported into SJK's own code, not its source.
+
+Kushina ([kushinaSJK](https://github.com/kushinaSJK)), contributor and player, has 1 pull
+request merged into SJK
+([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AkushinaSJK)); her
+ideas are under [Ideas](#ideas):
+
+- #373 dynamic chains on rig models that fork or stack joints (hair: a stem with strands
+  under it) no longer throw their bones about: each joint is placed from where its parent
+  now stands, parents first, and a bone shorter than 0.01 units no longer turns its parent.
+- #374 new opt-in `dynamic` options for rig chains: `limit` holds each bone near its animated
+  direction on a soft curve, `clearance` holds a chain further out of the body (no further
+  than at rest), `layer <outer> over <inner>` keeps one chain on its side of another, and a
+  limited childless joint swings on a lever; for every colliding chain a bone's middle now
+  collides with the body too, with its own at-rest exemption.
+- #377 two more opt-in `dynamic` options: `drag` lets a chain feel the player's movement
+  and turning (hair and capes trail behind a running player; teleports and a paused clock
+  do not count), and `arms` keeps a chain out of the upper arms and forearms.
 
 ## Art
 
@@ -1009,6 +1066,8 @@ palette with pink as its main colour, light purple and white mist, afterimages m
 falling blossoms like the Spectral's, and a branch with a flower where the blade starts
 (and one day a wooden hilt). Sol built it as the Varykino Blossom, a Mythical saber shader
 (blade 166, 21/10/2026), with all of it but the hilt, which waits for custom hilts.
+Kushina also gave the idea of the Angel blade (05/11/2026).
+
 Kushina also asked for JA+ and jaPRO plugin options she would not have to type as a
 `cp_pluginDisable` number: Sol built them as Settings switches named after each feature,
 with JoF EJK's `plugin` command (29/10/2026). She asked too for three JoF EJK options that

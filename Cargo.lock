@@ -3043,6 +3043,8 @@ dependencies = [
  "sjk-network",
  "sjk-protocol",
  "sjk-server",
+ "sjk-server-mod",
+ "sjk-server-mod-japlus",
  "sjk-vfs",
  "winresource",
 ]
@@ -3203,6 +3205,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sjk-server-mod"
+version = "0.1.0"
+dependencies = [
+ "sjk-game-jka",
+]
+
+[[package]]
+name = "sjk-server-mod-japlus"
+version = "0.1.0"
+dependencies = [
+ "sjk-game-jka",
+ "sjk-protocol",
+ "sjk-server-mod",
+]
+
+[[package]]
 name = "sjk-shader"
 version = "0.1.0"
 dependencies = [
@@ -3265,6 +3283,7 @@ dependencies = [
  "sjk-audio",
  "sjk-bsp",
  "sjk-client",
+ "sjk-dedicated",
  "sjk-effect",
  "sjk-entity",
  "sjk-game-jka",

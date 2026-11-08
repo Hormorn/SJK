@@ -119,6 +119,7 @@ impl NativeGame {
             map.as_ref(),
             self.gametype,
             self.map_generation,
+            self.mod_movement.legacy_fixes,
         );
         self.config_strings = config_strings;
         self.sounds = sounds;
@@ -190,6 +191,7 @@ pub(super) fn world_config_strings(
     map: Option<&LoadedMap>,
     gametype: i32,
     server_id: i32,
+    legacy_fixes: u32,
 ) -> (Vec<(usize, Vec<u8>)>, SoundTable) {
     // The two engine strings every legacy client reads first. The game's own strings
     // (version, models, sounds) arrive with the JKA game profile.
@@ -228,7 +230,13 @@ pub(super) fn world_config_strings(
         config_strings.push((CS_ITEMS, sjk_game_jka::items::registered(&map.items)));
     }
     // And which legacy animation fixes the simulation runs: clients predict from it.
-    config_strings.push(authoritative().legacy_fixes_config_string());
+    config_strings.push(
+        sjk_game_jka::pmove::MovementConfig {
+            legacy_fixes,
+            ..authoritative()
+        }
+        .legacy_fixes_config_string(),
+    );
     config_strings.sort_by_key(|(index, _)| *index);
     (config_strings, sounds)
 }

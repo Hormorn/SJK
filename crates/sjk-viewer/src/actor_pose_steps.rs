@@ -52,6 +52,7 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
         if mesh.entity_id.is_some() {
             mesh.animator.requested = Some(limb.state);
         }
+        mesh.preview.rig_pose.halt_motion();
         return Ok(());
     }
     let frame_millis = mesh.angle_controller.begin_frame(presentation_time);
@@ -69,6 +70,7 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
         });
     let Some((Some(state), pose)) = requested else {
         mesh.flame_pose = Default::default();
+        mesh.preview.rig_pose.halt_motion();
         return Ok(());
     };
     let mut state = state;
@@ -151,6 +153,7 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
     // (`cg_players.c:4274`, `:4366`).
     if !mesh.animator.humanoid() {
         mesh.render_yaw_degrees = None;
+        mesh.preview.rig_pose.halt_motion();
         if let (Some(snapshot), Some(game_state), Some(id)) = (snapshot, game_state, mesh.entity_id)
             && let Some(state) = snapshot
                 .entities
@@ -166,6 +169,7 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
             .map_or([0.0; 3], |entity| {
                 entity.sample(presentation_time).translation
             });
+        let presented = mesh.entity_id == local_entity && predicted.is_some();
         let origin = if mesh.entity_id == local_entity {
             predicted.map_or(origin, |state| state.origin)
         } else {
@@ -188,8 +192,23 @@ pub(super) fn prepare(mesh: &mut ActorMesh, frame: &Frame<'_>) -> Result<(), Box
         mesh.animator
             .set_player_angles(&mesh.preview.animation, angles)?;
         mesh.render_yaw_degrees = Some(angles.legs_yaw_degrees);
+        if mesh
+            .preview
+            .rig
+            .as_ref()
+            .is_some_and(|rig| rig.wants_drag())
+        {
+            let source = (mesh.entity_id.map_or(0, |id| id.get()), presented);
+            mesh.preview.rig_pose.observe_motion(
+                origin,
+                angles.legs_yaw_degrees,
+                presentation_time,
+                source,
+            );
+        }
     } else {
         mesh.animator.clear_player_angles();
+        mesh.preview.rig_pose.halt_motion();
     }
     mesh.animator.requested = Some(state);
     Ok(())

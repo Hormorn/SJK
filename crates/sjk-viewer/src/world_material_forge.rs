@@ -390,9 +390,46 @@ impl Runtime {
         shaders: &ShaderCatalog,
         materials: &[ViewerMaterial],
     ) -> Result<DetachedMaterials, Box<dyn Error>> {
+        let known = self.forge.pipeline_keys.len();
+        let detached = self.compile_detached_stages(device, queue, vfs, shaders, materials)?;
+        for key in self.forge.pipeline_keys[known..].to_vec() {
+            self.push_pipelines(device, key);
+        }
+        Ok(detached)
+    }
+
+    /// [`Self::compile_detached`] without compiling the new pipelines: the returned jobs
+    /// do, on a worker ([`pipeline_jobs`]); a slot still empty when the materials first
+    /// draw compiles then, as before.
+    pub(crate) fn compile_detached_deferred(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        vfs: &VirtualFileSystem,
+        shaders: &ShaderCatalog,
+        materials: &[ViewerMaterial],
+    ) -> Result<(DetachedMaterials, pipeline_jobs::Jobs), Box<dyn Error>> {
+        let known = self.forge.pipeline_keys.len();
+        let detached = self.compile_detached_stages(device, queue, vfs, shaders, materials)?;
+        for _ in known..self.forge.pipeline_keys.len() {
+            self.push_pipeline_slots();
+        }
+        let jobs = self.pipeline_jobs(known..self.forge.pipeline_keys.len(), 0..0);
+        Ok((detached, jobs))
+    }
+
+    /// The stages of [`Self::compile_detached`]'s materials; new pipeline keys are
+    /// registered, their pipelines not made.
+    fn compile_detached_stages(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        vfs: &VirtualFileSystem,
+        shaders: &ShaderCatalog,
+        materials: &[ViewerMaterial],
+    ) -> Result<DetachedMaterials, Box<dyn Error>> {
         let mut image_cache = ImageCache::with_capacity(64);
         let mut compiled = Vec::with_capacity(materials.len());
-        let known = self.forge.pipeline_keys.len();
         for key in materials {
             let lightmap = self.forge.fallback_lightmap.clone();
             let material = compile_material(
@@ -416,9 +453,6 @@ impl Runtime {
                 blended: material.sort > SORT_OPAQUE,
                 stages,
             });
-        }
-        for key in self.forge.pipeline_keys[known..].to_vec() {
-            self.push_pipelines(device, key);
         }
         Ok(DetachedMaterials {
             materials: compiled,
@@ -687,15 +721,21 @@ pub(super) fn compile_profile() -> [u64; 2] {
 /// `r_textureCompression`) and returned, for
 /// [`Runtime::upload_prepared_texture`]: resizing a model's textures down to one texel
 /// on the render thread cost 50 to 180 ms for some player models.
+///
+/// The decoded images are held by the result until it is dropped, after the append: held
+/// by the cache alone, the next image decoded anywhere could sweep them first, and the
+/// append decoded them again on the render thread (a 4096² PNG and JPEG held a frame
+/// 743 ms for `creyonwolf`, 08/11/2026).
 pub(crate) fn warm_entity_materials(
     vfs: &VirtualFileSystem,
     shaders: &ShaderCatalog,
     lightmap: &wgpu::TextureView,
     materials: &[ViewerMaterial],
     mipmapped: bool,
-) -> Vec<PreparedTexture> {
+) -> WarmTextures {
     let mut image_cache = ImageCache::with_capacity(64);
     let mut prepared: Vec<PreparedTexture> = Vec::new();
+    let mut held: Vec<Arc<RgbaImage>> = Vec::new();
     for key in materials {
         let Ok(material) = compile_material(
             vfs,
@@ -709,6 +749,17 @@ pub(crate) fn warm_entity_materials(
         ) else {
             continue;
         };
+        for stage in &material.stages {
+            for image in stage
+                .primary_pixels
+                .iter()
+                .chain(stage.secondary_pixels.iter().flatten())
+            {
+                if !held.iter().any(|kept| Arc::ptr_eq(kept, image)) {
+                    held.push(Arc::clone(image));
+                }
+            }
+        }
         if !mipmapped {
             continue;
         }
@@ -741,7 +792,24 @@ pub(crate) fn warm_entity_materials(
             }
         }
     }
-    prepared
+    WarmTextures {
+        textures: prepared,
+        _held: held,
+    }
+}
+
+/// What [`warm_entity_materials`] made: the textures to upload one a frame, and the
+/// decoded images their materials are compiled from, held until this is dropped.
+pub(crate) struct WarmTextures {
+    textures: Vec<PreparedTexture>,
+    _held: Vec<Arc<RgbaImage>>,
+}
+
+impl WarmTextures {
+    /// The next texture to upload.
+    pub(crate) fn pop(&mut self) -> Option<PreparedTexture> {
+        self.textures.pop()
+    }
 }
 
 /// One texture's mip chains (or their blocks, with `r_textureCompression`) built on a

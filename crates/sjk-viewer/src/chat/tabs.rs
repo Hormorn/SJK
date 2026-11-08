@@ -87,7 +87,7 @@ pub(super) const NO_PM: &str =
 pub(super) const NO_ADMIN: &str = "This server has no admin chat (amsay is JA+ and jaPRO's).";
 /// What the composer says when a clan chat's key is used without that chat joined.
 pub(super) const NO_CLAN: &str =
-    "You have not joined that clan chat: Settings > Chat, for verified JoF and S players.";
+    "You have not joined that clan chat: Settings > Chat, for that clan's verified players.";
 
 /// How a switchable channel's button is kept: its cvar's 0, 1 or 2.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -176,7 +176,7 @@ impl Tabs {
     }
 
     /// How `channel`'s button is kept; All is always on, PM by its own switch.
-    fn of(self, channel: Channel) -> Shown {
+    pub(super) fn of(self, channel: Channel) -> Shown {
         match channel {
             Channel::Global => Shown::On,
             Channel::Team => self.team,
@@ -227,7 +227,7 @@ pub(super) fn is_admin_line(display: &str) -> bool {
 
 /// Every channel the row may hold, in its order: the hub's chats after Team, the server's
 /// admins and whispers last.
-const ROW: [Channel; 7] = [
+pub(super) const ROW: [Channel; 7] = [
     Channel::Global,
     Channel::Team,
     Channel::Sjk,
@@ -268,7 +268,7 @@ impl ChatOverlay {
 
     /// Whether `channel` can be used here, whatever its button: Admin on a server that
     /// takes `amsay`, a clan chat once joined.
-    fn available(&self, channel: Channel) -> bool {
+    pub(super) fn available(&self, channel: Channel) -> bool {
         match channel {
             Channel::Admin => self.admin_server,
             Channel::Jof => self.clans[0],

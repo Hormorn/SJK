@@ -40,8 +40,12 @@ pub(crate) struct GpuWeather {
     pub(crate) wet: [f32; 4],
     pub(crate) wet_sky: [f32; 4],
     pub(crate) rain: [f32; 4],
+    pub(crate) sun: [f32; 4],
     pub(crate) clouds: [GpuCloud; super::effects::MAX_CLOUDS],
 }
+
+/// The fog's half-size march: its alpha and how far each ray went.
+pub(crate) const FOG_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg16Float;
 
 /// Which pipeline a batch uses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,9 +73,15 @@ pub(crate) struct Gpu {
     splash: wgpu::RenderPipeline,
     sprite: wgpu::RenderPipeline,
     sprite_alpha: wgpu::RenderPipeline,
+    /// The fog: its march at half size ([`FOG_FORMAT`]), and its blend into the layer.
+    volume_half: wgpu::RenderPipeline,
     volume: wgpu::RenderPipeline,
+    /// The half-size march's image and the blend's bind group of it, for a scene size.
+    fog: Option<(wgpu::TextureView, wgpu::BindGroup, [u32; 2])>,
     /// Rain-wet surfaces, drawn into the scene itself before the players.
     wet: wgpu::RenderPipeline,
+    /// The puddles' mirror of the scene (ultra).
+    pub(crate) mirror: super::mirror::Mirror,
     uniform: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
 }
@@ -236,11 +246,27 @@ impl Gpu {
             },
             alpha: added.alpha,
         };
-        let pipeline = |vertex, fragment, blend, additive: bool, depth_compare| {
+        let mirror = super::mirror::Mirror::new(device, &shader, scene_format);
+        let image_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("SJK weather pass-image pipeline layout"),
+            bind_group_layouts: &[
+                Some(camera),
+                Some(&layout),
+                Some(&depth),
+                Some(mirror.layout()),
+            ],
+            immediate_size: 0,
+        });
+        let pipeline_in = |layout: &wgpu::PipelineLayout,
+                           vertex,
+                           fragment,
+                           blend,
+                           additive: bool,
+                           depth_compare| {
             let constants = [("additive", f64::from(u8::from(additive)))];
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(fragment),
-                layout: Some(&pipeline_layout),
+                layout: Some(layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some(vertex),
@@ -276,11 +302,48 @@ impl Gpu {
                 cache: None,
             })
         };
+        let pipeline = |vertex, fragment, blend, additive: bool, depth_compare| {
+            pipeline_in(
+                &pipeline_layout,
+                vertex,
+                fragment,
+                blend,
+                additive,
+                depth_compare,
+            )
+        };
+        // The fog's march at half size: no depth target, its own two-channel image.
+        let volume_half = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("fragment_volume_half"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vertex_volume"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fragment_volume_half"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: FOG_FORMAT,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            multiview_mask: None,
+            cache: None,
+        });
         // The scene times the alpha the shader writes, plus its colour: wet surfaces darken
-        // and take a sheen in one blend, without reading the scene.
+        // and take a sheen in one blend, reading the scene only through the puddles'
+        // mirror's copy (group 3).
         let wet = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("fragment_wet"),
-            layout: Some(&pipeline_layout),
+            layout: Some(&image_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vertex_volume"),
@@ -341,15 +404,19 @@ impl Gpu {
                 false,
                 wgpu::CompareFunction::LessEqual,
             ),
+            volume_half,
             // The fog reads the depth itself; its triangle covers everything.
-            volume: pipeline(
+            volume: pipeline_in(
+                &image_layout,
                 "vertex_volume",
                 "fragment_volume",
                 blended,
                 false,
                 wgpu::CompareFunction::Always,
             ),
+            fog: None,
             wet,
+            mirror,
             uniform,
             bind_group,
         }
@@ -362,7 +429,9 @@ impl Gpu {
         target: &wgpu::TextureView,
         camera: &wgpu::BindGroup,
         depth: &wgpu::BindGroup,
+        mirror: bool,
     ) {
+        let copied = mirror && self.mirror.encode_copy(encoder);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("SJK rain-wet surfaces"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -380,6 +449,77 @@ impl Gpu {
             multiview_mask: None,
         });
         pass.set_pipeline(&self.wet);
+        pass.set_bind_group(0, camera, &[]);
+        pass.set_bind_group(1, &self.bind_group, &[]);
+        pass.set_bind_group(2, depth, &[]);
+        pass.set_bind_group(3, self.mirror.bind_group(copied), &[]);
+        pass.draw(0..3, 0..1);
+    }
+
+    /// Keep the fog's half-size image for a scene of `size`, made again only when it
+    /// changes.
+    pub(crate) fn fit_fog(&mut self, device: &wgpu::Device, size: [u32; 2]) {
+        let half = [size[0].div_ceil(2).max(1), size[1].div_ceil(2).max(1)];
+        if self
+            .fog
+            .as_ref()
+            .is_some_and(|(_, _, fitted)| *fitted == half)
+        {
+            return;
+        }
+        let view = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("SJK fog at half size"),
+                size: wgpu::Extent3d {
+                    width: half[0],
+                    height: half[1],
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: FOG_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+            .create_view(&Default::default());
+        let bind_group = self.mirror.bind_group_of(device, &view);
+        self.fog = Some((view, bind_group, half));
+    }
+
+    /// Drop the fog's image (no fog is drawn).
+    pub(crate) fn release_fog(&mut self) {
+        self.fog = None;
+    }
+
+    /// March the fog at half size, before the effect layer's pass blends it in.
+    pub(crate) fn encode_fog(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        camera: &wgpu::BindGroup,
+        depth: &wgpu::BindGroup,
+    ) {
+        let Some((view, _, _)) = &self.fog else {
+            return;
+        };
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("SJK fog at half size"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(&self.volume_half);
         pass.set_bind_group(0, camera, &[]);
         pass.set_bind_group(1, &self.bind_group, &[]);
         pass.set_bind_group(2, depth, &[]);
@@ -406,6 +546,13 @@ impl Gpu {
         pass.set_bind_group(1, &self.bind_group, &[]);
         pass.set_bind_group(2, depth, &[]);
         for batch in batches {
+            if batch.kind == Kind::Volume {
+                // The fog blends its half-size march: nothing without it.
+                let Some((_, fog, _)) = &self.fog else {
+                    continue;
+                };
+                pass.set_bind_group(3, fog, &[]);
+            }
             pass.set_pipeline(match batch.kind {
                 Kind::Streak => &self.streak,
                 Kind::Splash => &self.splash,
@@ -517,7 +664,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<GpuCloud>(), (5 + 2 * BUCKETS) * 16);
         assert_eq!(
             std::mem::size_of::<GpuWeather>(),
-            15 * 16 + super::super::effects::MAX_CLOUDS * std::mem::size_of::<GpuCloud>()
+            16 * 16 + super::super::effects::MAX_CLOUDS * std::mem::size_of::<GpuCloud>()
         );
         let shader = include_str!("weather.wgsl");
         assert!(shader.contains("array<vec4<f32>, 8>"));
@@ -549,7 +696,9 @@ mod tests {
             (Fragment, "fragment_splash"),
             (Vertex, "vertex_volume"),
             (Fragment, "fragment_volume"),
+            (Fragment, "fragment_volume_half"),
             (Fragment, "fragment_wet"),
+            (Fragment, "fragment_mirror_copy"),
         ];
         for (stage, entry) in entries {
             for additive in [0.0, 1.0] {

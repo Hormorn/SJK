@@ -175,6 +175,18 @@ pub trait Hub: Send {
             "this hub client does not send logs".to_owned(),
         ))
     }
+    /// Send `upload` (already [`LogUpload::fitted`]) unasked, with the player's `note`;
+    /// the hub answers with the id it keeps them under (`PROTOCOL.md`, "Log requests").
+    fn send_own_logs(
+        &mut self,
+        _identity: &Identity,
+        _upload: &LogUpload,
+        _note: &str,
+    ) -> Result<i64, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not send logs".to_owned(),
+        ))
+    }
     /// Decline request `id`.
     fn decline_logs(&mut self, _identity: &Identity, _id: i64) -> Result<(), HubError> {
         Err(HubError::Protocol(
@@ -686,6 +698,28 @@ pub trait Hub: Send {
     ) -> Result<bool, HubError> {
         Err(HubError::Protocol(
             "this hub client does not report the box hunt's chase".to_owned(),
+        ))
+    }
+
+    /// The WHEEL OF DOOM's price, cooldown and segments (`GET /v1/wheel-of-doom`,
+    /// 07/11/2026).
+    fn wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+    ) -> Result<crate::wheel_of_doom::Wheel, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not read the wheel of doom".to_owned(),
+        ))
+    }
+
+    /// Spin the WHEEL OF DOOM, the player on `server` (`POST /v1/wheel-of-doom/spin`).
+    fn spin_wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+        _server: &str,
+    ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not spin the wheel of doom".to_owned(),
         ))
     }
 
@@ -1772,6 +1806,29 @@ impl Hub for HttpHub {
         .map(|_| ())
     }
 
+    fn send_own_logs(
+        &mut self,
+        identity: &Identity,
+        upload: &LogUpload,
+        note: &str,
+    ) -> Result<i64, HubError> {
+        #[derive(serde::Deserialize)]
+        struct Kept {
+            id: i64,
+        }
+        let body = upload.own_body(note).to_string();
+        let answer: Kept = parse(self.send_with(
+            Some(identity),
+            "POST",
+            "/v1/logs",
+            body.as_bytes(),
+            "application/json",
+            ANSWER_MAX,
+            Some(LOGS_TIMEOUT),
+        )?)?;
+        Ok(answer.id)
+    }
+
     fn decline_logs(&mut self, identity: &Identity, id: i64) -> Result<(), HubError> {
         self.send(
             Some(identity),
@@ -2024,6 +2081,26 @@ impl Hub for HttpHub {
         identity: &Identity,
     ) -> Result<crate::mystery_box::Boxes, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/mystery-boxes", None)?)
+    }
+
+    fn wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+    ) -> Result<crate::wheel_of_doom::Wheel, HubError> {
+        parse(self.send(Some(identity), "GET", "/v1/wheel-of-doom", None)?)
+    }
+
+    fn spin_wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+        server: &str,
+    ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/wheel-of-doom/spin",
+            Some(json!({ "server": server })),
+        )?)
     }
 
     fn junk_status(&mut self, identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {

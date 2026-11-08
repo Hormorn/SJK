@@ -6,7 +6,8 @@
 //! signature with solid parts). The glow pass draws every blade with the shared pipeline, so
 //! it is left out. Prints each signature's median milliseconds per frame, its ratio to stock
 //! and its pipelines' build time. `SJK_SIGNATURES` (ids, comma-separated) measures only those.
-//! `SJK_COST_SCENE` picks the scene: `game` (the default, as above), `close` (only the near
+//! `SJK_COST_SCENE` picks the scene: `game` (the default, as above), `zoom` (one blade right
+//! in front of the eye, its effects over the whole picture), `close` (only the near
 //! blade, across the view) or `along` (only a near blade seen along its length, its tip
 //! pointing away, as Sol asked for the round 23 review: the views where an effect's ray
 //! march is longest).
@@ -69,6 +70,8 @@ fn signature_gpu_cost_against_stock() {
             texture_layout_entry(3),
             sampler_entry(2),
             sampler_entry(4),
+            texture_layout_entry(5),
+            sampler_entry(6),
         ],
     });
     let skins_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -207,6 +210,20 @@ fn signature_gpu_cost_against_stock() {
             saber::Blade {
                 base: (eye + forward * 18.0 - glam::Vec3::Z * 4.0).to_array(),
                 direction: (forward + glam::Vec3::Z * 0.08).normalize().to_array(),
+                length: 40.0,
+                radius: 3.0,
+            },
+            crate::saber_motion::STILL,
+        )]
+    } else if scene == "zoom" {
+        // Zoomed in on one's own blade (Creyon, 4/11/2026): upright, a little off to the side,
+        // its effects over the whole picture.
+        let forward = (glam::Vec3::new(0.0, 400.0, 40.0) - eye).normalize();
+        vec![(
+            saber::Blade {
+                base: (eye + forward * 21.0 - glam::Vec3::Z * 24.0 + glam::Vec3::X * 3.0)
+                    .to_array(),
+                direction: glam::Vec3::Z.to_array(),
                 length: 40.0,
                 radius: 3.0,
             },

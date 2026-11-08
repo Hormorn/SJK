@@ -13,6 +13,9 @@
 //! `WP_SaberDoHit`), and once all blades are swept the totals are dealt
 //! ([`SaberHits::blows`], `WP_SaberApplyDamage`).
 //!
+//! A server mod may change the damage through [`Swinger::ja_plus`]
+//! ([`crate::saber_damage_japlus`], JA+'s rules); by default it is the base game's.
+//!
 //! Not here yet, each with its reference: blades meeting blades (the `CONTENTS_LIGHTSABER`
 //! clash branch of `CheckSaberDamage`, `WP_SabersIntersect`, blocks, parries, locks), a
 //! thrown saber's damage, saber definitions' flags (`SFL_BOUNCE_ON_WALLS`, transition
@@ -47,7 +50,8 @@ const LS_READY: u32 = 1;
 /// `BOTH_A1_SPECIAL` .. `BOTH_A3_SPECIAL`: the single-style katas, one level stronger.
 const KATAS: [u16; 3] = [911, 912, 913];
 /// `GT_DUEL`, `GT_POWERDUEL`, `GT_SIEGE`: the slower games, where sabers are not doubled.
-const SLOWER_GAMES: [i32; 3] = [3, 4, 7];
+const SLOWER_GAMES: [i32; 3] = [3, 4, GT_SIEGE];
+const GT_SIEGE: i32 = 7;
 /// `g_saberDmgDelay_Wound`: how long after a clash no blow lands.
 const ATTACK_WOUND_DELAY: i32 = 0;
 /// `BOTH_SPINATTACK6`, `BOTH_SPINATTACK7`: "too easy to do, lower damage".
@@ -94,6 +98,31 @@ pub struct Swinger {
     /// Whom the swinger fights (`self->enemy`): a client struck is its enemy
     /// (`SEF_HITENEMY`) or not (`SEF_HITOBJECT`).
     pub enemy: Option<u16>,
+    /// `ps.weapon`, `ps.brokenLimbs` and the hilts' `animSpeedScale`: how fast the torso's
+    /// animation plays (`BG_SaberStartTransAnim`), which JA+'s move damage reads.
+    pub weapon: u8,
+    pub broken_limbs: u8,
+    pub hilt_speed_scales: [f32; 2],
+    /// A connected player under the chat bubble (`EF_TALK`), which a JA+ blade spares.
+    pub talking: bool,
+    /// The running server mod's saber damage rules; the base game's by default.
+    pub ja_plus: crate::saber_damage_japlus::JaPlusSaberDamage,
+}
+
+impl Swinger {
+    /// The torso's animation as JA+'s move damage reads it.
+    fn swing_animation(&self) -> crate::saber_damage_japlus::SwingAnimation {
+        crate::saber_damage_japlus::SwingAnimation {
+            torso: self.fighter.torso,
+            legs: self.legs,
+            timer: self.fighter.torso_timer,
+            length: self.fighter.torso_length,
+            style: self.fighter.style,
+            weapon: self.weapon,
+            broken_limbs: self.broken_limbs,
+            hilt_scales: self.hilt_speed_scales,
+        }
+    }
 }
 
 /// A swing while the swinger's saber is in the air (`ps.saberInFlight`): the thrown first
@@ -142,6 +171,8 @@ pub struct SaberVictim {
     /// `client->playerTeam`: an NPC's blow on a client of its own is a fifth
     /// (`w_saber.c:4662-4667`).
     pub player_team: i32,
+    /// `client->ps.weapon == WP_SABER`: JA+'s `jp_alterDMG 1` halves a blow at it.
+    pub saber_in_hand: bool,
 }
 
 /// Ghoul2 collision's answer for the entity a trace met.
@@ -611,54 +642,72 @@ fn check(
             || transition
             || (swinger.riding && fighter.saber_move > LS_READY))
     {
-        let mut full = if thrown.in_flight {
-            // `w_saber.c:4068-4081`: "does less damage on the way back".
-            strength = i32::from(thrown.going_out);
-            if thrown.going_out {
-                2.5 * f32::from(thrown.level)
-            } else {
-                1.0
-            }
+        // JA+'s move table in place of the SP style (`w_saber.c:4219-4220`): a thrown
+        // saber keeps the SP style's damage, scaled.
+        let rules = swinger.ja_plus;
+        let move_damage = rules.enabled && rules.move_damage;
+        if move_damage && !thrown.in_flight {
+            damage = rules.attack(fighter.saber_move, &swinger.swing_animation());
+            strength = fighter.style;
         } else {
-            strength = saber_rules::power_level(
-                fighter.torso,
-                fighter.torso_timer,
-                fighter.torso_length - fighter.torso_timer,
-                swinger.saber_type,
-                0,
-                false,
-            );
-            if SPIN_ATTACKS.contains(&fighter.torso) {
-                2.5
+            let mut full = if thrown.in_flight {
+                // `w_saber.c:4068-4081`: "does less damage on the way back".
+                strength = i32::from(thrown.going_out);
+                if thrown.going_out {
+                    2.5 * f32::from(thrown.level)
+                } else {
+                    1.0
+                }
             } else {
-                2.5 * strength as f32
-            }
-        };
-        if !SLOWER_GAMES.contains(&swinger.gametype) {
-            full *= 2.0;
-        }
-        damage = 0;
-        if full != 0.0 {
-            // "the longer the trace, the more damage it does" — measured on the blade's
-            // own points, not the extrapolated end.
-            let length = length(sub(end, start));
-            let share = if trace.fraction >= 1.0 {
-                full * length * 0.1 * 0.33
-            } else {
-                full * length * (1.0 - trace.fraction) * 0.1 * 0.33
+                strength = saber_rules::power_level(
+                    fighter.torso,
+                    fighter.torso_timer,
+                    fighter.torso_length - fighter.torso_timer,
+                    swinger.saber_type,
+                    0,
+                    false,
+                );
+                if SPIN_ATTACKS.contains(&fighter.torso) {
+                    2.5
+                } else {
+                    2.5 * strength as f32
+                }
             };
-            damage = f64::from(share).ceil() as i32;
-        }
-        // "parry/block/break-parry bonus for single-style kata moves"
-        if KATAS.contains(&fighter.torso) {
-            strength += 1;
+            if !SLOWER_GAMES.contains(&swinger.gametype) {
+                full *= 2.0;
+            }
+            damage = 0;
+            if full != 0.0 {
+                // "the longer the trace, the more damage it does" — measured on the blade's
+                // own points, not the extrapolated end.
+                let length = length(sub(end, start));
+                let share = if trace.fraction >= 1.0 {
+                    full * length * 0.1 * 0.33
+                } else {
+                    full * length * (1.0 - trace.fraction) * 0.1 * 0.33
+                };
+                damage = f64::from(share).ceil() as i32;
+            }
+            if move_damage {
+                // "thrown saber with the multiplayer damage, it has the strength of the style
+                // and can be scaled" (VisionJK `w_saber.c:4322-4330`).
+                strength = fighter.style;
+                if let Some(scale) = rules.throw_scale {
+                    damage = (damage as f32 * scale) as i32;
+                }
+            } else if KATAS.contains(&fighter.torso) {
+                // "parry/block/break-parry bonus for single-style kata moves"
+                strength += 1;
+            }
         }
     } else if swinger.attack_wound < time && swinger.idle_wound < time {
         // "no idle damage or effects": the first saber's flag, whichever blade.
         if sabers.sabers[0].combat.flags2 & SFL2_NO_IDLE_EFFECT != 0 {
             return;
         }
-        damage = if saber_rules::in_return(fighter.saber_move) {
+        // JA+'s `jp_allowSaberTouchDMG` hurts with any touch (VisionJK `w_saber.c:4363-4366`).
+        let touch = swinger.ja_plus.enabled && swinger.ja_plus.touch_damage;
+        damage = if touch || saber_rules::in_return(fighter.saber_move) {
             SABER_NONATTACK_DAMAGE
         } else {
             0
@@ -669,8 +718,16 @@ fn check(
     }
     let unblockable = saber_rules::in_special(fighter.saber_move);
     if unblockable {
-        // The SP style adds nothing for specials.
+        // The SP style adds nothing for specials; JA+'s move table adds its weights
+        // (VisionJK `w_saber.c:4386-4446`).
         swinger.fighter.saber_blocked = 0;
+        if swinger.ja_plus.enabled {
+            damage = swinger.ja_plus.special_weight(
+                damage,
+                fighter.saber_move,
+                &swinger.swing_animation(),
+            );
+        }
     }
     if damage == 0 {
         return;
@@ -770,9 +827,14 @@ fn check(
             && number != fighter.number
     });
     if let Some(victim) = victim {
-        if (idle && victim.client && victim.spared_by_idle)
-            || (victim.client && victim.duel_elsewhere)
-        {
+        if idle && victim.client && victim.spared_by_idle {
+            return;
+        }
+        // "JA+: no saber damage from under the chat bubble" (VisionJK `w_saber.c:4626-4629`).
+        if swinger.ja_plus.enabled && swinger.talking {
+            return;
+        }
+        if victim.client && victim.duel_elsewhere {
             return;
         }
         if saber_rules::stab_down(fighter.torso) && victim.client && !victim.knocked_down_on_ground
@@ -783,6 +845,14 @@ fn check(
         // SP style: no fake block — a blow is stopped only by the saber it meets.
         if victim.client && damage > SABER_NONATTACK_DAMAGE {
             damage = (f64::from(damage) * 1.5) as i32;
+        }
+        if swinger.ja_plus.enabled && victim.client && victim.saber_in_hand {
+            damage = swinger.ja_plus.versus_saber(
+                damage,
+                swinger.gametype == GT_SIEGE,
+                unblockable,
+                thrown.in_flight,
+            );
         }
         // "Since he's an NPC, we'll be forgiving and cut the damage down."
         if fighter.npc && victim.client && fighter.player_team == victim.player_team {
@@ -817,6 +887,10 @@ fn check(
                 crate::saber_clash::sef::HIT_OBJECT
             };
         }
+    } else if swinger.ja_plus.enabled && targets.rng().irand(1, 100) <= swinger.ja_plus.reduce_block
+    {
+        // JA+'s `jp_reduceSaberBlock`: drawn for whatever else the blade met, before it is
+        // known to be a saber (VisionJK `w_saber.c:4817-4819`), and the blade passes through.
     } else if let Some(mut other) = targets.saber_owner(number) {
         // The clash branch: blades that really crossed, and the other saber in hand (a
         // thrown one is not tested closer).
@@ -1042,3 +1116,7 @@ fn distance_squared(left: [f32; 3], right: [f32; 3]) -> f32 {
     let difference = sub(left, right);
     dot(difference, difference)
 }
+
+#[cfg(test)]
+#[path = "saber_damage_tests.rs"]
+mod tests;

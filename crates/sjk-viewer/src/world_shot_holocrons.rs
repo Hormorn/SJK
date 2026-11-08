@@ -25,6 +25,7 @@ pub(super) fn holdings() -> Data {
         note: note.unwrap_or_default().to_owned(),
         opened: false,
         trade: None,
+        edition: if tier == 3 { "Beta" } else { "Alpha" }.to_owned(),
     };
     Data {
         counts: Some([12, 3, 0, 1]),
@@ -187,7 +188,7 @@ fn duel6_sjk_holocron_forms() {
 
 /// The engram (the Mythical holocron) and the four kyber crystals up close
 /// (`docs/holocrons.md`, "Kyber crystals"): each held at two moments (the parts moved
-/// and the engram's plates breathed between them), then each held none of, cropped to
+/// between them), then each held none of, cropped to
 /// the stage on one sheet, a row each.
 #[test]
 #[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
@@ -385,6 +386,13 @@ pub(super) fn crystal_holdings() -> Data {
     Data {
         crystals: Some([2, 1, 0, 1]),
         crystal_sealed: [vec![40, 41], vec![42], Vec::new(), vec![43]],
+        // One of the Uncommon crystals is Beta, the others Alpha (06/11/2026).
+        editions: vec![
+            (40, "alpha".to_owned()),
+            (41, "beta".to_owned()),
+            (42, "alpha".to_owned()),
+            (43, "alpha".to_owned()),
+        ],
         pity: Some(crate::kyber::Pity {
             every: 10,
             since: 3,

@@ -220,6 +220,9 @@ pub struct Pickup {
     pub dropped: Option<crate::dropped_items::Dropped>,
     /// `spawnflags & ITMSF_ALLOWNPC`: a placed item NPCs may take.
     pub allow_npc: bool,
+    /// A placed item a Force push flung (JA+'s `jp_pushAll`): where it goes back to
+    /// ([`crate::item_push`]); `None` where it stands.
+    pub home: Option<crate::item_push::ItemHome>,
 }
 
 /// `FinishSpawningItem` (`g_items.c:2814-3006`): the box of eight by sixteen, `ET_ITEM`
@@ -309,6 +312,7 @@ pub fn finish_spawning(
         random: placed.random,
         dropped: None,
         allow_npc: placed.allow_npc,
+        home: None,
     })
 }
 

@@ -50,7 +50,7 @@ const CLEAR_BASE: u16 = 1_170;
 const UNLOCK_PREV_TOKEN: u16 = 7_590;
 const UNLOCK_NEXT_TOKEN: u16 = 7_591;
 const UNLOCK_BASE: u16 = 7_600;
-const RELOCK_BASE: u16 = 7_900;
+const RELOCK_BASE: u16 = 8_000;
 /// The tier chips (one token per holocron tier, then one per kyber crystal tier, as
 /// `crate::holocrons::slot` counts them), Give, and Remove (one token per row).
 const HOLOCRON_TIER_BASE: u16 = 1_300;
@@ -1406,6 +1406,7 @@ mod tests {
             traded: None,
             traded_from_key: None,
             traded_from: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
             id,
             tier: tier.to_owned(),
             dropped: 1_791_641_100,

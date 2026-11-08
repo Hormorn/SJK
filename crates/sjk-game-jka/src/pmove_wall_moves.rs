@@ -108,7 +108,7 @@ pub(super) fn rebound_hold(animation: u16) -> bool {
 }
 
 /// `BG_InBackFlip` (`bg_panimate.c:210-222`).
-fn back_flip(animation: u16) -> bool {
+pub(crate) fn back_flip(animation: u16) -> bool {
     matches!(
         animation,
         BOTH_FLIP_BACK1 | BOTH_FLIP_BACK2 | BOTH_FLIP_BACK3
