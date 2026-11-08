@@ -256,6 +256,7 @@ pub(crate) fn update(
                 let game_state = session.game_state();
                 (
                     player_identity::slot_marks(game_state),
+                    player_identity::slot_clients(game_state),
                     player_identity::slot_pictures(game_state),
                 )
             });

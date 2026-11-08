@@ -1,9 +1,10 @@
 //! SJK chat readers whose client claims nothing (`docs/identity.md`, "What happens"): a
 //! scoreboard row the hub holds no claim for gets the icon of the client such players are
 //! taken to be on (`chat::client_icons::unclaimed`, today JoF EternalJK) when its name is
-//! the name of exactly one online SJK chat reader. Sol's request, 08/11/2026: JoF EJK
-//! players talk in SJK chat but showed no mark in game, since that client does not claim
-//! its slot yet.
+//! the name of exactly one online SJK chat reader, and so does that player's nameplate,
+//! small after the name ([`slots`], `player_identity::slot_clients`). Sol's requests,
+//! 08/11/2026: JoF EJK players talk in SJK chat but showed no mark in game, since that
+//! client does not claim its slot yet; then "the logos on the nameplates too".
 //!
 //! A name proves nothing, so the row gets the icon alone: no tick, trust mark, medals or
 //! emoji, and the player card and the game chat's marks stay as they were. Left out: bots,
@@ -30,17 +31,12 @@ pub(super) fn mark(rows: &mut [ScoreRow]) {
     let Some(icon) = crate::chat::client_icons::unclaimed() else {
         return;
     };
-    let Some((own, claimed)) = crate::player_identity::with_snapshot(claims) else {
-        return;
-    };
     let shown: Vec<(u8, &str, bool)> = rows
         .iter()
         .filter(|row| !row.bot)
         .map(|row| (row.client_num, row.name.as_str(), row.identity.is_some()))
         .collect();
-    let slots =
-        crate::player_identity::with_chat(|chat| matched(&shown, &readers(chat, &own, &claimed)))
-            .unwrap_or(0);
+    let slots = slots(&shown);
     for row in rows
         .iter_mut()
         .filter(|row| row.client_num < 64 && slots & 1 << row.client_num != 0)
@@ -50,6 +46,17 @@ pub(super) fn mark(rows: &mut [ScoreRow]) {
             ..Tag::default()
         });
     }
+}
+
+/// The slots of `rows` (slot, name shown, a claim marks it; bots left out) where an
+/// online SJK chat reader on a client that claims nothing seems to sit, as bits: the
+/// scoreboard's rows here, the nameplates' in `player_identity::slot_clients`.
+pub(crate) fn slots(rows: &[(u8, &str, bool)]) -> u64 {
+    let Some((own, claimed)) = crate::player_identity::with_snapshot(claims) else {
+        return 0;
+    };
+    crate::player_identity::with_chat(|chat| matched(rows, &readers(chat, &own, &claimed)))
+        .unwrap_or(0)
 }
 
 /// The player's own key ids (the key and its person's) and the keys claiming on this

@@ -191,6 +191,8 @@ const NAME_ROW: f32 = 15.0;
 /// The verified seal's side, and the gap before it.
 const MARK: f32 = 11.0;
 const MARK_GAP: f32 = 4.0;
+/// The side of another client's icon after the mark (Sol, 08/11/2026: "in small").
+const CLIENT: f32 = 9.0;
 /// The widest the name runs before its ellipsis.
 const NAME_MAX: f32 = 160.0;
 /// The bars, top to bottom (shield, health, Force), the gap over each and the room
@@ -312,6 +314,8 @@ pub(crate) struct HoloSpec {
     pub(crate) picture: bool,
     /// The mark after the name (the verified seal or a trust mark).
     pub(crate) mark: bool,
+    /// Another client's icon after the mark (`chat::client_icons`).
+    pub(crate) client: bool,
     /// The duel badge on the picture.
     pub(crate) duel: bool,
     /// The bars; none, a dotted line under the name instead.
@@ -354,6 +358,7 @@ pub(crate) struct Holo {
     /// The name's capitals are centred on this height.
     pub(crate) middle: f32,
     pub(crate) mark: Option<Rect>,
+    pub(crate) client: Option<Rect>,
     pub(crate) badge: Option<Rect>,
     pub(crate) bars: Bars,
     /// The dotted line under the name of a plate without bars.
@@ -380,13 +385,20 @@ impl Holo {
         } else {
             0.0
         };
+        // What follows the name: the mark, then a client's icon.
+        let tail_width = mark_width
+            + if spec.client {
+                (MARK_GAP + CLIENT) * k
+            } else {
+                0.0
+            };
         let left = if spec.picture {
             measure(|m| m.left)
         } else {
             BARE_LEFT * k
         };
         let width = (PLATE_WIDTH * k)
-            .max(left + name_width + mark_width + PAD_RIGHT * k)
+            .max(left + name_width + tail_width + PAD_RIGHT * k)
             .min(spec.viewport[0]);
         let bars = [
             (spec.rows.shield, line(BAR_SHIELD)),
@@ -430,7 +442,7 @@ impl Holo {
         } else {
             0.0
         };
-        let far_width = far_hex + name_width + mark_width;
+        let far_width = far_hex + name_width + tail_width;
         let far_left = fits(spec.centre_x - far_width * 0.5, far_width);
         let plate = Rect::new(plate_x, spec.bottom - height, width, height);
         let near_middle = plate.y + measure(|m| m.top) + NAME_ROW * 0.5 * k;
@@ -461,6 +473,9 @@ impl Holo {
         let mark = spec
             .mark
             .then(|| square(name.right() + MARK_GAP * k, MARK * k));
+        let client = spec
+            .client
+            .then(|| square(name.right() + mark_width + MARK_GAP * k, CLIENT * k));
         let badge = spec.duel.then(|| match hex {
             Some(hex) => {
                 let side = lerp(FAR_BADGE, BADGE, near) * k;
@@ -473,7 +488,7 @@ impl Holo {
                 )
             }
             None => square(
-                name.right() + mark_width + MARK_GAP * k,
+                name.right() + tail_width + MARK_GAP * k,
                 lerp(FAR_BADGE, BADGE, near) * k,
             ),
         });
@@ -513,6 +528,7 @@ impl Holo {
             name,
             middle,
             mark,
+            client,
             badge,
             bars: Bars {
                 shield: stack[0],
@@ -707,6 +723,7 @@ mod tests {
             name_width: 60.0,
             picture: true,
             mark: true,
+            client: false,
             duel: false,
             rows,
             detail: 1.0,
@@ -727,6 +744,39 @@ mod tests {
             && inner.y >= outer.y - 1e-3
             && inner.right() <= outer.right() + 1e-3
             && inner.bottom() <= outer.bottom() + 1e-3
+    }
+
+    /// Another client's icon follows the seal, smaller, level with it and inside the
+    /// plate, which widens for it once the name is long.
+    #[test]
+    fn a_client_icon_follows_the_seal() {
+        let holo = Holo::new(&HoloSpec {
+            client: true,
+            ..spec(ALL)
+        });
+        let (mark, client) = (holo.mark.unwrap(), holo.client.unwrap());
+        assert!(client.x > mark.right() && client.width < mark.width);
+        assert!(inside(client, holo.plate));
+        let centre = |rect: Rect| rect.y + rect.height * 0.5;
+        assert!((centre(client) - centre(mark)).abs() < 1e-3);
+        assert!(Holo::new(&spec(ALL)).client.is_none());
+        // Without a seal it takes the seal's place.
+        let alone = Holo::new(&HoloSpec {
+            mark: false,
+            client: true,
+            ..spec(ALL)
+        });
+        assert!((alone.client.unwrap().x - mark.x).abs() < 1e-3);
+        let long = |client: bool| {
+            Holo::new(&HoloSpec {
+                name_width: 150.0,
+                client,
+                ..spec(ALL)
+            })
+        };
+        let grown = long(true).plate.width - long(false).plate.width;
+        assert!((grown - (MARK_GAP + CLIENT) * holo.k).abs() < 1e-3, "{grown}");
+        assert!(inside(long(true).client.unwrap(), long(true).plate));
     }
 
     /// The hexagon overlaps the plate's left end and is centred on it; the name and its

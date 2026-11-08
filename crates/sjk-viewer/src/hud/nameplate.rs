@@ -578,6 +578,9 @@ struct Entry {
     /// The mark after the name: the gold badge of a player the SJK hub's operator vouches
     /// for, or their trust mark (`ui_renderer::mark_texture`).
     mark: Option<sjk_ui::TextureId>,
+    /// The icon of another client they play on, small after the mark
+    /// (`player_identity::slot_clients`): none for SJK.
+    client: Option<sjk_ui::TextureId>,
     /// They share their bars, of their own will or because they see everyone's: a
     /// gold contour.
     shared: bool,
@@ -631,6 +634,8 @@ pub(crate) struct State {
     /// last read.
     marks: crate::player_identity::SlotMarks,
     marks_read: Option<i64>,
+    /// Each slot's client icon (`player_identity::slot_clients`), read with the marks.
+    clients: crate::player_identity::SlotMarks,
     /// What each slot's player shares (`PROTOCOL.md`, "Vitals"), and when it was last
     /// read.
     shared: [Option<SharedSlot>; MAX_PLAYER_TAGS],
@@ -675,6 +680,7 @@ impl Default for State {
             colors: BarColors::default(),
             marks: [None; 32],
             marks_read: None,
+            clients: [None; 32],
             shared: [None; MAX_PLAYER_TAGS],
             shared_read: None,
             sharing_live: false,
@@ -758,12 +764,17 @@ impl State {
         };
     }
 
-    /// Read each slot's mark and SJK picture (`read` asks the identity service) at most
-    /// once a second, so the names it compares are not rebuilt every frame.
+    /// Read each slot's mark, client icon and SJK picture (`read` asks the identity
+    /// service) at most once a second, so the names it compares are not rebuilt every
+    /// frame.
     pub(crate) fn refresh_marks(
         &mut self,
         now: i64,
-        read: impl FnOnce() -> (crate::player_identity::SlotMarks, SlotPictures),
+        read: impl FnOnce() -> (
+            crate::player_identity::SlotMarks,
+            crate::player_identity::SlotMarks,
+            SlotPictures,
+        ),
     ) {
         if self
             .marks_read
@@ -772,12 +783,17 @@ impl State {
             return;
         }
         self.marks_read = Some(now);
-        (self.marks, self.pictures) = read();
+        (self.marks, self.clients, self.pictures) = read();
     }
 
     /// Slot `number`'s mark.
     fn mark(&self, number: impl Into<usize>) -> Option<sjk_ui::TextureId> {
         self.marks.get(number.into()).copied().flatten()
+    }
+
+    /// Slot `number`'s client icon.
+    fn client(&self, number: impl Into<usize>) -> Option<sjk_ui::TextureId> {
+        self.clients.get(number.into()).copied().flatten()
     }
 
     /// Read what the other SJK players share and whether the hub has the player's own
@@ -1239,6 +1255,7 @@ impl State {
                 accent,
                 names_allowed,
                 mark: if player { self.mark(number) } else { None },
+                client: if player { self.client(number) } else { None },
                 shared: shares,
                 withheld,
                 duelling: player && entity.bolt1(),
@@ -1454,6 +1471,7 @@ impl State {
                 accent: who.accent,
                 names_allowed: who.names_allowed,
                 mark: self.mark(number),
+                client: self.client(number),
                 shared: false,
                 withheld: false,
                 // A pilot cannot duel: the server ends a duel on boarding.
@@ -1544,6 +1562,7 @@ impl State {
             accent: team_accent(mode, player.team() as i32),
             names_allowed: true,
             mark: self.mark(local),
+            client: self.client(local),
             shared: self.sharing_live,
             withheld: false,
             duelling: player.duel_in_progress(),
@@ -1704,6 +1723,7 @@ impl State {
             name_width: crate::text::visible_text_width(font, label(id), scale),
             picture: entry.picture != Picture::Nothing,
             mark: entry.mark.is_some(),
+            client: entry.client.is_some(),
             duel: duel_badge,
             rows,
             detail: entry.detail,
@@ -1739,7 +1759,7 @@ impl State {
             size,
             font,
         );
-        self.badges(entry, holo.mark, holo.badge, opacity);
+        self.badges(entry, [holo.mark, holo.client], holo.badge, opacity);
         if entry.power_count > 0 && entry.proximity > 0.01 {
             self.power_row(entry, icons, &holo, &frame, viewport);
         }
@@ -1774,15 +1794,24 @@ impl State {
         });
     }
 
-    /// The mark after the name in `mark`, and the duel badge in `badge`, at the name's
-    /// `opacity` (the badge never under [`DUEL_BADGE_OPACITY`]).
-    fn badges(&mut self, entry: &Entry, mark: Option<Rect>, badge: Option<Rect>, opacity: f32) {
-        if let (Some(rect), Some(texture)) = (mark, entry.mark) {
-            let _ = self.list.push(DrawCommand::TexturedQuad {
-                rect,
-                texture,
-                color: Color::new(1.0, 1.0, 1.0, opacity),
-            });
+    /// The mark after the name and the client icon after it in `[mark, client]`, and
+    /// the duel badge in `badge`, at the name's `opacity` (the badge never under
+    /// [`DUEL_BADGE_OPACITY`]). The client icon keeps its own colours.
+    fn badges(
+        &mut self,
+        entry: &Entry,
+        [mark, client]: [Option<Rect>; 2],
+        badge: Option<Rect>,
+        opacity: f32,
+    ) {
+        for (rect, texture) in [(mark, entry.mark), (client, entry.client)] {
+            if let (Some(rect), Some(texture)) = (rect, texture) {
+                let _ = self.list.push(DrawCommand::TexturedQuad {
+                    rect,
+                    texture,
+                    color: Color::new(1.0, 1.0, 1.0, opacity),
+                });
+            }
         }
         if let Some(rect) = badge {
             let _ = self.list.push(DrawCommand::TexturedQuad {
@@ -2608,6 +2637,8 @@ pub(crate) struct PreviewPlate {
     /// The Force powers on (`forcePowersActive` bits), shown over the plate.
     pub(crate) powers: u32,
     pub(crate) verified: bool,
+    /// Another client's icon, small after the mark.
+    pub(crate) client: Option<TextureId>,
     /// In a private duel: the duel badge before the name.
     pub(crate) duelling: bool,
     /// The frame's colour: red or blue team, else neutral.
@@ -2661,6 +2692,7 @@ impl State {
                 mark: plate
                     .verified
                     .then_some(crate::ui_renderer::VERIFIED_TEXTURE),
+                client: plate.client,
                 shared: plate.shared,
                 withheld: plate.withheld,
                 duelling: plate.duelling,
@@ -2984,6 +3016,7 @@ mod tests {
             force: None,
             powers: 0,
             verified: true,
+            client: None,
             duelling: true,
             team: None,
             shared: false,

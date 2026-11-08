@@ -4121,6 +4121,16 @@ command new for them (`DrawCommand::Polygon`, [rendering.md](rendering.md#submis
   out (`UiFont::capital_middle`; the HUD font hangs its glyphs low in the line), and the
   seal with them.
   Which slots are verified is read from the identity service once a second.
+- **Client icon** (08/11/2026, Sol's request: "the logos on the nameplates too with
+  the tick then in small next to them for ejk people"): a player on another client
+  that takes part in SJK chat (today JoF EternalJK) has that client's icon after the
+  tick, smaller (9 design pixels to the seal's 11, about 0.8 of the name in the classic
+  style) and in its own colours, level with it; without a tick it takes the tick's
+  place. It comes from the claim's `client`, or, for a player of a client that claims
+  nothing, from their name matching one online SJK chat reader's, which gives the icon
+  alone, never a tick ([identity.md](identity.md), item 4). It is read with the marks
+  (`player_identity::slot_clients`); SJK's players get none, and
+  `cl_sjkChatClientIcons 0` turns it off.
 - **Duel badge:** a player in a private duel (`bolt1`, your own `duelInProgress`
   on your own plate) gets two crossed lightsabers, white blades in a coloured glow on a
   disc filled and ringed in the same colour (so the colours tell apart at a nameplate's
