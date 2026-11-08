@@ -1879,14 +1879,11 @@ impl Painter<'_> {
             name_size,
             FontWeight::Regular,
         ) + jof;
-        // The bars take no more than a third of the name's room; a compact
-        // list, sized for its names, gives them what the name leaves.
+        // The bars take what the whole name leaves, and a third of the
+        // name's room at least, so a long name is cut no shorter than it
+        // was when only three bars could show.
         let ribbons = row.identity.map_or(0, |tag| {
-            let left = if self.header.compact {
-                room - ready_width - full_name - 10.0
-            } else {
-                0.0
-            };
+            let left = room - ready_width - full_name - 10.0;
             super::identity_mark::ribbon_count(tag.medals, side, (room / 3.0).max(left))
         });
         let marks = if row.identity.is_some() {

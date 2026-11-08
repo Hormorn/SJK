@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 - A demo played from the console (`demo <name>`) no longer closes the game: it plays from its start, at its end the game goes back to the main menu, and your chat balloon no longer stays up for the whole demo _(Slash, PR #383)_
+- The scoreboard shows a ribbon bar for every medal a player has, up to six: it stopped at three, so a player with all four medals was missing one. A short name shows them all; a long one keeps two thirds of its room, as before _(Kushina, PR #388)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
