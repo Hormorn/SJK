@@ -157,7 +157,7 @@ impl GpuState {
                 return;
             }
         };
-        let session =
+        let mut session =
             match demo_playback::Session::open(&path, demo_playback::Camera::FirstPerson, 60) {
                 Ok(session) => session,
                 Err(error) => {
@@ -167,9 +167,13 @@ impl GpuState {
                     return;
                 }
             };
+        session.set_from_console();
         self.leave_session();
         self.demo_session = Some(session);
         self.pending_map_reload = true;
+        // From the main menu the world on screen is the menu's backdrop, which
+        // never loads a map of its own: leave it so the demo's map is loaded.
+        self.is_menu_world = false;
         self.game_menu = false;
         if let Some(console) = &mut self.console {
             console.push_log(format!("Playing demo {}", path.display()));

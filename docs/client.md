@@ -7569,7 +7569,9 @@ It adds to the map's own weather until the next map; see
 [Weather](rendering.md#weather).
 
 `connect host:port`, `disconnect` and `reconnect` control the session.
-`record`, `stoprecord`, `demo` and `playdemo` control demos.
+`record`, `stoprecord`, `demo` and `playdemo` control demos. A demo played from the
+console loads its map first and plays from its start once the map is up; at its end
+the game returns to the main menu ([console_demo.rs](../crates/sjk-viewer/src/console_demo.rs)).
 `ghost record`, `ghost stop` and `ghost play` record and replay the player's own run
 ([Ghost replay](#ghost-replay)); `mimic <player> [delay] [mirror|copy] [walk]` copies another
 player's moves live, `walk` to walk always ([Mimic](#mimic)).

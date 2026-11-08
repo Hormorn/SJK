@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- A demo played from the console (`demo <name>`) no longer closes the game: it plays from its start, at its end the game goes back to the main menu, and your chat balloon no longer stays up for the whole demo _(Slash, PR #383)_
+
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
 The WHEEL OF DOOM, a new Solfox, toon shading by choice, sculpted holocrons and smoother joins and inputs.
