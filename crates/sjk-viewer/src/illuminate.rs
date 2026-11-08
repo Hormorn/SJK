@@ -631,7 +631,7 @@ mod tests {
         };
         // Every form's pictures: the four holocrons' and the four kyber crystals'. A
         // sculpted form's face and glow are baked from its model at 1024.
-        const SCULPTED: [&str; 1] = ["legendary"];
+        const SCULPTED: [&str; 3] = ["uncommon", "legendary", "mythical"];
         for tier in crate::holocrons::stage::FORMS.map(|form| form.id) {
             let face = if SCULPTED.contains(&tier) { 1024 } else { 512 };
             for (path, size) in [
@@ -695,12 +695,22 @@ mod tests {
                 .all(|pair| { pair[0].0 < pair[1].0 && pair[0].1 < pair[1].1 })
         );
         // The engram's plates breathe (their walls with them, in the parts' shader) and
-        // their sheen is read by the view, so the facets flash as they turn.
+        // their sheen is read by the view, so the plates flash as they turn; the sculpted
+        // forms' lit faces name their baked normal maps.
         let mythical = definitions.last().unwrap();
         assert!(matches!(
             mythical.deforms.as_slice(),
             [sjk_shader::Deform::Wave { .. }]
         ));
+        for (tier, definition) in TIERS.iter().zip(&definitions) {
+            let named = definition.stages[0].material.normal_map.as_deref();
+            let sculpted = SCULPTED.contains(tier);
+            assert_eq!(
+                named.map(str::to_owned),
+                sculpted.then(|| format!("models/sjk/holocron_{tier}_n")),
+                "{tier}"
+            );
+        }
         let sheen = &mythical.stages[3];
         assert_eq!(sheen.images, ["models/sjk/holocron_mythical_env"]);
         assert_eq!(
@@ -821,12 +831,16 @@ mod tests {
                     );
                 }
             }
-            // The tier's locked face is mounted at its size: 512, or 1024 for the
-            // Sith pyramid's, baked from its sculpted model.
+            // The tier's locked face is mounted at its size: 512, or 1024 for a
+            // sculpted form's, baked from its model.
             let face =
                 image::load_from_memory(&read(&format!("models/sjk/holocron_{tier}_locked.jpg")))
                     .unwrap();
-            let size = if tier == "legendary" { 1024 } else { 512 };
+            let size = if ["uncommon", "legendary", "mythical"].contains(&tier) {
+                1024
+            } else {
+                512
+            };
             assert_eq!((face.width(), face.height()), (size, size), "{tier}");
         }
     }

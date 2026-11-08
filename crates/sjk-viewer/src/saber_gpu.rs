@@ -81,6 +81,9 @@ pub(crate) struct Runtime {
     signatures: Arc<Signatures>,
     /// The loaded skins' signatures by skin number, and their pipelines once built.
     signed: Vec<Option<Signed>>,
+    /// How many times `saber_loadall` had asked for every signature when these skins last
+    /// asked ([`crate::blade_load_all::asked`]); 0 for not since they loaded.
+    load_all_asked: u64,
 }
 
 /// A loaded skin's signature shader and its pipelines: built from its own module off the
@@ -818,6 +821,7 @@ impl Runtime {
                 .clone(),
             signatures: signatures.clone(),
             signed: Vec::new(),
+            load_all_asked: 0,
             trails,
             ribbons: crate::saber_ribbons::Gpu::new(device, camera_layout, format),
         })
@@ -863,6 +867,8 @@ impl Runtime {
             }
         }
         self.signed = signed;
+        // Skins loaded since `saber_loadall` asked: theirs are asked for too.
+        self.load_all_asked = 0;
         // The skins' slots only: the black pair sits after them (2026.1021.2 lost it here,
         // black blades drawn with the neutral pair's opaque squares).
         let first = crate::saber_rgb::SKIN_MATERIAL as usize;
@@ -885,6 +891,7 @@ impl Runtime {
         ranges: &[Range<u32>],
         wanted: u8,
     ) {
+        self.load_all();
         let first = crate::saber_rgb::SKIN_MATERIAL as usize;
         let loaded = Arc::clone(&self.loaded);
         for (index, skin) in loaded.iter() {
@@ -905,6 +912,21 @@ impl Runtime {
         self.build_signatures(ranges, wanted);
     }
 
+    /// `saber_loadall` (06/11/2026, [`crate::blade_load_all`]): once it asks, every loaded
+    /// signature's pipelines, as soon as the Collection's pictures' (after the blades worn
+    /// and shown); and how many are built, for it to tell.
+    fn load_all(&mut self) {
+        let asked = crate::blade_load_all::asked();
+        if asked != self.load_all_asked {
+            self.load_all_asked = asked;
+            for signed in self.signed.iter().flatten() {
+                self.builds.ask(signed, WANTED_PICTURE);
+            }
+        }
+        let (built, total) = self.signatures_built();
+        crate::blade_load_all::count(built, total);
+    }
+
     /// Ask for every loaded signature's pipelines, as a blade worn later would (the world
     /// shots that wait for them all).
     #[cfg(test)]
@@ -915,8 +937,7 @@ impl Runtime {
     }
 
     /// The loaded signature skins whose pipelines are built, and how many are loaded (the
-    /// world shots wait for every one).
-    #[cfg(test)]
+    /// world shots wait for every one; `saber_loadall` tells them).
     pub(crate) fn signatures_built(&self) -> (usize, usize) {
         let loaded = self.signed.iter().flatten();
         let built = loaded

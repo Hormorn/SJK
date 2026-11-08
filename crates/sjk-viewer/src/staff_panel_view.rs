@@ -1786,7 +1786,9 @@ impl Panel {
                 "open" => format!("asked {}", crate::medals::date_text(request.created)),
                 other => format!("{other} {}", crate::medals::date_text(request.created)),
             };
-            if !request.staff_name.is_empty() {
+            if request.own {
+                state = format!("{state}, unasked");
+            } else if !request.staff_name.is_empty() {
                 state = format!(
                     "{state}, by {}",
                     cut(&crate::medals::plain_note(&request.staff_name), 10)
@@ -2437,6 +2439,7 @@ mod tests {
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                     id: 1_000 - id,
                     tier: crate::holocrons::TIERS[id as usize % crate::holocrons::COUNT]
                         .id

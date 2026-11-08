@@ -1,3 +1,117 @@
+## WHEEL OF DOOM (client side)
+
+07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins
+for credits, `toy_wheelofdoom` (Collection > Toys, the quick wheel, a bind): a first press
+shows the price, a second spins; the hub (its `wheel-of-doom` branch, `GET /v1/wheel-of-doom`,
+`POST /v1/wheel-of-doom/spin`) takes the price, keeps the 5 minute cooldown and rolls one of
+16 segments. A placeholder wheel stands before the spinner and spins 6 s onto it, for every SJK
+player near (the hub's toy event `wheel_of_doom` `spin_<outcome>`); the spinner gets one of
+twelve effects on their own input or view for 15 to 30 s (reversed keys, inverted mouse,
+mirror, upside down, blind, drunk, tiny or huge FOV, no saber, quack, walk, bunny), the
+mystery box's blast and `kill`, a curse, nothing, or a Mythical holocron
+([wheel-of-doom.md](wheel-of-doom.md)). Settings > Sound > Toys, `s_toyWheelOfDoomSound`.
+Verified on Windows 11: unit tests (segments and the stop under the pointer, the slowing spin,
+the ticks, stop, laugh, fanfare and blast, unknown outcomes, the refusals, each effect's input
+and view transform, timers and clearing, the curse; the identity side's answers, event and
+refusals with the cooldown's seconds), off-screen world shots of the wheel on duel6, fmt, build,
+clippy. Not verified: in a game or against the hub; the Mirror pass on a live surface, the
+pinhole, the saber toggle on real servers, the wheel's placement against walls. The model is a
+placeholder for Sol's.
+
+## Rig chains feel the player's movement, and can keep out of the arms
+
+06/11/2026, `feat/rig-dynamics-motion` from `feat/rig-dynamics-cloth`. Chains answered only
+the animation, so hair and capes did not trail behind a running player, and arms passed
+through hair. New `dynamic` options: `drag <n>`, air on the chain from the player's velocity
+and turn through the world, and `arms`, which keeps the chain out of the upper arms and
+forearms, measured only for a rig with a chain that asks
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Without them nothing changes.
+A teleport or a change of the origin's source (the free camera's switch between prediction
+and interpolation, another body on a reused mesh) starts the movement again at rest, facing
+included; only a rig with a chain that has `drag` follows it; an actor whose origin is not read
+stops at once.
+Verified on Windows 10: unit tests (trailing, every facing, teleports with a snapped facing, a
+change of source, a paused clock, the yaw's wrap, arm exemption), fmt, build, clippy, workspace tests. Measured in release on local
+rigs, a whole pose per actor while running: 19.5 to 22.1 us (55 chain joints, drag and arms),
+37.8 to 39.8 us (120), 22.4 to 22.4 us (63, drag only); no allocation per frame. Measured again
+with the review's changes, the old and new code run in turn with the options on: 22.3 to 22.0 us
+(55), 41.1 to 41.5 us (120), 21.7 to 22.4 us (63), the same within the runs' spread. Hair vertices
+in the arms' capsules on one rig: 46 to 0 on the empty-handed run, 27 to 5 on a saber swing.
+A cost: arms pushing hair move it faster on the empty-handed run, its largest step in 8 ms
+going from 1.3 units to 2.2 with drag and 4.1 without, so the two go together; saber swings
+and the saber run did not jump more. A cape's outer columns should not take `arms`: the arm swings
+with the stride and shoved them, their hem rising and falling 13.6 units per stride (2.5 without)
+and following the knees, so a local cape keeps it on its middle columns only. Played in game on
+Windows 10 with `main` merged and the review's changes: hair and capes trail as they should, the
+collisions hold, the speed shows, and it runs well. Not verified: in a game on Linux and macOS, other machines or other rigs; the arm can show through
+a column without `arms`.
+
+## Rig cloth: limits, clearance, layers, levers and eased tilts
+
+06/11/2026, `feat/rig-dynamics-cloth` from `fix/rig-dynamics-forked-chains`. Hair, capes
+and soft parts on rig models could not be tuned to behave: the spring's lag is in game
+units, so short bones swung far on a small step; a long bone passed through a leg its two
+ends missed; layered chains crossed; single-joint strands could not move; and a change of
+animation made a long chain's tip jump. New `dynamic` options `limit` and `clearance`, a
+`layer <outer> over <inner>` line, swinging about a pivot for stacked single joints, and
+pushes and tilts eased in over a few frames for limited chains
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Collision of a bone's middle
+applies to every colliding chain, with its own at-rest exemption, and a push on the middle
+moves the joint twice as far; the rest needs the new options. The log names `layer` lines that
+do nothing. Verified on Windows 10:
+unit tests of each, the ignored motion test on local rigs, fmt, build, clippy, workspace
+tests. Played in game on this client with `main` merged and the review's changes, together with
+the motion options ("Rig chains feel the player's movement" above): it works and runs well.
+Not verified: in a game on Linux and macOS, other machines or other rigs; arms
+and head are not capsules and the mesh itself is not checked, so a sharp pose can show
+cloth through, and a fast leg can get about a unit further into a loose flap for a moment.
+
+## Commands carry the previous frame's server time, as stock
+
+07/11/2026, `fix/command-stamp-previous-frame` from `main` `92623e3b`. A frame's commands
+now carry the clock as the frame before read it (`ServerClock::command_time`), as stock's
+and JoF EJK's do (`CL_SendCmd` stamps `cl.serverTime` before `CL_SetCGameTime` reads the
+next one), on every server but SJK's own (`server_caps::FRESH_STAMPS`, Sol's choice: no
+anti-cheat there, so its players keep the fresher stamp) and with both pacings; what the
+frame draws and predicts keeps its own reading. SJK's stamps were a frame fresher than every other client's (8 ms at
+125 FPS), and on JoF since 02/11 fresher still (no rounding down to the grid). Milamber,
+who maintains Heimdall, found that it reads stamps ahead of a stock client's as a
+negative `cl_timeNudge`, the one it kicks for, and stamps that trail as a positive one,
+which it does not kick: the 23/10, 02/11 and 04/11 changes worked on trailing stamps and
+repeated commands (which a server drops before running), and the idle kicks with steady
+timing of 06/11 fit a steady offset. A new timeline forgets the previous reading, and a
+hitch's commands trail the reading by at most 50 ms ([networking.md](networking.md)). The
+server view's command ages read about a frame higher. Verified on Windows 11: unit tests
+(each frame's commands carry the previous frame's reading with 8, 7, 4 and 3 ms frames;
+at most 50 ms behind after a 1.3 s hitch; a restart, a 500 ms reset and a new connection
+never carry the old timeline's time; the hitch tests stamp as the client now does), fmt,
+build, clippy, workspace tests. Not verified: in a game, or that Heimdall kicks less.
+
+## JoF takes `cl_packetdup` as set again
+
+06/11/2026, `personal/jof-packetdup-back` from `main` `48ccdbf2`, Sol's request after
+Milamber, who maintains Heimdall, confirmed that the default is right: the JoF-only cap
+of 04/11 (no repeated commands, "No repeated commands on JoF" below) is reverted, with
+its `cl_packetdup_nocap` cvar, so packets repeat the one before (`cl_packetdup` 1), as
+JoF EJK's always do. Sol was kicked twice on 06/11 with the cap on while idle, and the
+server view lines ([networking.md](networking.md)) showed steady timing before both
+kicks (command ages 51 to 58 ms each second, no gap or frame over 40 ms), so the cause
+is still unknown. Verified on Windows 11: fmt, build, clippy, workspace tests. Not
+verified: in a game, or that Heimdall kicks less.
+
+## Rig chains that fork or stack joints no longer jump
+
+06/11/2026, `fix/rig-dynamics-forked-chains` from `main` `26526290`. A dynamic chain whose
+rig stacks joints on one spot or forks threw its bones about: a near-zero bone aimed its
+parent along the bind matrices' rounding, and a fork's branches aimed from where their
+parent had been before it turned. A single pass, parents first, now places each joint
+from where its parent stands, and a bone under `MIN_BONE` turns nothing
+([rig-models.md](rig-models.md#dynamic-joints-tails-capes)). Verified on Windows 10: a
+unit test of such a fork (fails on `main`, 22.8 degrees in a frame), the ignored sway test
+on a local hair rig (largest turn in a frame 137 degrees before, 13 after), fmt, build,
+clippy, workspace tests. Not verified: in a game on this branch alone; the rig's short
+bones still stray far from their animated direction under a hard sway.
+
 ## Chat row tools: x, + and a cog
 
 06/11/2026, `personal/chat-tab-tools` from `main` `6b317e9f`, Sol's request: the open
@@ -10,6 +124,7 @@ tests (the × only on hover and never on All, closing the chosen chat moves to A
 the frame saves, Escape and a press elsewhere closing the menus), the chat tests,
 world shots of the three states, fmt, clippy, the startup stack check. Not verified:
 in a game.
+
 ## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
 
 06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`
@@ -2338,6 +2453,10 @@ and sjk-identity 199 passed, with `a_kyber_crystal_is_given_from_the_second_row_
 Not verified in game: a crystal given at the live hub, then opened.
 
 ## Support SJK on the main page
+
+Shelved 07/11/2026 (`personal/shelve-support-links`, Sol's request): the line no longer
+shows for anyone (`support_links::SHELVED`) and its Settings row is gone; the code stays
+for a revival ([sjk.md](sjk.md#donations)).
 
 26/10/2026, `personal/support-links`, Sol's request: a small line at the top left of the
 SJK UI's main page, "Support SJK" with outlined GitHub Sponsors and Ko-fi pills that open
