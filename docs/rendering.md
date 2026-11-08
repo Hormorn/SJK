@@ -470,6 +470,11 @@ memory. Once the images held grow 128 MiB past what the last sweep kept, the nex
 decoded sweeps out every image only the cache holds; an image a world's shared
 textures, the mip cache or a loader still holds stays, so an address used as a key is
 never freed and reused, and textures shared across a map change are shared as before.
+A model's warm-up (`warm_entity_materials`) returns its decoded images with its
+textures (`WarmTextures`), held until the model's materials are appended: held by the
+cache alone, any image decoded meanwhile could sweep them (two 4096x4096 RGBA images
+are the whole 128 MiB margin), and the append decoded them again on the render thread,
+743 ms for `creyonwolf` in Sol's 08/11/2026 log (`model install … materials 736.6`).
 `map_changes_vram` prints the bytes held: four maps cycled three times at r_picmip 2
 (an install with HD texture packs) held 1750 MiB from the third map
 on before, 906 to 1178 MiB after (the current map's own images), with the same video
@@ -890,6 +895,14 @@ process's RAM in Task Manager.
   than 16:9 so they never see past it, which lines the 3D stage up with the picture.
   A world install that runs out of memory turns the setting on
   ([status](status.md#menu-pictures-and-readable-world-install-failures)).
+- Largest texture (`r_maxTextureSize`, SJK, 2048 by default, 0 for none; Settings,
+  "Largest texture") leaves off the mip levels of a texture larger than its size, so
+  the longest side kept is that size or less, whatever `r_picmip` (`mips::skipped`
+  takes the larger of the two). It takes every path `r_picmip` takes, and also the
+  `nopicmip` stages and sky boxes. Added 08/11/2026 for community player models with
+  4096x4096 textures (`creyonwolf`): at 2048 such a texture is a quarter of its video
+  memory and upload. The whole chain is still decoded and built on a worker, so the
+  cap does not shorten that part of a load. From the next map, as `r_picmip`.
 - Texture detail (`r_picmip`, 0 to 3, as in Jedi Academy,
   [world_texture_mips.rs](../crates/sjk-viewer/src/world_texture_mips.rs)) leaves a
   material texture's largest mip levels off the card: each step halves its sides, a

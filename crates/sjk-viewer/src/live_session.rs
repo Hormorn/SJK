@@ -250,17 +250,23 @@ impl GpuState {
                 )
             },
         );
-        let command_time = if previous_frame {
-            previous_frame_time
-        } else {
-            server_time
-        };
-        let due = self.command_schedule.due(
-            command_time,
-            self.server_clock.anchored(),
-            now,
-            step,
+        if !session.is_local() {
+            // Which stamp, and around a switch how the server saw each (`server_view`).
+            self.server_view.stamps(!previous_frame, now, |line| {
+                crate::log::progress(format_args!("{line}"));
+            });
+        }
+        // Made as soon as the frame's own reading says so; stamped as stock
+        // (`CommandSchedule::stock_stamps`).
+        let due =
+            self.command_schedule
+                .due(server_time, self.server_clock.anchored(), now, step, pacing);
+        let due = self.command_schedule.stock_stamps(
+            due,
             pacing,
+            step,
+            previous_frame_time,
+            previous_frame,
         );
         if let Some(console) = &self.console {
             session.set_packet_dup(console.packet_dup());
@@ -299,6 +305,7 @@ impl GpuState {
         let force_power = snapshot.player.selected_force_power();
         let known = self.gameplay_input.selection.known(&snapshot.player);
         let own_slot = u8::try_from(snapshot.player.client_num()).ok();
+        let wheel_saber = GpuState::wheel_of_doom_saber(&snapshot.player);
         let attack_stops_emote = self
             .console
             .as_ref()
@@ -333,6 +340,10 @@ impl GpuState {
             self.cardboard_box
                 .set_flying(self.local_prediction.fake_noclip());
             self.cardboard_box.shape_command(&mut command);
+            // The WHEEL OF DOOM's effects on the player's own moves (`wheel_of_doom`).
+            self.wheel_of_doom
+                .effects
+                .shape_command(&mut command, wheel_saber, now);
             // Moving, jumping or attacking puts the rod away; `+use` hooks a bite
             // (`fishing`).
             self.fishing.shape_command(&command);

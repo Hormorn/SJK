@@ -23,7 +23,7 @@ general contributor rules.
   ([mods.md](mods.md)).
 - Every toy is a `toy_<name>` command (`toy_help` lists them all; `toy_illuminate`, `toy_box`,
   `toy_order66`, `toy_hax`, `toy_ragdoll`, `toy_drone`, `toy_boombox`, `toy_monitor`,
-  `toy_boxhunt`, `toy_banana`); a
+  `toy_boxhunt`, `toy_banana`, `toy_wheelofdoom`); a
   toy has no Force wheel entry, and one with a setting names it `cg_toy<Name>...`.
   Illuminate, the cardboard box and Order 66 have none: they are always available and
   on only for the client's run. A toy others see has an id in the look's `toys`
@@ -85,6 +85,7 @@ migrated, except where the table says so. Where each is documented:
 | `cl_maxpackets` | 125 | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `gameplay_fps` | 0, Auto: movement at the FPS cap, a `pmove_fixed` server's step wins | [Gameplay FPS](client.md#gameplay-fps) |
 | `gameplay_fps_nocap` | 0: the known server caps (JoF's 125) hold | [User commands and move packets](networking.md#user-commands-and-move-packets) |
+| `cl_freshStamps` | 0: commands carry the previous frame's server time as stock's, but on SJK's servers; 1 the frame's own everywhere | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `cjp_client` | empty: `1.4 SJK` on JA+, `1.4JAPRO` on jaPRO (its client-support switch); only a staff key's value is sent | [Networking](networking.md) |
 | `rate` | 90000 (stock 25000), saved 25000 moved to 90000 once | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | rendering profile | noon, bloom, dust, material maps | [Default visual profile](rendering.md#default-visual-profile) |

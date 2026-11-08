@@ -85,7 +85,7 @@ use crate::world_stage::{
     CompiledStage, GpuStage, MAX_SHADER_STAGES, PipelineKey, SORT_OPAQUE, collapse_multitexture,
     compile_hardware_stage, hardware_pipeline_key, material_stages,
 };
-pub(crate) use forge::{DetachedDraw, DetachedMaterials, PreparedTexture, warm_entity_materials};
+pub(crate) use forge::{DetachedDraw, DetachedMaterials, WarmTextures, warm_entity_materials};
 use forge::{Forge, build_passes, compile_material};
 use gpu::{
     create_entity_pipeline, create_pipeline, create_sampler, create_stage_layout, load_stage_images,

@@ -383,6 +383,25 @@ mod tests {
     }
 
     #[test]
+    fn fresh_stamps_hold_on_every_server_when_asked() {
+        let (_directory, mut console) = console();
+        let server = |info: &str| sjk_mod::Server {
+            kind: sjk_mod::ServerKind::JaPlus,
+            address: "127.0.0.1:29070".into(),
+            info: info.into(),
+        };
+        console.server_family = server(r"\V\2.5B0").family();
+        assert!(console.command_stamps_previous_frame(), "JoF: stock stamps");
+        assert!(console.set_cvar(crate::server_caps::FRESH_STAMPS_CVAR, "1"));
+        assert!(
+            !console.command_stamps_previous_frame(),
+            "kept fresh by the player"
+        );
+        assert!(console.set_cvar(crate::server_caps::FRESH_STAMPS_CVAR, "0"));
+        assert!(console.command_stamps_previous_frame());
+    }
+
+    #[test]
     fn a_partial_file_only_adds_its_keys() {
         let (_directory, mut console) = console();
         let before = console.shell.binds.iter().count();

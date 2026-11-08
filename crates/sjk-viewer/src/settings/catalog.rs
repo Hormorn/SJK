@@ -436,6 +436,11 @@ pub(super) const AUDIO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "WHEEL OF DOOM sounds",
+        cvar: crate::toy_sounds::Toy::WheelOfDoom.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Fishing bite cue",
         cvar: crate::fishing::CUE_CVAR,
         kind: ValueKind::Choice(&["0", "1", "2"]),
@@ -2059,6 +2064,11 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
             max: crate::world_materials::filtering::mips::PICMIP_MAX as i64,
             step: 1,
         },
+    },
+    Setting {
+        label: "Largest texture, 0 none (next map)",
+        cvar: crate::world_materials::filtering::mips::MAX_SIZE_CVAR,
+        kind: ValueKind::Choice(&["1024", "2048", "4096", "0"]),
     },
     Setting {
         label: "Texture compression (next map)",

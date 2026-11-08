@@ -1,8 +1,8 @@
-// The holocrons' other materials (SJK; see README.md): steel (the cube's edges, the
-// pyramid's foot, the kyber crystals' sheaths and rings), the Sith pyramid's
-// sculpted cap, each tier's light (lamps, edges, halo, seam, eye, motes, sparks): full
-// bright, breathing in the glow as the tier's face does; and the engram's seams
-// (pulsing, breathing with the plates) and its white-hot core (pulsing in the glow).
+// The holocrons' other materials (SJK; see README.md): steel (the kyber crystals'
+// sheaths and rings), the Sith pyramid's sculpted cap, each tier's light (edges,
+// halo, eye, motes, sparks): full bright, breathing in the glow as the tier's face
+// does; and the engram's seams (pulsing, breathing with the plates) and its
+// white-hot core (pulsing in the glow).
 // Made by scripts/holocron_assets.py: edit that, not this.
 models/sjk/holocron_steel
 {
@@ -98,7 +98,7 @@ models/sjk/holocron_mythical_seam
 	{
 		map models/sjk/holocron_mythical_seam
 		blendFunc GL_ONE GL_ONE
-		rgbGen wave sin 0.3 0.25 0 0.8
+		rgbGen wave sin 0.2 0.18 0 0.8
 		glow
 	}
 }

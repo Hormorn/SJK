@@ -19,7 +19,7 @@ type Prepared = Result<
     (
         StaticModelMesh,
         FlattenedScene,
-        Vec<crate::world_materials::PreparedTexture>,
+        crate::world_materials::WarmTextures,
     ),
     String,
 >;
@@ -34,7 +34,7 @@ pub(super) struct Demand {
     uploading: Option<(
         StaticModelMesh,
         FlattenedScene,
-        Vec<crate::world_materials::PreparedTexture>,
+        crate::world_materials::WarmTextures,
     )>,
     /// A model uploaded, drawn once its pipelines are compiled.
     compiling: Option<(StaticModelMesh, Receiver<Compiled>)>,

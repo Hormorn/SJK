@@ -37,6 +37,16 @@
 //! below 125; JoF's anti-cheat (Heimdall) kicked SJK players with "Set
 //! /cl_timeNudge 0" (Krieger and Slash, 02/11/2026).
 //!
+//! When a command is made and what time it carries are apart, as in stock: stock
+//! reads the keys into a command in the frame itself but stamps it with the clock
+//! as the previous frame read it (`CL_SendCmd` before `CL_SetCGameTime`), and
+//! Heimdall reads a fresher stamp as a negative `cl_timeNudge`. [`CommandSchedule::due`]
+//! runs on the frame's own reading, so a command is made as soon as it is due, and
+//! [`CommandSchedule::stock_stamps`] then writes stock's older time on it. In
+//! release 2026.1107.1 the schedule ran on the older time itself, so every command
+//! was made, and read the keys, a frame late: a frame more input delay (17 ms at
+//! 60 FPS) than stock (Sol felt it at 350 FPS, 07/11/2026).
+//!
 //! [`PacketPacer`] is `cl_maxpackets` (`CL_ReadyToSendPacket`): commands wait
 //! for a packet, which leaves at most every `1000 / cl_maxpackets` ms and
 //! carries all of them.
@@ -142,6 +152,8 @@ pub struct CommandSchedule {
     /// [`Pacing::OnePerFrame`]'s accumulator (`cmdratecap_lastFireTime`), in
     /// server time: the next command is due a step after it.
     fired: Option<i32>,
+    /// The newest stamp [`Self::stock_stamps`] handed out.
+    last_written: Option<i32>,
 }
 
 impl CommandSchedule {
@@ -202,6 +214,46 @@ impl CommandSchedule {
         }
         self.last_stamp = Some(newest);
         due
+    }
+
+    /// The stamps `due` (made on the frame's own clock reading) carry: unchanged
+    /// when `stock` is false (SJK's servers, `cl_freshStamps 1`); otherwise stock's,
+    /// no fresher than the clock as the previous frame read it (`previous_frame`).
+    /// [`Pacing::OnePerFrame`]'s one command takes that reading, as JoF EJK's. The
+    /// grid's keep their spacing a step older, which at a frame no longer than the
+    /// step is never fresher than stock's. Every stamp stays after the one before
+    /// (the server drops a command no newer than the last it ran), across a switch
+    /// of `stock` or of the step too. An unanchored clock's 0 stays 0.
+    pub fn stock_stamps(
+        &mut self,
+        due: DueCommands,
+        pacing: Pacing,
+        step: i32,
+        previous_frame: i32,
+        stock: bool,
+    ) -> DueCommands {
+        let mut written = DueCommands::default();
+        for &stamp in due.as_slice() {
+            if stamp == 0 {
+                self.last_written = None;
+                written.push(0);
+                continue;
+            }
+            let mut stamp = match (stock, pacing) {
+                (false, _) => stamp,
+                (true, Pacing::OnePerFrame) => previous_frame.min(stamp),
+                (true, Pacing::Grid) => stamp - step.max(1),
+            };
+            if let Some(last) = self.last_written
+                && stamp <= last
+                && last - stamp <= RESTART_MILLIS
+            {
+                stamp = last + 1;
+            }
+            self.last_written = Some(stamp);
+            written.push(stamp);
+        }
+        written
     }
 
     /// `CL_CreateNewCommands` with `cl_cmdratecap` (JoF EJK `cl_input.cpp`): no
@@ -276,6 +328,65 @@ mod tests {
             )
             .as_slice()
             .to_vec()
+    }
+
+    fn written(
+        schedule: &mut CommandSchedule,
+        now: i32,
+        previous: i32,
+        pacing: Pacing,
+        stock: bool,
+    ) -> Vec<i32> {
+        let due = schedule.due(now, true, Instant::now(), COMMAND_MILLIS, pacing);
+        schedule
+            .stock_stamps(due, pacing, COMMAND_MILLIS, previous, stock)
+            .as_slice()
+            .to_vec()
+    }
+
+    #[test]
+    fn a_command_is_made_on_the_frame_and_stamped_as_stock() {
+        // 350 FPS on JoF: the command is due the frame the clock reaches the step,
+        // not a frame later, and carries the previous frame's reading.
+        let mut schedule = CommandSchedule::default();
+        let one = Pacing::OnePerFrame;
+        assert_eq!(written(&mut schedule, 1_000, 997, one, true), [997]);
+        assert_eq!(
+            written(&mut schedule, 1_003, 1_000, one, true),
+            [] as [i32; 0]
+        );
+        assert_eq!(
+            written(&mut schedule, 1_006, 1_003, one, true),
+            [] as [i32; 0]
+        );
+        assert_eq!(written(&mut schedule, 1_008, 1_006, one, true), [1_006]);
+        // Fresh: the frame's own reading.
+        assert_eq!(written(&mut schedule, 1_016, 1_013, one, false), [1_016]);
+    }
+
+    #[test]
+    fn grid_stamps_keep_their_spacing_a_step_older() {
+        let mut schedule = CommandSchedule::default();
+        let grid = Pacing::Grid;
+        assert_eq!(written(&mut schedule, 2_003, 2_000, grid, true), [1_992]);
+        assert_eq!(written(&mut schedule, 2_008, 2_005, grid, true), [2_000]);
+        // A slow frame's catch-up keeps 8 ms apart.
+        assert_eq!(
+            written(&mut schedule, 2_025, 2_009, grid, true),
+            [2_008, 2_016]
+        );
+    }
+
+    #[test]
+    fn a_switch_to_stock_stamps_never_goes_back() {
+        let mut schedule = CommandSchedule::default();
+        let grid = Pacing::Grid;
+        assert_eq!(written(&mut schedule, 3_000, 2_997, grid, false), [3_000]);
+        // Stock's would be 3_000 again: the server would drop it.
+        assert_eq!(written(&mut schedule, 3_008, 3_005, grid, true), [3_001]);
+        assert_eq!(written(&mut schedule, 3_016, 3_013, grid, true), [3_008]);
+        // A new time line (a map change) starts again.
+        assert_eq!(written(&mut schedule, 100, 97, grid, true), [88]);
     }
 
     #[test]
