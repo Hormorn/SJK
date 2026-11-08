@@ -96,6 +96,7 @@ impl GpuState {
         self.update_ragdoll(&relay_events);
         self.update_monitor(&relay_events, &toy_events);
         self.update_banana(&relay_events);
+        self.update_status_balloons(&relay_events);
         self.update_propgun(&relay_events);
         self.update_drone(&relay_events);
         self.update_boombox(&relay_events);

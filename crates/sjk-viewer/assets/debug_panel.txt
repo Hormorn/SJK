@@ -9107,6 +9107,19 @@ test: Over several spins: mirror, blind, upside down, no saber, quack look and f
 test: Settings > Sound > Toys, WHEEL OF DOOM sounds off: the wheel spins silently.
 note: Placeholder model (Sol's to come). Mirror flips the whole picture, HUD included.
 
+[status-balloons]
+area: Rendering & effects
+title: Status bubbles: the chat bubble shows typing, a menu/console or away (cg_statusBalloons)
+change: Settings > Chat > Status bubbles (off by default). Over SJK players only; others stock.
+change: Typing: dots lit in turn. Menu or console: pause sign. Alt-tabbed/minimised: blue moon.
+change: Each client relays its reason once per change to the other SJK players (toy relay).
+test: Two SJK clients on one server, both with Status bubbles on, in third person or facing.
+test: B opens chat: A sees the dots move; B presses Esc: pause sign; B opens the console: same.
+test: B alt-tabs: blue moon with a z rising; B comes back: the bubble goes as before.
+test: Status bubbles off on A: the stock bubble again. B with cl_consoleMove 1: no bubble.
+test: A third client joins while B is alt-tabbed: it sees the moon within a second or so.
+note: Untested in game. Others' reason shows about half a second after the stock bubble.
+
 [model-texture-pin]
 area: Rendering & effects
 title: No hitch when a player puts on a model with big textures (creyonwolf: 743 ms)

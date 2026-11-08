@@ -130,6 +130,10 @@ pub(crate) const CODE_SHADERS: &[&str] = &[
     "white",
     sjk_client::LegacyPlayerSprite::ConnectionInterrupted.shader(),
     sjk_client::LegacyPlayerSprite::Talk.shader(),
+    // The status balloons that take the talk balloon's place (`status_balloons.rs`).
+    crate::status_balloons::SHADERS[0],
+    crate::status_balloons::SHADERS[1],
+    crate::status_balloons::SHADERS[2],
     crate::charge_flash::SHADERS[0],
     crate::charge_flash::SHADERS[1],
     crate::charge_flash::SHADERS[2],

@@ -151,6 +151,8 @@ struct Sinks<'a> {
     card_outline: Option<u16>,
     /// The players outlined as teammates and enemies (`hud::team_outline`).
     team_outline: crate::hud::team_outline::Groups,
+    /// Why each player's talk balloon is up, where known (`status_balloons.rs`).
+    status_balloons: crate::status_balloons::Shown,
 }
 
 /// Submit all presented actor-like entities without allocating frame storage.
@@ -272,6 +274,14 @@ pub(crate) fn submit(
         .and_then(|info| sjk_client::LegacyClientInfo::new(info).integer("g_gametype"))
         .unwrap_or(0);
     let propgun = gpu.propgun_held_draws();
+    // A demo plays without the hub: stock's balloons.
+    let status_balloons = if gpu.demo_session.is_none() {
+        gpu.status_balloons.shown
+    } else {
+        crate::status_balloons::Shown::default()
+    };
+    #[cfg(test)]
+    let status_balloons = gpu.status_balloons.shot.unwrap_or(status_balloons);
     let mut sinks = Sinks {
         force_fx,
         grip_victim: force_fx.animation
@@ -419,6 +429,7 @@ pub(crate) fn submit(
         ),
         card_outline: gpu.hud.card.outline().map(|(client, _)| client),
         team_outline: gpu.hud.team_outline.groups(),
+        status_balloons,
     };
     let thrown = snapshot
         .zip(game_state)
