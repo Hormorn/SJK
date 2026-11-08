@@ -278,6 +278,7 @@ mod illuminate;
 mod inline_code;
 mod installed_models;
 mod jetpack;
+mod launcher_notice;
 mod live_session;
 mod looks;
 mod looks_frame;

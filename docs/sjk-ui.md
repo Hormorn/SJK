@@ -244,6 +244,18 @@ one (4:3, 5:4) scales the frame down to its width.
   `support_links::SHELVED`): it never shows and its setting is out of Settings.
   Snapshot `sjk-home` (`menu_snapshot::sjk_home_snapshot`) and world shot
   `duel6-menu` (`world_shot::duel6_sjk_menu`).
+- **SJK Launcher notice:** in Support SJK's place, before it, for a player without
+  the SJK Launcher ([launcher_notice.rs](../crates/sjk-viewer/src/launcher_notice.rs),
+  08/11/2026, Sol's request): "The SJK Launcher is out" in plain print, a gold pill
+  "Get it on GitHub" opening the launcher's latest release
+  (`github.com/Sol-Vulpes/sjk-launcher/releases/latest`) and a round × that hides it
+  for good (`ui_launcherNotice 0`; Settings, Interface, "SJK Launcher notice" brings
+  it back). A quiet line under them says what the launcher does, or, while × is under
+  the pointer, where to bring it back. A player has the launcher when it started this
+  run (it sets `JKA_GAME_DATA`) or when its `launcher.json` is on the computer (the
+  SJK or JoF Launcher's settings folder: `%APPDATA%\SJK\Launcher\config` on
+  Windows), looked at once a run. No server is asked. Pointer only: targets 83 (the
+  link) and 84 (×). Snapshot `sjk-home-launcher`.
 - **Corners:** the player's [profile card](#profile-card), bottom left; the keys
   of the page, bottom centre; the version and a newer release found, bottom right.
 

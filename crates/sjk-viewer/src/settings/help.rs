@@ -1262,6 +1262,10 @@ const HELP: &[(&str, &str)] = &[
         "The SJK UI, SJK's own menus over the live map; or classic menus after the original game's.",
     ),
     (
+        crate::launcher_notice::CVAR,
+        "Without the SJK Launcher on this computer, the SJK UI's main page says it is out, with a link to it. Off hides it, as its x does.",
+    ),
+    (
         super::slider_peek::CVAR,
         "In the game, hold a slider in the SJK UI a moment and the rest of Settings fades away, showing the game as you drag. Off keeps it.",
     ),

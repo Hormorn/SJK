@@ -9137,3 +9137,13 @@ change: 0 keeps every size; nopicmip stages and sky boxes take the cap too. From
 test: Look at creyonwolf (4096 textures) on a map: still sharp up close, not blurry.
 test: Settings: Largest texture 4096, change map: creyonwolf a little sharper; 1024: softer.
 test: A map with a 4096 sky box: the sky at 2048 still looks right.
+
+[launcher-notice]
+area: Menus & settings
+title: SJK Launcher notice on the main page for players without it
+change: Without the launcher (not started by it, no launcher.json), top left of the SJK UI main
+change: page: "The SJK Launcher is out", Get it on GitHub (release page) and x (ui_launcherNotice).
+test: Started from the launcher: no notice top left.
+test: Rename %APPDATA%\SJK\Launcher\config\launcher.json, start with play.bat: the notice shows.
+test: Get it on GitHub opens the launcher's latest release; x hides it for good.
+test: Settings > Interface > SJK Launcher notice brings it back. Put launcher.json back after.

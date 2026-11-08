@@ -2028,8 +2028,16 @@ fn sjk_home_snapshot() {
         Option<usize>,
         &'a [ServerItem<'a>],
     );
-    let cases: [Case; 6] = [
+    let cases: [Case; 7] = [
         ("sjk-home", VIEWPORT_WIDE, Page::Main, 0, None, &recent),
+        (
+            "sjk-home-launcher",
+            VIEWPORT_WIDE,
+            Page::Main,
+            0,
+            None,
+            &recent,
+        ),
         ("sjk-home-play", VIEWPORT_WIDE, Page::Play, 0, None, &recent),
         ("sjk-home-sjk", VIEWPORT_WIDE, Page::Sjk, 1, None, &recent),
         (
@@ -2073,6 +2081,7 @@ fn sjk_home_snapshot() {
             }),
             summary: &crate::profile_card::NOBODY,
             support: true,
+            launcher: name == "sjk-home-launcher",
         };
         home::build(&mut canvas, viewport, &mut home, &view, 1.0);
         let (mut display_text, mut body_text) = (Vec::new(), Vec::new());

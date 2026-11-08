@@ -487,6 +487,7 @@ impl Group {
             ],
             Self::Interface => &[
                 crate::menu::style::CVAR,
+                crate::launcher_notice::CVAR,
                 crate::menu_pictures::CVAR,
                 super::slider_peek::CVAR,
                 crate::rarity_fx::CVAR,

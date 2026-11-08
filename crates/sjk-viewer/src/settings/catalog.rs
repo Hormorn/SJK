@@ -1585,6 +1585,11 @@ pub(super) const GAME: &[Setting] = &[
         kind: ValueKind::Choice(&crate::menu::style::MenuStyle::NAMES),
     },
     Setting {
+        label: "SJK Launcher notice",
+        cvar: crate::launcher_notice::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Slider peek",
         cvar: super::slider_peek::CVAR,
         kind: ValueKind::Bool,
