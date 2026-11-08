@@ -234,7 +234,7 @@ fn load_appearance(
     };
     // A rig model is driven by a stock model's mesh and skeleton, drawn as its glTF.
     let rig_manifest = if vehicle.is_none() && rigs {
-        crate::rig_model::manifest(vfs, directory)?
+        crate::rig_model::manifest(vfs, directory, variant)?
     } else {
         None
     };

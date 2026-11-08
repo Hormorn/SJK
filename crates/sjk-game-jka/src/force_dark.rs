@@ -105,6 +105,8 @@ const EV_FORCE_DRAINED: u32 = 96;
 const PDSOUND_ABSORBHIT: u32 = 3;
 const PS_VELOCITY: [usize; 3] = [6, 7, 8];
 const PS_WEAPON_TIME: usize = 10;
+const PS_LEGS_ANIM: usize = 13;
+const PS_LEGS_TIMER: usize = 21;
 const PS_EFLAGS: usize = 17;
 const PS_FORCE_POWER: usize = 18;
 const PS_VIEW_HEIGHT: usize = 22;
@@ -190,15 +192,21 @@ impl Forcer<'_, '_> {
     /// ms.
     pub(crate) fn usable_on(&mut self, number: u16, power: usize) -> bool {
         let (level_time, gametype) = (self.frame.level_time, self.frame.gametype);
+        let (client, full_force) = (self.frame.client, self.frame.full_force);
         let Some(victim) = self.frame.others.player(number) else {
             return false;
         };
         if crate::force_powers::has_ysalamiri(victim.state, gametype) {
             return false;
         }
-        if !crate::force_powers::can_use_now(self.state, power, level_time, gametype)
-            || self.state.duel_in_progress()
-            || victim.state.duel_in_progress()
+        if !crate::force_powers::can_use_now(self.state, power, level_time, gametype, full_force)
+            || crate::duel::force_refused(
+                client,
+                crate::duel::duel_of(self.state),
+                number,
+                crate::duel::duel_of(victim.state),
+                full_force,
+            )
         {
             return false;
         }
@@ -236,14 +244,17 @@ impl Forcer<'_, '_> {
     /// level left, or `None` where nothing is absorbed.
     fn absorbed(&mut self, number: u16, power: usize, spent: i32) -> Option<i32> {
         let (level_time, level) = (self.frame.level_time, i32::from(self.force.levels[power]));
+        let rules = self.frame.rules;
         let victim = self.frame.others.player(number)?;
         let (left, event) = crate::force_throw::absorb_conversion(
             victim.state,
             victim.force,
             number,
+            power,
             level,
             spent,
             level_time,
+            rules,
         )?;
         if let Some(event) = event {
             self.raise(event);
@@ -288,12 +299,14 @@ impl Forcer<'_, '_> {
 
     /// `ForceGrip`: whoever the aim strikes within 256 units from the eyes — a player not
     /// crippled nor already held, not a teammate, the power usable on it — is held from
-    /// now, the hand out for five seconds at most.
+    /// now, the hand out for five seconds at most. Not with the weapon busy, unless the
+    /// server lets a grip start in a roll or a back flip
+    /// ([`crate::force_rules::ForceRules::grip_while_rolling`]).
     fn grip(&mut self) {
         let level_time = self.frame.level_time;
         if *self.frame.health <= 0
             || self.field(PS_FORCE_HAND_EXTEND) != HANDEXTEND_NONE
-            || self.field(PS_WEAPON_TIME) as i32 > 0
+            || weapon_keeps_from_gripping(self.state, self.frame.rules)
         {
             return;
         }
@@ -908,6 +921,21 @@ impl Forcer<'_, '_> {
     }
 }
 
+/// `ForceGrip`'s weapon check: a busy weapon (`weaponTime`) keeps a grip from starting,
+/// unless the server lets one start in a roll (`BG_InRoll`: its animation with time left
+/// on the legs) or a back flip (`BG_InBackFlip`)
+/// ([`crate::force_rules::ForceRules::grip_while_rolling`]).
+fn weapon_keeps_from_gripping(state: &PlayerState, rules: crate::force_rules::ForceRules) -> bool {
+    let field = |index: usize| state.raw_field(index).unwrap_or(0);
+    if field(PS_WEAPON_TIME) as i32 <= 0 {
+        return false;
+    }
+    let legs = field(PS_LEGS_ANIM) as u16;
+    let rolling = (crate::pmove_roll_anim::in_roll(legs) && field(PS_LEGS_TIMER) as i32 > 0)
+        || crate::pmove::in_back_flip(legs);
+    !(rules.grip_while_rolling && rolling)
+}
+
 /// `OnSameTeam` for players: teammates in the team games; nobody in the others.
 pub(crate) fn same_team(gametype: i32, one: i32, other: i32) -> bool {
     gametype >= 6 && one == other
@@ -940,5 +968,61 @@ fn normalize(v: &mut [f32; 3]) {
         for axis in v.iter_mut() {
             *axis *= inverse;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::force_rules::ForceRules;
+
+    fn busy(legs: &str, legs_timer: u32) -> PlayerState {
+        let mut state = PlayerState::zero();
+        state.set_raw_field(PS_WEAPON_TIME, 300);
+        let legs = crate::legacy_animation_index(legs).unwrap() as u32;
+        state.set_raw_field(PS_LEGS_ANIM, legs);
+        state.set_raw_field(PS_LEGS_TIMER, legs_timer);
+        state
+    }
+
+    #[test]
+    fn a_busy_weapon_keeps_from_gripping_in_the_base_game() {
+        let base = ForceRules::default();
+        for (legs, timer) in [
+            ("BOTH_ROLL_F", 200),
+            ("BOTH_FLIP_BACK1", 200),
+            ("BOTH_STAND1", 0),
+        ] {
+            assert!(
+                weapon_keeps_from_gripping(&busy(legs, timer), base),
+                "{legs}"
+            );
+        }
+        let mut free = busy("BOTH_ROLL_F", 200);
+        free.set_raw_field(PS_WEAPON_TIME, 0);
+        assert!(!weapon_keeps_from_gripping(&free, base));
+    }
+
+    #[test]
+    fn the_roll_fix_lets_a_grip_start_rolling_or_back_flipping() {
+        let rules = ForceRules {
+            grip_while_rolling: true,
+            ..ForceRules::default()
+        };
+        assert!(!weapon_keeps_from_gripping(
+            &busy("BOTH_ROLL_F", 200),
+            rules
+        ));
+        assert!(!weapon_keeps_from_gripping(
+            &busy("BOTH_GETUP_BROLL_B", 200),
+            rules
+        ));
+        assert!(!weapon_keeps_from_gripping(
+            &busy("BOTH_FLIP_BACK2", 0),
+            rules
+        ));
+        // A roll whose time is out, or a swing, still keeps from it.
+        assert!(weapon_keeps_from_gripping(&busy("BOTH_ROLL_F", 0), rules));
+        assert!(weapon_keeps_from_gripping(&busy("BOTH_STAND1", 200), rules));
     }
 }

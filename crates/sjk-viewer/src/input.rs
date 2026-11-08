@@ -99,6 +99,8 @@ pub(crate) enum InputAction {
     CardboardBox,
     /// `toy_fishing`: get the fishing rod out or put it away ([`crate::fishing`]).
     Fishing,
+    /// `toy_wheelofdoom`: show the WHEEL OF DOOM's price, or spin it ([`crate::wheel_of_doom`]).
+    WheelOfDoom,
     /// `toy_mining`: take the pickaxe in hand or put it away ([`crate::mining`]).
     Mining,
     /// `fishing_sell`: sell the fished junk to the hub ([`crate::fishing_sell`]).
@@ -361,6 +363,7 @@ impl GameplayInput {
                     | "force_illuminate"
                     | crate::cardboard_box::COMMAND
                     | crate::fishing::COMMAND
+                    | crate::wheel_of_doom::COMMAND
                     | crate::mining::COMMAND
                     | crate::fishing_sell::COMMAND
                     | crate::fishing_sell::LOG_COMMAND
@@ -547,6 +550,7 @@ impl GameplayInput {
             "toy_illuminate" | "force_illuminate" => Some(InputAction::Illuminate),
             crate::cardboard_box::COMMAND => Some(InputAction::CardboardBox),
             crate::fishing::COMMAND => Some(InputAction::Fishing),
+            crate::wheel_of_doom::COMMAND => Some(InputAction::WheelOfDoom),
             crate::mining::COMMAND => Some(InputAction::Mining),
             crate::fishing_sell::COMMAND => Some(InputAction::FishingSell),
             crate::fishing_sell::LOG_COMMAND => Some(InputAction::FishingLog),
@@ -746,6 +750,7 @@ impl super::GpuState {
             Some(InputAction::Illuminate) => self.toggle_illuminate(),
             Some(InputAction::CardboardBox) => self.toggle_cardboard_box(),
             Some(InputAction::Fishing) => self.toggle_fishing(),
+            Some(InputAction::WheelOfDoom) => self.wheel_of_doom_command(),
             Some(InputAction::Mining) => self.toggle_mining(),
             Some(InputAction::FishingSell) => self.sell_fishing_junk(),
             Some(InputAction::FishingLog) => self.print_fishing_log(),

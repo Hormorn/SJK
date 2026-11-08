@@ -48,6 +48,14 @@ impl GpuState {
     ) {
         use crate::frame_pacing::budget::Phase;
         timing.mark(Phase::Snapshot);
+        if self
+            .live_session
+            .as_ref()
+            .is_some_and(|session| !session.is_local())
+            && let Some(line) = self.server_view.frame(Instant::now())
+        {
+            crate::log::progress(format_args!("{line}"));
+        }
         let caught_up = drain_snapshots(|| {
             let Some(session) = &mut self.live_session else {
                 return false;
@@ -86,6 +94,7 @@ impl GpuState {
                 // Stock stamps the whole map load 0 (`CL_ClearState`); the
                 // world built for the new timeline anchors the clock again.
                 self.server_clock.restart();
+                self.server_view.restart();
                 self.pending_map_reload = true;
                 self.ghost_leave();
                 self.retain_world_for_connection();
@@ -120,6 +129,23 @@ impl GpuState {
                 return true;
             }
             self.net_timing.snapshot_received(snapshot.server_time);
+            // Our own commands only: not a followed player's state, not while the
+            // server holds everyone at the intermission, not before the clock
+            // stamps this time line (`server_view`).
+            let own_commands = snapshot.player.movement_flags() & sjk_game_jka::follow::PMF_FOLLOW
+                == 0
+                && snapshot.player.movement_type() != sjk_client::PM_INTERMISSION;
+            let remote = self
+                .live_session
+                .as_ref()
+                .is_some_and(|session| !session.is_local());
+            if own_commands && remote && self.server_clock.anchored() {
+                self.server_view.snapshot(
+                    snapshot.server_time,
+                    snapshot.player.command_time(),
+                    Instant::now(),
+                );
+            }
             self.present_live_snapshot(&snapshot, true, game_audio, visual_now);
             true
         });
@@ -201,20 +227,47 @@ impl GpuState {
         let force_repeat = if dialogue_active { None } else { force_repeat };
 
         // User commands are made on the gameplay FPS's grid and wait for the next
-        // `cl_maxpackets` packet (`command_rate`).
+        // `cl_maxpackets` packet (`command_rate`). They carry the clock as the
+        // previous frame read it, as stock's do (`CL_SendCmd` before
+        // `CL_SetCGameTime`), except on SJK's own servers (`server_caps::FRESH_STAMPS`);
+        // what this frame shows uses its own reading.
         let now = Instant::now();
         crate::emote_end_debug::observe_frame(now);
+        let previous_frame_time = self.server_clock.command_time(now);
         let server_time = self.server_clock.server_time(now);
-        let (step, pacing) = self.console.as_mut().map_or(
-            (sjk_client::command_rate::COMMAND_MILLIS, Default::default()),
+        let (step, pacing, previous_frame) = self.console.as_mut().map_or(
+            (
+                sjk_client::command_rate::COMMAND_MILLIS,
+                Default::default(),
+                true,
+            ),
             |console| {
                 console.set_frame_cap(frame_cap);
-                (console.command_step(), console.command_pacing())
+                (
+                    console.command_step(),
+                    console.command_pacing(),
+                    console.command_stamps_previous_frame(),
+                )
             },
         );
+        if !session.is_local() {
+            // Which stamp, and around a switch how the server saw each (`server_view`).
+            self.server_view.stamps(!previous_frame, now, |line| {
+                crate::log::progress(format_args!("{line}"));
+            });
+        }
+        // Made as soon as the frame's own reading says so; stamped as stock
+        // (`CommandSchedule::stock_stamps`).
         let due =
             self.command_schedule
                 .due(server_time, self.server_clock.anchored(), now, step, pacing);
+        let due = self.command_schedule.stock_stamps(
+            due,
+            pacing,
+            step,
+            previous_frame_time,
+            previous_frame,
+        );
         if let Some(console) = &self.console {
             session.set_packet_dup(console.packet_dup());
         }
@@ -252,6 +305,7 @@ impl GpuState {
         let force_power = snapshot.player.selected_force_power();
         let known = self.gameplay_input.selection.known(&snapshot.player);
         let own_slot = u8::try_from(snapshot.player.client_num()).ok();
+        let wheel_saber = GpuState::wheel_of_doom_saber(&snapshot.player);
         let attack_stops_emote = self
             .console
             .as_ref()
@@ -286,6 +340,10 @@ impl GpuState {
             self.cardboard_box
                 .set_flying(self.local_prediction.fake_noclip());
             self.cardboard_box.shape_command(&mut command);
+            // The WHEEL OF DOOM's effects on the player's own moves (`wheel_of_doom`).
+            self.wheel_of_doom
+                .effects
+                .shape_command(&mut command, wheel_saber, now);
             // Moving, jumping or attacking puts the rod away; `+use` hooks a bite
             // (`fishing`).
             self.fishing.shape_command(&command);
@@ -365,6 +423,7 @@ impl GpuState {
             }
             let sent = self.local_prediction.command_for_server(command);
             session.queue_command(&sent);
+            self.server_view.command(sent.server_time);
             crate::emote_end_debug::observe_command(&sent, held_weapon, now);
             // With `cg_emoteAttackStop`, an attack or alt attack ends the player's
             // own emote, here and, as `sjkemote stop` does, for the other SJK
@@ -450,6 +509,7 @@ impl GpuState {
             return;
         }
         self.packet_pacer.sent(now);
+        self.server_view.packet_sent(now);
         // A press made after the packet's commands waits for the next one.
         if std::mem::take(&mut self.generic_command_sent) == self.pending_generic_command {
             self.pending_generic_command = 0;

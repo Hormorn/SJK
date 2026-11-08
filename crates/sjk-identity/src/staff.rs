@@ -173,6 +173,14 @@ pub enum StaffRequest {
         /// Block (true) or lift the block.
         blocked: bool,
     },
+    /// SJK's creator only: ignore servers' shader remaps on `map` in every SJK client
+    /// that follows the shared list (`PROTOCOL.md`, "Remap blocks"), or stop.
+    RemapBlock {
+        /// The map, as `mp/ffa4`.
+        map: String,
+        /// Block (true) or take the map off the list.
+        blocked: bool,
+    },
     /// Change a player's kyber shards by `delta` (`PROTOCOL.md`, "Shards and the
     /// shop"), as [`Self::Credits`] does credits.
     Shards {
@@ -189,7 +197,10 @@ impl StaffRequest {
     /// The key the request changes, if it changes one.
     pub fn target(&self) -> Option<&str> {
         match self {
-            Self::Search(_) | Self::ChatDelete { .. } | Self::MapBlock { .. } => None,
+            Self::Search(_)
+            | Self::ChatDelete { .. }
+            | Self::MapBlock { .. }
+            | Self::RemapBlock { .. } => None,
             Self::Award { key_id, .. }
             | Self::Unaward { key_id, .. }
             | Self::MedalRank { key_id, .. }
@@ -510,6 +521,15 @@ pub(crate) fn done(request: &StaffRequest, count: usize) -> String {
         }
         StaffRequest::MapBlock { blocked: false, .. } => {
             "No longer blocked for everyone".to_owned()
+        }
+        StaffRequest::RemapBlock { map, blocked: true } => {
+            format!("Server remaps ignored on {map} for every SJK player")
+        }
+        StaffRequest::RemapBlock {
+            map,
+            blocked: false,
+        } => {
+            format!("{map} is off the shared remap block list")
         }
     }
 }

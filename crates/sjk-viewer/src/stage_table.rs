@@ -120,6 +120,11 @@ pub(super) fn program_source(source: &str) -> String {
             "textureSample(secondary_images, secondary_sampler,",
             "textureSample(table_images[table_index.y], table_samplers[(table_index.w >> 1u) & 1u],",
         ),
+        // A model's normal map (`material_maps::models`) in the second slot.
+        (
+            "textureSampleGrad(secondary_images, secondary_sampler,",
+            "textureSampleGrad(table_images[table_index.y], table_samplers[(table_index.w >> 1u) & 1u],",
+        ),
         (
             "textureSample(lightmap_image, secondary_sampler, input.secondary_uv)",
             "textureSample(table_lightmaps[table_index.z], table_samplers[(table_index.w >> 1u) & 1u], input.secondary_uv)",
@@ -615,5 +620,51 @@ mod tests {
             assert!(!unix.contains('\r'));
             assert!(unix.contains("record_animation: vec2<i32>,"));
         }
+    }
+
+    /// The table programs, the model normal map's sample included, validate and read no
+    /// binding the table group does not have.
+    #[test]
+    fn table_programs_validate_with_the_model_normal_map() {
+        use wgpu::naga;
+        for source in [STAGE_SHADER, world_sun_shader()] {
+            for program in [source.to_owned(), program_source(source)] {
+                assert!(program.contains("fn model_normal_prepare("));
+                let module = naga::front::wgsl::parse_str(&program)
+                    .unwrap_or_else(|error| panic!("{}", error.emit_to_string(&program)));
+                naga::valid::Validator::new(
+                    naga::valid::ValidationFlags::all(),
+                    naga::valid::Capabilities::all(),
+                )
+                .validate(&module)
+                .unwrap_or_else(|error| panic!("{}", error.emit_to_string(&program)));
+            }
+            let table = program_source(source);
+            assert!(
+                !table.contains("secondary_images"),
+                "the table reads its own images"
+            );
+        }
+    }
+
+    /// The frame's derivatives come before the fragment branches on anything varying.
+    #[test]
+    fn the_model_normal_frame_is_taken_first() {
+        let fragment = &STAGE_SHADER[STAGE_SHADER
+            .find("fn stage_fragment(")
+            .expect("the stage fragment")..];
+        let prepare = fragment
+            .find("model_normal_prepare(input)")
+            .expect("prepared");
+        let first_branch = fragment.find("if ").expect("a branch");
+        assert!(
+            fragment[first_branch..prepare].starts_with("if (u32(stage.wave_functions.w) & 16u)"),
+            "only the stage's own flag comes before it"
+        );
+        assert_eq!(
+            crate::world_materials::material_maps::models::STAGE_FLAG,
+            16,
+            "the program's flag"
+        );
     }
 }

@@ -23,6 +23,12 @@
 //!   their picture as a sticker ([`is_card_id`]). Both need a hub that lists `tag_cards`
 //!   in profiles ([`Held::of`]); an older hub refuses them, so they are not offered there.
 //!
+//! - **Collections** (08/11/2026, Sol's decision): every tag belongs to one of
+//!   [`COLLECTIONS`], Alpha for SJK's own and Community for those players drew (picked
+//!   from #tag-proposals). A collection is a label: the Tags tab lists each under its own
+//!   heading and the tag's card names it; it changes nothing in drops (unlike a
+//!   blade's edition, `editions.rs`), so the hub does not know it.
+//!
 //! The pictures are art in the hub's `sjk_tags` pack (`gfx/tags/<id>.png`) and, for a
 //! card, its picture in the card packs; the client projects a tag onto the world as a
 //! lasting decal of its own (`decal_store.rs`, [`crate::decal_store::DecalStore::set_tag`])
@@ -66,6 +72,48 @@ pub(crate) const RADIUS: f32 = 28.0;
 /// Shortest time between two tags stuck.
 pub(crate) const GAP: Duration = Duration::from_secs(10);
 
+/// The collection of SJK's own tags, the first.
+pub(crate) const ALPHA: &str = "alpha";
+/// The collection of tags players drew, picked from SJK's Discord (#tag-proposals).
+pub(crate) const COMMUNITY: &str = "community";
+
+/// One collection of tags: its id and how players read it.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct Collection {
+    pub(crate) id: &'static str,
+    /// Its name: "Alpha".
+    pub(crate) name: &'static str,
+    /// Its heading on the Tags tab's wall: "Alpha collection".
+    pub(crate) heading: &'static str,
+    /// What it holds, in a line for the tag's card.
+    pub(crate) about: &'static str,
+}
+
+/// Every collection, in the order the Tags tab lists them. A new one is a line here and
+/// the tags put in it name its id.
+pub(crate) const COLLECTIONS: [Collection; 2] = [
+    Collection {
+        id: ALPHA,
+        name: "Alpha",
+        heading: "Alpha collection",
+        about: "Alpha collection: SJK's own tags.",
+    },
+    Collection {
+        id: COMMUNITY,
+        name: "Community",
+        heading: "Community collection",
+        about: "Community collection: drawn by a player, picked from SJK's Discord.",
+    },
+];
+
+/// The collection `id` names; one the client does not know is the first.
+pub(crate) fn collection(id: &str) -> &'static Collection {
+    COLLECTIONS
+        .iter()
+        .find(|collection| collection.id == id)
+        .unwrap_or(&COLLECTIONS[0])
+}
+
 /// One tag of the catalogue.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Tag {
@@ -75,12 +123,19 @@ pub(crate) struct Tag {
     pub(crate) tier: Rarity,
     /// Every player holds it, without a grant (the starter set).
     pub(crate) free: bool,
+    /// The id of the collection it belongs to ([`COLLECTIONS`]).
+    pub(crate) collection: &'static str,
 }
 
 impl Tag {
     /// Its picture in the hub's `sjk_tags` pack (`gfx/tags/<id>.png`).
     pub(crate) fn picture(&self) -> String {
         format!("gfx/tags/{}.png", self.id)
+    }
+
+    /// Its collection.
+    pub(crate) fn collection(&self) -> &'static Collection {
+        collection(self.collection)
     }
 
     /// How a player gets it, in a line.
@@ -99,6 +154,15 @@ const fn tag(id: &'static str, name: &'static str, tier: Rarity, free: bool) -> 
         name,
         tier,
         free,
+        collection: ALPHA,
+    }
+}
+
+/// A tag of the Community collection: a player's art (they are credited in the pack).
+const fn community(id: &'static str, name: &'static str, tier: Rarity) -> Tag {
+    Tag {
+        collection: COMMUNITY,
+        ..tag(id, name, tier, false)
     }
 }
 
@@ -125,11 +189,11 @@ pub(crate) const CATALOGUE: &[Tag] = &[
         false,
     ),
     tag("tag_rage_quit", "Rage Quit tag", Rarity::Uncommon, false),
-    tag("tag_gonk", "Gonk tag", Rarity::Uncommon, false),
+    community("tag_gonk", "Gonk tag", Rarity::Uncommon),
     tag("tag_holocron", "Holocron tag", Rarity::Rare, false),
-    tag("tag_ez", "EZ tag", Rarity::Rare, false),
+    community("tag_ez", "EZ tag", Rarity::Rare),
     tag("tag_saber_skull", "Saber Skull tag", Rarity::Rare, false),
-    tag("tag_geyon", "Geyon tag", Rarity::Rare, false),
+    community("tag_geyon", "Geyon tag", Rarity::Rare),
     tag("tag_force_push", "Force Push tag", Rarity::Legendary, false),
     tag("tag_dark_mask", "Dark Mask tag", Rarity::Legendary, false),
     tag("tag_solar_fox", "Solar Fox tag", Rarity::Mythical, false),
@@ -419,6 +483,27 @@ pub(crate) fn decal(tag: &sjk_identity::PlacedTag) -> Option<crate::decal_marks:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every tag names a collection the table has; Community holds the players' tags
+    /// (Blep's EZ, Gonk and Geyon, 30/10/2026) and Alpha the rest.
+    #[test]
+    fn every_tag_is_in_a_known_collection() {
+        for tag in CATALOGUE {
+            assert!(
+                COLLECTIONS.iter().any(|known| known.id == tag.collection),
+                "{}",
+                tag.id
+            );
+        }
+        let community: Vec<_> = CATALOGUE
+            .iter()
+            .filter(|tag| tag.collection == COMMUNITY)
+            .map(|tag| tag.id)
+            .collect();
+        assert_eq!(community, ["tag_gonk", "tag_ez", "tag_geyon"]);
+        assert_eq!(get("tag_sjk").unwrap().collection().name, "Alpha");
+        assert_eq!(collection("nope").id, ALPHA);
+    }
 
     /// From the eye (first person, the dynamic crosshair) the reach is 128; from a
     /// third-person camera 80 behind, 208.

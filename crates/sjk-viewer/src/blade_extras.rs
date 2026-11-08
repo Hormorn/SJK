@@ -40,6 +40,119 @@ pub(crate) enum TrailKind {
     /// The plasma with flames and magnetic loops licking off past the tip's edge, as
     /// prominences off the Sun's limb (style 6).
     Flare,
+    /// Scythe (style 10, the Trayus Scythe blade's): a ribbon of pink light, a white seam where the tip
+    /// passed, full of glitter, its edge torn into wisps and fading to violet as it ages.
+    Scythe,
+    /// Wolf spirit (style 11, the Vulptex Crystalfire blade's): a ribbon of red-orange spirit flame, gold
+    /// where the blade just passed, its trailing edge boiling into bubbles that pop and fade.
+    Foxfire,
+    /// Storm (style 12, the Zeffo Thunderchorus blade's): a white-hot seam with jagged cyan lightning
+    /// forking back from it across the swept band, flickering out as it ages.
+    Storm,
+    /// Erasure (style 13, the Moraband Erasure blade's): a deep violet ribbon crumbling into motes
+    /// of light from its trailing edge as it ages, as if erased.
+    Erasure,
+    /// Ragnos (style 14, the Korriban Ragnos blade's): a ribbon of black with a crimson edge
+    /// where the blade just passed, red cracks of light flickering through it as it fades.
+    Ragnos,
+    /// Infinite (style 15, the Rakata Infinite blade's): a ribbon of blue flame, white where
+    /// the blade just passed, round glints of light twinkling in it as it fades.
+    Infinite,
+    /// Forge (style 16, the Tatooine Krayt Spine blade's): a ribbon of molten metal, white-hot where
+    /// the blade just passed, cooling through orange and red to black with glowing cracks.
+    Forge,
+    /// Sand (style 17, the Lah'mu Sandveil blade's): a band of golden sand streaming back from
+    /// the swing, grains glinting in it, thinning and falling away as it fades.
+    Sand,
+    /// Vitiate (style 18, the Dromund Kaas Vitiate blade's): a magenta and violet ribbon with a
+    /// dark heart, its trailing edge torn into rising wisps.
+    Vitiate,
+    /// Equilibrium (style 19, the Bendu Equilibrium blade's): a thin silver ribbon with a white seam,
+    /// a cool shimmer running through it like heat haze.
+    Equilibrium,
+    /// Vortex (style 20, the Lehon Maelstrom blade's): a deep blue band whose light swirls
+    /// round in spirals as it fades, as if drawn into a vortex.
+    Vortex,
+    /// Starlight (style 21, the Zonama Starlight blade's): a white-gold ribbon full of
+    /// twinkling stars, fading to a soft blue.
+    Starlight,
+    /// Convergence (style 22, the Peridea Convergence blade's): two bands, red and blue, laid
+    /// side by side across the swing and running together into a deep violet as it fades.
+    Convergence,
+    /// Shadowflame (style 23, the Byss Force Storm blade's): a dark band in the storm's colour with
+    /// blue-white Force lightning forking through it.
+    Shadowflame,
+    /// Sorcery (style 24, the Tund Sorcerers blade's): a band of gold light with dark beads
+    /// strung along it, fading to white.
+    Sorcery,
+    /// Wildheart (style 25, the Haruun Kal Wildheart blade's): a green band with jagged green-white
+    /// lightning crawling across it.
+    Wildheart,
+    /// Darksaber (style 26, the Kalevala Darksaber blade's): a dark band with a crackling white
+    /// edge where the tip passed.
+    Darksaber,
+    /// Thoughtbomb (style 27, the Ruusan Thoughtbomb blade's): a silver-white band of pale flame with
+    /// a gold seam.
+    Thoughtbomb,
+    /// Bone (style 28, the Tatooine Krayt Spine blade's): a sheet of blown sand with bone notches along
+    /// its cutting edge.
+    Bone,
+    /// Hunger (style 29, the Nihilus Hunger blade's): a thin burning edge and pale motes drawn along it.
+    Hunger,
+    /// Hex (style 30, the Nightsister Ichor blade's): thick sap hanging in the air, drops sagging out of it.
+    Hex,
+    /// Gilded (style 31, the Ossus Scroll blade's): one stroke of a brush full of gold, drying.
+    Gilded,
+    /// Gale (style 32, the Utapau Whirlwind blade's): streaks of air combed along the swing, with dust.
+    Gale,
+    /// Salt (style 33, the Crait Salt Flats blade's): red scored open behind a skim of white salt.
+    Salt,
+    /// Kathol (style 34, the Kathol Rift blade's): a twisted ribbon, night and gold changing places along it.
+    Kathol,
+    /// Temple (style 35, Exar Kun Temple): a violet band with gold seams through it.
+    Temple,
+    /// Ash (style 36, Ziost Silence): a pale band crumbling into flakes.
+    Ash,
+    /// Rust (style 37, Nathema Deadworld): a dull band with dying embers in it.
+    Rust,
+    /// Neon (style 38, Taris Undercity): two thin tubes of light, one stuttering.
+    Neon,
+    /// Hush (style 39, Ysalamir Hush): a very soft breath of light.
+    Hush,
+    /// Blood (style 40, Naga Sadow Alchemy): a thick band sagging into drops.
+    Blood,
+    /// Carapace (style 41, Orbalisk Carapace): burning cells that crack apart.
+    Carapace,
+    /// Serpent (style 42, Amphistaff Serpent): a band wriggling as it fades.
+    Serpent,
+    /// Nebula (style 43, Vergence Scatter): a cloud of blue and gold with stars in it.
+    Nebula,
+    /// Sonic (style 44, Voxyn Scream): bands of sound running along the swing.
+    Sonic,
+    /// Plague (style 45, Rakghoul Plague): a sick band with spots of pus.
+    Plague,
+    /// Growth (style 46, Telos Restoration): green that climbs up a white band.
+    Growth,
+    /// Ion (style 47, Malevolence Ion Beam): thin crackling filaments.
+    Ion,
+    /// Cinder (style 48, Massassi Altar): smoke with embers in it.
+    Cinder,
+    /// Tremor (style 49, Sith Tremor Sword): a band shaken into jagged bars.
+    Tremor,
+    /// Press (style 50, Wayland Gravity Press): a heavy band sagging down as gold grains sink from it.
+    Press,
+    /// Cloud (style 51, the Angel blade): a soft white mist of cloud left in the air, slowly thinning.
+    Cloud,
+    /// Moonlight, the plasma's night sister: a soft silver ribbon with light rippling across it
+    /// as on water, cooling to lilac and violet, its edge dissolving into stardust that drifts
+    /// down (style 7, the Moon blade's).
+    Moonlight,
+    /// The moonlight hollowed into a ring of light along its edges, as the corona round an
+    /// eclipsed moon, with a diamond-ring flash where the tip just passed (style 8).
+    Eclipse,
+    /// A faint moonlight ribbon with shooting stars streaking out of it and falling away
+    /// (style 9).
+    Starfall,
 }
 
 impl TrailKind {
@@ -50,6 +163,51 @@ impl TrailKind {
             Self::Comic => 4,
             Self::Plasma => 5,
             Self::Flare => 6,
+            Self::Scythe => 10,
+            Self::Foxfire => 11,
+            Self::Storm => 12,
+            Self::Erasure => 13,
+            Self::Ragnos => 14,
+            Self::Infinite => 15,
+            Self::Forge => 16,
+            Self::Sand => 17,
+            Self::Vitiate => 18,
+            Self::Equilibrium => 19,
+            Self::Vortex => 20,
+            Self::Starlight => 21,
+            Self::Convergence => 22,
+            Self::Shadowflame => 23,
+            Self::Sorcery => 24,
+            Self::Wildheart => 25,
+            Self::Darksaber => 26,
+            Self::Thoughtbomb => 27,
+            Self::Bone => 28,
+            Self::Hunger => 29,
+            Self::Hex => 30,
+            Self::Gilded => 31,
+            Self::Gale => 32,
+            Self::Salt => 33,
+            Self::Kathol => 34,
+            Self::Temple => 35,
+            Self::Ash => 36,
+            Self::Rust => 37,
+            Self::Neon => 38,
+            Self::Hush => 39,
+            Self::Blood => 40,
+            Self::Carapace => 41,
+            Self::Serpent => 42,
+            Self::Nebula => 43,
+            Self::Sonic => 44,
+            Self::Plague => 45,
+            Self::Growth => 46,
+            Self::Ion => 47,
+            Self::Cinder => 48,
+            Self::Tremor => 49,
+            Self::Press => 50,
+            Self::Cloud => 51,
+            Self::Moonlight => 7,
+            Self::Eclipse => 8,
+            Self::Starfall => 9,
         }
     }
 }
@@ -316,6 +474,38 @@ mod tests {
         assert!(all.wake);
         let wake = sun.worn(crate::blade_skin_file::extras::option_bit("heat_wake"));
         assert_eq!((wake.trail, wake.sheds, wake.wake), (None, None, true));
+    }
+
+    /// The Moon, the Sun's night sister (Creyon's): moonlight for every wearer, and a Solar
+    /// copy of Creyon's card unlocks its eclipse and starfall trails and a moonlit wake.
+    #[test]
+    fn the_moon_draws_moonlight_and_a_solar_copy_of_creyons_card_unlocks_the_rest() {
+        let signature = crate::blade_signatures::of("saber_moon").unwrap();
+        assert_eq!(signature.trail(), Some(TrailKind::Moonlight));
+        let moon = of("saber_moon").expect("the Moon has extras");
+        assert_eq!(moon.gate.card, "sjk_alpha_002");
+        assert_eq!(
+            moon.gate.unlocks(),
+            "a Solar copy of SJK Alpha 002 (Creyon) unlocks them"
+        );
+        let ids: Vec<&str> = moon.list.iter().map(|extra| extra.id.as_str()).collect();
+        assert_eq!(ids, ["moonshadow_trail", "starfall_trail", "moonlit_wake"]);
+        assert_eq!(moon.worn(0), Worn::default());
+        let bit = crate::blade_skin_file::extras::option_bit;
+        assert_eq!(
+            moon.worn(bit("starfall_trail")).trail,
+            Some(TrailKind::Starfall)
+        );
+        assert!(moon.worn(bit("moonlit_wake")).wake);
+        assert_eq!(
+            [
+                TrailKind::Moonlight,
+                TrailKind::Eclipse,
+                TrailKind::Starfall
+            ]
+            .map(TrailKind::style),
+            [7, 8, 9]
+        );
     }
 
     #[test]

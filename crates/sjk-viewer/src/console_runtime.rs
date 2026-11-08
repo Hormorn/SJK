@@ -65,6 +65,7 @@ impl GpuState {
         // go; the Fishing card's Sell junk too.
         let boombox_request = console.take_boombox_request();
         let sell_junk = console.take_fishing_sell_request();
+        let wheel_of_doom = console.take_wheel_of_doom_request();
         let mut actions = [None; MAX_ACTIONS_PER_FRAME];
         console.advance_command_frame();
         console.pump_console_socket();
@@ -105,6 +106,9 @@ impl GpuState {
         if sell_junk {
             self.sell_fishing_junk();
         }
+        if wheel_of_doom {
+            self.wheel_of_doom_command();
+        }
         // `toy_illuminate` may have flipped it: tell the Toys tab. Order 66, the Hax, the
         // Drone, the Monitor, Box hunt and the Banana peel stay as last switched, across
         // maps, servers and restarts (`toy_saved`).
@@ -135,6 +139,7 @@ impl GpuState {
             console.set_box_hunt_on(self.box_hunt.on());
             console.set_banana_on(self.banana.on());
             console.set_fishing_on(self.fishing.on());
+            console.set_wheel_of_doom_on(self.wheel_of_doom.running());
             console.set_mining_on(self.mining.on());
         }
         let connection = self

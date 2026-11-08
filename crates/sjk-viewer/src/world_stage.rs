@@ -32,6 +32,9 @@ pub(crate) struct GpuStage {
     pub(crate) wave_functions: [f32; 4],
     pub(crate) tcmod_a: [[f32; 4]; MAX_TEXMODS],
     pub(crate) tcmod_b: [[f32; 4]; MAX_TEXMODS],
+    /// The collapsed bundle's animation; a stage lit through a model normal map
+    /// (`material_maps::models::STAGE_FLAG`) has none and keeps its `normalScale` x and y
+    /// in x and y instead.
     pub(crate) secondary_animation: [f32; 4],
     pub(crate) secondary_control: [f32; 4],
     pub(crate) secondary_tcmod_a: [[f32; 4]; MAX_TEXMODS],

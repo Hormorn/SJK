@@ -495,6 +495,7 @@ impl<H: NpcHost> NpcWorld<'_, H> {
             power,
             level_time,
             gametype,
+            crate::duel::FullForce::default(),
         )
     }
 

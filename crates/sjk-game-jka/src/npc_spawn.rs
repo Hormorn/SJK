@@ -291,12 +291,22 @@ pub trait NpcHost: SaberParseHost {
     fn gravity(&self) -> f32;
     fn skill(&self) -> i32;
     fn gametype(&self) -> i32;
+    /// The server's Force rules (its mod's), which an NPC's Force runs by as a player's
+    /// does; the base game's by default.
+    fn force_rules(&self) -> crate::force_rules::ForceRules {
+        crate::force_rules::ForceRules::default()
+    }
     /// The game's generator (`Q_irand`'s), for what takes it whole.
     fn rng(&mut self) -> &mut crate::player_death::Rng;
     /// The players in the game, as an NPC's senses read them, in client order.
     fn players(&self) -> &[crate::npc_senses::Body];
     /// Whether entity `number` is in use (`g_entities[number].inuse`).
     fn in_use(&self, number: u16) -> bool;
+    /// The running server mod's saber damage rules, which an NPC's blade follows as a
+    /// player's does; the base game's by default.
+    fn saber_damage_rules(&self) -> crate::saber_damage_japlus::JaPlusSaberDamage {
+        crate::saber_damage_japlus::JaPlusSaberDamage::default()
+    }
     /// `trap->InPVS`.
     fn in_pvs(&self, from: [f32; 3], to: [f32; 3]) -> bool;
     /// The health of a thing at `number` that takes damage and is no body (a breakable, a

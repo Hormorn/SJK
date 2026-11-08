@@ -105,6 +105,7 @@ pub(crate) fn parse(args: &[String], now: i64, first: u64) -> Result<Vec<Entry>,
             note: String::new(),
             played: false,
             traded: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
         })
         .collect())
 }

@@ -239,6 +239,27 @@ pub(in crate::world_materials) fn compile_material(
             };
             emission_map = Some((diffuse.clone(), Arc::clone(&image.pixels)));
         }
+        // A model stage's own normal map rides in its idle second slot (SJK,
+        // `material_maps::models`).
+        let model_normal = if maps.is_none() && sprite_source.is_none() && flare_source.is_none() {
+            crate::world_materials::material_maps::models::resolve(
+                vfs,
+                shaders,
+                stage,
+                key.lightmap,
+                image_cache,
+            )?
+        } else {
+            None
+        };
+        let (secondary_pixels, secondary_key, secondary_clamp) = match &model_normal {
+            Some(normal) => (
+                Some(vec![Arc::clone(&normal.pixels)]),
+                Some(normal.key.clone()),
+                stage.primary.clamp,
+            ),
+            None => (secondary_pixels, secondary_key, secondary_clamp),
+        };
         compiled.push(PendingStage {
             allow_ssao: super::ssao::authored_diffuse(definition),
             glow: stage.glow,
@@ -277,6 +298,12 @@ pub(in crate::world_materials) fn compile_material(
                     } else {
                         0
                     }) as f32;
+                if let Some(normal) = &model_normal {
+                    gpu.wave_functions[3] = (gpu.wave_functions[3] as u32
+                        | crate::world_materials::material_maps::models::STAGE_FLAG)
+                        as f32;
+                    gpu.secondary_animation = [normal.scale[0], normal.scale[1], 0.0, 0.0];
+                }
                 if let Some(definition) = definition {
                     crate::world_stage::compile_deforms(&mut gpu, &definition.deforms);
                 }

@@ -281,6 +281,18 @@ pub struct NativeGame {
     stock: bridge_map_logic::StockEntities,
     /// The scripts (ICARUS) and the level's script entities.
     scripts: bridge_icarus::Scripts,
+    /// The server mod `g_mod` named at the start (`crate::server_mods`); `None` runs the
+    /// base game.
+    server_mod: Option<&'static dyn sjk_server_mod::ServerMod>,
+    /// The movement rules it selects from its settings, which every player moves by.
+    mod_movement: sjk_server_mod::ModMovement,
+    /// The combat rules it selects (saber damage, `/kill`), refreshed with its settings.
+    mod_combat: sjk_server_mod::ModCombat,
+    /// The Force rules it selects from its settings, which every Force update and throw
+    /// runs by (`crate::server_mods::force`).
+    mod_force: sjk_game_jka::force_rules::ForceRules,
+    /// The private-duel rules it selects from its settings (`bridge_duel`).
+    duel_rules: sjk_game_jka::duel::DuelRules,
 }
 
 /// The serverId a world starts on. `SV_SpawnServer` uses `com_frameTime`, which is only
@@ -363,8 +375,18 @@ impl NativeGame {
         for (key, value) in SERVERINFO_DEFAULTS {
             status_info.extend_from_slice(format!("\\{key}\\{value}").as_bytes());
         }
-        let (config_strings, sounds) =
-            world_config_strings(&status_info, map.as_ref(), GAMETYPE_FFA, SERVER_ID);
+        let server_mod = crate::server_mods::selected(&cvars);
+        let mod_movement = crate::server_mods::movement(server_mod, &cvars);
+        let mod_combat = crate::server_mods::combat(server_mod, &cvars);
+        let mod_force = crate::server_mods::force(server_mod, &cvars);
+        let duel_rules = crate::server_mods::duels(server_mod, &cvars);
+        let (config_strings, sounds) = world_config_strings(
+            &status_info,
+            map.as_ref(),
+            GAMETYPE_FFA,
+            SERVER_ID,
+            mod_movement.legacy_fixes,
+        );
         let mut game = Self {
             server,
             world,
@@ -466,6 +488,11 @@ impl NativeGame {
             map_turrets: Default::default(),
             stock: Default::default(),
             scripts: Default::default(),
+            server_mod,
+            mod_movement,
+            mod_combat,
+            mod_force,
+            duel_rules,
         };
         game.pool = EntityPool::with_budget(0, game.entity_budget());
         game.spawn_items();
@@ -1205,7 +1232,7 @@ impl NativeGame {
                 delta_angles: angles.map(to_short),
                 ..MovementState::default()
             },
-            authoritative(),
+            self.movement_config(),
         )
     }
 
@@ -1685,6 +1712,7 @@ impl NativeGame {
         if !self.power_duel_death_begins(server_time) {
             return;
         }
+        self.credit_suicide(client, &mut request);
         self.eject_on_death(client, server_time);
         // A carrier's item drops (or goes home) at once; a hack ends.
         self.siege_carrier_gone(client, server_time);

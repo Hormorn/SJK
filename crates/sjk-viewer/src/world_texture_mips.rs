@@ -10,6 +10,11 @@
 //! size ([`skipped`]). A change applies to the textures uploaded after it, so from the
 //! next map. With `r_textureCompression` the kept levels go up block-compressed
 //! ([`compress`], [`Levels`]).
+//!
+//! `r_maxTextureSize` (SJK, 2048 by default, 0 for none) also leaves off the levels
+//! larger than its size, whatever `r_picmip`: a community model's 4096x4096 textures take
+//! four times the video memory of 2048 ones and a frame 90 MB to upload with their mips,
+//! for a player a few hundred pixels tall (08/11/2026).
 use image::{RgbaImage, imageops};
 use std::{
     error::Error,
@@ -32,6 +37,12 @@ pub(crate) const PICMIP_MAX: u32 = 3;
 pub(crate) const PICMIP_FLOOR: u32 = 128;
 /// `r_picmip` as last set ([`set_picmip`]).
 static PICMIP: AtomicU32 = AtomicU32::new(0);
+/// The largest texture side setting.
+pub(crate) const MAX_SIZE_CVAR: &str = "r_maxTextureSize";
+/// `r_maxTextureSize`'s default.
+pub(crate) const MAX_SIZE_DEFAULT: u32 = 2048;
+/// `r_maxTextureSize` as last set ([`set_max_size`]), 0 for no cap.
+static MAX_SIZE: AtomicU32 = AtomicU32::new(MAX_SIZE_DEFAULT);
 
 /// Read `r_picmip` when a graphics context is made, with the filtering
 /// ([`super::Policy::sample`]).
@@ -41,6 +52,26 @@ pub(crate) fn sample_picmip(console: Option<&crate::console::ViewerConsole>) {
             .and_then(|console| console.integer_cvar(PICMIP_CVAR))
             .unwrap_or(0),
     );
+    set_max_size(
+        console
+            .and_then(|console| console.integer_cvar(MAX_SIZE_CVAR))
+            .unwrap_or(i64::from(MAX_SIZE_DEFAULT)),
+    );
+}
+
+/// Cap the textures uploaded from now on at `size` pixels a side (0 for none; less than
+/// [`PICMIP_FLOOR`] is the floor), from the next map as [`set_picmip`].
+pub(crate) fn set_max_size(size: i64) {
+    let size = if size <= 0 {
+        0
+    } else {
+        size.clamp(i64::from(PICMIP_FLOOR), i64::from(u32::MAX)) as u32
+    };
+    if MAX_SIZE.swap(size, Ordering::Relaxed) != size {
+        crate::log::progress(format_args!(
+            "texture size cap: {MAX_SIZE_CVAR} {size}, from the next map"
+        ));
+    }
 }
 
 /// Take `levels` of `r_picmip` for the textures uploaded from now on: a world being
@@ -91,10 +122,24 @@ pub(crate) fn shrunk(image: &RgbaImage) -> Option<RgbaImage> {
 
 /// The levels of a `width` x `height` texture left off the card at `picmip`.
 pub(crate) fn skipped(width: u32, height: u32, picmip: u32) -> u32 {
+    skipped_capped(width, height, picmip, MAX_SIZE.load(Ordering::Relaxed))
+}
+
+/// [`skipped`] with `max_size` for `r_maxTextureSize`: at least the levels that bring
+/// the longest side to `max_size` or less (none for 0).
+fn skipped_capped(width: u32, height: u32, picmip: u32, max_size: u32) -> u32 {
     let longest = width.max(height);
-    (0..picmip.min(PICMIP_MAX))
+    let detail = (0..picmip.min(PICMIP_MAX))
         .take_while(|skip| longest >> (skip + 1) >= PICMIP_FLOOR)
-        .count() as u32
+        .count() as u32;
+    let cap = if max_size == 0 {
+        0
+    } else {
+        (0..31)
+            .take_while(|&skip| longest >> skip > max_size)
+            .count() as u32
+    };
+    detail.max(cap)
 }
 
 /// Number of complete mip levels through 1x1, including rectangular/NPOT images.
@@ -305,6 +350,21 @@ mod tests {
         assert_eq!(skipped(256, 256, 3), 1);
         assert_eq!(skipped(128, 64, 3), 0);
         assert_eq!(skipped(4096, 4096, 9), PICMIP_MAX);
+    }
+
+    #[test]
+    fn the_size_cap_halves_textures_past_it_whatever_the_detail() {
+        assert_eq!(skipped_capped(4096, 4096, 0, 2048), 1);
+        assert_eq!(skipped_capped(4096, 1024, 0, 1024), 2);
+        assert_eq!(skipped_capped(8192, 8192, 0, 2048), 2);
+        // At the cap or under it, only r_picmip counts.
+        assert_eq!(skipped_capped(2048, 2048, 0, 2048), 0);
+        assert_eq!(skipped_capped(2048, 2048, 2, 2048), 2);
+        assert_eq!(skipped_capped(4096, 4096, 2, 2048), 2);
+        // A side not a power of two still ends at the cap or less.
+        assert_eq!(skipped_capped(3000, 1500, 0, 2048), 1);
+        // 0 is no cap.
+        assert_eq!(skipped_capped(16384, 16384, 0, 0), 0);
     }
 
     #[test]
