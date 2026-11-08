@@ -9282,3 +9282,21 @@ change: A flaky crash-trail test reads its own thread's lines now (it broke macO
 test: In game: r_emissionStrength 3, then 0: emissive parts brighten, then go dark.
 test: r_parallaxStrength 0 then back, r_normalMapStrength 0 then 1: surfaces flatten and return.
 test: r_materialMapsDebug 1 to 7 shows each view, 0 the normal scene.
+
+[console-demo-end]
+area: Console & chat
+title: Console demos play from their start and no longer close the game (Slash, #383)
+change: demo <name> plays from its start once its map is up; its end goes back to the main menu.
+change: The chat balloon of the player who recorded no longer stays up for the whole demo.
+test: From the main menu: demo <name>. It plays from its start, then the main menu comes back.
+test: From a server: demo <name>. It plays, then the main menu; the game stays open.
+
+[pr-batch-1108]
+area: Menus & settings
+title: Browser sort mark, a ribbon for every medal, Toys heading (#389, #388, #382)
+change: Server browser: the sort mark stands just after the sorted column's name (Kushina).
+change: Scoreboard: a ribbon bar for every medal, up to six; it stopped at three (Kushina).
+change: Collection > Toys: the heading counts the toys, as its tab does (Slash).
+test: Server browser: click each column header; the mark never covers the name.
+test: Scoreboard, a player with all four medals and a short name: four bars.
+test: Collection > Toys: the heading and the tab's count say the same number.

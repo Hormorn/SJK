@@ -790,7 +790,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 109 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 114 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -981,6 +981,16 @@ into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author
 - #359 profile card and page: no cover for the neutral banner, round corners for a worn one.
 - #360 the whisper recipient on its own line, stepping and picking between whisperers, after
   Creo's idea.
+- #382 the Toys page's heading counted from the toys, so a new one cannot leave it behind
+  (hub report #265).
+- #383 a demo typed in the console plays from its start and goes back to the main menu at
+  its end, instead of closing the game.
+- #371 a local time clock on the HUD (`cg_drawClock`, off by default), placed in the HUD
+  editor, after Nib's idea.
+- #372 a chat-only view for the console (`con_chatOnly`, off by default), after Hormorn's
+  idea.
+- #387 a Toggles group in Key bindings, one row for every on/off setting, and `togglebind`,
+  after Blep's idea.
 
 His Peek work in #199 (closed 24/10/2026, not merged) shaped the Drone toy: a player is
 asked before being peeked, told who watches, and can end it. His #206 (closed 25/10/2026,
@@ -1035,8 +1045,8 @@ Blackwolf's VisionJK rebuild of the JA+ 2.4 B7 server module from its Linux bina
 `g_mod japlus`): JA+'s settings and their defaults and the `jp_cinfo` bits come from it,
 and its behaviour is ported into SJK's own code, not its source.
 
-Kushina ([kushinaSJK](https://github.com/kushinaSJK)), contributor and player, has 1 pull
-request merged into SJK
+Kushina ([kushinaSJK](https://github.com/kushinaSJK)), contributor and player, has 5 pull
+requests merged into SJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AkushinaSJK)); her
 ideas are under [Ideas](#ideas):
 
@@ -1051,6 +1061,10 @@ ideas are under [Ideas](#ideas):
 - #377 two more opt-in `dynamic` options: `drag` lets a chain feel the player's movement
   and turning (hair and capes trail behind a running player; teleports and a paused clock
   do not count), and `arms` keeps a chain out of the upper arms and forearms.
+- #389 the server browser's sort mark stands just after the sorted column's name instead
+  of over its letters.
+- #388 the scoreboard shows a ribbon bar for every medal, up to six, where it stopped at
+  three.
 
 ## Art
 

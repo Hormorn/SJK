@@ -143,6 +143,26 @@ fn header_token(sort: SortColumn) -> u16 {
         }
 }
 
+/// A header label's width per character: Rajdhani at 18 sets "Players" and "Ping"
+/// at about 8.3 and 8.5 pixels a character (measured in game), so a little over,
+/// and the mark never touches the label.
+const LABEL_CHAR: f32 = 8.6;
+/// Half the sort mark's widest bar (`kit::sort_mark`), and the gap between the mark
+/// and its label.
+const SORT_MARK_HALF: f32 = 6.5;
+const SORT_MARK_GAP: f32 = 6.0;
+
+/// Where the sort mark's middle goes for `column`: after its label, with a small
+/// gap. A label set to the column's end ends there; one set from its start ends
+/// its width after it, which grows with the menu text size (`scale`).
+fn sort_mark_x(column: &Column, scale: f32) -> f32 {
+    let end = match column.align {
+        TextAlign::End => column.x + column.width,
+        _ => column.x + LABEL_CHAR * scale * column.label.len() as f32,
+    };
+    end + SORT_MARK_GAP + SORT_MARK_HALF
+}
+
 /// The left column's items, top to bottom: where the servers come from, then
 /// which of them show.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -829,12 +849,8 @@ fn draw_list(ui: &mut MenuCanvas, frame: &Frame, browser: &ServerBrowser) {
             column.align,
         );
         if active {
-            // Rajdhani at 18 sets these labels at about 6.2 pixels a character.
-            let label = 6.2 * column.label.len() as f32;
-            let x = match column.align {
-                TextAlign::End => column.x + column.width - label - 11.0,
-                _ => column.x + label + 11.0,
-            };
+            let scale = crate::text::style::current().scale.max(0.5);
+            let x = sort_mark_x(column, scale);
             kit::sort_mark(ui, frame, x, middle, descending, colour);
         }
         ui.hit_region(
@@ -1814,6 +1830,43 @@ mod tests {
         for column in COLUMNS {
             let index = usize::from(header_token(column.sort) - HEADER_TOKEN);
             assert_eq!(crate::menu::pointer::SORT_COLUMNS[index], column.sort);
+        }
+    }
+
+    #[test]
+    fn the_sort_mark_sits_after_its_label_clear_of_the_next() {
+        // Where a label begins and ends at `width` pixels a character.
+        let label = |column: &Column, scale: f32, width: f32| {
+            let text = width * scale * column.label.len() as f32;
+            match column.align {
+                TextAlign::End => (column.x + column.width - text, column.x + column.width),
+                _ => (column.x, column.x + text),
+            }
+        };
+        for scale in [1.0, 1.5] {
+            for (index, column) in COLUMNS.iter().enumerate() {
+                let x = sort_mark_x(column, scale);
+                // The label as measured (8.3 a character) and at the widest (8.6).
+                assert!(
+                    x - SORT_MARK_HALF > label(column, scale, 8.3).1,
+                    "{}: the mark starts after the label",
+                    column.label
+                );
+                if let Some(next) = COLUMNS.get(index + 1) {
+                    assert!(
+                        x + SORT_MARK_HALF < label(next, scale, LABEL_CHAR).0,
+                        "{}: the mark ends before {}",
+                        column.label,
+                        next.label
+                    );
+                }
+                // The list's scrollbar starts 14 pixels past its edge.
+                assert!(
+                    x + SORT_MARK_HALF < LIST_X + LIST_WIDTH + 14.0,
+                    "{}: the mark ends before the scrollbar",
+                    column.label
+                );
+            }
         }
     }
 

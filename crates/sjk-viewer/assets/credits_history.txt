@@ -9,6 +9,66 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 08/11/2026 | - | Format the nameplate client icon code (cargo fmt)
+- 925c271 |  | Format the nameplate client icon code (cargo fmt)
++ 08/11/2026 | - | Keep the key binding groups' icons (Sol)
+- 2c45a18 |  | Keep the key binding groups' icons (Sol)
++ 08/11/2026 | - | Fixes at merge: the toy count in the docs, con_chatOnly's help spacing
+- f611d96 |  | Fixes at merge: the toy count in the docs, con_chatOnly's help spacing
++ 08/11/2026 | - | Release 2026.1108.1
+- 1aebd67 |  | Release 2026.1108.1
++ 08/11/2026 | - | Toon shading is each player's choice for their own model
+- 303491a |  | Toon shading is each player's choice for their own model
++ 08/11/2026 | - | CHANGELOG: the Unreleased settings line first again
+- 318c2d5 |  | CHANGELOG: the Unreleased settings line first again
++ 08/11/2026 | - | Nameplates: another client's icon, small after the tick (JoF EJK players)
+- 366b473 |  | Nameplates: another client's icon, small after the tick (JoF EJK players)
++ 08/11/2026 | - | help_tickrate: the tick rate and how SJK sends commands on JoF, in the console
+- c77ff27 |  | help_tickrate: the tick rate and how SJK sends commands on JoF, in the console
++ 08/11/2026 | - | Solfox is Sol's new rig model on the hub; Reyced credited for the first Solfox
+- 9971d52 |  | Solfox is Sol's new rig model on the hub; Reyced credited for the first Solfox
++ 08/11/2026 | - | No compiler warnings, and CI fails on one
+- d2b65c0 |  | No compiler warnings, and CI fails on one
++ 08/11/2026 | - | Joins keep their password across map loads: no rejoin loop
+- 767b5c8 |  | Joins keep their password across map loads: no rejoin loop
++ 08/11/2026 | - | Staff page: find players by scope, staff give medals, shaders and holocrons
+- aa34dbc |  | Staff page: find players by scope, staff give medals, shaders and holocrons
++ 08/11/2026 | - | Docs: JoF's one-command-a-frame pacing is open to revisit
+- e3d34d8 |  | Docs: JoF's one-command-a-frame pacing is open to revisit
++ 08/11/2026 | - | Ghost replays send their commands at the recorded times
+- 4276f85 |  | Ghost replays send their commands at the recorded times
++ 08/11/2026 | - | SJK chat page: three rows of online faces and a List with each player's clients
+- ece30d6 |  | SJK chat page: three rows of online faces and a List with each player's clients
++ 08/11/2026 | - | SJK chat readers without a claim wear their client's icon on the scoreboard
+- a65e00b |  | SJK chat readers without a claim wear their client's icon on the scoreboard
++ 08/11/2026 | - | SJK Launcher notice on the main page for players without the launcher
+- 420f7db |  | SJK Launcher notice on the main page for players without the launcher
++ 08/11/2026 | - | Status bubbles: the talk balloon shows why it is up (cg_statusBalloons)
+- 37f7128 |  | Status bubbles: the talk balloon shows why it is up (cg_statusBalloons)
++ 08/11/2026 | - | Put the two texture entries under Rendering & effects in the debug panel
+- 802e8ab |  | Put the two texture entries under Rendering & effects in the debug panel
++ 08/11/2026 | - | Cap textures at 2048 pixels a side (r_maxTextureSize)
+- 022f28d |  | Cap textures at 2048 pixels a side (r_maxTextureSize)
++ 08/11/2026 | - | Hold a warmed model's decoded images until its materials append
+- 142c749 |  | Hold a warmed model's decoded images until its materials append
++ 08/11/2026 | - | Unasked logs: send_own_logs for the launcher, marked on the Staff page
+- 093af1d |  | Unasked logs: send_own_logs for the launcher, marked on the Staff page
++ 08/11/2026 | - | Split the sculpted engram into its 38 breathing plates
+- 1b41fcc |  | Split the sculpted engram into its 38 breathing plates
++ 08/11/2026 | - | Put tags in collections: Alpha and Community
+- 0b4f21c |  | Put tags in collections: Alpha and Community
++ 08/11/2026 | - | Sculpt the Jedi cube and the engram from Sol's models
+- b63d61c |  | Sculpt the Jedi cube and the engram from Sol's models
++ 07/11/2026 | - | Add the WHEEL OF DOOM toy, client side
+- 5044f07 |  | Add the WHEEL OF DOOM toy, client side
++ 07/11/2026 | - | Fold the command stamp debug entry into three changes of 96 characters
+- 6d34268 |  | Fold the command stamp debug entry into three changes of 96 characters
++ 07/11/2026 | - | Make commands on the frame's own clock, stamp them as stock
+- 06190b2 |  | Make commands on the frame's own clock, stamp them as stock
++ 07/11/2026 | - | Log the command stamp and compare the seconds around each switch
+- 1c203ca |  | Log the command stamp and compare the seconds around each switch
++ 07/11/2026 | - | cl_freshStamps: keep this frame's command stamp on every server
+- a92fb12 |  | cl_freshStamps: keep this frame's command stamp on every server
 + 07/11/2026 | - | Shelve Support SJK: hide the donation links on the main page
 - ed9f00f |  | Shelve Support SJK: hide the donation links on the main page
 + 07/11/2026 | - | Release 2026.1107.1
@@ -3041,6 +3101,10 @@
 - 0874042 |  | Decode print and cp text as legacy bytes
 
 = Kushina
++ 08/11/2026 | SJK #389 | Set the browser's sort mark clear after its column's name
+- 693530f |  | Set the browser's sort mark clear after its column's name
++ 08/11/2026 | SJK #388 | Show a ribbon bar for every medal on the scoreboard
+- 26c633c |  | Show a ribbon bar for every medal on the scoreboard
 + 07/11/2026 | SJK #377 | Let rig chains feel the player's movement and keep out of the arms
 - d2bc221 |  | Let rig chains feel the player's movement and keep out of the arms
 - dbb19fa |  | Record rig chain drag and arms in the status page
@@ -3386,6 +3450,22 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 08/11/2026 | SJK #387 | Key bindings: a Toggles group for every on/off setting, and togglebind (Blep's idea)
+- 4f74d62 |  | Toggle binds: Key bindings > Toggles and togglebind (Blep's idea)
+- e36d1b9 |  | toggle: a number matches a value of the same number ("80" and "80.0")
+- 05be4d4 |  | Key bindings: the classic panel's groups go without icons
++ 08/11/2026 | SJK #371 | HUD: a local time clock you can place (cg_drawClock, off by default)
+- 2ae5ca6 |  | HUD: a local time clock you can place (cg_drawClock)
+- a8dd7cc |  | HUD clock: a date-only choice (cg_drawClock 3)
+- 3a2569b |  | Docs: cg_drawClock in the Defaults table
++ 08/11/2026 | SJK #372 | Console: a chat-only view (con_chatOnly, off by default)
+- 52725dd |  | Console: a chat-only view (con_chatOnly)
+- 13df747 |  | Console chat-only: the Facts test sets chat_only
+- 8153bfa |  | Console selection: copy_range is for tests now (clippy dead code)
++ 08/11/2026 | SJK #383 | Console demos no longer close the game
+- cfce927 |  | Console demos: play from their start, return to the menu, no stuck balloon
++ 08/11/2026 | SJK #382 | Collection: the Toys page counts every toy (hub report #265)
+- 0d31712 |  | Collection: the Toys page counts every toy (hub report #265)
 + 04/11/2026 | SJK #360 | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
 - bb1b8a2 |  | Chat: whisperers list right above the name, darker, over the row's and feed's words
 + 04/11/2026 | - | Vehicle HUD: speed and ammo beside the HP in each HUD style
