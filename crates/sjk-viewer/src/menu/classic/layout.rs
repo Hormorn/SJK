@@ -366,14 +366,11 @@ impl Entry {
 
 impl Entry {
     /// The settings icon (`settings_icons::ICONS`) beside this entry in the
-    /// Settings group lists; `None` for entries drawn without one.
+    /// Settings group lists; `None` for entries drawn without one. The KEY
+    /// BINDINGS groups (Movement to Other) have none since 08/11/2026, at Slash's
+    /// word: their list reads as retail's, labels only.
     pub(crate) fn icon(self) -> Option<&'static str> {
         Some(match self {
-            Self::Movement => "movement",
-            Self::Interaction => "interaction",
-            Self::Weapons => "weapons",
-            Self::ForcePowers => "force_powers",
-            Self::OtherControls => "other_controls",
             Self::FirstSetup => "first_setup",
             Self::Graphics => "graphics",
             Self::Sound => "sound",
@@ -746,8 +743,15 @@ mod tests {
     #[test]
     fn every_settings_group_has_its_own_icon() {
         let mut seen = Vec::new();
+        let key_bindings =
+            |entry| (0..5).any(|category| Entry::of_category(category) == Some(entry));
         for page in [Page::Setup, Page::Controls, Page::Graphics, Page::Gameplay] {
             for slot in page.slots().iter().filter(|slot| slot.size == Size::List) {
+                // The key bindings' groups go without one.
+                if key_bindings(slot.entry) {
+                    assert_eq!(slot.entry.icon(), None, "{:?}", slot.entry);
+                    continue;
+                }
                 let icon = slot.entry.icon().expect("a group icon");
                 assert!(crate::settings_icons::texture(icon).is_some(), "{icon}");
                 assert!(!seen.contains(&icon), "{icon} is used twice");

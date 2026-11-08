@@ -40,6 +40,20 @@ uses (`gameplay_fps_nocap 1` with `gameplay_fps 125`) and how to settle it are i
 The `help_tickrate` console command (08/11/2026) tells players the same and must change
 with the entry.
 
+## Toggle binds: Key bindings > Toggles and `togglebind`
+
+08/11/2026, `feat/togglebind` from `main` `802e8ab8` (Blep's idea in #ideas: "add
+togglebind for commands that only go 0/1"; no hub report). Stock `toggle` was already
+there (`bind F5 "toggle cg_drawFPS"`); two ways to reach it are new. Key bindings has a
+Toggles group after Other, one `toggle <cvar>` row for each on/off switch of Settings,
+made at start from the settings search's rows (so the keybind catalogue's `ACTIONS` is
+now built once: the fixed rows, then these), and the console has `togglebind <key>
+<cvar> [values]`, which refuses an unknown cvar ([client.md](client.md#key-bindings)).
+Verified on Windows 11: `sjk-shell` tests (the bind, flipping, stepping values, an
+unknown cvar, one value), the viewer's key binding, settings, menu and command reference
+tests (a Toggles row for each switch, in order, none with a default key, no two named
+alike). Not verified: the Toggles group on screen in either menu style.
+
 ## WHEEL OF DOOM (client side)
 
 07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins

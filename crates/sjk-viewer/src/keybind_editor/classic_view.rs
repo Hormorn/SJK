@@ -24,12 +24,13 @@ use winit::keyboard::KeyCode;
 pub(super) const ROWS_SCROLL_TOKEN: u16 = 911;
 
 /// The categories' headings in the one list.
-pub(super) const HEADINGS: [&str; 5] = [
+pub(super) const HEADINGS: [&str; 6] = [
     "Movement",
     "Interaction",
     "Weapons",
     "Force powers",
     "Other",
+    "Toggles",
 ];
 
 /// One row of the classic list.

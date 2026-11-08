@@ -391,7 +391,7 @@ impl KeybindEditor {
 
     fn refresh(&mut self, console: &ViewerConsole) {
         self.keys.clear();
-        for action in ACTIONS {
+        for action in ACTIONS.iter() {
             // Shown as players see key names (`display_key`); binding goes
             // through `ViewerConsole`, which matches names case-insensitively.
             let keys = console.keys_for_command(action.command);
@@ -446,6 +446,28 @@ mod tests {
                 .keys_for_command("+use")
                 .iter()
                 .any(|key| key == "MOUSE1")
+        );
+    }
+
+    #[test]
+    fn a_togglebind_key_shows_on_its_toggles_row_and_the_row_binds_toggle() {
+        let (_directory, mut console) = console();
+        console.execute_console_line("togglebind F5 cg_drawFps", None);
+        let mut editor = KeybindEditor::new();
+        editor.open(&console);
+        let row = ACTIONS
+            .iter()
+            .position(|action| action.command.eq_ignore_ascii_case("toggle cg_drawFps"))
+            .expect("a Toggles row for the FPS readout");
+        assert_eq!(ACTIONS[row].category, Category::Toggles);
+        assert_eq!(editor.keys[row][0], "F5");
+        // Binding the row from the editor binds the same command.
+        console.rebind_action(ACTIONS[row].command, 1, "F6");
+        assert!(
+            console
+                .keys_for_command("toggle cg_drawFps")
+                .iter()
+                .any(|key| key == "F6")
         );
     }
 

@@ -9,7 +9,8 @@
 //!
 //! Rows are grouped the way retail's `ui/jamp/controls.menu` groups them
 //! (Movement, Interaction, Weapons, Force Powers, Other); the mouse page
-//! lives on the Settings CONTROLS tab instead.
+//! lives on the Settings CONTROLS tab instead. SJK adds Toggles after them: every
+//! on/off switch of the settings, bound as `toggle <cvar>` (Blep's idea, 08/11/2026).
 
 use Category::*;
 use sjk_shell::BindTable;
@@ -22,11 +23,21 @@ pub(crate) enum Category {
     Weapons,
     Force,
     Other,
+    /// The settings' on/off switches, one `toggle <cvar>` row each ([`toggle_rows`]).
+    Toggles,
 }
 
 /// Tab captions, indexed by `Category as usize`.
-pub(crate) const CATEGORIES: [&str; 5] = ["MOVEMENT", "INTERACTION", "WEAPONS", "FORCE", "OTHER"];
+pub(crate) const CATEGORIES: [&str; 6] = [
+    "MOVEMENT",
+    "INTERACTION",
+    "WEAPONS",
+    "FORCE",
+    "OTHER",
+    "TOGGLES",
+];
 
+#[derive(Clone, Copy)]
 pub(crate) struct BindableAction {
     pub(crate) category: Category,
     pub(crate) label: &'static str,
@@ -48,8 +59,30 @@ const fn action(
     }
 }
 
-/// Every bindable action, grouped by category in tab order.
-pub(crate) const ACTIONS: &[BindableAction] = &[
+/// Every bindable action, grouped by category in tab order: the fixed rows, then
+/// [`Category::Toggles`]' rows made from the settings once.
+pub(crate) static ACTIONS: std::sync::LazyLock<Vec<BindableAction>> =
+    std::sync::LazyLock::new(|| {
+        let mut actions = FIXED.to_vec();
+        actions.extend(toggle_rows());
+        actions
+    });
+
+/// A Toggles row for each on/off switch of the settings, in the settings search's
+/// order and named as there: a key flips the switch as its row would. A switch some
+/// fixed row already runs is left to that row.
+fn toggle_rows() -> impl Iterator<Item = BindableAction> {
+    crate::settings::switches().filter_map(|(label, cvar)| {
+        let command = format!("toggle {cvar}");
+        (!FIXED
+            .iter()
+            .any(|action| action.command.eq_ignore_ascii_case(&command)))
+        .then(|| action(Toggles, label, Box::leak(command.into_boxed_str()), ""))
+    })
+}
+
+/// The actions every build has, grouped by category in tab order.
+const FIXED: &[BindableAction] = &[
     // MOVEMENT
     action(Movement, "Move forward", "+forward", "w"),
     action(Movement, "Move back", "+back", "s"),
@@ -286,7 +319,7 @@ pub(crate) fn category_range(tab: usize) -> std::ops::Range<usize> {
 /// Install only missing defaults, preserving a loaded user configuration.
 pub(crate) fn default_bindings() -> BindTable {
     let mut binds = BindTable::new();
-    for action in ACTIONS {
+    for action in ACTIONS.iter() {
         if !action.default_key.is_empty() {
             let _ = binds.bind(action.default_key, action.command);
         }
@@ -307,7 +340,7 @@ pub(crate) fn migrate_missing_defaults(binds: &mut BindTable) {
     for key in legacy_force {
         let _ = binds.bind(&key, "+useforce");
     }
-    for action in ACTIONS {
+    for action in ACTIONS.iter() {
         let has_action = binds
             .iter()
             .any(|(_, command)| command.eq_ignore_ascii_case(action.command));
@@ -378,6 +411,30 @@ mod tests {
         custom.bind("z", "+ping").unwrap();
         migrate_missing_defaults(&mut custom);
         assert_eq!(custom.get("MOUSE3"), None);
+    }
+
+    #[test]
+    fn every_settings_switch_has_a_toggles_row_at_the_end() {
+        let toggles = category_range(Toggles as usize);
+        assert_eq!(toggles.end, ACTIONS.len());
+        assert_eq!(toggles.start, FIXED.len());
+        let switches = crate::settings::switches().count();
+        assert!(switches > 100, "{switches}");
+        assert_eq!(toggles.len(), switches);
+        for (action, (label, cvar)) in ACTIONS[toggles].iter().zip(crate::settings::switches()) {
+            assert_eq!(action.label, label);
+            assert_eq!(action.command, format!("toggle {cvar}"));
+            assert!(action.default_key.is_empty(), "{label}");
+        }
+        // Each row names its own switch, so a search finds one row for one name.
+        let mut seen = std::collections::HashSet::new();
+        for action in &ACTIONS[category_range(Toggles as usize)] {
+            assert!(
+                seen.insert(action.label),
+                "two Toggles rows named {:?}",
+                action.label
+            );
+        }
     }
 
     #[test]

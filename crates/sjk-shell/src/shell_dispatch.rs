@@ -54,6 +54,7 @@ impl Shell {
             "unaliasall" => Ok(vec![format!("{} aliases removed", self.aliases.clear())]),
             "aliaslist" => Ok(self.alias_list(arguments)),
             "bind" => self.bind_command(arguments),
+            "togglebind" => self.togglebind_command(arguments),
             "unbind" => self.unbind_command(arguments),
             "unbindall" => {
                 self.binds.clear();

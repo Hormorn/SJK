@@ -36,6 +36,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - The scoreboard shows a ribbon bar for every medal a player has, up to six: it stopped at three, so a player with all four medals was missing one. A short name shows them all; a long one keeps two thirds of its room, as before _(Kushina, PR #388)_
 - A clock on the HUD with your PC's local time, the time and date, or the date, in 24 or 12 hours: Settings > HUD "Local time" (`cg_drawClock`, off by default) and "Local time: 12-hour" (`cg_clock12h`); drag it anywhere in the HUD editor (`hud_edit`) _(Slash, PR #371, after Nib's idea)_
 - Console: a chat-only view that lists just the chat, to follow a conversation: Settings > Interface "Console: chat only" (`con_chatOnly`, off by default); every line is still kept, switch it off to see them all _(Slash, PR #372, after Hormorn's idea)_
+- A key can flip any on/off setting: Settings > Key bindings has a Toggles group, one row for every switch in Settings (search finds it by name), and `togglebind <key> <cvar>` binds one from the console (`togglebind F5 cg_drawFPS`; with values, `togglebind F6 cg_fov 80 100 120` steps through them) _(Slash, PR #387, after Blep's idea)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
 
