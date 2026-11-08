@@ -717,6 +717,9 @@ not called from `window_event`). Not yet confirmed on the JoF server in the clie
 
 ## Static profile banners
 
+**Out of the game since 08/11/2026** (Sol: unfinished): no drops, no Banners tab,
+no covers shown; see [profile-banners.md](profile-banners.md).
+
 31/10/2026, `feat/profile-banners`, client code `56a9b774` (including `main`
 `677a6073`) and matching hub PR #6 `3c77a2f`: five collectible covers and a
 neutral fallback, with Collection equip/unequip, profile headers and player cards.

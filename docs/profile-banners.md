@@ -1,5 +1,14 @@
 # Profile banners
 
+> **Out of the game since 08/11/2026** (Sol: unfinished). The hub has
+> `SJK_HUB_BANNER_MIN_CLIENT` off, so no banner drops; with no minimum set the hub
+> also leaves held banners out of profiles, wears none and refuses equipping one
+> (hub `banners-off`). The client takes Banners off the Collection row (the page and
+> its fixtures stay) and drops the loot odds' banner note while the odds are zero.
+> Ownership stays stored. To bring banners back: set the minimum client on the hub
+> and put `Tab::Banners` back on the row in `profile_hub.rs` and its count in
+> `collection_view.rs`.
+
 Static, collectible profile covers, implemented by the client/hub feature PRs
 following [design proposal #311](https://github.com/Sol-Vulpes/SJK/pull/311).
 They are cosmetics on the SJK identity, independent of the game server and protocol 26.

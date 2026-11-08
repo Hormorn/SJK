@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Profile banners are out of the game for now, as they are not finished: holocrons no longer bring them, the Collection has no Banners tab and no profile or player card shows one. Banners you found stay yours for when they come back _(Sol)_
 - A demo played from the console (`demo <name>`) no longer closes the game: it plays from its start, at its end the game goes back to the main menu, and your chat balloon no longer stays up for the whole demo _(Slash, PR #383)_
 - The scoreboard shows a ribbon bar for every medal a player has, up to six: it stopped at three, so a player with all four medals was missing one. A short name shows them all; a long one keeps two thirds of its room, as before _(Kushina, PR #388)_
 - A clock on the HUD with your PC's local time, the time and date, or the date, in 24 or 12 hours: Settings > HUD "Local time" (`cg_drawClock`, off by default) and "Local time: 12-hour" (`cg_clock12h`); drag it anywhere in the HUD editor (`hud_edit`) _(Slash, PR #371, after Nib's idea)_
