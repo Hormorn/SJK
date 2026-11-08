@@ -2290,6 +2290,16 @@ test: Point at one and let go: it is sent. Wheel scroll: next page past ten favo
 test: Bind SJK chat page, press it in a match: the big chat opens; press again: closed.
 note: Off-screen shots (duel6_gif_wheel) and unit tests only.
 
+[console-chat-only]
+area: Console & chat
+title: Console chat-only view (Slash, after Hormorn's idea)
+change: con_chatOnly 1: the open console lists only chat lines; off by default, lines all kept.
+change: Header (SJK console) or version line (classic) says "Chat only" while it is on.
+test: On a server with chat: Settings > Interface > Console: chat only on; open the console.
+test: Only chat, team chat and whispers show; cvar changes and connect lines do not.
+test: Select across a few lines and Ctrl+C: only the chat lines are copied.
+test: Switch it off: every line is back, in order. Both con_style sjk and classic.
+
 [console-feed]
 area: Console & chat
 title: Console feed (top left notify lines) off by default, con_drawNotify

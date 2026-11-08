@@ -1526,6 +1526,10 @@ const HELP: &[(&str, &str)] = &[
     ),
     ("con_scale", "Size of the console text."),
     (
+        crate::console::console_options::CHAT_ONLY_CVAR,
+        "The open console lists only chat, so a conversation is easy to follow. Every line is kept: switch it off to see them all.",
+    ),
+    (
         crate::console::console_options::DRAW_NOTIFY_CVAR,
         "Shows the newest console lines at the top left while playing. Chat keeps its own box.",
     ),

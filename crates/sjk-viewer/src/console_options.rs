@@ -19,6 +19,9 @@ pub(crate) const SHIFT_HEIGHT_CVAR: &str = "con_shiftHeight";
 /// composer, which keeps its draft, as stock (`console_key_leaves_chat`); off, the
 /// composer takes the key as it did before 29/10/2026 (Sol's request on PR #255).
 pub(crate) const OVER_CHAT_CVAR: &str = "con_overChat";
+/// Archived switch, off by default: the open console's scrollback shows chat lines alone
+/// (Hormorn's idea, #ideas 05/11/2026: "a mode that only shows chat logs").
+pub(crate) const CHAT_ONLY_CVAR: &str = "con_chatOnly";
 
 /// How the console looks and behaves (`con_style`).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -82,6 +85,8 @@ pub(super) struct Options {
     pub notify_lines: usize,
     /// Notify-only horizontal displacement, in virtual 640-wide coordinates.
     pub notify_x: f32,
+    /// `con_chatOnly`: the open console's scrollback shows chat lines alone.
+    pub chat_only: bool,
 }
 
 impl Default for Options {
@@ -98,6 +103,7 @@ impl Default for Options {
             notify_millis: 3000,
             notify_lines: 3,
             notify_x: 0.0,
+            chat_only: false,
         }
     }
 }
@@ -152,6 +158,12 @@ pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         CvarFlags::ARCHIVE,
         "Shift+console opens to con_height and Shift+Escape a quarter screen (off: the \
          other way round, after EternalJK)",
+    ))?;
+    cvars.register(CvarDefinition::new(
+        CHAT_ONLY_CVAR,
+        false,
+        CvarFlags::ARCHIVE,
+        "The open console shows only chat lines (all lines are still kept: off shows them          again)",
     ))?;
     cvars.register(CvarDefinition::new(
         OVER_CHAT_CVAR,
@@ -226,6 +238,7 @@ impl ViewerConsole {
                 .integer_cvar("con_notifylines")
                 .unwrap_or(3)
                 .clamp(0, 64) as usize,
+            chat_only: self.bool_cvar(CHAT_ONLY_CVAR).unwrap_or(false),
         }
     }
 }

@@ -132,6 +132,7 @@ impl ViewerConsole {
         if self.shell.lines_written() == number {
             return;
         }
+        self.note_chat_line(number);
         if let Some(body) = own_whisper_body {
             self.whisper_hover.note_echo(number, body);
         }

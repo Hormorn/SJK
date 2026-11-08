@@ -1955,6 +1955,11 @@ pub(super) const TEXT: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Console: chat only",
+        cvar: crate::console::console_options::CHAT_ONLY_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Copy console colours",
         cvar: crate::console::console_options::COPY_COLORS_CVAR,
         kind: ValueKind::Bool,
