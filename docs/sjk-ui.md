@@ -2955,6 +2955,10 @@ the same switch. Actual chat, console and menu key catchers retain their normal
 bubble. See [talk balloons](client.md#talk-balloons).
 
 ![One away bubble switch in SJK Settings](images/away-chat-settings.png)
+
+Under it, **Status bubbles** (`cg_statusBalloons`, off by default) draws the bubble over
+SJK players as why it is up: typing, a menu or the console, or away. See
+[status balloons](client.md#status-balloons).
 ## Game chat logs
 
 Settings > Chat in Advanced mode includes **Save game chat logs**, an on/off row

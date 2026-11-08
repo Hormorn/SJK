@@ -2873,6 +2873,38 @@ icons remain unimplemented. See
 [player_sprites.rs](../crates/sjk-viewer/src/player_sprites.rs) and
 [pmove_talk.rs](../crates/sjk-game-jka/src/pmove_talk.rs).
 
+### Status balloons
+
+**Status bubbles** (`cg_statusBalloons`, Settings > Chat, off by default as stock;
+Sol's idea, 08/11/2026) draws the balloon over an SJK player as why it is up, in the
+stock balloon's shape and glow: the three dots lit one after the other while they type
+in the chat, a pause sign while a menu or the console is open (one picture for both:
+to the others each means "not playing for a moment"), and a blue moon with a z rising
+beside it while their window is alt-tabbed or minimised. Your own balloon in third
+person shows yours. Other players, and any SJK player whose reason has not arrived,
+keep the stock balloon ([status_balloons.rs](../crates/sjk-viewer/src/status_balloons.rs),
+[status_balloons_frame.rs](../crates/sjk-viewer/src/status_balloons_frame.rs); pictures
+by [status_balloon_assets.py](../scripts/status_balloon_assets.py)):
+
+- **The server still decides the balloon.** It shows only while the player's entity
+  carries `EF_TALK`, exactly where stock's would (and where a JA+ blade spares them);
+  only its picture changes. So `cl_consoleMove` (no talk button with the console
+  alone) and `cl_unfocusedChatbox 0` (no away balloon) show nothing, as in stock.
+- **The reason** is what sends the talk button: the window away first
+  (`ViewerConsole::window_talk`), then the console, the chat field, and anything else
+  open (the game menu, a pop-up, the HUD editor) is a menu.
+- **How it travels:** once a reason has held 200 ms, the client relays it
+  (toy `status_balloon`, event `typing`, `menu`, `console` or `away`) through the
+  [toy relay](hub-chat.md#toy-relay) to each other SJK player on the server, those
+  in its snapshot first, one every 50 ms, and to each one who joins while it holds. A
+  new reason is told again; one that ends sends nothing. Others see the stock balloon
+  for the half second the relay takes. Every client sends whatever its setting,
+  so the players who switch it on see everyone's.
+- **How it is kept:** a reason heard (from a player whose shown name matches the
+  claim, not muted here) holds until its player is seen in a snapshot without the
+  balloon, after a 1.5 second grace for a relay quicker than the snapshots; out of
+  view it is kept. A demo shows stock balloons.
+
 ## Joining and changing maps
 
 A join from the menu prepares the destination world while the connection runs:

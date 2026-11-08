@@ -341,6 +341,8 @@ mod ctf_flags_shots;
 mod lagometer_shots;
 #[path = "world_shot_rig_model.rs"]
 mod rig_model_shots;
+#[path = "world_shot_status_balloons.rs"]
+mod status_balloon_shots;
 #[path = "world_shot_team_outline.rs"]
 mod team_outline_shots;
 #[path = "world_shot_toon.rs"]

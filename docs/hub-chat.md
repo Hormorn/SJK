@@ -1332,7 +1332,9 @@ the floor, told to every SJK player (since 03/11/2026), and the
 [Monitor](client.md#monitor)'s throws, told to every SJK player, the nearest first (its
 hits ride the Ragdoll's falls), and the [Banana peel](client.md#banana-peel)'s peels, told
 the same way, and their slips (since 29/10/2026), and the [Prop gun](client.md#prop-gun)'s
-guns held and shots fired (since 01/11/2026). Two threads of
+guns held and shots fired (since 01/11/2026), and the
+[status balloons](client.md#status-balloons)' reasons, told to every SJK player when they
+change (since 08/11/2026). Two threads of
 the identity service of their own ([relay.rs](../crates/sjk-identity/src/relay.rs),
 `sjk-hub-relay-send` and `sjk-hub-relay-read`), each with its own HTTP client, read the
 hub and the game server as the feed does:

@@ -926,6 +926,11 @@ pub(super) const HUD: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Status bubbles",
+        cvar: crate::status_balloons::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Save game chat logs",
         cvar: crate::console::chat_log::CVAR,
         kind: ValueKind::Bool,

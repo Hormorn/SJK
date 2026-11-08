@@ -365,6 +365,8 @@ mod sound_sonar;
 #[cfg(test)]
 mod startup_stack;
 mod static_models;
+mod status_balloons;
+mod status_balloons_frame;
 mod stock_blades;
 mod support_links;
 mod symbols;
@@ -626,6 +628,8 @@ struct GpuState {
     banana: banana::Banana,
     /// The Prop gun toy (`toy_propgun`): the gun held, the bolts and what others hold.
     propgun: propgun::PropGun,
+    /// The status balloons (`cg_statusBalloons`): why each SJK player's talk balloon is up.
+    status_balloons: status_balloons::StatusBalloons,
     /// The Tag toy (`toy_tag`): the own tag stuck on the world.
     tags: tags::Tags,
     /// The Ragdoll toy (`toy_ragdoll`): the player's own fall and the falls of others.
@@ -1649,6 +1653,7 @@ impl GpuState {
             box_hunt: Default::default(),
             banana: Default::default(),
             propgun: Default::default(),
+            status_balloons: Default::default(),
             tags: Default::default(),
             ragdoll: Default::default(),
             toys_saved: Default::default(),

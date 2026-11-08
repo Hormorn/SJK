@@ -719,6 +719,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "An attack or alt attack ends your own emote (SJK)",
         ),
         CvarDefinition::new(
+            crate::status_balloons::CVAR,
+            false,
+            archive,
+            "The talk balloon over SJK players shows why it is up: typing, a menu or the console, or away (SJK)",
+        ),
+        CvarDefinition::new(
             crate::emotes::TYPING_KEEP_CVAR,
             crate::emotes::DEFAULT_TYPING_KEEP,
             archive,

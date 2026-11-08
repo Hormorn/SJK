@@ -741,6 +741,18 @@ saved config. The offline GPU fixture `duel6_settings_away_chat` was inspected:
 the single SJK switch, default, console name and help fit at 1080p. Actual native
 window events and another client's view of the bubble on an isolated server
 remain unverified. See [talk balloons](client.md#talk-balloons).
+## Status balloons
+
+08/11/2026, `personal/status-balloons`, based on `main` `802e8ab8`: `cg_statusBalloons`
+(off by default) draws an SJK player's talk balloon as why it is up (typing, a menu or
+the console, away), the reason relayed once per change through the toy relay; the
+server's `EF_TALK` still decides whether a balloon shows. No hub change: the hub knows
+no toys. Verified on Windows x64: the sender's timing and order, newcomers told, the
+receiver's keep-until-seen-quiet rule, the setting and the bundled assets by unit
+tests; the offline GPU demo shot `status_balloons_on_a_demo` draws each picture over a
+recorded player through the sprite path, the typing dots changing frame. Not verified:
+two clients on a server through the hub, in game. See
+[status balloons](client.md#status-balloons).
 ## Received game-chat logs (opt in)
 
 01/11/2026, `feat/chat-logs`, based on `main` `57f60dde` (requested default):

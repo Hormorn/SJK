@@ -32,6 +32,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+= cg_statusBalloons: Status bubbles: the chat bubble over SJK players shows why it is up: dots while typing, a pause sign in a menu, a moon while alt-tabbed.
+- Status bubbles: the chat bubble over an SJK player can show why it is up: the dots lit in turn while they type, a pause sign while a menu or the console is open, a moon with a rising z while their game is alt-tabbed or minimised; other players keep the stock bubble. Off by default: Settings > Chat > Status bubbles (`cg_statusBalloons`) _(Sol)_
 - Textures larger than 2048 pixels are halved down to it (`r_maxTextureSize`, Settings: Largest texture; 0 keeps every size): a 4096 one takes a quarter of the video memory and loads faster _(Sol)_
 - A player model with big textures no longer freezes the game for a moment when someone puts it on: its textures could be decoded again inside one frame (743 ms for one model) _(Sol)_
 - Staff see the logs players send unasked from the launcher's Doctor (Send my logs), marked "unasked" in the Staff page's Logs tab _(Sol)_

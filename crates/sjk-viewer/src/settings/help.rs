@@ -825,6 +825,10 @@ const HELP: &[(&str, &str)] = &[
         "Shows your automatic chat bubble while unfocused or minimized. Open chat, console and menus still show their normal bubble.",
     ),
     (
+        crate::status_balloons::CVAR,
+        "The chat bubble over SJK players shows why: dots while typing, a pause sign in a menu or the console, a moon while away.",
+    ),
+    (
         crate::console::chat_log::CVAR,
         "Log all game-server chat, including team/PMs before filters, in this profile's chatlogs/chat.log. Off by default.",
     ),

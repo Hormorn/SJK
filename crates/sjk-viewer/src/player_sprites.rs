@@ -1,6 +1,7 @@
 //! `CG_PlayerSprites` / `CG_PlayerFloatSprite` (`codemp/cgame/cg_players.c`): the
 //! connection icon or talk balloon over a player's head, as a frame billboard in the
-//! effect pool that `pickups::simple::append_frame` clears on the next frame. It
+//! effect pool (the balloon of an SJK player whose reason is known drawn as its status
+//! balloon, `status_balloons.rs`) that `pickups::simple::append_frame` clears on the next frame. It
 //! uses the pool's billboard reserve ([`crate::particle_types::FRAME_BILLBOARD_RESERVE`]),
 //! so effects filling the pool do not hide it.
 use super::*;
@@ -33,22 +34,37 @@ pub(super) fn submit(
     {
         return;
     }
-    let (flags, entity_type, mind_tricked) = if local {
+    let (flags, entity_type, mind_tricked, slot) = if local {
         let flags = sinks
             .predicted_local_state
             .map_or(snapshot.player.entity_flags(), |state| state.entity_flags);
-        (flags, ET_PLAYER, false)
+        (flags, ET_PLAYER, false, snapshot.player.client_num())
     } else if let Some(state) = state {
         (
             state.e_flags(),
             state.entity_type(),
             state.client_bitflag(snapshot.player.client_num()),
+            state.number(),
         )
     } else {
         return;
     };
+    // World shots: the balloon over every player given one.
+    #[cfg(test)]
+    let flags = if sinks.status_balloons.1 && sinks.status_balloons.shader(slot).is_some() {
+        flags | sjk_game_jka::pmove_talk::EF_TALK
+    } else {
+        flags
+    };
     let Some(sprite) = sjk_client::legacy_player_sprite(flags, entity_type, mind_tricked) else {
         return;
+    };
+    let shader = match sprite {
+        sjk_client::LegacyPlayerSprite::Talk => sinks
+            .status_balloons
+            .shader(slot)
+            .unwrap_or(sprite.shader()),
+        sjk_client::LegacyPlayerSprite::ConnectionInterrupted => sprite.shader(),
     };
     if !crate::particle_types::frame_billboard_fits(sinks.particles.len()) {
         return;
@@ -77,7 +93,7 @@ pub(super) fn submit(
         set_shader_time: false,
         rgb: [constant(1.0); 3],
         seed: 0,
-        shader: sinks.effects.shader(sprite.shader()),
+        shader: sinks.effects.shader(shader),
         physics: crate::particle_physics::State::new(
             sinks.effects.code_primitive_definition(),
             0,
