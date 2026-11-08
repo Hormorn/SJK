@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Tags come in collections: Collection > Tags lists the Alpha collection, SJK's own tags, and the Community collection, the tags players drew (EZ, Gonk and Geyon so far), each under its own heading, and a tag's card says which it is in _(Sol)_
 - The Uncommon and Mythical holocrons are sculpted by Sol too: a steel-framed Jedi cube with glowing green glass round an emblem plate on each face, and a gold engram of engraved triangular plates with glowing seams between them, both detailed by a normal map _(Sol)_
 - The WHEEL OF DOOM: a new toy (`toy_wheelofdoom`, Collection > Toys) you spin for credits; it lands on a Mythical holocron, on nothing, or on doom: reversed keys, an inverted mouse, a mirrored or upside-down world, darkness, no saber, quacks, a curse or a blast, for a few seconds _(Sol)_
 - Your inputs leave as soon as before again: since 2026.1107.1 every command was made a frame late (3 ms at 350 FPS, 17 ms at 60) off SJK's servers; now only its time stamp is stock's _(Sol)_

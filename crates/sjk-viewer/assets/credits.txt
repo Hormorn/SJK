@@ -79,6 +79,7 @@ did: Achievements announced with their kyber crystal once the SJK hub unlocks th
 did: The Mythical holocron's engram: gold plates breathing round a glowing core
 did: The Sith pyramid sculpted anew, art by Sol (AI-assisted), with model normal maps
 did: The Jedi cube and the engram sculpted anew too, art by Sol (AI-assisted)
+did: Tag collections: Alpha, and Community for the tags players drew
 did: Blade cards craft their saber shader for less, and lead to it from the Cards tab
 did: Perk marks on cards: a badge for each thing a card brings
 did: The Forge: shop, crafting and breaking any saber shader down, in one tab

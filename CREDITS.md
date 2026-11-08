@@ -147,6 +147,9 @@ includes:
 - the Uncommon holocron's Jedi cube and the Mythical holocron's engram sculpted anew
   (08/11/2026, art by Sol, AI-assisted): low polys of 300 and 400 triangles with their
   colour, glow and normal maps baked from the high-poly models;
+- tag collections (08/11/2026, Sol's decision): Alpha for SJK's own tags, Community for
+  the ones players drew (Blep's EZ, Gonk and Geyon), each under its own heading in
+  Collection > Tags;
 - fourteen more achievements (26/10/2026, Sol's list): holocrons opened, crafting, a
   full card set, Order 66, the cardboard box, flawless and close duels, duel partners, a
   long saber throw and a thermal detonator sent back, a secret one, and Surveyor retired;
