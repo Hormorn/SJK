@@ -872,6 +872,15 @@ impl Runtime {
         self.forge.texture_cache.retain(|key, _| kept.contains(key));
     }
 
+    /// Drop the uploaded textures whose key `stale` names (`rig_reload`: a file read
+    /// again from a replaced pack), so the next material that uses one uploads it anew.
+    /// Materials already built keep drawing with their own copy. Returns how many went.
+    pub(crate) fn forget_textures(&mut self, mut stale: impl FnMut(&str) -> bool) -> usize {
+        let before = self.forge.texture_cache.len();
+        self.forge.texture_cache.retain(|key, _| !stale(key));
+        before - self.forge.texture_cache.len()
+    }
+
     /// Whether this runtime's textures carry mip chains (`r_textureMode`).
     pub(crate) fn mipmapped(&self) -> bool {
         self.forge.filtering.mipmapped()

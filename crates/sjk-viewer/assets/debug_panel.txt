@@ -4034,6 +4034,16 @@ test: Change something visible (scale in sjk_rig.cfg, texture), export, type rig
 test: Within a second or two the model shows the change; the map and others stay as they were.
 note: A changed shader script still needs the next map.
 
+[rig-reload-textures]
+area: Rendering & effects
+title: Rig models: rig_reload reads a re-exported texture again
+change: rig_reload drew the new geometry with the old texture when its file kept its name.
+change: Textures from the rig model's folder and pack are now uploaded again from the new pack.
+test: /model solfox5, then replace rig_solfox5.pk3 with one whose cloth.png changed.
+test: Type rig_reload: the model shows the new texture, not the old one stretched over it.
+test: The map's and other players' textures look as before.
+note: The log line "rig_reload: ..." says how many textures were read again.
+
 [rig-lineup]
 area: Rendering & effects
 title: Rig models: lineup beside a stock model (developer test)
