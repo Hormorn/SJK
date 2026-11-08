@@ -321,6 +321,8 @@ mod propgun_shots;
 mod ragdoll_shots;
 #[path = "world_shot_toy_master.rs"]
 mod toy_master_shots;
+#[path = "world_shot_wheel_of_doom.rs"]
+mod wheel_of_doom_shots;
 
 #[path = "world_shot_blade_cards.rs"]
 mod blade_cards;
@@ -397,6 +399,9 @@ mod find_blades_shots;
 #[path = "world_shot_text_sizes.rs"]
 mod text_sizes_shots;
 
+#[path = "world_shot_chat_tools.rs"]
+mod chat_tools_shots;
+
 #[path = "world_shot_chat_reactions.rs"]
 mod chat_reactions_shots;
 #[path = "world_shot_chat_readability.rs"]
@@ -452,6 +457,9 @@ mod sharpen_shots;
 #[cfg(test)]
 #[path = "world_shot_tags.rs"]
 mod tags_shots;
+#[cfg(test)]
+#[path = "world_shot_weather.rs"]
+mod weather_shots;
 
 #[cfg(test)]
 mod tests {
@@ -1324,6 +1332,8 @@ Found the fog bug, ask me about it!"
             me: Some(me),
             server: None,
             map_blocks: Vec::new(),
+            remap_blocks: None,
+            remap_blocks_revision: 0,
             players: Vec::new(),
             profiles: std::collections::HashMap::new(),
             model_checks: std::collections::HashMap::new(),
@@ -1345,6 +1355,8 @@ Found the fog bug, ask me about it!"
             mystery_box: None,
             junk: None,
             junk_sale: None,
+            wheel_of_doom: None,
+            wheel_of_doom_spin: None,
             box_hunt: None,
             quests: None,
             secrets: None,
@@ -1572,6 +1584,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
                 sjk_identity::Holocron {
                     id: 42,
@@ -1583,6 +1596,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
                 sjk_identity::Holocron {
                     id: 41,
@@ -1594,6 +1608,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
                 sjk_identity::Holocron {
                     id: 39,
@@ -1605,6 +1620,7 @@ like this one.",
                     traded: None,
                     traded_from_key: None,
                     traded_from: None,
+                    edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
                 },
             ],
             ..profile("44f3d0b36c9b2510", "^1Sol^7Vulpes")

@@ -372,6 +372,7 @@ impl<H: NpcHost> NpcWorld<'_, H> {
     fn sweep_blades(&mut self, me: usize, blades: &NpcBlades, hits: &mut SaberHits) {
         let level_time = self.level_time;
         let gametype = self.host.gametype();
+        let ja_plus = self.host.saber_damage_rules();
         let number = self.actors[me].number;
         // Thrown, the first saber's blade is read where it flies; knocked out of the hand, it
         // is swept no more (`w_saber.c:8788-8797`, `8848-8888`).
@@ -443,6 +444,12 @@ impl<H: NpcHost> NpcWorld<'_, H> {
                     jedi_master: false,
                     more_saber_damage: false,
                     enemy: npc.mind.enemy,
+                    weapon: state.weapon(),
+                    broken_limbs: state.broken_limbs(),
+                    hilt_speed_scales: hilt_speed_scales(&npc.definition.sabers),
+                    // `JP_IsConnectedClient` fails for an NPC.
+                    talking: false,
+                    ja_plus,
                 };
                 let trail = npc.saber.trails[saber][blade];
                 let (base, end) = {
@@ -546,4 +553,16 @@ impl<H: NpcHost> NpcWorld<'_, H> {
     pub fn look_target_update(&mut self, me: usize) {
         self.missile_block_check(me);
     }
+}
+
+/// The held sabers' `animSpeedScale` (`BG_MySaber`), 1 for a hand without one.
+fn hilt_speed_scales(sabers: &[crate::saber_definition::SaberDefinition; 2]) -> [f32; 2] {
+    std::array::from_fn(|hand| {
+        let saber = &sabers[hand];
+        if saber.is_held() {
+            saber.anim_speed_scale
+        } else {
+            1.0
+        }
+    })
 }

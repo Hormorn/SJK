@@ -314,6 +314,30 @@ fn upload(
     srgb: bool,
     picmip: u32,
 ) -> wgpu::TextureView {
+    create(device, queue, image, srgb, picmip).create_view(&wgpu::TextureViewDescriptor::default())
+}
+
+/// A model's normal map ([`super::models`]) for the stage program's second slot: linear,
+/// box-filtered like the world's, viewed as the one-layer array that slot reads.
+pub(in crate::world_materials) fn upload_model_normal(
+    device: &wgpu::Device,
+    queue: &crate::frame_queue::FrameQueue,
+    image: &RgbaImage,
+    picmip: u32,
+) -> wgpu::TextureView {
+    create(device, queue, image, false, picmip).create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        ..Default::default()
+    })
+}
+
+fn create(
+    device: &wgpu::Device,
+    queue: &crate::frame_queue::FrameQueue,
+    image: &RgbaImage,
+    srgb: bool,
+    picmip: u32,
+) -> wgpu::Texture {
     let chain = mip_chain(image, mips::skipped(image.width(), image.height(), picmip));
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("SJK material map"),
@@ -354,7 +378,7 @@ fn upload(
             },
         );
     }
-    texture.create_view(&wgpu::TextureViewDescriptor::default())
+    texture
 }
 
 /// Every level down to 1x1 but the first `skip`, each texel the mean of the 2x2 (or

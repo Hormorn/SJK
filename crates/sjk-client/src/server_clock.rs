@@ -36,6 +36,18 @@
 //! from the inflated era is latched raw by `SV_ClientEnterWorld`
 //! (`sv_client.cpp:576`) and then outranks every later command forever
 //! (`:1436`), which strands the player at the spawn point.
+//!
+//! Commands carry the clock as the previous frame read it
+//! ([`ServerClock::command_time`]): stock's `CL_Frame` runs `CL_SendCmd`, whose
+//! `CL_CreateCmd` stamps `cl.serverTime`, before `CL_SetCGameTime` reads the clock
+//! for the frame (`codemp/client/cl_main.cpp`, JoF EJK the same), so a stock
+//! command is a frame older than the time its frame draws at: 8 ms at 125 FPS.
+//! Until 07/11/2026 SJK stamped this frame's reading, a frame fresher than every
+//! other client, and JoF's Heimdall reads a command stamped ahead of a stock
+//! client's as a negative `cl_timeNudge`, which it kicks for. A new timeline (a
+//! restart, a new connection, a re-anchor or a reset) forgets the previous
+//! reading, so no command carries the old timeline's time, and after a hitch a
+//! command is at most [`MAX_COMMAND_LAG_MILLIS`] older than the frame's reading.
 
 use std::time::Instant;
 
@@ -45,6 +57,11 @@ const RESET_MILLIS: i64 = 500;
 const FAST_ADJUST_MILLIS: i64 = 100;
 /// `cl.extrapolatedSnapshot` margin before the newest snapshot.
 const EXTRAPOLATION_MARGIN: i64 = 5;
+/// The most a command's time trails the frame's reading
+/// ([`ServerClock::command_time`]): a frame at the slowest gameplay FPS (20, a
+/// 50 ms step). A stock client's commands trail by its whole frame, so a hitch
+/// sends one stamped before it; SJK's stay this close to the clock.
+const MAX_COMMAND_LAG_MILLIS: i64 = 1000 / crate::command_rate::MIN_GAMEPLAY_FPS;
 
 /// Server-time estimate for stamping user commands (stock `cl.serverTime`).
 #[derive(Clone, Debug)]
@@ -68,6 +85,9 @@ pub struct ServerClock {
     /// The newest snapshot read since the last [`Self::adjust`]
     /// (`cl.newSnapshots` with `cl.snap.serverTime`).
     pending: Option<i64>,
+    /// The time the previous frame read for its commands, which this frame's
+    /// carry ([`Self::command_time`]); `None` on a timeline not read yet.
+    previous_frame: Option<i64>,
 }
 
 impl ServerClock {
@@ -83,6 +103,7 @@ impl ServerClock {
             anchored: true,
             active: true,
             pending: None,
+            previous_frame: None,
         }
     }
 
@@ -119,6 +140,7 @@ impl ServerClock {
         self.active = false;
         self.extrapolated = false;
         self.pending = None;
+        self.previous_frame = None;
     }
 
     /// The new timeline's world is live (stock `CA_ACTIVE`): let the next
@@ -186,6 +208,7 @@ impl ServerClock {
             };
             self.latest_snapshot = server_time;
             self.extrapolated = false;
+            self.previous_frame = None;
             return;
         }
         let new_delta = server_time - self.realtime(now);
@@ -193,6 +216,9 @@ impl ServerClock {
         if error > RESET_MILLIS {
             self.delta = new_delta;
             self.floor = server_time;
+            // The previous frame read the old timeline: a command carrying it
+            // would be half a second or more off the server's time.
+            self.previous_frame = None;
         } else if error > FAST_ADJUST_MILLIS {
             self.delta = (self.delta + new_delta) >> 1;
         } else if self.extrapolated {
@@ -217,7 +243,27 @@ impl ServerClock {
         i32::try_from(server_time).unwrap_or(i32::MAX)
     }
 
-    /// The most recent stamp handed out, for diagnostics.
+    /// The server time to stamp this frame's commands with: the clock as the
+    /// previous call read it (stock's `cl.serverTime`, set by the previous
+    /// frame's `CL_SetCGameTime` before this frame's `CL_SendCmd` stamps it),
+    /// never more than [`MAX_COMMAND_LAG_MILLIS`] behind this frame's reading,
+    /// which the next call returns. Call it once a frame, after [`Self::adjust`].
+    /// The first call on a timeline returns its own reading. 0 while unanchored,
+    /// as [`Self::server_time`].
+    pub fn command_time(&mut self, now: Instant) -> i32 {
+        if !self.anchored {
+            return 0;
+        }
+        let reading = i64::from(self.server_time(now));
+        let time = self.previous_frame.map_or(reading, |previous| {
+            previous.max(reading - MAX_COMMAND_LAG_MILLIS)
+        });
+        self.previous_frame = Some(reading);
+        i32::try_from(time).unwrap_or(i32::MAX)
+    }
+
+    /// The newest time read (what the next frame's commands carry, see
+    /// [`Self::command_time`]), for diagnostics.
     pub fn last_stamp(&self) -> i32 {
         if !self.anchored {
             return 0;
@@ -246,7 +292,8 @@ mod tests {
     /// hitch of `hitch` ms at 2 s, and return the largest lag behind the
     /// server's time of any command stamped after it. `per_snapshot` adjusts on
     /// every snapshot read, as the client did until 23/10/2026; otherwise once a
-    /// frame after the queue is read, as stock does. `pacing` spreads the commands.
+    /// frame after the queue is read, as stock does. `pacing` spreads the commands,
+    /// which carry the previous frame's reading ([`ServerClock::command_time`]).
     fn worst_lag_after_hitch(step: i32, hitch: i64, per_snapshot: bool, pacing: Pacing) -> i64 {
         let base = Instant::now();
         let at = |ms: i64| base + Duration::from_millis(ms as u64);
@@ -278,7 +325,7 @@ mod tests {
             if !per_snapshot && next_snapshot > real {
                 clock.adjust(now);
             }
-            let stamp = clock.server_time(now);
+            let stamp = clock.command_time(now);
             for &command in schedule.due(stamp, true, now, step, pacing).as_slice() {
                 if hitched.is_some() {
                     worst = worst.max(START + real - i64::from(command));
@@ -294,9 +341,13 @@ mod tests {
             for hitch in [150, 400, 1_346] {
                 let lag = worst_lag_after_hitch(step, hitch, false, Pacing::Grid);
                 // The oldest of a frame's catch-up commands (32 ms back), the
-                // grid and the snapshot interval the clock trails by.
+                // grid, the snapshot interval the clock trails by and the frame
+                // the commands' time trails the clock by, capped after the hitch.
                 assert!(
-                    lag <= i64::from(crate::command_rate::CATCH_UP_MILLIS) + SNAPSHOT_MILLIS + 8,
+                    lag <= i64::from(crate::command_rate::CATCH_UP_MILLIS)
+                        + SNAPSHOT_MILLIS
+                        + 8
+                        + MAX_COMMAND_LAG_MILLIS,
                     "step {step} ms, hitch {hitch} ms: commands {lag} ms behind"
                 );
             }
@@ -304,16 +355,17 @@ mod tests {
     }
 
     #[test]
-    fn one_per_frame_never_stamps_behind_the_clock() {
+    fn one_per_frame_trails_the_clock_by_a_frame_at_most() {
         // JoF's pacing (`cl_cmdratecap`): no catch-up command and no rounding down,
         // so commands trail the server only as much as the clock does (a snapshot
-        // interval and a frame, as stock), where the grid's catch-up adds up to 32 ms
-        // more (Heimdall's time nudge kicks, 02/11/2026).
+        // interval and a frame) and the frame their time is older (as stock, up
+        // to 50 ms after the hitch), where the grid's catch-up adds up to 32 ms
+        // more (02/11/2026).
         for hitch in [17, 150, 400, 1_346] {
             let lag = worst_lag_after_hitch(8, hitch, false, Pacing::OnePerFrame);
             let grid = worst_lag_after_hitch(8, hitch, false, Pacing::Grid);
             assert!(
-                lag <= SNAPSHOT_MILLIS + FRAME_MILLIS,
+                lag <= SNAPSHOT_MILLIS + FRAME_MILLIS + hitch.min(MAX_COMMAND_LAG_MILLIS),
                 "hitch {hitch} ms: commands {lag} ms behind"
             );
             assert!(
@@ -346,6 +398,88 @@ mod tests {
         // Nothing new read: no second adjustment.
         clock.adjust(at(1_000));
         assert!((clock.server_time(at(1_000)) - 11_000).abs() <= 2);
+    }
+
+    #[test]
+    fn commands_carry_the_previous_frames_reading() {
+        // 125, 142, 250 and 333 FPS: each frame's commands carry the time the frame
+        // before read, a whole frame older than this frame's reading, as stock's
+        // `CL_SendCmd` stamps the `cl.serverTime` the previous `CL_SetCGameTime` set.
+        for frame in [8_u64, 7, 4, 3] {
+            let base = Instant::now();
+            let mut clock = ServerClock::new(10_000, base);
+            let mut previous = None;
+            for n in 0..64 {
+                let now = base + Duration::from_millis(n * frame);
+                let stamp = clock.command_time(now);
+                let reading = clock.server_time(now);
+                match previous {
+                    // The first frame of a timeline has no earlier reading.
+                    None => assert_eq!(stamp, reading),
+                    Some(previous) => {
+                        assert_eq!(stamp, previous, "{frame} ms frames, frame {n}");
+                        assert_eq!(i64::from(reading - stamp), frame as i64);
+                    }
+                }
+                previous = Some(reading);
+            }
+        }
+    }
+
+    #[test]
+    fn a_hitch_stamps_no_further_back_than_the_slowest_step() {
+        let base = Instant::now();
+        let at = |ms: u64| base + Duration::from_millis(ms);
+        let mut clock = ServerClock::new(10_000, at(0));
+        clock.command_time(at(0));
+        clock.command_time(at(8));
+        let stamp = clock.command_time(at(8 + 1_346));
+        let reading = clock.server_time(at(8 + 1_346));
+        assert_eq!(i64::from(reading - stamp), MAX_COMMAND_LAG_MILLIS);
+        // The next frame carries the hitch frame's own reading.
+        assert_eq!(clock.command_time(at(8 + 1_346 + 8)), reading);
+    }
+
+    #[test]
+    fn a_new_timeline_never_carries_the_old_ones_time() {
+        let base = Instant::now();
+        let at = |ms: u64| base + Duration::from_millis(ms);
+
+        // A restart (map change): unanchored stamps are 0, then the new map's first
+        // commands carry its own time, not the old map's last reading.
+        let mut clock = ServerClock::new(90_000, at(0));
+        clock.command_time(at(0));
+        clock.command_time(at(8));
+        clock.restart();
+        assert_eq!(clock.command_time(at(16)), 0);
+        clock.activate();
+        clock.receive_snapshot(2_000);
+        clock.adjust(at(24));
+        assert_eq!(clock.command_time(at(24)), clock.server_time(at(24)));
+        assert_eq!(clock.command_time(at(32)), 2_000);
+
+        // A reset (the server's time jumped back past `RESET_TIME`): a command
+        // carrying the frame before it would outrank every later one.
+        let mut clock = ServerClock::new(10_000, at(0));
+        clock.command_time(at(0));
+        clock.command_time(at(8));
+        clock.receive_snapshot(4_000);
+        clock.adjust(at(16));
+        let stamp = clock.command_time(at(16));
+        assert_eq!(stamp, clock.server_time(at(16)));
+        assert!(stamp < 5_000, "stamped {stamp}");
+
+        // A new connection: 0 until its world is live and anchored, then its time.
+        let mut clock = ServerClock::new(10_000, at(0));
+        clock.command_time(at(0));
+        clock.reset_connection(at(8));
+        clock.receive_snapshot(3_000);
+        clock.adjust(at(8));
+        assert_eq!(clock.command_time(at(8)), 0);
+        clock.activate();
+        clock.receive_snapshot(3_000);
+        clock.adjust(at(16));
+        assert_eq!(clock.command_time(at(16)), 3_000);
     }
 
     #[test]

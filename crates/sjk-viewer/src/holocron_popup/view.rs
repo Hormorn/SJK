@@ -515,6 +515,7 @@ mod tests {
             note: note.to_owned(),
             played: false,
             traded: None,
+            edition: sjk_identity::wire::EDITION_FIRST.to_owned(),
         }
     }
 

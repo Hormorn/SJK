@@ -24,7 +24,7 @@ pub(crate) fn switched(name: &str, on: bool) -> String {
 }
 
 /// Every toy: its name, its switch and what it does and how, in `toy_help`'s order.
-pub(crate) const TOYS: [(&str, &str, &str); 13] = [
+pub(crate) const TOYS: [(&str, &str, &str); 14] = [
     (
         "Illuminate",
         "toy_illuminate",
@@ -90,6 +90,11 @@ pub(crate) const TOYS: [(&str, &str, &str); 13] = [
         "toy_propgun",
         "hold a gun from a pk3 instead of your weapon (propgun chooses it); its bolts knock down players who have it on",
     ),
+    (
+        "WHEEL OF DOOM",
+        "toy_wheelofdoom",
+        "run it once to see the price, again to spin; the wheel may turn your keys, mouse or view against you, or give a Mythical holocron",
+    ),
 ];
 
 /// `toy_help`'s lines: a title, then one line a toy, its name in yellow, its switch, and
@@ -140,6 +145,7 @@ mod tests {
             crate::quests::COMMAND,
             crate::banana::COMMAND,
             crate::propgun::COMMAND,
+            crate::wheel_of_doom::COMMAND,
         ] {
             let naming: Vec<_> = lines
                 .iter()

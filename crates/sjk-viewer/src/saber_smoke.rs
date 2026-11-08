@@ -131,7 +131,7 @@ pub(crate) struct Heard {
 pub(crate) struct Sound {
     pub(crate) at: [f32; 3],
     pub(crate) entity: u32,
-    pub(crate) skin: u8,
+    pub(crate) skin: crate::saber_skins::SkinIndex,
     pub(crate) count: u32,
 }
 

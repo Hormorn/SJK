@@ -266,6 +266,7 @@ impl<H: NpcHost> NpcWorld<'_, H> {
     ) -> Option<T> {
         let since_last_frame = self.host.player_force()?.force_since_last_frame();
         let (level_time, gametype) = (self.level_time, self.host.gametype());
+        let rules = self.host.force_rules();
         let npc = &self.actors[me];
         let mut state = self
             .spare_state
@@ -300,6 +301,9 @@ impl<H: NpcHost> NpcWorld<'_, H> {
                 invulnerable_until: &mut invulnerable,
                 others: &mut others,
                 saber_off_sounds,
+                rules,
+                // An NPC duels nobody.
+                full_force: crate::duel::FullForce::default(),
             };
             let out = run(&mut state, &mut force, &mut frame);
             others.credit(&mut state);

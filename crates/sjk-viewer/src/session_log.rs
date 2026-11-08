@@ -20,8 +20,8 @@ const PREVIOUS: &str = "previous-session.log";
 /// Past this many bytes the session's file starts again, keeping the newest lines.
 const FILE_MAX: u64 = 16 * 1024 * 1024;
 /// What a request sends of each part at most, in bytes: the newest lines.
-const CURRENT_SENT: u64 = 200 * 1024;
-const PREVIOUS_SENT: u64 = 120 * 1024;
+const CURRENT_SENT: u64 = 1536 * 1024;
+const PREVIOUS_SENT: u64 = 512 * 1024;
 const CRASH_SENT: u64 = 40 * 1024;
 /// A last crash report older than this is not sent with the logs.
 const CRASH_FRESH_SECS: u64 = 14 * 86_400;

@@ -80,6 +80,17 @@ impl ChatOverlay {
         match key {
             // A pinned sender card goes first, the composer with the next Escape.
             KeyCode::Escape if self.unpin_card() => {}
+            // An open + or cog menu goes before the composer (`chat/row_tools.rs`).
+            KeyCode::Escape
+                if self
+                    .input
+                    .as_ref()
+                    .is_some_and(|input| input.menu.is_some()) =>
+            {
+                if let Some(input) = self.input.as_mut() {
+                    input.menu = None;
+                }
+            }
             // An open list of whisperers goes before the composer too.
             KeyCode::Escape if self.input.as_ref().is_some_and(|input| input.pm_list) => {
                 if let Some(input) = self.input.as_mut() {
@@ -226,10 +237,22 @@ impl ChatOverlay {
             } else {
                 PM_LIST..PM_LIST
             };
+            let menu_open = self
+                .input
+                .as_ref()
+                .is_some_and(|input| input.menu.is_some());
+            let items = if menu_open {
+                row_tools::ITEMS
+            } else {
+                row_tools::ITEM..row_tools::ITEM
+            };
             self.pressed_action = card::BUTTONS
                 .into_iter()
                 .chain([card::CARD])
                 .chain(list)
+                .chain(items)
+                .chain(row_tools::CLOSES)
+                .chain([row_tools::ADD, row_tools::SETTINGS])
                 .chain([
                     LATEST, PM_PREV, PM_NEXT, PM_NAME, PM, ADMIN, SITH, JOF, SJK, TEAM, GLOBAL,
                 ])
@@ -252,6 +275,17 @@ impl ChatOverlay {
                 && let Some(input) = self.input.as_mut()
             {
                 input.pm_list = false;
+            }
+            // A press off the open menu and off the button that opened it closes it.
+            if menu_open
+                && !self.pressed_action.is_some_and(|token| {
+                    row_tools::ITEMS.contains(&token)
+                        || token == row_tools::ADD
+                        || token == row_tools::SETTINGS
+                })
+                && let Some(input) = self.input.as_mut()
+            {
+                input.menu = None;
             }
             // A press off a pinned card and off every name lets the card go.
             if !self
@@ -315,6 +349,14 @@ impl ChatOverlay {
             PM_PREV => self.step_pm(-1),
             PM_NEXT => self.step_pm(1),
             PM_NAME => self.toggle_pm_list(),
+            row_tools::ADD => self.toggle_menu(row_tools::RowMenu::Add),
+            row_tools::SETTINGS => self.toggle_menu(row_tools::RowMenu::Settings),
+            token if row_tools::ITEMS.contains(&token) => {
+                self.pick_item(usize::from(token - row_tools::ITEM));
+            }
+            token if row_tools::CLOSES.contains(&token) => {
+                self.close_tab(super::tabs::ROW[usize::from(token - row_tools::CLOSE)]);
+            }
             token if PM_LIST_TOKENS.contains(&token) => self.pick_pm(usize::from(token - PM_LIST)),
             LATEST => {
                 self.scroll = 0;

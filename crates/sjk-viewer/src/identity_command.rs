@@ -210,6 +210,8 @@ mod tests {
             }),
             server: None,
             map_blocks: Vec::new(),
+            remap_blocks: None,
+            remap_blocks_revision: 0,
             players: vec![Presence {
                 slot: 3,
                 claimed_name: "^1Fox".to_owned(),
@@ -245,6 +247,8 @@ mod tests {
             mystery_box: None,
             junk: None,
             junk_sale: None,
+            wheel_of_doom: None,
+            wheel_of_doom_spin: None,
             box_hunt: None,
             quests: None,
             secrets: None,

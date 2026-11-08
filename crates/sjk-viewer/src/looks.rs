@@ -843,7 +843,7 @@ mod tests {
         assert_eq!(own("").second, SecondSkin::Same);
         assert_eq!(own("").to_look("").saber2, None);
         // A skin not held (taken back) or unknown is the stock blade, here as at the hub.
-        for stock in ["saber_tidal", "saber_moon"] {
+        for stock in ["saber_tidal", "saber_starfall"] {
             assert_eq!(own(stock).second, SecondSkin::Own(None), "{stock}");
             assert_eq!(
                 own(stock).to_look("").saber2.as_deref(),
@@ -1041,7 +1041,7 @@ mod tests {
             None
         );
         assert_eq!(
-            Worn::own("saber_moon", "", |_| true, false).saber_skin,
+            Worn::own("saber_starfall", "", |_| true, false).saber_skin,
             None
         );
         assert_eq!(Worn::own("", "", owned, true).to_look(""), look("", true));

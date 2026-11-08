@@ -406,6 +406,7 @@ impl Group {
                 crate::map_edits::CVAR,
                 crate::map_edits::SYNC_COMMAND,
                 crate::remap_blocked_maps::SERVER_CVAR,
+                crate::remap_blocked_maps::SHARED_CVAR,
                 crate::remap_blocked_maps::MAP_CVAR,
                 "cg_remaps",
                 crate::monitor::SHOW_CVAR,
@@ -485,7 +486,6 @@ impl Group {
             ],
             Self::Interface => &[
                 crate::menu::style::CVAR,
-                crate::support_links::CVAR,
                 crate::menu_pictures::CVAR,
                 super::slider_peek::CVAR,
                 crate::rarity_fx::CVAR,

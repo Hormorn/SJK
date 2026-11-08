@@ -244,6 +244,23 @@ impl CoverMap {
         }
     }
 
+    /// The column surveyed at world `(x, y)`, when its tile is in the cache (the tiles
+    /// round the camera are); `None` on a map without sky or before its survey.
+    pub(crate) fn column_at(&self, x: f32, y: f32) -> Option<super::cover::Column> {
+        if !self.has_sky {
+            return None;
+        }
+        let cell = [x, y].map(|value| (value / CELL).floor() as i32);
+        let tile = cell.map(|cell| cell.div_euclid(TILE as i32));
+        let [column, row] = cell.map(|cell| cell.rem_euclid(TILE as i32) as usize);
+        let [bottom, top, flags, _] = *self.cached.get(&tile)?.get(row * TILE + column)?;
+        Some(super::cover::Column {
+            bottom,
+            top,
+            flags: flags as u32,
+        })
+    }
+
     /// The window as the shader reads it.
     pub(crate) fn window(&self) -> Window {
         let far = self.far.map_or([0.0; 4], |grid| {

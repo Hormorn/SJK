@@ -11,6 +11,11 @@ Everything goes into one `<GameData>/base/rig_<name>.pk3` (or loose folders), so
 removing the model is deleting one file; several models may share one pack (a
 pack name of your own), each export replacing only its model's files. In the game,
 `/model <name>` wears it and `sjkemote <id>` (or the quick wheel) plays an emote;
+a variant name exports another look of the same model (a cloak, other clothes) as
+`model_<variant>.gltf` with its own `sjk_rig_<variant>.cfg` and icon, worn as
+`/model <name>/<variant>` and listed beside the model in the character grid;
+an export while the game runs replaces the pack it holds open, and `rig_reload` in
+the game's console reads it again;
 the other rig models with the same skeleton (joint names, as Unreal mannequin
 characters share) play it too.
 
@@ -117,6 +122,19 @@ def model_name(settings):
     )
 
 
+def variant_name(settings):
+    """The variant's name, or "" for the model's main look (`default`)."""
+    variant = clean_name(settings.variant.strip())
+    return "" if variant == "default" else variant
+
+
+def variant_files(variant):
+    """(glTF, icon stem, manifest) file names of a variant ("" for the default)."""
+    if not variant:
+        return "model.gltf", "icon_default", MANIFEST
+    return f"model_{variant}.gltf", f"icon_{variant}", f"sjk_rig_{variant}.cfg"
+
+
 def emote_id(model, action):
     """The emote id and glTF animation name of `action` on `model`: its emote name
     (`sjkemote comrade`), else `<model>_<action>`. Every rig model with the same
@@ -211,19 +229,42 @@ def pack_name(settings, name):
     return clean_name(settings.pack_name.strip()) or f"rig_{name}"
 
 
-def model_files(archive, name):
-    """The files of model `name` in an open pack: its folder, and the emote files,
-    sounds and pictures of the animations its glTF holds (each is an emote id)."""
+def model_files(archive, name, variant=""):
+    """The files of model `name`'s `variant` ("" for the default) in an open pack,
+    with the emote files, sounds and pictures of the animations its glTF holds (each
+    is an emote id). A variant owns its glTF, buffers, icon and manifest; the default
+    owns the rest of the folder, less the pictures the variants' glTFs use."""
     folder = f"models/players/{name}/"
     names = archive.namelist()
-    owned = {entry for entry in names if entry.startswith(folder)}
-    ids = set()
-    if f"{folder}model.gltf" in names:
+
+    def document_of(file):
+        if f"{folder}{file}" not in names:
+            return {}
         try:
-            document = json.loads(archive.read(f"{folder}model.gltf"))
-            ids = {animation.get("name") for animation in document.get("animations", [])}
+            return json.loads(archive.read(f"{folder}{file}"))
         except ValueError:
-            pass
+            return {}
+
+    def own(which):
+        gltf, icon, manifest = variant_files(which)
+        document = document_of(gltf)
+        files = {folder + gltf, folder + manifest}
+        files |= {folder + b["uri"] for b in document.get("buffers", []) if "uri" in b}
+        files |= {entry for entry in names if entry.startswith(f"{folder}{icon}.")}
+        return files, document
+
+    if variant:
+        owned, document = own(variant)
+    else:
+        owned = {entry for entry in names if entry.startswith(folder)}
+        for entry in names:
+            file = entry[len(folder):] if entry.startswith(folder) else ""
+            if file.startswith("sjk_rig_") and file.endswith(".cfg") and "/" not in file:
+                files, other = own(file[len("sjk_rig_"):-len(".cfg")])
+                owned -= files
+                owned -= {folder + i["uri"] for i in other.get("images", []) if "uri" in i}
+        document = document_of("model.gltf")
+    ids = {animation.get("name") for animation in document.get("animations", [])}
     for entry in names:
         directory, _, file = entry.rpartition("/")
         stem = os.path.splitext(file)[0]
@@ -428,15 +469,64 @@ def with_dynamic(text, joints, gravity=DEFAULT_GRAVITY, own=()):
     return "\n".join(lines) + "\n"
 
 
-def manifest_text(preset):
+def manifest_text(preset, model="model.gltf"):
     return "\n".join([
         "// SJK rig model, written by the SJK Rig Model Export add-on.",
         "// Format: docs/rig-models.md in the SJK repository.",
-        "model model.gltf",
+        f"model {model}",
         f"preset {preset}",
         "scale auto",
         "",
     ])
+
+
+def replace_file(source, target):
+    """`os.replace`, also over a file another program holds open: the game keeps its
+    packs open (with delete sharing), so on Windows the pack is renamed over with POSIX
+    semantics (Windows 10 1809+, NTFS); the game reads its old copy until `rig_reload`."""
+    try:
+        os.replace(source, target)
+        return
+    except PermissionError:
+        if os.name != "nt":
+            raise
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CreateFileW.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+    ]
+    kernel.SetFileInformationByHandle.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+    ]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    delete, share_all, open_existing = 0x10000, 7, 3
+    handle = kernel.CreateFileW(os.path.abspath(source), delete, share_all, None,
+                                open_existing, 0, None)
+    if handle in (None, wintypes.HANDLE(-1).value):
+        raise PermissionError(ctypes.WinError(ctypes.get_last_error()))
+    try:
+        name = os.path.abspath(target)
+
+        class RenameInfo(ctypes.Structure):
+            _fields_ = [
+                ("Flags", wintypes.DWORD),
+                ("RootDirectory", wintypes.HANDLE),
+                ("FileNameLength", wintypes.DWORD),
+                ("FileName", wintypes.WCHAR * (len(name) + 1)),
+            ]
+
+        # FILE_RENAME_FLAG_REPLACE_IF_EXISTS | FILE_RENAME_FLAG_POSIX_SEMANTICS
+        info = RenameInfo(0x1 | 0x2, None, len(name) * 2, name)
+        file_rename_info_ex = 22
+        if not kernel.SetFileInformationByHandle(handle, file_rename_info_ex,
+                                                 ctypes.byref(info), ctypes.sizeof(info)):
+            raise PermissionError(ctypes.WinError(ctypes.get_last_error()))
+    finally:
+        kernel.CloseHandle(handle)
 
 
 def frame_rate(context):
@@ -651,6 +741,13 @@ class SJKRigExportSettings(PropertyGroup):
         "(empty: from the armature's name)",
         default="",
     )
+    variant: StringProperty(
+        name="Variant",
+        description="Empty for the model's main look. A name (cloak, armour) exports "
+        "another look of the same model beside it: worn as /model <name>/<variant>, "
+        "listed with its own icon, re-exports of either leaving the other alone",
+        default="",
+    )
     preset: EnumProperty(name="Bone map", items=PRESET_ITEMS, default="mannequin")
     visible_only: BoolProperty(
         name="Visible meshes only",
@@ -753,12 +850,16 @@ class SJK_OT_export_rig_model(Operator):
             return ""
         if settings.pack:
             return os.path.join(root, "base", f"{pack_name(settings, name)}.pk3")
-        return os.path.join(root, "base", "models", "players", name, "model.gltf")
+        return os.path.join(
+            root, "base", "models", "players", name, variant_files(variant_name(settings))[0]
+        )
 
     def execute(self, context):
         settings = context.scene.sjk_rig_export
         armature = settings.armature
         name = model_name(settings)
+        variant = variant_name(settings)
+        gltf_file, icon_stem, manifest_file = variant_files(variant)
         root = game_data(context)
         if not root or not os.path.isdir(root):
             self.report({"ERROR"}, "Set the GameData folder in the add-on's preferences")
@@ -797,10 +898,10 @@ class SJK_OT_export_rig_model(Operator):
         folder = os.path.join(stage, "models", "players", name)
         os.makedirs(folder, exist_ok=True)
         try:
-            gltf = os.path.join(folder, "model.gltf")
+            gltf = os.path.join(folder, gltf_file)
             self.export(context, armature, meshes, following, gltf)
             if icon:
-                shutil.copyfile(icon[0], os.path.join(folder, f"icon_default{icon[1]}"))
+                shutil.copyfile(icon[0], os.path.join(folder, f"{icon_stem}{icon[1]}"))
             clips = sample_clips(context, armature, actions, name)
             written = append_clips(gltf, clips) if clips else []
             if written:
@@ -840,16 +941,18 @@ class SJK_OT_export_rig_model(Operator):
                             action, clip, seconds, sound, emote_icon, settings, name, music
                         )
                     )
-            manifest = self.old_manifest(base, name, settings, pack_path)
-            with open(os.path.join(folder, MANIFEST), "w", encoding="utf-8",
+            manifest = self.old_manifest(base, name, settings, pack_path, manifest_file)
+            with open(os.path.join(folder, manifest_file), "w", encoding="utf-8",
                       newline="\n") as file:
-                text = with_lift(manifest or manifest_text(settings.preset), settings.lift)
+                text = with_lift(
+                    manifest or manifest_text(settings.preset, gltf_file), settings.lift
+                )
                 file.write(
                     with_dynamic(text, dynamic_roots(following), settings.tail_gravity,
                                  own=set(armature.data.bones.keys()))
                 )
             if settings.pack:
-                self.pack(stage, pack_path, name)
+                self.pack(stage, pack_path, name, variant)
         except Exception as error:  # report it in Blender rather than a traceback
             self.report({"ERROR"}, f"Export failed: {error}")
             return {"CANCELLED"}
@@ -861,7 +964,9 @@ class SJK_OT_export_rig_model(Operator):
             else f"base/models/players/{name}"
         )
         emotes = ", ".join(clip for _, clip, _ in written)
-        self.report({"INFO"}, f"Exported {where}. In the game: /model {name}"
+        worn = f"{name}/{variant}" if variant else name
+        self.report({"INFO"}, f"Exported {where}. In the game: /model {worn}"
+                    + " (running already: rig_reload)"
                     + (f"; emotes: {emotes}" if emotes else ""))
         loose = os.path.join(base, "models", "players", name)
         if settings.pack and os.path.isdir(loose):
@@ -887,11 +992,11 @@ class SJK_OT_export_rig_model(Operator):
                 continue
         return found
 
-    def old_manifest(self, base, name, settings, path):
-        """The manifest already there (kept unless rewriting is asked), or None."""
+    def old_manifest(self, base, name, settings, path, file=MANIFEST):
+        """The manifest `file` already there (kept unless rewriting is asked), or None."""
         if settings.overwrite_manifest:
             return None
-        inside = f"models/players/{name}/{MANIFEST}"
+        inside = f"models/players/{name}/{file}"
         if settings.pack:
             if os.path.exists(path):
                 with zipfile.ZipFile(path) as archive:
@@ -904,8 +1009,9 @@ class SJK_OT_export_rig_model(Operator):
                 return file.read()
         return None
 
-    def pack(self, stage, path, name):
-        """Write `stage` into the pack at `path`, keeping the files of its other models."""
+    def pack(self, stage, path, name, variant=""):
+        """Write `stage` into the pack at `path`, keeping the files of its other models
+        (and of this model's other variants)."""
         partial = path + ".part"
         try:
             with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -918,11 +1024,11 @@ class SJK_OT_export_rig_model(Operator):
                         written.add(inside)
                 if os.path.exists(path):
                     with zipfile.ZipFile(path) as old:
-                        replaced = model_files(old, name) | written
+                        replaced = model_files(old, name, variant) | written
                         for entry in old.infolist():
                             if not entry.is_dir() and entry.filename not in replaced:
                                 archive.writestr(entry, old.read(entry))
-            os.replace(partial, path)
+            replace_file(partial, path)
         except PermissionError:
             raise RuntimeError(
                 f"{os.path.basename(path)} is in use: close the game, then export again"
@@ -1108,6 +1214,7 @@ class SJK_PT_rig_export(Panel):
                           "moving on their own", icon="CONSTRAINT_BONE")
                 box.prop(settings, "tail_gravity")
         layout.prop(settings, "model_name")
+        layout.prop(settings, "variant")
         layout.prop(settings, "icon")
         layout.prop(settings, "preset")
         layout.prop(settings, "visible_only")

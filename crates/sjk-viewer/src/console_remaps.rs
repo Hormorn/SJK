@@ -48,7 +48,16 @@ impl crate::GpuState {
             lines.push("No active shader remaps".into());
         }
         let choice = self.remap_blocked_maps.choice();
-        if choice == crate::remap_blocked_maps::Choice::Off {
+        if self.remap_blocked_maps.shared_block() {
+            lines.insert(
+                0,
+                format!(
+                    "Server shader remaps ignored on {} (SJK's shared list, {} 0 to stop)",
+                    crate::remap_blocked_maps::map_name(&self.world_load_map),
+                    crate::remap_blocked_maps::SHARED_CVAR,
+                ),
+            );
+        } else if choice == crate::remap_blocked_maps::Choice::Off {
             lines.insert(
                 0,
                 format!(

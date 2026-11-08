@@ -1,4 +1,5 @@
-//! Create game: the player picks a mode, a map, bots and limits, and the
+//! Create game: the player picks a mode, a map, bots, limits and the server
+//! mod (`g_mod`, the base game by default), and the
 //! client starts its own `sjk-server` on this machine and joins it — the
 //! stock "Create game" flow on SJK's native server. The choices are kept in
 //! archived `ui_host*` cvars; the server process is owned here, so it lives
@@ -7,7 +8,9 @@
 use super::create_game_catalog::{Catalogue, MODES, ScoreLimit, mode_index, pick_bots};
 use super::levelshot::Levelshots;
 use super::map_picker::{MapPicker, PickerResult};
-use crate::connection::local_server::{HostSettings, LocalServer, ServerPoll};
+use crate::connection::local_server::{
+    HostSettings, LocalServer, SERVER_MODS, ServerPoll, server_mod_index,
+};
 use crate::console::ViewerConsole;
 use crate::menu_widgets::MenuCanvas;
 use std::net::SocketAddr;
@@ -23,19 +26,21 @@ pub(crate) enum Row {
     BotSkill,
     ScoreLimit,
     TimeLimit,
+    ServerMod,
     Hostname,
     Lan,
     Start,
 }
 
 /// Every row in screen order; a row's token is its index.
-pub(crate) const ROWS: [Row; 9] = [
+pub(crate) const ROWS: [Row; 10] = [
     Row::Mode,
     Row::Map,
     Row::Bots,
     Row::BotSkill,
     Row::ScoreLimit,
     Row::TimeLimit,
+    Row::ServerMod,
     Row::Hostname,
     Row::Lan,
     Row::Start,
@@ -78,10 +83,15 @@ pub(crate) const INTEGER_CVARS: [(&str, i64, &str); 6] = [
     ),
 ];
 /// Text cvars that remember the last choices: (name, default, help).
-pub(crate) const TEXT_CVARS: [(&str, &str, &str); 3] = [
+pub(crate) const TEXT_CVARS: [(&str, &str, &str); 4] = [
     ("ui_hostMode", "ffa", "Create game: sjk-server game type"),
     ("ui_hostMap", "mp/ffa3", "Create game: map"),
     ("ui_hostName", DEFAULT_HOSTNAME, "Create game: server name"),
+    (
+        "ui_hostServerMod",
+        crate::connection::local_server::BASE_SERVER_MOD,
+        "Create game: the server mod the game runs (g_mod): base, or japlus for JA+",
+    ),
 ];
 
 /// The player's current choices.
@@ -96,6 +106,8 @@ pub(crate) struct Draft {
     pub(crate) timelimit: u32,
     pub(crate) hostname: String,
     pub(crate) allow_lan: bool,
+    /// The server mod, an index of [`SERVER_MODS`] (0, the base game, by default).
+    pub(crate) server_mod: usize,
 }
 
 impl Default for Draft {
@@ -110,6 +122,7 @@ impl Default for Draft {
             timelimit: 0,
             hostname: DEFAULT_HOSTNAME.to_owned(),
             allow_lan: false,
+            server_mod: 0,
         }
     }
 }
@@ -139,6 +152,9 @@ impl Draft {
             timelimit: integer("ui_hostTimelimit", defaults.timelimit),
             hostname: text("ui_hostName").map_or(defaults.hostname, str::to_owned),
             allow_lan: integer("ui_hostLan", 0) != 0,
+            server_mod: text("ui_hostServerMod")
+                .and_then(server_mod_index)
+                .unwrap_or(0),
         }
     }
 
@@ -157,6 +173,7 @@ impl Draft {
             console.set_cvar(name, &value.to_string());
         }
         console.set_cvar("ui_hostName", &self.hostname);
+        console.set_cvar("ui_hostServerMod", SERVER_MODS[self.server_mod].id);
     }
 
     /// The server settings this draft asks for, bots drawn from `roster`.
@@ -186,6 +203,7 @@ impl Draft {
             },
             allow_lan: self.allow_lan,
             cheats: false,
+            server_mod: SERVER_MODS[self.server_mod].id,
         }
     }
 
@@ -217,6 +235,11 @@ impl Draft {
                 ScoreLimit::None => {}
             },
             Row::TimeLimit => self.timelimit = bump(self.timelimit, 5, 120),
+            Row::ServerMod => {
+                self.server_mod = (self.server_mod as isize + step)
+                    .rem_euclid(SERVER_MODS.len() as isize)
+                    as usize;
+            }
             Row::Lan => self.allow_lan = !self.allow_lan,
             Row::Hostname | Row::Start => {}
         }
@@ -622,4 +645,45 @@ fn shown_map<'a>(picker: &MapPicker, catalogue: &'a Catalogue, draft: &'a Draft)
             .map_or("", |entry| entry.name.as_str());
     }
     &draft.map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Server mod row steps through every mod and back to the base game, and
+    /// the start hands the chosen one to the server.
+    #[test]
+    fn the_server_mod_row_cycles_and_reaches_the_settings() {
+        let catalogue = Catalogue::default();
+        let mut draft = Draft::default();
+        assert_eq!(draft.host_settings(&[], 0).server_mod, "base");
+        draft.adjust(Row::ServerMod, 1, &catalogue);
+        assert_eq!(draft.host_settings(&[], 0).server_mod, "japlus");
+        draft.adjust(Row::ServerMod, 1, &catalogue);
+        assert_eq!(draft.server_mod, 0, "back to the base game");
+        draft.adjust(Row::ServerMod, -1, &catalogue);
+        assert_eq!(SERVER_MODS[draft.server_mod].id, "japlus");
+    }
+
+    /// The choice is kept for the next start, by id; a name no mod has (or none) is
+    /// the base game.
+    #[test]
+    fn the_server_mod_is_remembered() {
+        let profile = tempfile::tempdir().unwrap();
+        let path = profile.path().join("config.cfg");
+        let mut console = ViewerConsole::new(path.clone()).unwrap();
+        assert_eq!(Draft::load(&console).server_mod, 0);
+        let draft = Draft {
+            server_mod: 1,
+            ..Draft::default()
+        };
+        draft.save(&mut console);
+        console.flush_config();
+        let mut console = ViewerConsole::new(path).unwrap();
+        assert_eq!(console.text_value("ui_hostServerMod"), Some("japlus"));
+        assert_eq!(Draft::load(&console), draft);
+        console.set_cvar("ui_hostServerMod", "lugormod");
+        assert_eq!(Draft::load(&console).server_mod, 0);
+    }
 }

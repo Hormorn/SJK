@@ -37,6 +37,7 @@ pub mod toy_master;
 pub mod trades;
 pub mod usage;
 pub mod vitals;
+pub mod wheel_of_doom;
 pub mod whisper;
 pub mod wire;
 
