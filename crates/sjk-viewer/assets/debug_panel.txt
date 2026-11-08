@@ -9201,3 +9201,12 @@ test: With a password saved (seta password ...), join a JoF server: one join, yo
 test: Wait for a map change: the map loads once, no "joining again" in last-client.log.
 test: Change HDR or FXAA in game (map reloads): you stay on the server, no new join.
 test: Join a full or locked server: the failure screen stays, no join every few seconds.
+
+[no-warnings]
+area: Rendering & effects
+title: No compiler warnings; CI now fails on one (macOS, Linux, Windows)
+change: Ten warnings fixed. Material settings (emission, parallax, normal maps) set the same way.
+change: A flaky crash-trail test reads its own thread's lines now (it broke macOS CI on 08/11).
+test: In game: r_emissionStrength 3, then 0: emissive parts brighten, then go dark.
+test: r_parallaxStrength 0 then back, r_normalMapStrength 0 then 1: surfaces flatten and return.
+test: r_materialMapsDebug 1 to 7 shows each view, 0 the normal scene.

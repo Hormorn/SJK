@@ -14,7 +14,9 @@
 
 use winit::window::{Icon, WindowAttributes};
 
-/// 32-pixel icon, for the title bar (shown at 16 to 24 pixels).
+/// 32-pixel icon, for the title bar (shown at 16 to 24 pixels). Windows only: elsewhere
+/// the window has one icon, [`LARGE`].
+#[cfg(any(target_os = "windows", test))]
 const SMALL: &[u8] = include_bytes!("../../../assets/branding/icon-32.png");
 /// 64-pixel icon, for the taskbar and task switcher (32 to 48 pixels).
 const LARGE: &[u8] = include_bytes!("../../../assets/branding/icon-64.png");

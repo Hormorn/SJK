@@ -75,7 +75,6 @@ fn every_signature_draws_its_blade_and_nothing_at_the_edge() {
         ],
         immediate_size: 0,
     });
-    let volume_depth = crate::saber_gpu::volume::depth_layout(device);
     let pipeline =
         |module: &wgpu::ShaderModule, vertex: &str, fragment: &str, blend: wgpu::BlendState| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {

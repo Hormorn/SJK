@@ -85,7 +85,9 @@ multiplayer. Read [docs/status.md](docs/status.md),
 - Follow [development.md](docs/development.md). Before handing off a change, run
   `cargo fmt --all --check`, `cargo build --locked --workspace`,
   `cargo test --locked --workspace` and
-  `cargo clippy --locked --workspace --all-targets`. Explain any check that could
+  `cargo clippy --locked --workspace --all-targets`. The build and the tests must
+  give no compiler warning: CI fails on one ([CI](docs/development.md#continuous-integration)).
+  Explain any check that could
   not run.
 - Every merge into `main` first runs the startup check, which needs a GPU and the
   game data in `JKA_GAME_DATA`:

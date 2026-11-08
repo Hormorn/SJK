@@ -71,7 +71,9 @@ impl std::error::Error for HubError {}
 /// What `GET /v1/presence` answered ([`Hub::presence_with_blocks`]).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PresenceRead {
+    /// The live claims on game servers, one per SJK player seen there.
     pub players: Vec<Presence>,
+    /// The players SJK staff blocked for everyone on a server until its map changes.
     pub blocks: Vec<crate::MapBlock>,
     /// The hub's map edits stamp, which grows with every change to any map's edits.
     pub map_edits: Option<i64>,

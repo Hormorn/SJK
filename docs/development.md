@@ -55,10 +55,14 @@ or claim those checks ran. Record a verification gap if the reference is unavail
 
 [The CI workflow](../.github/workflows/ci.yml) runs on every pull request and
 every push to `main`. It checks formatting on Linux, then runs the workspace
-build, `cargo test` and clippy on Linux and Windows with the latest stable
-Rust. It does not run the optimized build, check the declared minimum Rust
-version or perform any of the evidence checks below, so a passing run does not
-replace them.
+build, `cargo test` and clippy on Linux, Windows and macOS with the latest stable
+Rust. A compiler warning fails the build and the tests there (`RUSTFLAGS=-D warnings`,
+since 08/11/2026), so a change must build without one on all three; code that only
+one platform uses takes a `cfg` rather than an `allow`. Clippy's lints still only
+warn. Local builds keep warnings as warnings, so that a newer Rust that warns about
+more never stops a player's or the release's build. CI does not run the optimized
+build, check the declared minimum Rust version or perform any of the evidence
+checks below, so a passing run does not replace them.
 
 ### Command reference
 

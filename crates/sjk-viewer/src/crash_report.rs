@@ -52,6 +52,15 @@ thread_local! {
     static PRIVATE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The lines this thread put in the trail, for tests: the shared trail is filled
+    /// (and its lock held, which drops a line) by every test running at once, so a
+    /// test reading it failed now and then on a busy machine (macOS CI, 08/11/2026).
+    static THREAD_TRAIL: std::cell::RefCell<Vec<String>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
 /// What a report says about the session, kept up to date as the game runs.
 struct State {
     /// The folder beside the configuration, once known.
@@ -130,6 +139,8 @@ pub(crate) fn trail(line: &str) {
         .map_or(0.0, |started| started.elapsed().as_secs_f64());
     let line = format!("[{seconds:9.1}] {line}");
     crate::session_log::write(&line);
+    #[cfg(test)]
+    THREAD_TRAIL.with(|lines| lines.borrow_mut().push(line.clone()));
     if let Some(mut trail) = try_lock(&TRAIL) {
         if trail.len() == TRAIL_LINES {
             trail.pop_front();
@@ -589,8 +600,7 @@ mod tests {
         console.execute_console_line("say_team typedchat7321 plan", None);
         console.execute_console_line("tell 3 typedchat7321 whisper", None);
         console.execute_console_line("echo typedother7321", None);
-        let trail = try_lock(&TRAIL).map(|trail| trail.iter().cloned().collect::<Vec<_>>());
-        let trail = trail.unwrap_or_default();
+        let trail = THREAD_TRAIL.with(|lines| lines.borrow().clone());
         assert!(trail.iter().any(|line| line.contains("typedother7321")));
         assert!(!trail.iter().any(|line| line.contains("typedchat7321")));
     }

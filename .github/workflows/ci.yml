@@ -36,6 +36,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    # A compiler warning fails the build and the tests, on every platform (Sol,
+    # 08/11/2026). Only here, not in Cargo.toml: a new Rust that warns about more
+    # (a deprecation) turns this red, never a player's or the release's build.
+    env:
+      RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v7
       - name: Install Linux build dependencies
@@ -50,4 +55,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --locked --workspace
       - run: cargo test --locked --workspace
+      # Clippy's lints still only warn: the workspace is not clean of them yet, and
+      # `-D warnings` would make each one an error.
       - run: cargo clippy --locked --workspace --all-targets
+        env:
+          RUSTFLAGS: ''
