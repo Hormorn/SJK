@@ -719,6 +719,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "An attack or alt attack ends your own emote (SJK)",
         ),
         CvarDefinition::new(
+            crate::toon_choice::CVAR,
+            false,
+            archive,
+            "Your own model in toon shading, as every SJK player who shows toon models sees it (SJK)",
+        ),
+        CvarDefinition::new(
             crate::status_balloons::CVAR,
             false,
             archive,

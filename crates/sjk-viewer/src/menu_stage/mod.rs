@@ -507,6 +507,7 @@ impl GpuState {
         }
         self.sync_stage_prop(now);
         self.sync_stage_rgb();
+        self.sync_stage_toon();
         if let Some(request) = request {
             self.sync_stage_sabers(request);
         }
@@ -804,6 +805,37 @@ impl GpuState {
             0,
             bytemuck::bytes_of(&actor.instance),
         );
+    }
+
+    /// The stage's model in toon shading while the player chose it for their own and this
+    /// PC shows it (`toon_choice.rs`): the body here, its hat, cape and sabers as they are
+    /// placed again.
+    fn sync_stage_toon(&mut self) {
+        let wanted = if self.context.dynamic_light_settings.toon_models()
+            && self
+                .console
+                .as_ref()
+                .and_then(|console| console.bool_cvar(crate::toon_choice::CVAR))
+                .unwrap_or(false)
+        {
+            crate::toon_choice::FLAG
+        } else {
+            0
+        };
+        let Some(actor) = self.menu_stage.actor.as_mut() else {
+            return;
+        };
+        if actor.instance.view_flags & crate::toon_choice::FLAG == wanted {
+            return;
+        }
+        actor.instance.view_flags = actor.instance.view_flags & !crate::toon_choice::FLAG | wanted;
+        self.queue.write_buffer(
+            &actor.instance_buffer,
+            0,
+            bytemuck::bytes_of(&actor.instance),
+        );
+        self.menu_stage.cosmetics_dirty = true;
+        self.menu_stage.sabers_dirty = true;
     }
 
     /// Where a preview actor stands without a stage, so the map lights it:

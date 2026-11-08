@@ -833,9 +833,9 @@ impl PlayerMenu {
         self.sjk_category_strip(frame, COLUMN_X, strip_top);
         let grid_top = strip_top + STRIP + 6.0;
         // A model worn with its RGB skin: its colour sliders under the grid
-        // (`model_rgb.rs`).
+        // (`model_rgb.rs`), then the toon switch.
         let sliders = rows.iter().filter(|row| row.channel().is_some()).count();
-        let sliders_top = BOTTOM - APPLY_LINE - sliders as f32 * ROW;
+        let sliders_top = BOTTOM - APPLY_LINE - (sliders + 1) as f32 * ROW;
         self.sjk_creator_grid(frame, COLUMN_X, COLUMN_WIDTH, grid_top, sliders_top);
         let slider_rows = rows
             .iter()
@@ -845,6 +845,9 @@ impl PlayerMenu {
         for (line, (index, row)) in slider_rows.enumerate() {
             let top = sliders_top + line as f32 * ROW;
             self.sjk_model_slider(frame, index, row, top);
+        }
+        if let Some(index) = rows.iter().position(|row| *row == CharacterRow::Toon) {
+            self.sjk_toon_switch(frame, index, sliders_top + sliders as f32 * ROW);
         }
         // The model chosen shows on the stage and is worn on Apply.
         let pending = self.look_pending();
@@ -859,6 +862,22 @@ impl PlayerMenu {
             self.selected == apply,
             apply as u16,
         );
+    }
+
+    /// The Toon shading switch on `top` (`cg_toonModel`, [`crate::toon_choice`]).
+    fn sjk_toon_switch(&mut self, frame: &Frame, index: usize, top: f32) {
+        let area = [COLUMN_X, top, COLUMN_WIDTH, ROW];
+        let focused = self.sjk_row(frame, index, area, CharacterRow::Toon.label());
+        let left = kit::switch(
+            &mut self.canvas,
+            frame,
+            CONTROL_RIGHT,
+            top + ROW * 0.5,
+            self.toon,
+            focused,
+        );
+        let control = [left, top, CONTROL_RIGHT - left, ROW];
+        self.sjk_targets(frame, index, control, area);
     }
 
     /// One of the model's colour sliders on `top`: its name, the track and the value,

@@ -5,7 +5,7 @@ use super::*;
 use sjk_client::SaberColor;
 /// Rows of the character page: the name and the search (the words the items listed
 /// must contain), the category strip, the team (models only), the tile grid of the
-/// category on show and the Apply button.
+/// category on show, the toon switch and the Apply button.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum CharacterRow {
     Name,
@@ -22,6 +22,9 @@ pub(super) enum CharacterRow {
     Red,
     Green,
     Blue,
+    /// SJK UI: the own model in toon shading, for every SJK player who shows it
+    /// (`cg_toonModel`, [`crate::toon_choice`]); written at once, not on Apply.
+    Toon,
     /// SJK UI: wears the model chosen (the `model` cvar); until then it only shows.
     Apply,
 }
@@ -37,6 +40,7 @@ impl CharacterRow {
             Self::Red => "Red",
             Self::Green => "Green",
             Self::Blue => "Blue",
+            Self::Toon => "Toon shading",
             Self::Apply => "Apply",
         }
     }
@@ -54,16 +58,17 @@ impl CharacterRow {
 
 // No Model row (Sol's decision, 11/10/2026): the grid chooses the model. Models also
 // list for a team's skins; the other categories have no team.
-const MODEL_ROWS: [CharacterRow; 6] = [
+const MODEL_ROWS: [CharacterRow; 7] = [
     CharacterRow::Name,
     CharacterRow::Search,
     CharacterRow::Category,
     CharacterRow::Team,
     CharacterRow::Grid,
+    CharacterRow::Toon,
     CharacterRow::Apply,
 ];
 /// A model worn with its RGB skin: its colour sliders under the grid.
-const MODEL_RGB_ROWS: [CharacterRow; 9] = [
+const MODEL_RGB_ROWS: [CharacterRow; 10] = [
     CharacterRow::Name,
     CharacterRow::Search,
     CharacterRow::Category,
@@ -72,13 +77,15 @@ const MODEL_RGB_ROWS: [CharacterRow; 9] = [
     CharacterRow::Red,
     CharacterRow::Green,
     CharacterRow::Blue,
+    CharacterRow::Toon,
     CharacterRow::Apply,
 ];
-const OTHER_ROWS: [CharacterRow; 5] = [
+const OTHER_ROWS: [CharacterRow; 6] = [
     CharacterRow::Name,
     CharacterRow::Search,
     CharacterRow::Category,
     CharacterRow::Grid,
+    CharacterRow::Toon,
     CharacterRow::Apply,
 ];
 

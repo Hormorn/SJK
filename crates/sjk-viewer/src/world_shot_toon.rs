@@ -1,6 +1,6 @@
 //! World shots of toon models (`r_toonModels`): a recorded game played without a
 //! server, the camera orbiting and looking at a player, stock shading beside toon
-//! shading. Ignored like the other world shots; skipped when `SJK_TEST_DEMO` is not set.
+//! shading, every player taken to have chosen it (`Looks::shot_toon`). Ignored like the other world shots; skipped when `SJK_TEST_DEMO` is not set.
 //! `SJK_SHOT_CVARS` runs it under other lighting (e.g. `r_dayNight=1`).
 
 use super::*;
@@ -41,6 +41,7 @@ fn toon_models_on_a_demo() {
                 if let Some(console) = gpu.console.as_mut() {
                     assert!(console.set_cvar(crate::dynamic_lights::TOON_MODELS_CVAR, toon));
                 }
+                gpu.looks.shot_toon = toon == "1";
                 let image = frame(&mut gpu, 10);
                 let name = format!("toon_models_{view}_{toon}{suffix}");
                 std::fs::create_dir_all(directory()).expect("the shot directory");

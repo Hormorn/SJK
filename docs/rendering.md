@@ -579,7 +579,7 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 | `r_cubeMapping` | Reflection probes on specular-mapped surfaces (rend2's name and meaning); default 1, needs `r_specularMapping`, applies after a graphics reload |
 | `r_cubeMapSize` | Reflection probe face size, a power of two 32–512; default 128, applies after a graphics reload |
 | `r_floorReflections` | Polished floors mirror the scene (see [Floor reflections](#floor-reflections)); default 1, live |
-| `r_toonModels` | Toon shading on players and other lit models, 1 on, 0 stock (default); live, archived. See [Toon models](#toon-models) |
+| `r_toonModels` | Show the toon shading players chose for their own model (`cg_toonModel`), 1 (default) or 0 every model in stock shading; live, archived. See [Toon models](#toon-models) |
 | `r_DynamicGlow` | Halo around `glow` shader stages: 0 off, 1 on (default), 2 saber blades only, 3 the glow alone (debug); live. See [Dynamic glow](#dynamic-glow) |
 | `r_dynamicGlowStyle` | Glow blur: 1 EternalJK rd-vulkan's (default), 0 retail rd-vanilla's; live |
 | `r_dynamicGlowNoSabers` | 1 keeps saber blades and trails out of the dynamic glow, everything else keeps it; default 0, live, archived |
@@ -1826,11 +1826,23 @@ exhaustive quality/map coverage remain open.
 
 ## Toon models
 
-`r_toonModels 1` (Sol's request, 02/11/2026; Settings > Graphics > Image, "Toon
-models"; off by default, as stock) draws players and every other model lit by
-`rgbGen lightingDiffuse` or `lightingDiffuseEntity` in a stylized, cartoon-like way. It
-is a look in the spirit of current stylized shooters, made from the game's own light;
-it changes only what the viewer sees.
+Toon shading (Sol's request, 02/11/2026) draws a model lit by `rgbGen lightingDiffuse`
+or `lightingDiffuseEntity` in a stylized, cartoon-like way, a look in the spirit of
+current stylized shooters made from the game's own light.
+
+Since 08/11/2026 it is each player's choice for their own model (Sol: some models
+look better with it, some without): `cg_toonModel` (off by default; the Profile's
+Character tab, "Toon shading", or Settings > Graphics > Image, "Toon on my model")
+goes in the player's hub look as toy `toon_model`
+([identity.md](identity.md#unlocks-and-looks)), so every SJK player draws that model
+as its wearer chose. `r_toonModels` (Settings > Graphics > Image, "Toon models", on
+by default) says whether this PC shows the choices: 0 draws every model in stock
+shading. A player without SJK, or whose hub look has not come, keeps stock shading, as
+do NPCs, items and the view weapon. The choice covers the player's body, hats, capes
+and what it holds ([toon_choice.rs](../crates/sjk-viewer/src/toon_choice.rs): bit 28
+of the instance's `view_flags`, which `entity_vertex` turns into an entity light `a`
+of 2 that `toon_model` reads), and the menu's own model (`sync_stage_toon`), so the
+Character tab shows the switch at once.
 
 - **Bands.** In stock lighting, `toon_diffuse` (`model_light_grid.wgsl`) replaces
   `RB_CalcDiffuseColor`'s smooth falloff: the side facing the grid's light direction
@@ -1849,13 +1861,14 @@ it changes only what the viewer sees.
   (`toon_colour`, `world_lighting_mode.wgsl`); other stages of the same shader
   (additive shine, glow) are unchanged.
 
-The setting is bits 1..3 of the scene-light block's model word
+`r_toonModels` is bits 1..3 of the scene-light block's model word
 (`point_lights.metadata.y`, beside `r_modelPixelLight` in bit 0), so it switches live
-with no pipeline rebuild. Cost: a few arithmetic operations per model pixel.
+with no pipeline rebuild; the players' choices are read once a frame from the looks.
+Cost: a few arithmetic operations per pixel of a toon model.
 
 Limits: JA skins have shading painted in, so the result reads as stylized JA rather
-than flat cartoon colours; there are no ink outlines yet; the menu's character
-preview keeps stock shading. `world_shot_toon.rs` renders stock and toon side by
+than flat cartoon colours; there are no ink outlines yet; a player's corpse after they
+respawn is a body of its own and keeps stock shading. `world_shot_toon.rs` renders stock and toon side by
 side from a demo (`SJK_TEST_DEMO`, an ignored test).
 
 ## Entity render effects

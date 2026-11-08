@@ -208,6 +208,7 @@ did: Sky cloud layers: a sky shader's scrolling stages drawn over its box (after
 did: tcGen vector stages: textures projected in world space, as in JKA
 did: Collection marks: worn, favourite, locked and New saber shaders, the lock held by the hub
 did: Toon models: cartoon-style banded shading with a bright rim, an option off by default
+did: Toon shading by choice: each player picks it for their own model, everyone sees it
 did: 3D sound: sounds muffled behind walls and doors, rooms that ring (after VisionJK)
 did: White edge on dark text: black names and chat in a white outline, an option
 did: Weather in map edits: rain, storms, snow, fog and wind kept for a map, synced to every player

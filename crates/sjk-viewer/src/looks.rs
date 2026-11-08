@@ -62,7 +62,7 @@ fn blade_skin(id: &str) -> Option<&'static str> {
 /// The toys a look can have out that this client draws, by id (`PROTOCOL.md`, "Looks"):
 /// a toy's bit in [`Worn::toys`] is its place here. A look naming another id (a newer
 /// client's toy) draws nothing more.
-pub(crate) const TOYS: [&str; 10] = [
+pub(crate) const TOYS: [&str; 11] = [
     crate::cardboard_box::TOY,
     crate::order66::TOY,
     crate::hax::TOY,
@@ -77,6 +77,8 @@ pub(crate) const TOYS: [&str; 10] = [
     crate::banana::TOY,
     // The fishing rod out: others draw the rod, the bucket and the float.
     crate::fishing::TOY,
+    // The wearer's model in toon shading, their choice (`cg_toonModel`).
+    crate::toon_choice::TOY,
 ];
 // A bit each in a `u32`: as many as a hub look holds (32 toy ids since 30/10/2026).
 const _: () = assert!(TOYS.len() <= u32::BITS as usize);
@@ -356,6 +358,9 @@ pub(crate) struct Looks {
     /// World shots own every unlock, having no hub.
     #[cfg(test)]
     pub(crate) shot_owns_unlocks: bool,
+    /// World shots of toon models: every player chose toon shading (`toon_choice.rs`).
+    #[cfg(test)]
+    pub(crate) shot_toon: bool,
 }
 
 impl Default for Looks {
@@ -376,6 +381,8 @@ impl Default for Looks {
             own_settings: (String::new(), String::new()),
             #[cfg(test)]
             shot_owns_unlocks: false,
+            #[cfg(test)]
+            shot_toon: false,
         }
     }
 }
