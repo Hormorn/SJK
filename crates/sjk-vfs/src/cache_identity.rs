@@ -13,8 +13,8 @@ pub struct AssetCacheIdentity(u64, u64);
 
 pub(super) fn next() -> u64 {
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
-        .expect("mounted source identity exhausted")
+    // 2^64 mounts never come: the count cannot wrap.
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
 impl VirtualFileSystem {

@@ -183,31 +183,19 @@ impl Settings {
     /// `r_emissionStrength`; a non-number leaves strength 1.
     fn set_emission(&self, value: &CvarValue) {
         let bits = emission_bits(number(value, 1.));
-        let _ = self
-            .0
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |word| {
-                Some(word & !EMISSION_BITS | bits)
-            });
+        self.put_bits(EMISSION_BITS, bits);
     }
 
     /// `r_parallaxStrength`; a non-number leaves the default.
     fn set_parallax(&self, value: &CvarValue) {
         let bits = parallax_bits(number(value, PARALLAX_DEFAULT));
-        let _ = self
-            .0
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |word| {
-                Some(word & !PARALLAX_BITS | bits)
-            });
+        self.put_bits(PARALLAX_BITS, bits);
     }
 
     /// `r_parallaxNearDistance`; a non-number leaves the default.
     fn set_parallax_near(&self, value: &CvarValue) {
         let bits = parallax_near_bits(number(value, PARALLAX_NEAR_DEFAULT as f64));
-        let _ = self
-            .0
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |word| {
-                Some(word & !PARALLAX_NEAR_BITS | bits)
-            });
+        self.put_bits(PARALLAX_NEAR_BITS, bits);
     }
 
     /// `r_emissiveGlow`: 0 sets [`NO_EMISSIVE_GLOW`].
@@ -225,11 +213,7 @@ impl Settings {
             CvarValue::Integer(value @ 0..=7) => *value as u32,
             _ => 0,
         };
-        let _ = self
-            .0
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |bits| {
-                Some(bits & !DEBUG_BITS | view << DEBUG_SHIFT)
-            });
+        self.put_bits(DEBUG_BITS, view << DEBUG_SHIFT);
     }
 
     /// `r_normalMapStrength`; a non-number leaves strength 1.
@@ -240,11 +224,20 @@ impl Settings {
             _ => 1.,
         };
         let bits = strength_bits(strength);
-        let _ = self
-            .0
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |word| {
-                Some(word & !STRENGTH_BITS | bits)
-            });
+        self.put_bits(STRENGTH_BITS, bits);
+    }
+
+    /// Put `bits` in `field`'s place in the word, the other settings untouched.
+    fn put_bits(&self, field: u32, bits: u32) {
+        let mut word = self.0.load(Ordering::Relaxed);
+        while let Err(now) = self.0.compare_exchange_weak(
+            word,
+            word & !field | bits,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            word = now;
+        }
     }
 
     fn set(&self, bit: u32, value: &CvarValue) {
