@@ -2815,9 +2815,8 @@
 - cb6d7e1 |  | Document branch, commit and pull request rules
 
 = Bishop
-+ 04/11/2026 | - | Fix Linux startup with the shared main-thread stack allowance
++ 04/11/2026 | SJK #347 | Fix Linux startup after updating to 2026.1103.2
 - f664443 |  | Fix Linux startup with the shared main-thread stack allowance
-+ 04/11/2026 | - | Record Linux startup and stack-budget verification
 - c64ee84 |  | Record Linux startup and stack-budget verification
 + 05/10/2026 | JKR #127 | Apply server shader remaps with Tayst-compatible controls
 - 4a1327b |  | Apply server shader remaps with Tayst-compatible controls
@@ -3517,6 +3516,8 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | - | Release 2026.1109.3 (Alpha)
+- a692047 |  | Release 2026.1109.3 (Alpha)
 + 09/11/2026 | SJK #399 | Jedi Knight II HUD (cg_hudFiles 2)
 - 7b8cd0d |  | Jedi Knight II HUD (cg_hudFiles 2), pictures from EternalJK
 - b4b513e |  | Format menu_stage, which fails the CI formatting check on main
@@ -3608,98 +3609,70 @@
 + 08/11/2026 | SJK #382 | Collection: the Toys page counts every toy (hub report #265)
 - 0d31712 |  | Collection: the Toys page counts every toy (hub report #265)
 + 04/11/2026 | SJK #360 | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
-- bb1b8a2 |  | Chat: whisperers list right above the name, darker, over the row's and feed's words
-+ 04/11/2026 | - | Vehicle HUD: speed and ammo beside the HP in each HUD style
-- c62bd68 |  | Vehicle HUD: speed and ammo beside the HP in each HUD style
-+ 04/11/2026 | - | Vehicle HUD: the turbo in each HUD style
-- abc7901 |  | Vehicle HUD: the turbo in each HUD style
-+ 04/11/2026 | - | Changelog: the vehicle HUD line under a new Unreleased, after release 2026.1103.2
-- 59d1eb8 |  | Changelog: the vehicle HUD line under a new Unreleased, after release 2026.1103.2
-+ 04/11/2026 | - | SJK classic HUD: three groups along the bottom, no background
-- daad930 |  | SJK classic HUD: three groups along the bottom, no background
-+ 04/11/2026 | - | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
 - 2691e44 |  | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
-+ 04/11/2026 | - | Profile card: banner corners round with the card again
+- bb1b8a2 |  | Chat: whisperers list right above the name, darker, over the row's and feed's words
++ 04/11/2026 | SJK #351 | Vehicle HUD: speed, ammo and turbo in each style; new SJK classic HUD along the bottom
+- c62bd68 |  | Vehicle HUD: speed and ammo beside the HP in each HUD style
+- abc7901 |  | Vehicle HUD: the turbo in each HUD style
+- 59d1eb8 |  | Changelog: the vehicle HUD line under a new Unreleased, after release 2026.1103.2
+- daad930 |  | SJK classic HUD: three groups along the bottom, no background
++ 04/11/2026 | SJK #359 | Profile card and SJK Profile page: no cover for the neutral banner, round corners for a worn one
 - fe060ad |  | Profile card: banner corners round with the card again
-+ 04/11/2026 | - | Profile card and Profile page: no cover for the neutral banner
 - c2dc87d |  | Profile card and Profile page: no cover for the neutral banner
-+ 04/11/2026 | - | Graphics: sharpening slider (r_sharpen, Lex's idea)
++ 04/11/2026 | SJK #357 | Graphics: sharpening slider (r_sharpen, Lex's idea)
 - 02111e1 |  | Graphics: sharpening slider (r_sharpen, Lex's idea)
-+ 04/11/2026 | - | Console: alias command (Lex's idea)
++ 04/11/2026 | SJK #358 | Console: alias command (Lex's idea)
 - 7008b8a |  | Console: alias command (Lex's idea)
-+ 04/11/2026 | - | Server remaps per map: cg_serverRemapsMap, cg_remapsAllowedMaps (Lex's idea)
++ 04/11/2026 | SJK #354 | Server remaps per map (Lex's idea)
 - 14442dd |  | Server remaps per map: cg_serverRemapsMap, cg_remapsAllowedMaps (Lex's idea)
-+ 04/11/2026 | - | Collection: a click on Loadouts on Shaders opens the card (hub report #245)
++ 04/11/2026 | SJK #355 | Collection: a click on Loadouts on the Shaders tab opens the card (hub report #245)
 - 416f84b |  | Collection: a click on Loadouts on Shaders opens the card (hub report #245)
-+ 04/11/2026 | - | Emotes end when their player mounts a vehicle (hub report #247)
++ 04/11/2026 | SJK #352 | Emotes end when you mount a vehicle (hub report #247)
 - 4ad934a |  | Emotes end when their player mounts a vehicle (hub report #247)
-+ 04/11/2026 | - | Nameplates: an opacity setting for every style (cg_nameplateAlpha)
++ 04/11/2026 | SJK #353 | Nameplates: transparency setting (cg_nameplateAlpha)
 - 597b276 |  | Nameplates: an opacity setting for every style (cg_nameplateAlpha)
-+ 04/11/2026 | - | Fishing: a bite cue for players with the sound off
++ 04/11/2026 | SJK #350 | Fishing: a bite cue for players with the sound off
 - fecb270 |  | Fishing: a bite cue for players with the sound off
-+ 04/11/2026 | - | Changelog: PR #350
 - 73ed69f |  | Changelog: PR #350
-+ 04/11/2026 | - | Fishing: sell fished junk to the hub; the fish log on the card
++ 04/11/2026 | SJK #349 | Fishing: sell fished junk to the hub for credits
 - 5510433 |  | Fishing: sell fished junk to the hub; the fish log on the card
-+ 04/11/2026 | - | Junk: clippy's collapsed if and sort key
 - 61baac9 |  | Junk: clippy's collapsed if and sort key
-+ 04/11/2026 | - | Fishing junk: name the hub's PROTOCOL.md section as it is
 - c153257 |  | Fishing junk: name the hub's PROTOCOL.md section as it is
-+ 04/11/2026 | - | Changelog: PR #349
 - 6e1305d |  | Changelog: PR #349
-+ 04/11/2026 | - | Changelog: the credit as the others are
 - 28cdecf |  | Changelog: the credit as the others are
-+ 04/11/2026 | - | Fishing: the Sell junk button sells; fishing_log prints in the console
 - e5a7b04 |  | Fishing: the Sell junk button sells; fishing_log prints in the console
-+ 04/11/2026 | - | vid_restart force: reload the graphics with no setting changed
++ 04/11/2026 | SJK #341 | vid_restart force: reload the graphics with no setting changed (Blep's idea)
 - 22c06e1 |  | vid_restart force: reload the graphics with no setting changed
-+ 04/11/2026 | - | Copy a chat link with Ctrl+C
++ 04/11/2026 | SJK #342 | Copy a chat link with Ctrl+C (AngeloPapaya's idea)
 - b812f40 |  | Copy a chat link with Ctrl+C
-+ 04/11/2026 | - | Ragdoll: a scaled player falls at their size (hub report #223)
++ 04/11/2026 | SJK #345 | Ragdoll: a scaled player falls at their size (hub report #223)
 - dd636de |  | Ragdoll: a scaled player falls at their size (hub report #223)
-+ 04/11/2026 | - | Mute emote sounds in duels (s_muteEmotesInDuel, hub report #234)
++ 04/11/2026 | SJK #346 | Mute emote sounds in duels, s_muteEmotesInDuel (hub report #234)
 - 0845523 |  | Mute emote sounds in duels (s_muteEmotesInDuel, hub report #234)
-+ 04/11/2026 | - | Fix duel emote mute tests and help text length
 - 1a79a94 |  | Fix duel emote mute tests and help text length
-+ 03/11/2026 | - | Fishing toy, phase 1: a rod, a bucket and bites, anywhere
++ 03/11/2026 | SJK #278 | Fishing toy: a rod in the hand, bites anywhere, Echoes on the line (Sanji's idea)
 - 08fb696 |  | Fishing toy, phase 1: a rod, a bucket and bites, anywhere
-+ 03/11/2026 | - | Fishing: the rod in the hand, catches reeled in, a nicer pond
 - d65a751 |  | Fishing: the rod in the hand, catches reeled in, a nicer pond
-+ 03/11/2026 | - | Fishing: the pond in the game's own swamp textures, bigger
 - 1ad554a |  | Fishing: the pond in the game's own swamp textures, bigger
-+ 03/11/2026 | - | Fishing: on the Toys tab, the rod in first person, more bites
 - c192dcb |  | Fishing: on the Toys tab, the rod in first person, more bites
-+ 03/11/2026 | - | Fishing: four achievements, docs and changelog
 - ae75ab5 |  | Fishing: four achievements, docs and changelog
-+ 03/11/2026 | - | Achievements: Toys on a fifth band, First Bite
 - be2044a |  | Achievements: Toys on a fifth band, First Bite
-+ 03/11/2026 | - | Fishing: status entry, Sanji's credit
 - ae05887 |  | Fishing: status entry, Sanji's credit
-+ 03/11/2026 | - | Tests: the scared wait from the new bite times, the card's total from the catalogue
 - 7a2646b |  | Tests: the scared wait from the new bite times, the card's total from the catalogue
-+ 03/11/2026 | - | Fishing: twelve fish of their own, the last catch in the bucket
 - a94b48d |  | Fishing: twelve fish of their own, the last catch in the bucket
-+ 03/11/2026 | - | Fishing: a proper spinning rod
 - dcbb9b9 |  | Fishing: a proper spinning rod
-+ 03/11/2026 | - | Achievements: Old Whiskers hidden again after the merge
 - d764401 |  | Achievements: Old Whiskers hidden again after the merge
-+ 03/11/2026 | - | Re-run CI (the macOS job was cancelled before it started: no runner)
 - 33f255f |  | Re-run CI (the macOS job was cancelled before it started: no runner)
-+ 03/11/2026 | - | Re-run CI (the macOS job was not given a runner twice)
 - 93c283a |  | Re-run CI (the macOS job was not given a runner twice)
-+ 03/11/2026 | - | Draw switchable and animated lights' baked light (light styles)
++ 03/11/2026 | SJK #339 | Draw switchable and animated lights' baked light (light styles)
 - cfbeeec |  | Draw switchable and animated lights' baked light (light styles)
-+ 03/11/2026 | - | Changelog: the light styles line under Unreleased
 - 0dd242f |  | Changelog: the light styles line under Unreleased
-+ 03/11/2026 | - | Changelog: PR number for the light styles line (#339)
 - 73fa8bd |  | Changelog: PR number for the light styles line (#339)
-+ 03/11/2026 | - | Empower glow: cg_empowerEffect 3 hides it
++ 03/11/2026 | SJK #338 | Empower glow: cg_empowerEffect 3 hides it
 - e717442 |  | Empower glow: cg_empowerEffect 3 hides it
-+ 03/11/2026 | - | Wear an NPC's head|torso| skin instead of drawing it grey
++ 03/11/2026 | SJK #336 | Wear an NPC's head|torso| skin instead of drawing it grey
 - a4769a6 |  | Wear an NPC's head|torso| skin instead of drawing it grey
-+ 03/11/2026 | - | Changelog: PR number for the NPC skin line (#336)
 - b9a1bc0 |  | Changelog: PR number for the NPC skin line (#336)
-+ 03/11/2026 | - | Run CI again (macOS runner was not available)
 - 05f8a18 |  | Run CI again (macOS runner was not available)
 + 02/11/2026 | SJK #318 | Vehicle HUD per HUD style: vehicle HP only, in each style's own look
 - 84f1304 |  | Vehicle HUD per HUD style: hull only, in each style's own look
