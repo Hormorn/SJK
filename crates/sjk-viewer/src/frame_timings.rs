@@ -3,8 +3,8 @@
 //! section of the frame ([`crate::gpu_phases`], timestamps between the encoder's
 //! sections) and the processor on each host phase ([`crate::frame_pacing::budget`]).
 //!
-//! `r_drawTimings` shows them in a panel on the left of the screen, averaged over half
-//! a second with each one's worst frame: 1 the graphics card's sections, 2 the
+//! `r_drawTimings` shows them in a panel at the top right of the screen (the HUD edit
+//! mode moves it), averaged over half a second with each one's worst frame: 1 the graphics card's sections, 2 the
 //! processor's phases too. `r_logTimings` writes them averaged over each second to
 //! `logs/timings.log` beside the configuration (the session log's folder), with the
 //! window, the map, the graphics settings (every Video and renderer row) and each
@@ -51,7 +51,7 @@ const SHOWN_MIN_MS: f32 = 0.005;
 const LOGGED_MIN_MS: f64 = 0.0005;
 
 /// The panel's place and rows, in window pixels at 1080 lines ([`Frame::s`]).
-const PANEL_X: f32 = 16.0;
+const PANEL_MARGIN: f32 = 16.0;
 const PANEL_TOP: f32 = 150.0;
 const PANEL_WIDTH: f32 = 360.0;
 const PAD: f32 = 14.0;
@@ -382,6 +382,8 @@ pub(crate) struct State {
     log_open: bool,
     /// The panel was laid out this frame.
     drawn: bool,
+    /// Where it was, in pixels (the HUD edit mode's box).
+    rect: Option<Rect>,
     log_started: Option<Instant>,
     context: Context,
     line: String,
@@ -398,6 +400,11 @@ impl State {
     /// no session, menu or console (a map explored offline).
     pub(crate) fn drawn(&self) -> bool {
         self.drawn
+    }
+
+    /// The panel's glass this frame, when drawn.
+    pub(crate) fn panel_rect(&self) -> Option<Rect> {
+        self.rect.filter(|_| self.drawn)
     }
 
     /// Whether the panel has a half second's numbers (world shots).
@@ -417,6 +424,7 @@ impl Default for State {
             logging: false,
             log_open: false,
             drawn: false,
+            rect: None,
             log_started: None,
             context: Context::default(),
             line: String::with_capacity(1024),
@@ -651,15 +659,20 @@ impl crate::GpuState {
         }
         let logging = self.frame_timings.log_open;
         let gpu = self.gpu_phases.is_some();
+        let offset = self
+            .hud
+            .offsets()
+            .pixels(crate::hud::placement::Element::Timings, viewport);
         let state = &mut self.frame_timings;
-        build_panel(
+        state.rect = Some(build_panel(
             &mut state.panel,
             &state.readout,
             viewport,
+            offset,
             level,
             gpu,
             logging,
-        );
+        ));
         let target = crate::ingame_menu::sjk_view::text_target(
             &mut self.game_fonts,
             &mut self.text_vertices,
@@ -697,24 +710,26 @@ fn panel_height(gpu_rows: usize, cpu_rows: Option<usize>, footer: bool) -> f32 {
 
 /// Lay out the panel: its glass, the title and frame rate, the graphics card's
 /// sections (or why there are none), the processor's heaviest phases at level 2 or
-/// without the graphics card's, and the log's file while it writes.
+/// without the graphics card's, and the log's file while it writes. It hangs from the
+/// top right corner, moved by `offset` pixels (the HUD edit mode's); returns its glass.
 fn build_panel(
     ui: &mut MenuCanvas,
     readout: &Readout,
     viewport: [f32; 2],
+    offset: [f32; 2],
     level: i64,
     gpu: bool,
     logging: bool,
-) {
+) -> Rect {
     let s = Frame::new(viewport).s;
     let show_cpu = level >= 2 || !gpu;
     let gpu_rows = if gpu { readout.gpu().len() } else { 1 };
     let cpu_rows = show_cpu.then(|| readout.cpu().len());
     let height = panel_height(gpu_rows, cpu_rows, logging);
-    let left = PANEL_X * s;
     let width = PANEL_WIDTH * s;
+    let left = viewport[0] - (PANEL_MARGIN + PANEL_WIDTH) * s + offset[0];
     let right = left + width;
-    let mut y = PANEL_TOP * s;
+    let mut y = PANEL_TOP * s + offset[1];
     ui.begin_transparent(viewport);
     let glass = Rect::new(left, y, width, height * s);
     let _ = ui.draw_list_mut().push(DrawCommand::RoundedRect {
@@ -853,6 +868,7 @@ fn build_panel(
         );
     }
     ui.finish(0);
+    glass
 }
 
 /// The mean's and the worst's columns on a line at `y`, `height` tall, from `right`,
@@ -1114,9 +1130,17 @@ mod tests {
             };
         }
         let mut ui = MenuCanvas::with_capacities(PANEL_TEXTS, 48, PANEL_DRAWS);
-        build_panel(&mut ui, &readout, [1920.0, 1080.0], 2, true, true);
+        build_panel(&mut ui, &readout, [1920.0, 1080.0], [0.0; 2], 2, true, true);
         assert!(!ui.overflowed());
-        build_panel(&mut ui, &readout, [1920.0, 1080.0], 1, false, false);
+        build_panel(
+            &mut ui,
+            &readout,
+            [1920.0, 1080.0],
+            [0.0; 2],
+            1,
+            false,
+            false,
+        );
         assert!(!ui.overflowed());
     }
 

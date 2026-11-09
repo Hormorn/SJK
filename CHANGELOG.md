@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Frame timings (`r_drawTimings`) sit at the top right of the screen, and Move HUD elements (`hud_edit`) drags them anywhere like the rest of the HUD _(Sol)_
 - The map editor's panel in game does what the page (`mapedit_web`) does: a picture of each texture in its lists, a tile view and a large preview beside what is drawn there now; Fill's nearby textures to choose from; a Lights page (add, recolour, move and delete lights, turn the map's lamps off or move them, with markers over the scene); boomboxes, mystery boxes and toys on Place; the invisible brushes' presets (B); and Ctrl+C, Ctrl+V of models and textures _(Sol)_
 - Walls stopping saber and blaster lights cost about 40 % less on the graphics card (0.38 to 0.23 ms a frame at 4K), with the same picture _(Sol)_
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_

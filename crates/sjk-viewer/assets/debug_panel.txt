@@ -9602,3 +9602,11 @@ title: Saber and blaster light shadows cost about 40 % less on the GPU
 change: The walls-stop-lights trace does one ray per GPU thread: 0.38 -> 0.23 ms at 4K.
 test: r_drawTimings 1 in a saber fight: dlight-shadows reads lower than before.
 test: Saber light next to a wall: the wall still stops it, shadows look as before.
+
+[timings-panel-top-right]
+area: HUD
+title: Frame timings panel at the top right, movable in the HUD edit mode
+change: r_drawTimings draws its panel from the top right corner; hud_edit outlines and drags it.
+test: r_drawTimings 1: the panel is at the top right, clear of the kill feed in a fight.
+test: hud_edit in a game: Frame timings is outlined; drag it, leave, it stays there.
+test: Right-click it in hud_edit (or hud_edit reset timings): back to the top right.

@@ -464,7 +464,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::frame_timings::DRAW_CVAR,
-        "Panel on the left: the milliseconds each part of the frame takes on the graphics card (GPU), and on the processor (CPU) too.",
+        "Panel at the top right: the milliseconds each part of the frame takes on the graphics card (GPU), and on the processor (CPU) too.",
     ),
     (
         crate::frame_timings::LOG_CVAR,
