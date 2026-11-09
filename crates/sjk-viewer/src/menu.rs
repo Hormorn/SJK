@@ -577,6 +577,10 @@ impl ClientMenu {
         if self.holocron_shot {
             return None;
         }
+        // Dragged, the model has left the stage for its own preview, while the screen shows.
+        if self.preview_model().is_some() {
+            return None;
+        }
         let stage = self.backdrop.as_ref()?.stage()?;
         Some((stage, self.player.stage_model()))
     }

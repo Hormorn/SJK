@@ -3503,6 +3503,8 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #392 | Profile: turn the model in the main menu too, zoom it with the right button
+- 52787fb |  | Profile: turn the model in the main menu too, zoom it with the right button
 + 09/11/2026 | SJK #391 | Search fields: a double click selects the text (akr's idea)
 - bd1405d |  | Search fields: a double click selects the text (akr's idea)
 + 09/11/2026 | SJK #390 | MP camera: honour a changed camera damping (hub report #277)

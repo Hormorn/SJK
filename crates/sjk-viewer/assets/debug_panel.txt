@@ -9594,3 +9594,10 @@ title: A double click selects a search field's text (akr's idea, #391)
 change: Commands and cvars list, Settings, server list. Ctrl+C in the list copies a selected search.
 test: Type in each search, double click: the text is selected; a single click drops it.
 test: Commands and cvars list: double click, Ctrl+C, paste elsewhere: the search text.
+
+[profile-turn-zoom]
+area: Menus & settings
+title: Profile: turn the model in the main menu, right drag zooms (akr's idea, #392)
+change: Over the menu map the first drag moves the model into the live preview, which can turn.
+test: Main menu, SJK UI, Character and Force: drag turns the model, right drag zooms it.
+test: In game, Profile: the same. Reopen the screen: turn and zoom are reset.

@@ -1,12 +1,15 @@
 //! The SJK UI's turn of the model (Sol's request, 10/10/2026: "rotate model with
 //! mouse click"; `docs/sjk-ui.md`, Character): opened from a game, on every page
 //! (Character, Saber and Force), dragging over the model turns it: the live preview's
-//! camera goes round it ([`PlayerMenu::sjk_model_preview`]). On the menu map's stage
-//! it does not turn (Creyon's tests, 12/10/2026: a raised blade turned end on to the
-//! stage's camera looked far too long). The turn eases to where it is sent (the Cape
-//! category turns the model's back to the camera), holds from page to page, and faces
-//! front when the screen opens again. Under the model's feet, in the look of the
-//! screen's keys, "Drag" in a key cap says it turns ("Drag turn the model"), on every
+//! camera goes round it ([`PlayerMenu::sjk_model_preview`]), and dragging with the right
+//! button up or down brings it nearer or further (akr's idea, 09/11/2026). The menu map's
+//! stage itself never turns (Creyon's tests, 12/10/2026: a raised blade turned end on to
+//! the stage's camera looked far too long): there the first drag lifts the model off the
+//! stage into that same preview, until the screen closes. The Saber page's shot over the
+//! menu map looks at the thrown saber, so nothing turns there. The turn eases to where it
+//! is sent (the Cape category turns the model's back to the camera), holds from page to
+//! page, and faces front when the screen opens again. Under the model's feet, in the look
+//! of the screen's keys, "Drag" and "Right drag" in key caps say what they do, on every
 //! page. The hat and cape picker that lived here is the creator's Hat and Cape
 //! categories now ([`super::sjk_creator`]).
 
@@ -21,6 +24,13 @@ pub(super) const TURN_TOKEN: u16 = 2_400;
 const DEGREES_PER_PIXEL: f32 = 0.45;
 /// How fast an eased turn closes on where it is sent (per second).
 const EASE: f32 = 9.0;
+/// How much nearer a window pixel of right-button drag brings the model (natural log of
+/// the framing's scale; 200 pixels is a little over twice as near).
+const ZOOM_PER_PIXEL: f32 = 0.004;
+/// The framing's scale at the nearest (the preview camera stops at a room of 0.5, and
+/// the screen's room is 1.35 times this) and at the furthest.
+const NEAREST: f32 = 0.4;
+const FURTHEST: f32 = 1.3;
 
 /// How far the model is turned from facing the camera, in degrees.
 #[derive(Clone, Copy, Debug, Default)]
@@ -29,6 +39,13 @@ pub(super) struct Turn {
     target: f32,
     /// Menu clock seconds of the last frame, for the easing.
     at: Option<f64>,
+    /// How much nearer the model is brought (natural log of the framing's scale, 0 as
+    /// it stands).
+    nearer: f32,
+    /// The pointer's last press was the right button's: a drag zooms.
+    pub(super) zooming: bool,
+    /// Dragged since the screen opened: on the menu map, the model has left the stage.
+    lifted: bool,
 }
 
 impl Turn {
@@ -36,7 +53,20 @@ impl Turn {
     pub(super) fn drag(&mut self, pixels: f32) {
         self.target += pixels * DEGREES_PER_PIXEL;
         self.shown = self.target;
+        self.lifted = true;
         self.keep_small();
+    }
+
+    /// Zoom by a right-button drag of `pixels` (window pixels, downwards positive, so
+    /// upwards brings it nearer).
+    pub(super) fn zoom(&mut self, pixels: f32) {
+        self.nearer = (self.nearer - pixels * ZOOM_PER_PIXEL).clamp(-FURTHEST.ln(), -NEAREST.ln());
+        self.lifted = true;
+    }
+
+    /// The framing's scale: below 1 nearer, above 1 further.
+    pub(super) fn framing(self) -> f32 {
+        (-self.nearer).exp()
     }
 
     /// Ease to `degrees` (0 faces the camera, 180 shows the back), the short way.
@@ -78,10 +108,17 @@ impl Turn {
 }
 
 impl PlayerMenu {
-    /// Whether the screen turns the model with the pointer: the SJK UI's, opened from a
-    /// game, on each of its pages.
+    /// Whether the screen turns the model with the pointer: the SJK UI's, on each of its
+    /// pages opened from a game; over the menu map on the pages whose shot shows the model.
     pub(super) fn model_turns(&self) -> bool {
-        self.is_sjk() && self.return_target == ReturnTarget::InGame
+        self.is_sjk()
+            && (self.return_target == ReturnTarget::InGame || self.page != ProfilePage::Saber)
+    }
+
+    /// Over the menu map, whether a drag has taken the model off the stage into the live
+    /// preview ([`Self::sjk_model_preview`]).
+    pub(super) fn model_lifted(&self) -> bool {
+        self.turn.lifted && self.return_target == ReturnTarget::MainMenu && self.model_turns()
     }
 
     /// The model's turn where the page turns it ([`Self::model_turns`]), in degrees;
@@ -107,23 +144,39 @@ impl PlayerMenu {
         if kind == UiEventKind::Drag
             && let Some(delta) = delta
         {
-            self.turn.drag(delta.x);
+            if self.turn.zooming {
+                self.turn.zoom(delta.y);
+            } else {
+                self.turn.drag(delta.x);
+            }
         }
         Some(PlayerMenuResult::None)
     }
 
     /// Under the model's feet, centred on `centre_x` from `top` (frame pixels), on every
     /// page that turns it: the keys' look of the screen ([`crate::menu::sjk::key_hint`]),
-    /// "Drag" in a key cap and what it does.
+    /// "Drag" and "Right drag" in key caps and what they do.
     pub(super) fn sjk_turn_hint(&mut self, frame: &Frame, centre_x: f32, top: f32) {
         if !self.model_turns() {
             return;
         }
         let s = frame.s;
-        let (keys, action) = (&["Drag"][..], "turn the model");
-        let width = crate::menu::sjk::key_hint_width(keys, action, s);
+        let (turn, turn_action) = (&["Drag"][..], "turn the model");
+        let (zoom, zoom_action) = (&["Right drag"][..], "zoom");
+        let gap = 16.0 * s;
+        let width = crate::menu::sjk::key_hint_width(turn, turn_action, s)
+            + gap
+            + crate::menu::sjk::key_hint_width(zoom, zoom_action, s);
         let [centre, y] = frame.point(centre_x, top);
-        crate::menu::sjk::key_hint(&mut self.canvas, keys, action, centre - width * 0.5, y, s);
+        let end = crate::menu::sjk::key_hint(
+            &mut self.canvas,
+            turn,
+            turn_action,
+            centre - width * 0.5,
+            y,
+            s,
+        );
+        crate::menu::sjk::key_hint(&mut self.canvas, zoom, zoom_action, end + gap, y, s);
     }
 
     /// Register the turn area over the model (before everything else, so any
@@ -220,7 +273,7 @@ mod tests {
 
     /// Opened from a game, dragging over the model turns it as far as the pointer went,
     /// on every page, the preview camera going round it the other way, and the hint under
-    /// the model stays; on the menu map's stage nothing turns.
+    /// the model stays.
     #[test]
     fn dragging_over_the_model_turns_it() {
         let (mut menu, mut console, _directory) = character_page();
@@ -270,12 +323,105 @@ mod tests {
                 menu.model_turn()
             );
         }
-        // On the menu map's stage nothing turns, and nothing says it would.
+    }
+
+    /// A drag on the model with `button`, `by` window pixels.
+    fn drag_with(
+        menu: &mut PlayerMenu,
+        console: &mut ViewerConsole,
+        button: sjk_ui::PointerButton,
+        by: sjk_ui::Vec2,
+    ) {
+        let start = centre(menu, TURN_TOKEN);
+        let end = sjk_ui::Vec2::new(start.x + by.x, start.y + by.y);
+        for event in [
+            sjk_ui::InputEvent::PointerMove(start),
+            sjk_ui::InputEvent::PointerPress {
+                position: start,
+                button,
+            },
+            sjk_ui::InputEvent::PointerMove(end),
+            sjk_ui::InputEvent::PointerRelease {
+                position: end,
+                button,
+            },
+        ] {
+            let _ = menu.handle_pointer(event, console);
+        }
+    }
+
+    /// Over the menu map the model stands on the stage until a drag lifts it into the
+    /// live preview; the Saber page's shot lets it go; opening the screen again puts it
+    /// back on the stage.
+    #[test]
+    fn a_drag_over_the_menu_map_lifts_the_model_off_the_stage() {
+        let (mut menu, mut console, _directory) = character_page();
         menu.open(&console, ReturnTarget::MainMenu);
-        assert_eq!(menu.model_turn(), 0.0);
+        draw(&mut menu);
+        assert!(shows(&menu, "turn the model"), "the hint over the menu map");
+        assert!(menu.sjk_model_preview().is_none(), "still on the stage");
+        let primary = sjk_ui::PointerButton::Primary;
+        drag_with(
+            &mut menu,
+            &mut console,
+            primary,
+            sjk_ui::Vec2::new(100.0, 0.0),
+        );
+        let preview = menu.sjk_model_preview().expect("lifted into the preview");
+        assert_eq!(preview.angle, Some(-28.0 - 45.0));
+        menu.set_page(ProfilePage::Saber);
+        assert!(menu.sjk_model_preview().is_none(), "the saber's shot");
         draw(&mut menu);
         assert!(menu.canvas.rect_for(TURN_TOKEN).is_none());
         assert!(!shows(&menu, "turn the model"));
+        menu.open(&console, ReturnTarget::MainMenu);
+        assert!(menu.sjk_model_preview().is_none(), "reopened on the stage");
+        assert_eq!(menu.model_turn(), 0.0);
+    }
+
+    /// Dragging with the right button up brings the model nearer without turning it,
+    /// down takes it further, and both stop at their ends.
+    #[test]
+    fn a_right_drag_zooms_and_does_not_turn() {
+        let (mut menu, mut console, _directory) = character_page();
+        assert!(shows(&menu, "zoom"), "the hint");
+        let as_framed = menu.sjk_model_preview().unwrap().room;
+        let secondary = sjk_ui::PointerButton::Secondary;
+        drag_with(
+            &mut menu,
+            &mut console,
+            secondary,
+            sjk_ui::Vec2::new(80.0, -100.0),
+        );
+        let nearer = menu.sjk_model_preview().unwrap().room;
+        assert!(nearer < as_framed, "{nearer} of {as_framed}");
+        assert_eq!(menu.model_turn(), 0.0, "the right button does not turn");
+        drag_with(
+            &mut menu,
+            &mut console,
+            secondary,
+            sjk_ui::Vec2::new(0.0, -5_000.0),
+        );
+        let nearest = menu.sjk_model_preview().unwrap().room;
+        assert!((nearest - as_framed * NEAREST).abs() < 1e-3, "{nearest}");
+        assert!(nearest >= 0.5, "the preview camera's own limit");
+        drag_with(
+            &mut menu,
+            &mut console,
+            secondary,
+            sjk_ui::Vec2::new(0.0, 5_000.0),
+        );
+        let furthest = menu.sjk_model_preview().unwrap().room;
+        assert!((furthest - as_framed * FURTHEST).abs() < 1e-3, "{furthest}");
+        // The left button still turns afterwards.
+        let primary = sjk_ui::PointerButton::Primary;
+        drag_with(
+            &mut menu,
+            &mut console,
+            primary,
+            sjk_ui::Vec2::new(100.0, 0.0),
+        );
+        assert!((menu.model_turn() - 45.0).abs() < 0.01);
     }
 
     /// The Hat row opens the picker: None and the hats as chips, a click wears one,
