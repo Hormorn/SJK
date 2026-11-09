@@ -1777,48 +1777,125 @@ the camera's axes.
 ## 3D sound
 
 `s_spatial` (Settings > Sound, 3D sound; off by default, archived; Sol's, 03/11/2026,
-after the idea of VisionJK's `v_spatial` by Blackwolf) gives the sounds of the level
-three things the 2003 mixer lacks, in SJK's own mixer (no Steam Audio, no library):
+after the idea of VisionJK's `v_spatial` by Blackwolf, rebuilt 09/11/2026 as SJK's own
+engine to the level of Steam Audio's) gives the sounds of the level what the 2003 mixer
+lacks. It is SJK's own Rust code ([sjk-acoustics](../crates/sjk-acoustics/src/lib.rs)
+and the mixer's [spatial_fx.rs](../crates/sjk-audio/src/spatial_fx.rs)): it follows the
+ideas of Valve's Steam Audio and of VisionJK, with none of their code and no library to
+install.
+
+| Cvar | Default | Meaning |
+|------|---------|---------|
+| `s_spatial` | 0 | 3D sound on |
+| `s_spatialHeadphones` | 1 | through the head, for headphones (Settings: "3D sound for headphones"); 0 panned left and right, for speakers |
+| `s_spatialReverb` | 1 | how loud rooms ring, 0 to 2 (Settings: "3D sound room echo"); 0 traces no room |
 
 - **Hearing from the head.** The listener is the player's predicted origin raised to
   the camera's height, kept between crouching and standing eye height (12 to 36 units),
   so in first person the eyes and in third person the head, not the camera circling it;
-  left and right stay the camera's. A camera more than 160 units from that point (a
-  spectator, the drone, the free camera) or no predicted player puts it back at the
-  camera, as VisionJK's `S_SpatialHearing` does.
-- **Occlusion.** About 15 times a second the render thread traces from that point to the
-  world sounds heard in the last 8 seconds (48 at most, 16 a tick, three point rays each:
-  straight, 24 units higher, 24 units to the side), against the map's solid brushes and
-  the doors and lifts where they are shown (`LocalPrediction::presented_solids`, each
-  tried only when the ray crosses its box). The share of rays blocked is the source's
-  occlusion, 0 to 1; a wall within 16 units of the sound is the one it is on (an impact)
-  and does not count, and sources past 2000 units are not traced. The mixer glides each
-  voice and loop toward it over about 50 ms and blends the sound with itself through a
-  one-pole lowpass at 700 Hz and 0.45 of the gain, so a fully occluded sound is quieter
-  and dull. The player's own, listener-relative and global sounds are never occluded.
-- **Reverb.** 32 rays round the hearing point (a Fibonacci sphere, 8 a tick, so a new
-  room every quarter second) measure the room: the share that meets a wall within 2048
-  units (not the sky) and their mean distance give a size (64 units a cupboard, 1024 a
-  hall) and a wet level (at most 0.6, less the more open), which a small Schroeder
-  reverb in the mixer (four combs and two allpasses an ear, Freeverb's lengths) glides
-  to over 0.4 s. Its input is a send (a fixed buffer of 4096 frames in the mixer)
-  that only voices and loops placed in the world and fading with distance feed, the
-  player's own placed sounds included; menu cues, the announcer, listener-relative and
-  global sounds and the music stay dry. Out of a map the room is dry.
+  the head turns as the camera does (its forward, right and up). A camera more than 160
+  units from that point (a spectator, the drone, the free camera) or no predicted player
+  puts it back at the camera, as VisionJK's `S_SpatialHearing` does.
+- **Through the head** ([hrtf.rs](../crates/sjk-audio/src/hrtf.rs),
+  [binaural.rs](../crates/sjk-audio/src/binaural.rs)). Each sound placed in the world is
+  filtered for each ear by the head-related impulse responses of a KEMAR dummy head
+  measured at the MIT Media Lab (Gardner and Martin, 1994, the diffuse-field equalized
+  set, free to use with credit; `scripts/hrtf_kemar.py` makes
+  `crates/sjk-audio/data/hrtf_kemar.bin`, 98 KB): 368 directions of the right half, the
+  left half mirrored, each a 64-tap minimum-phase filter per ear and the delay the far
+  ear hears it later (up to about 30 samples, 0.7 ms). A direction between measured ones
+  blends the two nearest on each of the two nearest rings of elevation; a change of
+  direction crosses over within the 128-frame block, so a moving sound never clicks.
+  So a sound is in front, behind, above or below, not only left or right. With
+  `s_spatialHeadphones 0` it is panned as the old mixer pans, with everything else
+  below. A sound within 8 units of the head, and the player's own, play in both ears as
+  before.
+- **What is in the way** ([direct.rs](../crates/sjk-acoustics/src/direct.rs)). 20 times
+  a second for each world sound heard in the last 8 seconds (64 at most): rays from the
+  head to 12 points round it (16 units out; points the sound itself cannot see, under
+  the floor it stands on, do not count) give the share in sight; along the straight
+  line each wall entered takes its material's share per band (low under 500 Hz, mid,
+  high over 4 kHz), and the hidden share is heard through them. A sound hidden from the
+  head looks for a way round one corner: 20 rays from it and 20 from the head, and
+  points along them the other end sees. The shortest such way, when it carries more
+  than the walls, is heard from that point (the doorway, the corridor's end), quieter
+  by the longer way (1/r) and duller the more it bends (3, 7 and 12 dB at a right
+  angle in the three bands). Nothing is baked: a door shut or open counts as it is
+  shown, and a sound two rooms away comes through the walls only. A wall within 12
+  units of the sound is the one it is on (an impact) and does not count, and sounds
+  past 2500 units are not traced. A sound inside a door's or lift's box (where the game
+  puts their sounds) is moved out of it toward the listener first, as VisionJK does.
+  The mixer glides each sound's three band gains there over about 50 ms through a
+  three-band split (two second-order lowpasses, the bands adding back up to the sound).
+- **The room** ([room.rs](../crates/sjk-acoustics/src/room.rs)). On its own thread, every
+  0.12 s or after resting as long as the last pass took: 2048 rays from the head (a
+  Fibonacci sphere turned anew each pass) followed for 24 walls. At each wall its
+  material swallows its share per band and the air a little of the highs; the share it
+  scatters reaches the head straight from there when nothing is between (diffuse rain),
+  the rest mirrors on, and a mirrored ray passing within 48 units of the head is heard
+  too. What arrives is kept in 5 ms bins per band and per ear, each ear getting what the
+  head's filters give that direction, so a wall on the left rings in the left ear first.
+  Where a tenth of the rays have run out of walls the decay before is carried on; passes
+  within 48 units of each other are averaged (the newest weighs 0.35). Fixed
+  band-limited noise per ear shaped by that table is the impulse response, cut 60 dB
+  down, at most 3 s, as loud as a sound 128 units away in the open. The mixer convolves
+  the mono mix of the sounds placed in the world (the player's own placed sounds
+  included; menu cues, the announcer, listener-relative and global sounds and the music
+  stay dry) with each ear's response, uniformly partitioned in 128-frame blocks
+  ([convolver.rs](../crates/sjk-audio/src/convolver.rs), one block of delay), and a new
+  response crosses over from the old in 16 blocks (46 ms). The sky swallows a ray; out
+  of a map, or with `s_spatialReverb 0`, the room is dry.
 
-Only numbers cross to the audio thread, on the usual command queue
-(`AudioCommand::SpatialEffects`, `SourceOcclusion`, `Reverb`;
-[audio_spatial.rs](../crates/sjk-viewer/src/audio_spatial.rs), the mixer's side in
-[spatial_fx.rs](../crates/sjk-audio/src/spatial_fx.rs)). No behaviour is keyed to a
-sound's file name and no material is read. Every table is fixed: the tick, the mixer
-and the reverb allocate nothing (checked with `assert_no_alloc`). Off, nothing is
-traced or sent and the mixer takes its plain path, its output bit for bit what it was
-(`switched_off_the_mix_is_bit_identical_whatever_was_measured`). Measured on Windows
-11 in release (`spatial_mix_cost`, ignored test), a 128-frame block with 128 voices and
-32 loops busy took about 23 us off and 53 us on, against its 2.9 ms of playback. Unit
-tests: the hearing point, occlusion from rays and its glide, muffling, loops, the room
-from its rays, the reverb bounded and dying away, a larger room ringing longer. Not yet
-heard in a game.
+**The level's walls** ([scene.rs](../crates/sjk-acoustics/src/scene.rs),
+[bvh.rs](../crates/sjk-acoustics/src/bvh.rs)). When a level loads, the acoustics' thread
+takes every side of a solid brush (`brush_side_polygon`) and every solid curve (its
+collision grid, `Bsp::patch_collision_grid`) as triangles in a bounding volume
+hierarchy (binned surface-area splits, 4 triangles a leaf); each brush model (`*1`...) is
+a tree of its own, placed each frame where the game shows it
+(`LocalPrediction::presented_solids`, turned as collision turns it). Each triangle has a
+material ([material.rs](../crates/sjk-acoustics/src/material.rs)): VisionJK's table of
+shader names and materials first (`crates/sjk-acoustics/data/materials.txt`, 1459
+shaders, by Blackwolf, GPL-2.0, used with his agreement), then the material the level's
+shader names (`MATERIAL_MASK` of its surface flags), else a plain wall; a side not drawn
+(caulk) is what its brush's drawn sides are made of, and the sky swallows everything.
+The numbers per material (absorption and transmission per band, scattering) are SJK's
+own, after common published absorption tables, and game-friendly: hard surfaces swallow
+a few times more than bare ones (a level is furnished, not a sealed concrete box ringing
+for seconds), and walls let more through than real ones (concrete 0.18, 0.06 and 0.02 of
+the amplitude in the three bands).
+
+**Threads.** `sjk-acoustics-direct` builds a level's walls and then traces the sounds;
+`sjk-acoustics-room` traces the room, with 2 threads of its own for a pass. The render
+thread fills their snapshot in place each frame (no allocation once its lists have
+grown) and forwards what comes back on the usual command queue
+(`AudioCommand::SourceAcoustics`, `RoomResponse`, `SpatialHeadphones`, `ReverbGain`;
+[audio_spatial.rs](../crates/sjk-viewer/src/audio_spatial.rs)). A response the mixer no
+longer uses goes back to the decode worker to be freed: the audio thread allocates and
+frees nothing (checked with `assert_no_alloc`). Switched off, the threads stop, nothing
+is traced or sent and the mixer takes its plain path, its output bit for bit what it
+was (`switched_off_the_mix_is_bit_identical_whatever_was_measured`). No behaviour is
+keyed to a sound's file name.
+
+**Measured** on Windows 11 in release, 09/11/2026 (Ryzen 9 5900X class desktop):
+
+- The mixer (`spatial_mix_cost`, ignored test), a 128-frame block (2.9 ms of playback)
+  with the listener turning every block (every filter crossing over) and a 3 s room:
+  32 voices and 32 loops 326 us (off 15 us), 128 voices and 32 loops 715 us (off 23 us).
+  About 4 us a sound placed in the world, the room about 70 us.
+- The acoustics (`retail_levels`, ignored test reading the installed game): mp/ffa3's
+  walls in about 60 ms, mp/ffa5's 64070 triangles in 58 ms, mp/duel1 3 ms; a room pass
+  of 2048 rays and 24 walls 1 to 30 ms on 2 threads, 48 sounds' straight ways and
+  corners about 2 ms (20 times a second: about 4 % of one core).
+
+Unit tests: the head's filters (a sound on the right louder and sooner in the right ear,
+straight ahead alike, smooth between directions), a block of filtering the same as two
+halves, the band split, the convolution against a direct sum and its crossover, the
+mixer off bit for bit and with speakers the old panning, walls gliding in and taking the
+highs, voices started behind a wall, loops through the head, only world sounds ringing,
+the tree's rays against trying every triangle, a doorway heard from its side and a
+sealed wall through concrete, a hall ringing longer than a cupboard, a wall on the left
+ringing in the left ear, the open sky dry. **Not yet heard in a game**: the strengths
+(walls, corners, the room's loudness) are first choices, to be tuned by ear.
 
 ## Weather sounds
 

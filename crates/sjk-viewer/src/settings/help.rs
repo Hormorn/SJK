@@ -539,7 +539,15 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::audio::spatial::CVAR,
-        "Sounds heard from your head, quieter and duller behind walls and shut doors, and rooms ring, a hall longer than a corridor.",
+        "Sounds all round your head, duller behind walls and shut doors, round corners and through doorways; rooms ring with their own echo.",
+    ),
+    (
+        crate::audio::spatial::HEADPHONES_CVAR,
+        "On: 3D sound through a measured dummy head, sounds in front, behind, above or below. Off: panned left and right, for speakers.",
+    ),
+    (
+        crate::audio::spatial::REVERB_CVAR,
+        "How loud rooms ring with 3D sound: 1 as the walls of the room make it, 0 no echo, 2 twice as loud.",
     ),
     (
         crate::weather::sound::CVAR,

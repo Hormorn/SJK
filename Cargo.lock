@@ -3004,6 +3004,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 
 [[package]]
+name = "sjk-acoustics"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "sjk-audio",
+ "sjk-bsp",
+ "sjk-vfs",
+]
+
+[[package]]
 name = "sjk-audio"
 version = "0.1.0"
 dependencies = [
@@ -3291,6 +3301,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sjk-acoustics",
  "sjk-audio",
  "sjk-bsp",
  "sjk-client",

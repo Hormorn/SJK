@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- 3D sound (`s_spatial`, Settings > Sound) rebuilt as SJK's own acoustics engine: sounds come from all round your head through a measured dummy head (in front, behind, above, below), walls and shut doors muffle them by what they are made of, they come round corners and through doorways, and each room rings with the echo its own walls make; "3D sound for headphones" (off pans for speakers) and "3D sound room echo" set it to taste _(Sol, after VisionJK's v_spatial by Blackwolf)_
 - The map editor's panel in game does what the page (`mapedit_web`) does: a picture of each texture in its lists, a tile view and a large preview beside what is drawn there now; Fill's nearby textures to choose from; a Lights page (add, recolour, move and delete lights, turn the map's lamps off or move them, with markers over the scene); boomboxes, mystery boxes and toys on Place; the invisible brushes' presets (B); and Ctrl+C, Ctrl+V of models and textures _(Sol)_
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
 - Ground HUD (`cg_groundHud`): going limp in a ragdoll, or watching through Peek or the Hax, keeps it instead of bringing the normal HUD back _(Sol, after Kushina's report)_

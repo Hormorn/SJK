@@ -1,190 +1,280 @@
-//! Opt-in room acoustics for the mixer: occlusion (a muffled, quieter sound behind
-//! a wall) and a small reverb sized by the room round the listener.
+//! The mixer's side of the 3D sound (`s_spatial`): each sound placed in the world
+//! heard through the head ([`crate::hrtf`], [`crate::binaural`]), filtered by what is
+//! in its way ([`SourceAcoustics`]), and the room ringing from all of them
+//! ([`crate::convolver`]).
 //!
-//! The game side finds what is in the way and how large the room is (traces on its
-//! own thread) and hands the results over as plain numbers
-//! ([`crate::Mixer::set_source_occlusion`], [`crate::Mixer::set_reverb`]); this
-//! module only filters. Everything is sized when the mixer is built: nothing here
-//! allocates, frees or locks while mixing. With the effects off
-//! ([`crate::Mixer::set_spatial_effects`]) the mixer takes its plain path, sample for
-//! sample the output it had before this module existed.
+//! What is in the way and how the room rings are found by `sjk-acoustics` on its own
+//! threads and handed over as plain numbers ([`crate::Mixer::set_source_acoustics`])
+//! and as a ready response ([`crate::Mixer::set_room_response`]). Everything here is
+//! sized when the mixer is built: nothing allocates, frees or locks while mixing.
+//! With the effects off ([`crate::Mixer::set_spatial_effects`]) the mixer takes its
+//! plain path, sample for sample the output it had before this module existed.
 
 use crate::SourceId;
+use crate::binaural::{BLOCK, BandEq, Binaural, BinauralScratch};
+use crate::convolver::{Convolver, RoomResponse};
+use crate::hrtf::{BAND_EDGES_HZ, BANDS, HrirPair, HrtfSet};
 
 /// Frames the reverb's send holds: a longer render is mixed in parts of this.
 pub(crate) const SEND_FRAMES: usize = 4_096;
 
-/// How many sources' occlusion the mixer remembers, for voices that start after
+/// How many sources' acoustics the mixer remembers, for voices that start after
 /// their source was measured.
-pub(crate) const OCCLUSION_SOURCES: usize = 64;
+pub(crate) const ACOUSTIC_SOURCES: usize = 128;
 
-/// Time constant of the occlusion glide: a door shutting muffles in about this
-/// long, without a click.
-const OCCLUSION_GLIDE_SECONDS: f32 = 0.05;
+/// Time constant of a source's glide to new acoustics: a door shutting muffles in
+/// about this long, without a click.
+const ACOUSTICS_GLIDE_SECONDS: f32 = 0.05;
 
-/// Cutoff of the one-pole lowpass a fully occluded sound is heard through.
-const MUFFLE_CUTOFF_HZ: f32 = 700.0;
+/// A sound this close to the head has no direction: both ears alike.
+pub(crate) const NEAR_HEAD: f32 = 8.0;
 
-/// Loudness of the muffled sound against the open one: a wall takes the highs
-/// and about 7 dB of what is left.
-pub(crate) const MUFFLED_GAIN: f32 = 0.45;
-
-/// Time constant of the reverb's glide toward a new room.
-const ROOM_GLIDE_SECONDS: f32 = 0.4;
-
-/// Input gain of the comb bank (Freeverb's fixed gain, doubled for half the combs).
-const REVERB_INPUT_GAIN: f32 = 0.03;
-
-/// The most the reverb's tail may sound against the dry mix.
-pub const MAX_REVERB_WET: f32 = 1.0;
-
-/// Comb feedback range: the smallest room rings this long, the largest hall no
-/// longer (both well inside 1, so the tail always dies away).
-const MIN_FEEDBACK: f32 = 0.70;
-const MAX_FEEDBACK: f32 = 0.90;
-
-/// Comb and allpass lengths at 44.1 kHz: four of Freeverb's combs and two of its
-/// allpasses, the right ear's 23 samples longer for width.
-const COMB_LENGTHS: [usize; 4] = [1116, 1277, 1422, 1557];
-const ALLPASS_LENGTHS: [usize; 2] = [556, 341];
-const STEREO_SPREAD: usize = 23;
-
-/// Room parameters the reverb glides toward.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct ReverbParams {
-    /// How loud the tail is, 0 (none) to [`MAX_REVERB_WET`].
-    pub wet: f32,
-    /// Room size, 0 (a cupboard) to 1 (a hall): how long the tail rings and how
-    /// little its highs are damped.
-    pub size: f32,
+/// What reaches the listener of one source: a gain per band (low, mid, high; 1
+/// open, less through walls or round a corner), and where it seems to come from
+/// when that is not where it is (the opening it comes round).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SourceAcoustics {
+    pub bands: [f32; BANDS],
+    pub via: Option<[f32; 3]>,
 }
 
-impl ReverbParams {
+impl SourceAcoustics {
+    pub const OPEN: Self = Self {
+        bands: [1.0; BANDS],
+        via: None,
+    };
+
     fn clamped(self) -> Self {
         Self {
-            wet: finite_or_zero(self.wet).clamp(0.0, MAX_REVERB_WET),
-            size: finite_or_zero(self.size).clamp(0.0, 1.0),
+            bands: self.bands.map(|gain| finite_or(gain, 1.0).clamp(0.0, 1.0)),
+            via: self
+                .via
+                .filter(|point| point.iter().all(|value| value.is_finite())),
         }
     }
 }
 
-fn finite_or_zero(value: f32) -> f32 {
-    if value.is_finite() { value } else { 0.0 }
+fn finite_or(value: f32, fallback: f32) -> f32 {
+    if value.is_finite() { value } else { fallback }
 }
 
-/// The mixer's room-acoustics state, built once with the mixer.
+/// A voice's or loop's ears and filter, kept apart from the voice tables so voices
+/// stay small to copy.
+pub(crate) struct Ear {
+    binaural: Binaural,
+    eq: BandEq,
+    /// What it was set up for (the voice's start serial, the loop's sound): another
+    /// means a new sound, whose ears start fresh.
+    owner: u64,
+}
+
+impl Ear {
+    fn new() -> Self {
+        Self {
+            binaural: Binaural::new(),
+            eq: BandEq::OPEN,
+            owner: u64::MAX,
+        }
+    }
+}
+
+/// How one voice is placed this block.
+pub(crate) struct Placement {
+    /// The game's loudness at its distance, times its volume, bus and the 16-bit
+    /// step.
+    pub(crate) gain: f32,
+    /// Left and right gains of the old mixer's panning (speakers), the same loudness.
+    pub(crate) pan: [f32; 2],
+    /// The direction it is heard from, in the listener's frame (forward, right, up);
+    /// `None` when it is at the head.
+    pub(crate) direction: Option<[f32; 3]>,
+    pub(crate) bands: [f32; BANDS],
+    /// Whether the room rings from it.
+    pub(crate) send: bool,
+}
+
+/// The mixer's 3D sound state, built once with the mixer.
 pub(crate) struct SpatialEffects {
     pub(crate) enabled: bool,
-    /// The last occlusion measured for each source (0 open, 1 behind a wall).
-    sources: [(SourceId, f32); OCCLUSION_SOURCES],
+    /// Heard through the head (headphones) or panned (speakers).
+    pub(crate) headphones: bool,
+    sources: Box<[(SourceId, SourceAcoustics)]>,
     sources_used: usize,
     next_replaced: usize,
-    /// Lowpass coefficient of the muffled sound at the mixer's rate.
-    pub(crate) muffle_coefficient: f32,
+    hrtf: HrtfSet,
+    coefficients: [f32; 2],
     sample_rate: f32,
-    reverb: Reverb,
-    /// The mono mix of the world-placed voices and loops of the block, the reverb's
+    /// The mono mix of the world-placed voices and loops of the block, the room's
     /// input; the mixer fills it, so menu, announcer and listener-relative sounds
     /// stay dry.
     pub(crate) send: Box<[f32]>,
-    target: ReverbParams,
-    current: ReverbParams,
+    convolver: Convolver,
+    reverb_gain: f32,
+    voice_ears: Box<[Ear]>,
+    loop_ears: Box<[Ear]>,
+    mono: Box<[f32]>,
+    scratch: Box<BinauralScratch>,
+    filters: HrirPair,
 }
 
 impl SpatialEffects {
-    pub(crate) fn new(sample_rate: u32) -> Self {
+    pub(crate) fn new(sample_rate: u32, voices: usize, loops: usize) -> Self {
         let rate = sample_rate.max(1) as f32;
         Self {
             enabled: false,
-            sources: [(SourceId(0), 0.0); OCCLUSION_SOURCES],
+            headphones: true,
+            sources: vec![(SourceId(0), SourceAcoustics::OPEN); ACOUSTIC_SOURCES]
+                .into_boxed_slice(),
             sources_used: 0,
             next_replaced: 0,
-            muffle_coefficient: one_pole_coefficient(MUFFLE_CUTOFF_HZ, rate),
+            hrtf: HrtfSet::kemar(),
+            coefficients: BAND_EDGES_HZ.map(|hz| one_pole_coefficient(hz, rate)),
             sample_rate: rate,
-            reverb: Reverb::new(sample_rate),
             send: vec![0.0; SEND_FRAMES].into_boxed_slice(),
-            target: ReverbParams::default(),
-            current: ReverbParams::default(),
+            convolver: Convolver::new(),
+            reverb_gain: 1.0,
+            voice_ears: (0..voices).map(|_| Ear::new()).collect(),
+            loop_ears: (0..loops).map(|_| Ear::new()).collect(),
+            mono: vec![0.0; BLOCK].into_boxed_slice(),
+            scratch: Box::new(BinauralScratch::new()),
+            filters: HrirPair::SILENT,
         }
     }
 
-    /// The occlusion last measured for `source`, 0 when it never was.
-    pub(crate) fn occlusion_of(&self, source: SourceId) -> f32 {
+    /// The acoustics last measured for `source`, open when it never was.
+    pub(crate) fn acoustics_of(&self, source: SourceId) -> SourceAcoustics {
         self.sources[..self.sources_used]
             .iter()
             .find(|(known, _)| *known == source)
-            .map_or(0.0, |(_, amount)| *amount)
+            .map_or(SourceAcoustics::OPEN, |(_, acoustics)| *acoustics)
     }
 
-    /// Remember `source`'s occlusion; a full table gives up its oldest entry.
-    pub(crate) fn remember(&mut self, source: SourceId, amount: f32) {
+    /// Remember `source`'s acoustics; a full table gives up its oldest entry.
+    pub(crate) fn remember(&mut self, source: SourceId, acoustics: SourceAcoustics) {
+        let acoustics = acoustics.clamped();
         if let Some(entry) = self.sources[..self.sources_used]
             .iter_mut()
             .find(|(known, _)| *known == source)
         {
-            entry.1 = amount;
+            entry.1 = acoustics;
             return;
         }
-        if self.sources_used < OCCLUSION_SOURCES {
-            self.sources[self.sources_used] = (source, amount);
+        if self.sources_used < self.sources.len() {
+            self.sources[self.sources_used] = (source, acoustics);
             self.sources_used += 1;
             return;
         }
-        self.sources[self.next_replaced] = (source, amount);
-        self.next_replaced = (self.next_replaced + 1) % OCCLUSION_SOURCES;
+        self.sources[self.next_replaced] = (source, acoustics);
+        self.next_replaced = (self.next_replaced + 1) % self.sources.len();
     }
 
-    /// Forget every source's occlusion and silence the reverb's tail.
+    /// Forget every source's acoustics and silence the room's ring.
     pub(crate) fn clear(&mut self) {
         self.sources_used = 0;
         self.next_replaced = 0;
-        self.reverb.silence();
+        self.convolver.silence();
     }
 
-    pub(crate) fn set_reverb(&mut self, params: ReverbParams) {
-        self.target = params.clamped();
+    pub(crate) fn set_room_response(&mut self, response: Option<Box<RoomResponse>>) {
+        self.convolver.set_response(response);
     }
 
-    /// The fraction of the way an occlusion glides toward its target over `frames`.
-    pub(crate) fn occlusion_step(&self, frames: usize) -> f32 {
-        glide_fraction(frames, self.sample_rate, OCCLUSION_GLIDE_SECONDS)
+    pub(crate) fn take_retired_response(&mut self) -> Option<Box<RoomResponse>> {
+        self.convolver.take_retired()
     }
 
-    /// Add the reverb of the block's send ([`Self::send`]) to `out` (interleaved
-    /// stereo, at most [`SEND_FRAMES`] frames).
+    pub(crate) fn set_reverb_gain(&mut self, gain: f32) {
+        self.reverb_gain = finite_or(gain, 1.0).clamp(0.0, 4.0);
+    }
+
+    /// Mix one voice: `next` gives its samples (to be scaled by `placement`'s gains),
+    /// `None` once it ended. Adds it to `out` (interleaved stereo) and to the room's
+    /// send; whether it still plays. `owner` names the sound on that voice or loop
+    /// (another than last time starts its ears fresh).
+    pub(crate) fn mix(
+        &mut self,
+        ear: EarRef,
+        owner: u64,
+        placement: &Placement,
+        out: &mut [f32],
+        mut next: impl FnMut() -> Option<f32>,
+    ) -> bool {
+        let through_head = self.headphones && placement.direction.is_some();
+        if let (true, Some(direction)) = (through_head, placement.direction) {
+            self.hrtf.filters(direction, &mut self.filters);
+        }
+        let ear = match ear {
+            EarRef::Voice(index) => &mut self.voice_ears[index],
+            EarRef::Loop(index) => &mut self.loop_ears[index],
+        };
+        if ear.owner != owner {
+            ear.owner = owner;
+            ear.binaural.reset();
+            ear.eq = BandEq::OPEN;
+            ear.eq.gains = placement.bands;
+        }
+        let frames = out.len() / 2;
+        let mut active = true;
+        let mut offset = 0;
+        while offset < frames && active {
+            let count = (frames - offset).min(BLOCK);
+            let mono = &mut self.mono[..count];
+            for sample in mono.iter_mut() {
+                *sample = if active {
+                    next().unwrap_or_else(|| {
+                        active = false;
+                        0.0
+                    })
+                } else {
+                    0.0
+                };
+            }
+            let step = glide_fraction(count, self.sample_rate, ACOUSTICS_GLIDE_SECONDS);
+            let from = ear.eq.gains;
+            let to: [f32; BANDS] = std::array::from_fn(|band| {
+                from[band] + (placement.bands[band] - from[band]) * step
+            });
+            ear.eq.process(mono, to, self.coefficients);
+            if placement.send {
+                for (send, sample) in self.send[offset..offset + count]
+                    .iter_mut()
+                    .zip(mono.iter())
+                {
+                    *send += sample * placement.gain;
+                }
+            }
+            let part = &mut out[offset * 2..(offset + count) * 2];
+            if through_head {
+                ear.binaural
+                    .process(mono, &self.filters, placement.gain, part, &mut self.scratch);
+            } else {
+                for (frame, sample) in part.chunks_exact_mut(2).zip(mono.iter()) {
+                    frame[0] += sample * placement.pan[0];
+                    frame[1] += sample * placement.pan[1];
+                }
+            }
+            offset += count;
+        }
+        active
+    }
+
+    /// Add the room's ring of the block's send ([`Self::send`]) to `out`
+    /// (interleaved stereo, at most [`SEND_FRAMES`] frames).
     pub(crate) fn apply_reverb(&mut self, out: &mut [f32]) {
         let frames = (out.len() / 2).min(SEND_FRAMES);
-        if frames == 0 {
-            return;
-        }
-        let fraction = glide_fraction(frames, self.sample_rate, ROOM_GLIDE_SECONDS);
-        let start = self.current;
-        let end = ReverbParams {
-            wet: start.wet + (self.target.wet - start.wet) * fraction,
-            size: start.size + (self.target.size - start.size) * fraction,
-        };
-        self.current = end;
-        // A dry room with a silent tail costs nothing.
-        if start.wet <= 0.0 && end.wet <= 0.0 && self.reverb.quiet {
-            return;
-        }
-        // Feedback and damping follow the room per block; the wet level ramps
-        // within the block so a change never steps.
-        let feedback = MIN_FEEDBACK + (MAX_FEEDBACK - MIN_FEEDBACK) * end.size;
-        let damping = 0.45 - 0.25 * end.size;
-        let wet_step = (end.wet - start.wet) / frames as f32;
-        let mut wet = start.wet;
-        let mut loudest = 0.0_f32;
-        for (frame, send) in out.chunks_exact_mut(2).zip(&self.send[..frames]) {
-            let input = send * REVERB_INPUT_GAIN;
-            let [left, right] = self.reverb.process(input, feedback, damping);
-            loudest = loudest.max(left.abs()).max(right.abs());
-            wet += wet_step;
-            frame[0] += left * wet;
-            frame[1] += right * wet;
-        }
-        self.reverb.quiet = loudest < 1.0e-6;
+        self.convolver.process(
+            &self.send[..frames],
+            &mut out[..frames * 2],
+            self.reverb_gain,
+        );
     }
+}
+
+/// Which ear state a mix uses.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum EarRef {
+    Voice(usize),
+    Loop(usize),
 }
 
 /// The fraction of the distance a first-order glide with time constant `seconds`
@@ -196,129 +286,4 @@ fn glide_fraction(frames: usize, rate: f32, seconds: f32) -> f32 {
 /// Coefficient `a` of the one-pole lowpass `y += a * (x - y)` with cutoff `hz`.
 pub(crate) fn one_pole_coefficient(hz: f32, rate: f32) -> f32 {
     1.0 - (-std::f32::consts::TAU * hz / rate).exp()
-}
-
-/// One sample of a voice through its occlusion: `occlusion` 0 is the sample as it
-/// is, 1 the lowpassed sample at [`MUFFLED_GAIN`], between the two a blend.
-#[inline]
-pub(crate) fn occlude(sample: f32, lowpass: &mut f32, coefficient: f32, occlusion: f32) -> f32 {
-    *lowpass += coefficient * (sample - *lowpass);
-    sample + (*lowpass * MUFFLED_GAIN - sample) * occlusion
-}
-
-/// Below this a filter's memory is flushed to zero: denormal floats are slow.
-const DENORMAL: f32 = 1.0e-20;
-
-struct Comb {
-    buffer: Box<[f32]>,
-    index: usize,
-    store: f32,
-}
-
-impl Comb {
-    fn new(length: usize) -> Self {
-        Self {
-            buffer: vec![0.0; length.max(1)].into_boxed_slice(),
-            index: 0,
-            store: 0.0,
-        }
-    }
-
-    #[inline]
-    fn process(&mut self, input: f32, feedback: f32, damping: f32) -> f32 {
-        let output = self.buffer[self.index];
-        self.store = output * (1.0 - damping) + self.store * damping;
-        if self.store.abs() < DENORMAL {
-            self.store = 0.0;
-        }
-        self.buffer[self.index] = input + self.store * feedback;
-        self.index += 1;
-        if self.index == self.buffer.len() {
-            self.index = 0;
-        }
-        output
-    }
-}
-
-struct Allpass {
-    buffer: Box<[f32]>,
-    index: usize,
-}
-
-impl Allpass {
-    fn new(length: usize) -> Self {
-        Self {
-            buffer: vec![0.0; length.max(1)].into_boxed_slice(),
-            index: 0,
-        }
-    }
-
-    #[inline]
-    fn process(&mut self, input: f32) -> f32 {
-        let delayed = self.buffer[self.index];
-        let mut stored = input + delayed * 0.5;
-        if stored.abs() < DENORMAL {
-            stored = 0.0;
-        }
-        self.buffer[self.index] = stored;
-        self.index += 1;
-        if self.index == self.buffer.len() {
-            self.index = 0;
-        }
-        delayed - input
-    }
-}
-
-/// A small Schroeder/Freeverb reverb: mono in, stereo out, four parallel combs
-/// and two allpasses an ear.
-pub(crate) struct Reverb {
-    combs: [[Comb; 4]; 2],
-    allpasses: [[Allpass; 2]; 2],
-    /// Whether the last block's tail was silent (skipped while dry).
-    quiet: bool,
-}
-
-impl Reverb {
-    pub(crate) fn new(sample_rate: u32) -> Self {
-        let scale = sample_rate.max(1) as f32 / 44_100.0;
-        let length = |samples: usize, ear: usize| {
-            (((samples + ear * STEREO_SPREAD) as f32) * scale).round() as usize
-        };
-        Self {
-            combs: std::array::from_fn(|ear| {
-                std::array::from_fn(|index| Comb::new(length(COMB_LENGTHS[index], ear)))
-            }),
-            allpasses: std::array::from_fn(|ear| {
-                std::array::from_fn(|index| Allpass::new(length(ALLPASS_LENGTHS[index], ear)))
-            }),
-            quiet: true,
-        }
-    }
-
-    fn silence(&mut self) {
-        for comb in self.combs.iter_mut().flatten() {
-            comb.buffer.fill(0.0);
-            comb.store = 0.0;
-        }
-        for allpass in self.allpasses.iter_mut().flatten() {
-            allpass.buffer.fill(0.0);
-        }
-        self.quiet = true;
-    }
-
-    /// One input sample through both ears.
-    #[inline]
-    pub(crate) fn process(&mut self, input: f32, feedback: f32, damping: f32) -> [f32; 2] {
-        let feedback = feedback.clamp(0.0, MAX_FEEDBACK);
-        std::array::from_fn(|ear| {
-            let mut sum = 0.0;
-            for comb in &mut self.combs[ear] {
-                sum += comb.process(input, feedback, damping);
-            }
-            for allpass in &mut self.allpasses[ear] {
-                sum = allpass.process(sum);
-            }
-            sum
-        })
-    }
 }

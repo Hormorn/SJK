@@ -34,6 +34,8 @@ const DECODE_JOBS: usize = 8_192;
 /// Released sounds on their way from the callback back to the decode worker,
 /// which frees them; a handful at most change hands at each music change.
 const RELEASES: usize = 256;
+/// Room responses waiting to be freed (`s_spatial`; a few a second at most).
+const RETIRED_RESPONSES: usize = 16;
 /// How often an idle decode worker frees what the callback released.
 const RELEASE_POLL: Duration = Duration::from_millis(200);
 
@@ -86,11 +88,35 @@ struct MixerSource {
     registrations: HeapCons<DecodedAction>,
     /// Released PCM back to the decode worker: the callback never frees memory.
     released: HeapProd<DecodedSound>,
+    /// Room responses the 3D sound no longer uses, back to the decode worker too,
+    /// and the one waiting for room in that queue.
+    retired: HeapProd<Box<sjk_audio::RoomResponse>>,
+    held: Option<Box<sjk_audio::RoomResponse>>,
     scratch: [f32; MIX_SAMPLES],
     cursor: usize,
     running: bool,
     stats: Arc<OutputStats>,
     pending: pending::PendingStarts,
+}
+
+impl MixerSource {
+    /// Queue the room responses the mixer let go of for the decode worker to free;
+    /// one that finds the queue full waits for the next block.
+    fn hand_back_responses(&mut self) {
+        loop {
+            let Some(response) = self
+                .held
+                .take()
+                .or_else(|| self.mixer.take_retired_response())
+            else {
+                return;
+            };
+            if let Err(response) = self.retired.try_push(response) {
+                self.held = Some(response);
+                return;
+            }
+        }
+    }
 }
 
 impl Iterator for MixerSource {
@@ -185,6 +211,7 @@ impl Iterator for MixerSource {
             }
             let started = Instant::now();
             self.mixer.render(&mut self.scratch);
+            self.hand_back_responses();
             if started.elapsed() > MIX_BLOCK_BUDGET {
                 self.stats.underruns.fetch_add(1, Ordering::Relaxed);
             }
@@ -247,12 +274,16 @@ pub(super) enum AudioCommand {
     Gains(f32, f32, f32, f32),
     Doppler(bool),
     Separation(f32),
-    /// Room acoustics on or off (`s_spatial`, `audio_spatial.rs`).
+    /// 3D sound on or off (`s_spatial`, `audio_spatial.rs`).
     SpatialEffects(bool),
-    /// How occluded a source is from the listener, 0 to 1.
-    SourceOcclusion(SourceId, f32),
-    /// The room round the listener, for the reverb.
-    Reverb(sjk_audio::ReverbParams),
+    /// Through the head (headphones) or panned (speakers).
+    SpatialHeadphones(bool),
+    /// What reaches the listener from a source.
+    SourceAcoustics(SourceId, sjk_audio::SourceAcoustics),
+    /// The room round the listener; `None` is dry.
+    RoomResponse(Option<Box<sjk_audio::RoomResponse>>),
+    /// How loud the room rings (`s_spatialReverb`).
+    ReverbGain(f32),
     Shutdown,
 }
 
@@ -428,6 +459,7 @@ impl AudioOutput {
         let (command_producer, command_consumer) = HeapRb::new(COMMANDS).split();
         let (registration_producer, registration_consumer) = HeapRb::new(COMMANDS).split();
         let (released_producer, released_consumer) = HeapRb::new(RELEASES).split();
+        let (retired_producer, retired_consumer) = HeapRb::new(RETIRED_RESPONSES).split();
         let (decode_sender, decode_receiver) = sync_channel::<DecodeJob>(DECODE_JOBS);
         let stats = Arc::new(OutputStats::default());
         let closing = Arc::new(AtomicBool::new(false));
@@ -441,6 +473,7 @@ impl AudioOutput {
                         &decode_receiver,
                         registration_producer,
                         released_consumer,
+                        retired_consumer,
                         &stats,
                         &closing,
                     );
@@ -452,6 +485,8 @@ impl AudioOutput {
             commands: command_consumer,
             registrations: registration_consumer,
             released: released_producer,
+            retired: retired_producer,
+            held: None,
             scratch: [0.0; MIX_SAMPLES],
             cursor: MIX_SAMPLES,
             running: true,
@@ -676,12 +711,16 @@ fn decode(
     jobs: &Receiver<DecodeJob>,
     mut registrations: HeapProd<DecodedAction>,
     mut released: HeapCons<DecodedSound>,
+    mut retired: HeapCons<Box<sjk_audio::RoomResponse>>,
     stats: &OutputStats,
     closing: &AtomicBool,
 ) {
     loop {
         let job = jobs.recv_timeout(RELEASE_POLL);
         free_released(&mut released, stats);
+        while let Some(response) = retired.try_pop() {
+            drop(response);
+        }
         if closing.load(Ordering::Acquire) {
             return;
         }
@@ -818,10 +857,12 @@ fn apply_command(mixer: &mut Mixer, command: AudioCommand) -> bool {
         }
         AudioCommand::Separation(value) => mixer.set_separation(value),
         AudioCommand::SpatialEffects(enabled) => mixer.set_spatial_effects(enabled),
-        AudioCommand::SourceOcclusion(source, amount) => {
-            mixer.set_source_occlusion(source, amount);
+        AudioCommand::SpatialHeadphones(headphones) => mixer.set_spatial_headphones(headphones),
+        AudioCommand::SourceAcoustics(source, acoustics) => {
+            mixer.set_source_acoustics(source, acoustics);
         }
-        AudioCommand::Reverb(room) => mixer.set_reverb(room),
+        AudioCommand::RoomResponse(response) => mixer.set_room_response(response),
+        AudioCommand::ReverbGain(gain) => mixer.set_reverb_gain(gain),
         AudioCommand::Shutdown => return false,
     }
     true
