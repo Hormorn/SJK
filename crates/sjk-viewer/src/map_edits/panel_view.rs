@@ -34,8 +34,11 @@ const BUTTON: f32 = 40.0;
 const GAP: f32 = 8.0;
 const FIELD: f32 = 44.0;
 const LIST_ROW: f32 = 34.0;
-/// Between two tabs: four of them fill the column.
-const TAB_GAP: f32 = 28.0;
+/// Between two tabs: five of them fill the column.
+const TAB_GAP: f32 = 18.0;
+/// The tabs' Rajdhani size, and about how wide a character of it is.
+const TAB_SIZE: f32 = 22.0;
+const TAB_CHAR: f32 = 10.2;
 /// Characters of Exo 2 at 16 the column holds on a line.
 const LINE_CHARS: usize = 44;
 
@@ -61,11 +64,18 @@ pub(super) fn build(panel: &mut Panel, ui: &mut MenuCanvas, viewport: [f32; 2]) 
     panel.model_list = None;
     panel.edit_list = None;
     panel.shader_list = None;
+    panel.light_list = None;
+    panel.lamp_list = None;
+    panel.thing_list = None;
+    panel.preview_rect = None;
+    panel.hover_shader = None;
+    panel.pictures.begin();
     match panel.tab {
         Tab::Selected => selected(ui, &frame, panel),
         Tab::Place => place(ui, &frame, panel),
         Tab::Edits => edits(ui, &frame, panel),
         Tab::Weather => weather(ui, &frame, panel),
+        Tab::Lights => lights(ui, &frame, panel),
     }
     foot(ui, &frame, panel);
     keys(ui, &frame, panel);
@@ -165,12 +175,12 @@ fn header(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
     for (tab, label) in [
         (Tab::Selected, "Selected"),
         (Tab::Place, "Place"),
+        (Tab::Lights, "Lights"),
         (Tab::Edits, "Edits"),
         (Tab::Weather, "Weather"),
     ] {
         let token = tab.token();
-        // Rajdhani at 26 is about 12 pixels a character.
-        let width = 12.0 * label.len() as f32 + 4.0;
+        let width = TAB_CHAR * label.len() as f32 + 4.0;
         let current = tab == panel.tab;
         let focused = panel.focus == token;
         if focused {
@@ -181,8 +191,8 @@ fn header(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
             ui,
             TextFamily::Display,
             format_args!("{label}"),
-            frame.rect(x, TABS_Y, width + 20.0, 34.0),
-            26.0 * s,
+            frame.rect(x, TABS_Y + 3.0, width + 20.0, 30.0),
+            TAB_SIZE * s,
             match (current, lit) {
                 (true, _) => color::GOLD_BRIGHT,
                 (false, true) => color::TEXT,
@@ -313,13 +323,24 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     }
     line(ui, frame, y + 40.0, &selection.name, color::TEXT);
     // The fill's suggestion takes the second detail line.
-    let fill = panel.facts.fill.as_ref().map(|(shader, share)| {
-        let shown = shader
-            .strip_prefix("textures/")
-            .or_else(|| shader.strip_prefix("models/"))
-            .unwrap_or(shader);
-        format!("Fill: {shown} ({:.0} % nearby)", share * 100.0)
-    });
+    let chosen_fill = panel
+        .fill_choice()
+        .zip(panel.candidate_share(panel.shader_row));
+    let fill = chosen_fill
+        .or_else(|| {
+            panel
+                .facts
+                .fill
+                .as_ref()
+                .map(|(shader, share)| (shader.as_str(), *share))
+        })
+        .map(|(shader, share)| {
+            let shown = shader
+                .strip_prefix("textures/")
+                .or_else(|| shader.strip_prefix("models/"))
+                .unwrap_or(shader);
+            format!("Fill: {shown} ({:.0} % nearby)", share * 100.0)
+        });
     // A set mixing placed models with surfaces or faces: the gizmo moves the models.
     let set = (many && models > 0).then(|| match models {
         1 => "1 placed model among them: G R T move it".to_owned(),
@@ -405,16 +426,28 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     }
     y += BUTTON + 34.0;
     kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Draw another shader");
+    let card_top = y - 10.0;
     y += 18.0;
+    let switch = 92.0;
     kit::search(
         ui,
         frame,
-        [COLUMN_X, y, COLUMN_WIDTH, FIELD],
+        [COLUMN_X, y, COLUMN_WIDTH - switch - GAP, FIELD],
         &panel.remap,
         panel.focus == REMAP_FIELD,
         "Search the shaders",
         (!panel.remap.is_empty()).then_some(panel.shader_shown.len()),
         REMAP_FIELD,
+    );
+    kit::button(
+        ui,
+        frame,
+        [COLUMN_X + COLUMN_WIDTH - switch, y + 2.0, switch, BUTTON],
+        if panel.tiles { "Rows" } else { "Tiles" },
+        false,
+        true,
+        panel.focus == TILES,
+        TILES,
     );
     y += FIELD + 8.0;
     let height = LIST_ROW * SHADER_ROWS as f32 + 16.0;
@@ -429,33 +462,16 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         };
         line(ui, frame, y + 16.0, line_text, color::MUTED);
     }
-    let own = without_image_extension(selection.shader.as_deref().unwrap_or(""));
-    for slot in 0..SHADER_ROWS {
-        let index = panel.shader_first + slot;
-        let Some(shader) = panel.shown_shader(index) else {
-            break;
-        };
-        // The name without its textures/ or models/ prefix; its own shader quiet.
-        let shown = shader
-            .strip_prefix("textures/")
-            .or_else(|| shader.strip_prefix("models/"))
-            .unwrap_or(shader);
-        let token = SHADER_ROW + slot as u16;
-        let top = y + 8.0 + slot as f32 * LIST_ROW;
-        list_row(
-            ui,
-            frame,
-            top,
-            token,
-            shown,
-            index == panel.shader_row,
-            panel.focus == token,
-            shader.eq_ignore_ascii_case(own),
-        );
-        recent_mark(ui, frame, top, index, panel.recent_shader_rows);
+    let own = without_image_extension(selection.shader.as_deref().unwrap_or("")).to_owned();
+    let picked = selection.picked;
+    if panel.tiles {
+        shader_tiles(ui, frame, panel, y, &own);
+    } else {
+        shader_rows(ui, frame, panel, y, &own);
     }
+    preview_card(ui, frame, panel, card_top, &own);
     y += height + 8.0;
-    if selection.picked == Picked::Sky {
+    if picked == Picked::Sky {
         let sky = panel.chosen_is_sky();
         buttons(
             ui,
@@ -479,7 +495,7 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         frame,
         panel,
         y,
-        &if selection.picked == Picked::Face {
+        &if picked == Picked::Face {
             [
                 (REMAP, "Draw", panel.has_remap_target()),
                 (UNREMAP, "Draw nothing", true),
@@ -608,6 +624,19 @@ fn list_row(
     focused: bool,
     muted: bool,
 ) {
+    list_row_from(ui, frame, top, token, value, [chosen, focused, muted], 0.0);
+}
+
+/// [`list_row`] with its text `indent` further right (a picture before it).
+fn list_row_from(
+    ui: &mut MenuCanvas,
+    frame: &Frame,
+    top: f32,
+    token: u16,
+    value: &str,
+    [chosen, focused, muted]: [bool; 3],
+    indent: f32,
+) {
     let s = frame.s;
     let hovered = ui.token_hovered(token);
     if chosen || hovered || focused {
@@ -635,9 +664,9 @@ fn list_row(
         TextFamily::Body,
         format_args!("{value}"),
         frame.rect(
-            COLUMN_X + 18.0,
+            COLUMN_X + 18.0 + indent,
             top + (LIST_ROW - 22.0) * 0.5,
-            COLUMN_WIDTH - 32.0,
+            COLUMN_WIDTH - 32.0 - indent,
             22.0,
         ),
         15.0 * s,
@@ -652,6 +681,351 @@ fn list_row(
     ui.hit_region(
         token,
         frame.rect(COLUMN_X + 6.0, top, COLUMN_WIDTH - 12.0, LIST_ROW),
+    );
+}
+
+/// A shader name as the lists show it: without `textures/` or `models/`.
+fn short_shader(shader: &str) -> &str {
+    shader
+        .strip_prefix("textures/")
+        .or_else(|| shader.strip_prefix("models/"))
+        .unwrap_or(shader)
+}
+
+/// A picture over `rect` (frame pixels), on a dark ground: the thumbnail when held, the
+/// shader's short name when it has none, a faint ground while it loads.
+fn picture(
+    ui: &mut MenuCanvas,
+    frame: &Frame,
+    rect: [f32; 4],
+    picture: Option<Option<sjk_ui::TextureId>>,
+    name: &str,
+) {
+    let [x, y, width, height] = rect;
+    let s = frame.s;
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect: frame.rect(x, y, width, height),
+            radius: 4.0 * s,
+            color: color::alpha(color::SPACE, 0.9),
+        },
+    );
+    match picture {
+        Some(Some(texture)) => push(
+            ui,
+            DrawCommand::TexturedQuad {
+                rect: frame.rect(x + 1.0, y + 1.0, width - 2.0, height - 2.0),
+                texture,
+                color: Color::new(1.0, 1.0, 1.0, 1.0),
+            },
+        ),
+        Some(None) if height >= 40.0 => {
+            let short = name.rsplit('/').next().unwrap_or(name);
+            text(
+                ui,
+                TextFamily::Body,
+                format_args!("{short}"),
+                frame.rect(x + 3.0, y + height * 0.5 - 8.0, width - 6.0, 16.0),
+                11.0 * s,
+                color::QUIET,
+                FontWeight::Regular,
+                TextAlign::Center,
+            );
+        }
+        _ => {}
+    }
+}
+
+/// The shader list as rows: each with its picture, the chosen one gold, the selection's
+/// own quiet, Fill's candidates with their share and the Recent rows marked.
+fn shader_rows(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, y: f32, own: &str) {
+    const SIDE: f32 = 28.0;
+    for slot in 0..SHADER_ROWS {
+        let index = panel.shader_first + slot;
+        let thumbnail = panel.shader_picture(index);
+        let Some(shader) = panel.shown_shader(index) else {
+            break;
+        };
+        let token = SHADER_ROW + slot as u16;
+        let top = y + 8.0 + slot as f32 * LIST_ROW;
+        let flags = [
+            index == panel.shader_row,
+            panel.focus == token,
+            shader.eq_ignore_ascii_case(own),
+        ];
+        list_row_from(
+            ui,
+            frame,
+            top,
+            token,
+            short_shader(shader),
+            flags,
+            SIDE + 6.0,
+        );
+        picture(
+            ui,
+            frame,
+            [COLUMN_X + 14.0, top + (LIST_ROW - SIDE) * 0.5, SIDE, SIDE],
+            thumbnail,
+            shader,
+        );
+        if ui.token_hovered(token) {
+            panel.hover_shader = Some(index);
+        }
+        head_mark(ui, frame, top, index, panel);
+    }
+}
+
+/// The shader list as tiles: pictures only, seven a line, the chosen one framed in gold.
+fn shader_tiles(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, y: f32, own: &str) {
+    const TILE: f32 = 52.0;
+    const TILE_GAP: f32 = 6.0;
+    let s = frame.s;
+    for slot in 0..SHADER_TILES {
+        let index = panel.shader_first + slot;
+        let thumbnail = panel.shader_picture(index);
+        let share = panel.candidate_share(index);
+        let recent = (panel.candidate_rows..panel.candidate_rows + panel.recent_shader_rows)
+            .contains(&index);
+        let Some(shader) = panel.shown_shader(index) else {
+            break;
+        };
+        let (column, line) = (slot % TILE_COLUMNS, slot / TILE_COLUMNS);
+        let x = COLUMN_X + 8.0 + column as f32 * (TILE + TILE_GAP);
+        let top = y + 8.0 + line as f32 * (TILE + TILE_GAP);
+        let token = SHADER_ROW + slot as u16;
+        let chosen = index == panel.shader_row;
+        let own = shader.eq_ignore_ascii_case(own);
+        picture(ui, frame, [x, top, TILE, TILE], thumbnail, shader);
+        let hovered = ui.token_hovered(token);
+        if hovered {
+            panel.hover_shader = Some(index);
+        }
+        let border = if chosen {
+            Some((color::GOLD_BRIGHT, 2.5))
+        } else if hovered || panel.focus == token {
+            Some((color::HOLO, 2.0))
+        } else if own {
+            Some((color::QUIET, 1.5))
+        } else {
+            None
+        };
+        if let Some((colour, width)) = border {
+            push(
+                ui,
+                DrawCommand::Border {
+                    rect: frame.rect(x - 1.0, top - 1.0, TILE + 2.0, TILE + 2.0),
+                    radius: 5.0 * s,
+                    width: width * s,
+                    color: colour,
+                },
+            );
+        }
+        if let Some(share) = share {
+            push(
+                ui,
+                DrawCommand::RoundedRect {
+                    rect: frame.rect(x + 1.0, top + TILE - 15.0, TILE - 2.0, 14.0),
+                    radius: 3.0 * s,
+                    color: color::alpha(color::SPACE, 0.8),
+                },
+            );
+            text(
+                ui,
+                TextFamily::Body,
+                format_args!("{:.0} %", share * 100.0),
+                frame.rect(x, top + TILE - 16.0, TILE, 16.0),
+                11.0 * s,
+                color::GOLD_BRIGHT,
+                FontWeight::Regular,
+                TextAlign::Center,
+            );
+        } else if recent {
+            push(
+                ui,
+                DrawCommand::RoundedRect {
+                    rect: frame.rect(x + TILE - 9.0, top + 3.0, 6.0, 6.0),
+                    radius: 3.0 * s,
+                    color: color::HOLO,
+                },
+            );
+        }
+        ui.hit_region(token, frame.rect(x, top, TILE, TILE));
+    }
+}
+
+/// The large preview left of the column, over the scene's edge: the shader under the
+/// pointer (else the chosen one) at its picture's own shape, its name and size, and the
+/// selection's own shader small under it, so a texture is judged before it is drawn.
+fn preview_card(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, top: f32, own: &str) {
+    const X: f32 = 1164.0;
+    const WIDTH: f32 = 224.0;
+    const BOX: f32 = 200.0;
+    const HEIGHT: f32 = 372.0;
+    let s = frame.s;
+    let hovered = panel.hover_shader;
+    let index = hovered.unwrap_or(panel.shader_row);
+    let Some(shader) = panel.shown_shader(index).map(str::to_owned) else {
+        return;
+    };
+    let rect = frame.rect(X, top, WIDTH, HEIGHT);
+    panel.preview_rect = Some(rect);
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect,
+            radius: 12.0 * s,
+            color: color::alpha(color::SPACE, 0.88),
+        },
+    );
+    push(
+        ui,
+        DrawCommand::Border {
+            rect,
+            radius: 12.0 * s,
+            width: 1.5 * s,
+            color: color::alpha(color::HOLO, 0.35),
+        },
+    );
+    let small = |ui: &mut MenuCanvas, y: f32, value: std::fmt::Arguments<'_>, colour: Color| {
+        text(
+            ui,
+            TextFamily::Body,
+            value,
+            frame.rect(X + 12.0, y, WIDTH - 24.0, 18.0),
+            13.0 * s,
+            colour,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+    };
+    small(
+        ui,
+        top + 8.0,
+        format_args!(
+            "{}",
+            if hovered.is_some() {
+                "Under the pointer"
+            } else {
+                "Chosen"
+            }
+        ),
+        color::QUIET,
+    );
+    let (box_x, box_y) = (X + 12.0, top + 30.0);
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect: frame.rect(box_x, box_y, BOX, BOX),
+            radius: 6.0 * s,
+            color: color::alpha(color::SPACE, 0.95),
+        },
+    );
+    let mut size_line = None;
+    match panel.pictures.preview(&shader) {
+        Some(Some((texture, [width, height]))) => {
+            // The picture's own shape, as large as the box holds.
+            let scale = BOX / width.max(height).max(1) as f32;
+            let (w, h) = (width as f32 * scale, height as f32 * scale);
+            push(
+                ui,
+                DrawCommand::TexturedQuad {
+                    rect: frame.rect(box_x + (BOX - w) * 0.5, box_y + (BOX - h) * 0.5, w, h),
+                    texture,
+                    color: Color::new(1.0, 1.0, 1.0, 1.0),
+                },
+            );
+            size_line = Some((width, height));
+        }
+        Some(None) => small(
+            ui,
+            box_y + BOX * 0.5 - 9.0,
+            format_args!("No picture: drawn by its script only"),
+            color::MUTED,
+        ),
+        None => small(
+            ui,
+            box_y + BOX * 0.5 - 9.0,
+            format_args!("Loading the picture..."),
+            color::QUIET,
+        ),
+    }
+    let mut y = box_y + BOX + 8.0;
+    for part in wrap(short_shader(&shader), 28).take(2) {
+        small(ui, y, format_args!("{part}"), color::TEXT);
+        y += 18.0;
+    }
+    match size_line {
+        Some((width, height)) => small(
+            ui,
+            y,
+            format_args!("Picture {width} x {height}"),
+            color::QUIET,
+        ),
+        None => small(ui, y, format_args!(" "), color::QUIET),
+    }
+    let y = top + HEIGHT - 66.0;
+    small(ui, y, format_args!("Drawn there now"), color::QUIET);
+    let thumbnail = panel.pictures.thumbnail(own);
+    picture(ui, frame, [X + 12.0, y + 20.0, 40.0, 40.0], thumbnail, own);
+    text(
+        ui,
+        TextFamily::Body,
+        format_args!("{}", wrap(short_shader(own), 20).next().unwrap_or("")),
+        frame.rect(X + 60.0, y + 30.0, WIDTH - 72.0, 20.0),
+        13.0 * s,
+        color::MUTED,
+        FontWeight::Regular,
+        TextAlign::Start,
+    );
+}
+
+/// What marks a shader row at its right: a Fill candidate's share (gold), else "Recent";
+/// a line under the last of each group.
+fn head_mark(ui: &mut MenuCanvas, frame: &Frame, top: f32, index: usize, panel: &Panel) {
+    let s = frame.s;
+    let rect = frame.rect(
+        COLUMN_X + COLUMN_WIDTH - 116.0,
+        top + (LIST_ROW - 20.0) * 0.5,
+        100.0,
+        20.0,
+    );
+    if let Some(share) = panel.candidate_share(index) {
+        text(
+            ui,
+            TextFamily::Body,
+            format_args!("{:.0} % nearby", share * 100.0),
+            rect,
+            13.0 * s,
+            color::GOLD_BRIGHT,
+            FontWeight::Regular,
+            TextAlign::End,
+        );
+        if index + 1 == panel.candidate_rows {
+            under_line(ui, frame, top);
+        }
+        return;
+    }
+    if let Some(index) = index.checked_sub(panel.candidate_rows) {
+        recent_mark(ui, frame, top, index, panel.recent_shader_rows);
+    }
+}
+
+/// The line under the last row of a group at the list's head.
+fn under_line(ui: &mut MenuCanvas, frame: &Frame, top: f32) {
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect: frame.rect(
+                COLUMN_X + 18.0,
+                top + LIST_ROW - 1.0,
+                COLUMN_WIDTH - 36.0,
+                1.0,
+            ),
+            radius: 0.5 * frame.s,
+            color: color::alpha(color::HOLO, 0.35),
+        },
     );
 }
 
@@ -697,17 +1071,32 @@ fn recent_mark(ui: &mut MenuCanvas, frame: &Frame, top: f32, index: usize, recen
 /// The Place page: the game data's models, a search narrowing them, placing the chosen
 /// one, and the placed model's controls.
 fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
+    if panel.things {
+        things(ui, frame, panel);
+        return;
+    }
     let mut y = PAGE_Y;
     let searching = panel.focus == SEARCH;
+    let switch = 92.0;
     kit::search(
         ui,
         frame,
-        [COLUMN_X, y, COLUMN_WIDTH, FIELD],
+        [COLUMN_X, y, COLUMN_WIDTH - switch - GAP, FIELD],
         &panel.search,
         searching,
         "Search the models",
         (!panel.search.is_empty()).then_some(panel.shown.len()),
         SEARCH,
+    );
+    kit::button(
+        ui,
+        frame,
+        [COLUMN_X + COLUMN_WIDTH - switch, y + 2.0, switch, BUTTON],
+        "Things",
+        false,
+        true,
+        panel.focus == PLACE_THINGS,
+        PLACE_THINGS,
     );
     y += FIELD + 12.0;
     let height = LIST_ROW * MODEL_ROWS as f32 + 16.0;
@@ -738,32 +1127,16 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         recent_mark(ui, frame, top, index, panel.recent_model_rows);
     }
     y += height + 12.0;
-    // SJK's creator also places mystery boxes here (`crate::mystery_box`), with the scope
-    // below; the page has no room for a section of their own.
-    if crate::player_identity::is_creator() {
-        buttons(
-            ui,
-            frame,
-            panel,
-            y,
-            &[
-                (PLACE, "Place model", panel.chosen_model().is_some()),
-                (BOX_PLACE, "Mystery box", true),
-                (BOX_REMOVE, "Remove box", true),
-            ],
-        );
-    } else {
-        kit::button(
-            ui,
-            frame,
-            [COLUMN_X, y, COLUMN_WIDTH, BUTTON],
-            "Place where you aimed",
-            false,
-            panel.chosen_model().is_some(),
-            panel.focus == PLACE,
-            PLACE,
-        );
-    }
+    kit::button(
+        ui,
+        frame,
+        [COLUMN_X, y, COLUMN_WIDTH, BUTTON],
+        "Place where you aimed",
+        false,
+        panel.chosen_model().is_some(),
+        panel.focus == PLACE,
+        PLACE,
+    );
     y += BUTTON + 30.0;
     let set = panel.facts.models > 1;
     kit::heading(
@@ -856,6 +1229,132 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     );
 }
 
+/// Place's things: the boomboxes, mystery boxes and toys standing on the map, as the
+/// browser editor's World page; stand one where the next click meets the floor (boxes and
+/// toys SJK's creator's, on a game server), the toy's kind and escort, remove the chosen
+/// one. No move for a box or a toy: the hub places and removes them only.
+fn things(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
+    use super::web::http::Thing;
+    let mut y = PAGE_Y;
+    let switch = 92.0;
+    kit::heading(
+        ui,
+        frame,
+        COLUMN_X,
+        y + 8.0,
+        COLUMN_WIDTH - switch - GAP,
+        "On this map",
+    );
+    kit::button(
+        ui,
+        frame,
+        [COLUMN_X + COLUMN_WIDTH - switch, y, switch, BUTTON],
+        "Models",
+        false,
+        true,
+        panel.focus == PLACE_MODELS,
+        PLACE_MODELS,
+    );
+    y += BUTTON + 8.0;
+    let height = LIST_ROW * THING_ROWS as f32 + 16.0;
+    list_ground(ui, frame, [COLUMN_X, y, COLUMN_WIDTH, height]);
+    panel.thing_list = Some(frame.rect(COLUMN_X, y, COLUMN_WIDTH, height));
+    if panel.facts.things.is_empty() {
+        line(
+            ui,
+            frame,
+            y + 16.0,
+            "No boombox, box or toy stands here",
+            color::MUTED,
+        );
+    }
+    for slot in 0..THING_ROWS {
+        let index = panel.thing_first + slot;
+        let Some(row) = panel.facts.things.get(index) else {
+            break;
+        };
+        let token = THING_ROW + slot as u16;
+        list_row(
+            ui,
+            frame,
+            y + 8.0 + slot as f32 * LIST_ROW,
+            token,
+            &row.label,
+            index == panel.thing_row,
+            panel.focus == token,
+            row.thing == Thing::Boombox && !row.mine,
+        );
+    }
+    y += height + 8.0;
+    let facts = &panel.facts;
+    let hub = facts.creator && facts.on_server;
+    let placing = panel.placing_thing;
+    marked_buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (
+                THING_BOOMBOX,
+                "Your boombox",
+                true,
+                placing == Some(Thing::Boombox),
+            ),
+            (
+                THING_BOX,
+                "Mystery box",
+                hub,
+                placing == Some(Thing::MysteryBox),
+            ),
+            (
+                THING_TOY,
+                "Toy",
+                hub && !facts.toy_kinds.is_empty(),
+                placing == Some(Thing::Toy),
+            ),
+        ],
+    );
+    y += BUTTON + GAP;
+    let kind = panel.toy_kind().unwrap_or("none").to_owned();
+    let removable = panel.chosen_thing().is_some_and(|row| match row.thing {
+        Thing::Boombox => row.mine,
+        _ => panel.facts.creator,
+    });
+    marked_buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (THING_KIND, &format!("Toy: {kind}"), hub, false),
+            (
+                THING_ESCORT,
+                if panel.escort {
+                    "Escort: on"
+                } else {
+                    "Escort: off"
+                },
+                hub,
+                panel.escort,
+            ),
+            (THING_REMOVE, "Remove", removable, false),
+        ],
+    );
+    y += BUTTON + 16.0;
+    let note = if !panel.facts.creator {
+        "A button, then a click on the floor stands it there. Mystery boxes and toys are SJK's creator's."
+    } else if !panel.facts.on_server {
+        "A button, then a click on the floor stands it there. Boxes and toys need a game server."
+    } else {
+        "A button, then a click on the floor stands it there. The hub has no move for a box or a toy: remove it and place it again."
+    };
+    for part in wrap(note, LINE_CHARS).take(4) {
+        line(ui, frame, y, part, color::MUTED);
+        y += 24.0;
+    }
+}
+
 /// The Edits page: the map's edits, newest first, each with its scope; delete the chosen
 /// one, or undo the newest.
 fn edits(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
@@ -899,7 +1398,8 @@ fn edits(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         ],
     );
     y += BUTTON + GAP;
-    // The Recent rows of the lists, shared with the browser editor.
+    // The Recent rows of the lists, shared with the browser editor; then the invisible
+    // brushes' view (B steps through it).
     buttons(
         ui,
         frame,
@@ -918,6 +1418,29 @@ fn edits(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             (FORGET, "Forget recent", panel.remember),
         ],
     );
+    y += BUTTON + 16.0;
+    kit::heading(
+        ui,
+        frame,
+        COLUMN_X,
+        y,
+        COLUMN_WIDTH,
+        "Invisible brushes (B)",
+    );
+    y += 18.0;
+    let row: Vec<(u16, &str, bool, bool)> = BrushPreset::ALL
+        .iter()
+        .enumerate()
+        .map(|(index, preset)| {
+            (
+                BRUSHES + index as u16,
+                preset.label(),
+                true,
+                panel.facts.brushes == Some(*preset),
+            )
+        })
+        .collect();
+    marked_buttons(ui, frame, panel, y, &row);
 }
 
 /// A row of buttons as [`buttons`], each also marked (the choice in force) or not:
@@ -1049,6 +1572,205 @@ fn weather(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
         line(ui, frame, y, part, color::MUTED);
         y += 24.0;
     }
+}
+
+/// The Lights page: the added lights (add one, its colour, reach and strength, delete
+/// it) and the map's lamps nearest first (off or on, back as the map has it); the chosen
+/// one ringed in gold over the scene, where the gizmo moves it.
+fn lights(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
+    use super::panel_lights::{LightChoice, SWATCHES};
+    let s = frame.s;
+    let mut y = PAGE_Y;
+    let facts = &panel.facts;
+    let drawn = facts.lights.len().min(super::lights::BUDGET);
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Added lights");
+    y += 18.0;
+    line(
+        ui,
+        frame,
+        y,
+        &format!(
+            "Every SJK player sees them; {drawn} of {} drawn (8 nearest)",
+            facts.lights.len()
+        ),
+        color::MUTED,
+    );
+    y += 32.0;
+    let light_chosen = panel.light_choice == LightChoice::Light && !facts.lights.is_empty();
+    let lamp_chosen = panel.light_choice == LightChoice::Lamp && !facts.lamps.is_empty();
+    marked_buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (
+                LIGHT_ADD,
+                if panel.adding_light {
+                    "Click the scene"
+                } else {
+                    "Add: click"
+                },
+                true,
+                panel.adding_light,
+            ),
+            (LIGHT_AT_VIEW, "At view centre", true, false),
+            (LIGHT_DELETE, "Delete", light_chosen || lamp_chosen, false),
+        ],
+    );
+    y += BUTTON + 8.0;
+    let height = LIST_ROW * LIGHT_ROWS as f32 + 16.0;
+    list_ground(ui, frame, [COLUMN_X, y, COLUMN_WIDTH, height]);
+    panel.light_list = Some(frame.rect(COLUMN_X, y, COLUMN_WIDTH, height));
+    if panel.facts.lights.is_empty() {
+        line(
+            ui,
+            frame,
+            y + 16.0,
+            "No light added: Add, then click a wall",
+            color::MUTED,
+        );
+    }
+    for slot in 0..LIGHT_ROWS {
+        let index = panel.light_first + slot;
+        let Some(row) = panel.facts.lights.get(index) else {
+            break;
+        };
+        let token = LIGHT_ROW + slot as u16;
+        let top = y + 8.0 + slot as f32 * LIST_ROW;
+        let chosen = index == panel.light_row && panel.light_choice == LightChoice::Light;
+        list_row_from(
+            ui,
+            frame,
+            top,
+            token,
+            &row.label(),
+            [chosen, panel.focus == token, false],
+            22.0,
+        );
+        swatch_dot(ui, frame, top, row.color);
+    }
+    y += height + 8.0;
+    // The colours, then the reach and the strength, of the chosen light.
+    let count = SWATCHES.len() as f32;
+    let width = (COLUMN_WIDTH - 6.0 * (count - 1.0)) / count;
+    let current = panel.facts.lights.get(panel.light_row).map(|row| row.color);
+    for (index, (_, rgb)) in SWATCHES.iter().enumerate() {
+        let token = LIGHT_SWATCH + index as u16;
+        let x = COLUMN_X + index as f32 * (width + 6.0);
+        let rect = frame.rect(x, y, width, 30.0);
+        push(
+            ui,
+            DrawCommand::RoundedRect {
+                rect,
+                radius: 6.0 * s,
+                color: Color::new(
+                    rgb[0],
+                    rgb[1],
+                    rgb[2],
+                    if light_chosen { 0.95 } else { 0.35 },
+                ),
+            },
+        );
+        let lit = current == Some(*rgb) && light_chosen;
+        if lit || panel.focus == token || ui.token_hovered(token) {
+            push(
+                ui,
+                DrawCommand::Border {
+                    rect,
+                    radius: 6.0 * s,
+                    width: 2.0 * s,
+                    color: if lit { color::GOLD_BRIGHT } else { color::TEXT },
+                },
+            );
+        }
+        ui.hit_region(token, rect);
+    }
+    y += 38.0;
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (LIGHT_SMALLER, "Smaller", light_chosen),
+            (LIGHT_BIGGER, "Bigger", light_chosen),
+            (LIGHT_DIMMER, "Dimmer", light_chosen),
+            (LIGHT_BRIGHTER, "Brighter", light_chosen),
+        ],
+    );
+    y += BUTTON + 26.0;
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Map lamps");
+    y += 18.0;
+    line(
+        ui,
+        frame,
+        y,
+        if panel.facts.realtime {
+            "Nearest first; an edit applies on the map's next load"
+        } else {
+            "Found on the Experimental preset only"
+        },
+        color::MUTED,
+    );
+    y += 28.0;
+    let height = LIST_ROW * LIGHT_ROWS as f32 + 16.0;
+    list_ground(ui, frame, [COLUMN_X, y, COLUMN_WIDTH, height]);
+    panel.lamp_list = Some(frame.rect(COLUMN_X, y, COLUMN_WIDTH, height));
+    if panel.facts.lamps.is_empty() {
+        line(ui, frame, y + 16.0, "No lamp in this world", color::MUTED);
+    }
+    for slot in 0..LIGHT_ROWS {
+        let index = panel.lamp_first + slot;
+        let Some(row) = panel.facts.lamps.get(index) else {
+            break;
+        };
+        let token = LAMP_ROW + slot as u16;
+        let top = y + 8.0 + slot as f32 * LIST_ROW;
+        let chosen = index == panel.lamp_row && panel.light_choice == LightChoice::Lamp;
+        list_row_from(
+            ui,
+            frame,
+            top,
+            token,
+            &row.label(),
+            [chosen, panel.focus == token, row.off],
+            22.0,
+        );
+        swatch_dot(ui, frame, top, if row.off { [0.45; 3] } else { row.color });
+    }
+    y += height + 8.0;
+    let off = panel
+        .facts
+        .lamps
+        .get(panel.lamp_row)
+        .is_some_and(|row| row.off);
+    buttons(
+        ui,
+        frame,
+        panel,
+        y,
+        &[
+            (
+                LAMP_TOGGLE,
+                if off { "Turn on" } else { "Turn off" },
+                lamp_chosen,
+            ),
+            (LAMP_RESET, "As the map has it", lamp_chosen),
+        ],
+    );
+}
+
+/// A small dot of `rgb` at the left of a list row.
+fn swatch_dot(ui: &mut MenuCanvas, frame: &Frame, top: f32, rgb: [f32; 3]) {
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect: frame.rect(COLUMN_X + 18.0, top + LIST_ROW * 0.5 - 7.0, 14.0, 14.0),
+            radius: 7.0 * frame.s,
+            color: Color::new(rgb[0], rgb[1], rgb[2], 1.0),
+        },
+    );
 }
 
 /// Where new edits apply, the last answer, then Publish and Editor off.
@@ -1338,7 +2060,215 @@ mod tests {
             ("models", models_panel(Tab::Selected, 3, 3)),
             ("mixed", models_panel(Tab::Selected, 2, 5)),
             ("place set", models_panel(Tab::Place, 3, 3)),
+            ("tiles", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Surface { soup: false }));
+                panel.toggle_tiles();
+                panel
+            }),
+            ("fill", fill_panel()),
+            ("lights", lights_panel()),
+            ("things", things_panel()),
         ]
+    }
+
+    /// A hidden face with Fill's candidates at the head of its list.
+    fn fill_panel() -> Panel {
+        let mut panel = panel(Tab::Selected, Some(Picked::Face));
+        panel.facts.fill_candidates = vec![
+            ("textures/yavin/wall".to_owned(), 0.62),
+            ("textures/yavin/stone".to_owned(), 0.2),
+            ("textures/unknown/gone".to_owned(), 0.1),
+        ];
+        panel.facts.fill = panel.facts.fill_candidates.first().cloned();
+        panel.refilter_shaders();
+        panel
+    }
+
+    /// The Lights page with three lights and five lamps.
+    fn lights_panel() -> Panel {
+        use super::super::panel_lights::{LampRow, LightRow};
+        let mut panel = panel(Tab::Lights, None);
+        panel.facts.lights = (0..3)
+            .map(|id| LightRow {
+                id: 20 + id,
+                origin: [id as f32 * 64.0, 0.0, 32.0],
+                color: [1.0, 0.85, 0.65],
+                radius: 320.0,
+                intensity: 1.0,
+            })
+            .collect();
+        panel.facts.lamps = (0..5)
+            .map(|n| LampRow {
+                fixture: format!("surface:{}", 1000 + n),
+                name: "textures/kejim/light_blue".to_owned(),
+                position: [0.0, n as f32 * 32.0, 128.0],
+                color: [0.5, 0.7, 1.0],
+                off: n == 1,
+                offset: [0.0; 3],
+                pending: n == 1,
+            })
+            .collect();
+        panel.facts.realtime = true;
+        panel
+    }
+
+    /// Place's things: a boombox, a mystery box and a toy, as the creator on a server.
+    fn things_panel() -> Panel {
+        use super::super::web::http::Thing;
+        use super::super::web::things::ThingRow;
+        let mut panel = panel(Tab::Place, None);
+        panel.things = true;
+        let row = |thing, id, label: &str, mine| ThingRow {
+            thing,
+            id,
+            label: label.to_owned(),
+            mine,
+            origin: glam::Vec3::ZERO,
+            parts: Vec::new(),
+        };
+        panel.facts.things = vec![
+            row(Thing::Boombox, 0, "Your boombox", true),
+            row(Thing::MysteryBox, 12, "Mystery box 12", false),
+            row(Thing::Toy, 3, "Toy 3: cat", false),
+        ];
+        panel.facts.toy_kinds = vec!["cat".to_owned(), "drone".to_owned()];
+        panel.facts.creator = true;
+        panel.facts.on_server = true;
+        panel
+    }
+
+    /// The shader list as tiles shows more of them, Fill's candidates lead a face's list
+    /// with their shares, the Lights page offers its lists and buttons, and Place's things
+    /// their placing.
+    #[test]
+    fn the_new_pages_offer_their_controls() {
+        let build_state = |state: &str| {
+            let (_, mut panel) = states()
+                .into_iter()
+                .find(|(name, _)| *name == state)
+                .unwrap();
+            let mut canvas = MenuCanvas::new();
+            build(&mut panel, &mut canvas, [1_920.0, 1_080.0]);
+            (panel, canvas)
+        };
+        let (panel, canvas) = build_state("tiles");
+        let tokens = canvas.widget_tokens().to_vec();
+        assert!(tokens.contains(&TILES) && tokens.contains(&(SHADER_ROW + 5)));
+        assert!(panel.preview_rect.is_some(), "the large preview card");
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(
+            runs.contains(&"Rows") && runs.contains(&"Loading the picture..."),
+            "{runs:?}"
+        );
+
+        let (panel, canvas) = build_state("fill");
+        assert_eq!(
+            panel.candidate_rows, 2,
+            "a candidate the list lacks is left out"
+        );
+        assert_eq!(panel.shown_shader(0), Some("textures/yavin/wall"));
+        assert_eq!(panel.candidate_share(1), Some(0.2));
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(runs.contains(&"62 % nearby"), "{runs:?}");
+
+        let (_, canvas) = build_state("lights");
+        let tokens = canvas.widget_tokens().to_vec();
+        for token in [
+            TAB_LIGHTS,
+            LIGHT_ADD,
+            LIGHT_AT_VIEW,
+            LIGHT_DELETE,
+            LIGHT_SWATCH,
+            LIGHT_SWATCH + 7,
+            LIGHT_BRIGHTER,
+            LIGHT_ROW + 2,
+            LAMP_ROW + 2,
+            LAMP_TOGGLE,
+            LAMP_RESET,
+        ] {
+            assert!(tokens.contains(&token), "{token}");
+        }
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(runs.contains(&"20: #ffd9a6 r320 x1.00"), "{runs:?}");
+        assert!(
+            runs.contains(&"light_blue (surface:1001) off (on reload)"),
+            "{runs:?}"
+        );
+
+        let (_, canvas) = build_state("things");
+        let tokens = canvas.widget_tokens().to_vec();
+        for token in [
+            PLACE_MODELS,
+            THING_BOOMBOX,
+            THING_BOX,
+            THING_TOY,
+            THING_KIND,
+            THING_REMOVE,
+            THING_ROW + 2,
+        ] {
+            assert!(tokens.contains(&token), "{token}");
+        }
+        let runs: Vec<&str> = canvas.text_runs().collect();
+        assert!(
+            runs.contains(&"Toy: cat") && runs.contains(&"Mystery box 12"),
+            "{runs:?}"
+        );
+    }
+
+    /// In tiles, Up and Down go a line and Left and Right a tile; a list's wheel goes a
+    /// line of tiles.
+    #[test]
+    fn tiles_step_by_lines_and_tiles() {
+        let mut panel = panel(Tab::Selected, Some(Picked::Surface { soup: false }));
+        let many: Vec<String> = (0..40).map(|n| format!("textures/t/s{n:02}")).collect();
+        let names: Vec<&str> = many.iter().map(String::as_str).collect();
+        panel.set_shaders(&names);
+        panel.remap.clear();
+        panel.refilter_shaders();
+        panel.toggle_tiles();
+        panel.focus = SHADER_ROW;
+        assert!(panel.move_line(true));
+        assert_eq!(panel.shader_row, TILE_COLUMNS);
+        assert!(panel.move_in_shaders(1, false));
+        assert_eq!(panel.shader_row, TILE_COLUMNS + 1);
+        // Down past the third line scrolls a whole line.
+        for _ in 0..3 {
+            assert!(panel.move_line(true));
+        }
+        assert_eq!(
+            panel.shader_first,
+            2 * TILE_COLUMNS,
+            "line 4 shown last of three"
+        );
+        assert_eq!(
+            panel.focus,
+            SHADER_ROW + (panel.shader_row - panel.shader_first) as u16
+        );
+        panel.toggle_tiles();
+        assert_eq!(panel.shader_slots(), (SHADER_ROWS, 1));
+        assert!(panel.shader_row >= panel.shader_first);
+        assert!(panel.shader_row < panel.shader_first + SHADER_ROWS);
+    }
+
+    /// The B key and the Edits row read and set the brush view's presets.
+    #[test]
+    fn brush_presets_follow_the_cvars() {
+        for preset in BrushPreset::ALL {
+            let (mode, types) = preset.cvars();
+            assert_eq!(BrushPreset::of(mode.parse().unwrap(), types), Some(preset));
+        }
+        assert_eq!(
+            BrushPreset::of(2, "Solid, CAULK nodraw"),
+            Some(BrushPreset::Caulk)
+        );
+        assert_eq!(BrushPreset::of(1, "clip"), None, "a hand-picked set");
+        assert_eq!(BrushPreset::next(None), BrushPreset::Play);
+        assert_eq!(BrushPreset::next(Some(BrushPreset::All)), BrushPreset::Off);
+        let mut panel = Panel::default();
+        assert_eq!(
+            panel.activate(BRUSHES + 2),
+            Some(Action::Brushes(Some(BrushPreset::Caulk)))
+        );
     }
 
     /// `models` placed models selected out of `count`, the newest a placed one.
@@ -1523,7 +2453,7 @@ mod tests {
         }
         // Into the list, down its 14 edits (scrolling), then the buttons and the foot.
         assert_eq!(panel.edit_row, 13);
-        assert_eq!(panel.edit_first, 3);
+        assert_eq!(panel.edit_first, 4);
         assert!(visited.contains(&DELETE) && visited.contains(&PUBLISH));
         assert_eq!(visited.last(), Some(&EDITOR_OFF));
     }

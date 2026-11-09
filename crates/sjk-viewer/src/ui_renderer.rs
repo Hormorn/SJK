@@ -11,6 +11,7 @@ mod emblem;
 mod gif_textures;
 mod icons;
 mod levelshot;
+pub(crate) mod map_edit_pictures;
 mod medal_art;
 mod tick_badge;
 mod trust_badge;
@@ -27,6 +28,7 @@ pub(crate) use icons::{
     ROCKET_LOCK_ICON_FIRST, SCOREBOARD_ICON_CELLS, VEHICLE_CROSSHAIR_ICON,
 };
 pub(crate) use levelshot::LEVELSHOT_TEXTURE;
+use map_edit_pictures::MapEditPictures;
 use medal_art::MedalTextures;
 
 /// `TexturedQuad` texture naming the classic profile's model preview
@@ -321,6 +323,8 @@ pub(crate) fn texture_switches(lists: &[&DrawList]) -> usize {
             }
             None if texture == PREVIEW_TEXTURE => Source::Preview,
             None if texture == BLADE_PICTURES_TEXTURE => Source::BladePictures,
+            None if map_edit_pictures::cell_of(texture).is_some() => Source::MapEditCells,
+            None if texture == map_edit_pictures::PREVIEW => Source::MapEditPreview,
             None if crate::chat_gifs::slot_of(texture).is_some() => {
                 Source::Gif(crate::chat_gifs::slot_of(texture).unwrap_or_default() as u8)
             }
@@ -378,6 +382,8 @@ pub(crate) struct ShapeRenderer {
     /// The model preview's display texture, once one exists.
     preview: Option<wgpu::BindGroup>,
     blade_pictures: Option<wgpu::BindGroup>,
+    /// The map editor's shader pictures, while its panel shows them.
+    map_edit: MapEditPictures,
     preview_sampler: wgpu::Sampler,
     /// Whether a frame past the vertex or run storage has been logged: shapes
     /// past it are dropped, so the log names the cause of a missing picture.
@@ -587,6 +593,7 @@ impl ShapeRenderer {
             news,
             preview: None,
             blade_pictures: None,
+            map_edit: MapEditPictures::default(),
             preview_sampler: device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("SJK model preview sampler"),
                 mag_filter: wgpu::FilterMode::Linear,
@@ -844,7 +851,11 @@ impl ShapeRenderer {
                         | Source::HudPreview
                         | Source::News(_)
                         | Source::BladePictures
+                        | Source::MapEditPreview
                         | Source::Preview => ([0.0, 0.0], [1.0, 1.0]),
+                        Source::MapEditCells => map_edit_pictures::uv_range(
+                            map_edit_pictures::cell_of(texture).unwrap_or_default(),
+                        ),
                         Source::Atlas => icons::uv_range(animated(texture, now)),
                     };
                     icons::push_quad(
@@ -869,6 +880,9 @@ impl ShapeRenderer {
                     };
                     let uv = match source {
                         Source::Atlas => icons::uv_range(animated(texture, now)),
+                        Source::MapEditCells => map_edit_pictures::uv_range(
+                            map_edit_pictures::cell_of(texture).unwrap_or_default(),
+                        ),
                         _ => ([0.0, 0.0], [1.0, 1.0]),
                     };
                     // Like explicit coordinates, a turned quad is not clipped.
@@ -903,7 +917,19 @@ impl ShapeRenderer {
                         | Source::Levelshot
                         | Source::HudPreview
                         | Source::News(_)
+                        | Source::MapEditPreview
                         | Source::Preview => uv,
+                        Source::MapEditCells => {
+                            let (low, high) = map_edit_pictures::uv_range(
+                                map_edit_pictures::cell_of(texture).unwrap_or_default(),
+                            );
+                            uv.map(|[s, t]| {
+                                [
+                                    low[0] + s * (high[0] - low[0]),
+                                    low[1] + t * (high[1] - low[1]),
+                                ]
+                            })
+                        }
                         // A blade picture is clipped as other shapes are (it scrolls in
                         // the Collection's list): its coordinates are an upright
                         // rectangle, cut with it.
@@ -1104,6 +1130,14 @@ impl ShapeRenderer {
                 Some(_) => Source::BladePictures,
                 None => return None,
             },
+            None if map_edit_pictures::cell_of(texture).is_some() => {
+                self.map_edit.grid_group()?;
+                Source::MapEditCells
+            }
+            None if texture == map_edit_pictures::PREVIEW => {
+                self.map_edit.preview_group()?;
+                Source::MapEditPreview
+            }
             None if gif.is_some() => {
                 let slot = gif.unwrap_or_default();
                 self.gifs.group(slot)?;
@@ -1175,6 +1209,8 @@ impl ShapeRenderer {
                     .map(LevelshotTexture::bind_group),
                 Source::Preview => self.preview.as_ref(),
                 Source::BladePictures => self.blade_pictures.as_ref(),
+                Source::MapEditCells => self.map_edit.grid_group(),
+                Source::MapEditPreview => self.map_edit.preview_group(),
                 Source::Atlas => None,
             };
             pass.set_bind_group(0, group.unwrap_or(self.icons.bind_group()), &[]);
@@ -1647,6 +1683,36 @@ impl ShapeRenderer {
         if let Some(texture) = self.news.get_mut(slot) {
             texture.upload(device, queue, &self.texture_layout, image);
         }
+    }
+
+    /// Put the map editor's thumbnail `cell` ([`map_edit_pictures::cell_texture`]).
+    pub(crate) fn upload_map_edit_cell(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        cell: u32,
+        rgba: &[u8],
+    ) {
+        self.map_edit
+            .upload_cell(device, queue, &self.texture_layout, cell, rgba);
+    }
+
+    /// Show `image` as the map editor's large preview ([`map_edit_pictures::PREVIEW`]).
+    pub(crate) fn upload_map_edit_preview(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        image: &crate::menu::levelshot::LevelshotImage,
+    ) {
+        self.map_edit
+            .upload_preview(device, queue, &self.texture_layout, image);
+    }
+
+    /// Drop the map editor's pictures (its panel closed); whether any were held.
+    pub(crate) fn release_map_edit_pictures(&mut self) -> bool {
+        let held = self.map_edit.held();
+        self.map_edit.release();
+        held
     }
 
     /// Replace the HUD picker's preview sampled by `TexturedQuad` commands

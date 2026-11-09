@@ -18,15 +18,31 @@ use serde_json::{Value, json};
 /// How far along the page's ray a thing may be placed.
 const REACH: f32 = 8192.0;
 
-/// One model of a thing as the game draws it at rest.
-fn part(model: &str, origin: Vec3, angles: [f32; 3], scale: f32) -> Value {
+/// One model of a thing as the game draws it at rest: its model, origin, angles, scale.
+pub(crate) type Part = (String, Vec3, [f32; 3], f32);
+
+/// A thing standing on the map, as the page's World list and the panel's Things list
+/// name it.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ThingRow {
+    pub(crate) thing: Thing,
+    /// The hub's id of a box or a toy (0 for a boombox).
+    pub(crate) id: i64,
+    pub(crate) label: String,
+    /// The player's own boombox.
+    pub(crate) mine: bool,
+    pub(crate) origin: Vec3,
+    pub(crate) parts: Vec<Part>,
+}
+
+fn part(part: &Part) -> Value {
+    let (model, origin, angles, scale) = part;
     json!({ "model": model, "origin": origin.to_array(), "angles": angles, "scale": scale })
 }
 
 impl GpuState {
-    /// The things on the map for `api/edits`, each with its parts to draw, and what
-    /// placing them needs (a game server; the hub's toy kinds).
-    pub(super) fn map_edit_web_things(&self) -> Value {
+    /// The things on the map: the boomboxes, the mystery boxes and the Toy Master's toys.
+    pub(crate) fn map_edit_thing_rows(&self) -> Vec<ThingRow> {
         let mut things = Vec::new();
         for (slot, rest, yaw) in self.boombox.standing() {
             let name = match slot {
@@ -42,32 +58,42 @@ impl GpuState {
                         |name| format!("Boombox of {name}"),
                     ),
             };
-            things.push(json!({
-                "thing": "boombox",
-                "id": 0,
-                "label": name,
-                "mine": slot.is_none(),
-                "origin": rest.to_array(),
-                "parts": [part(crate::boombox::MODEL, rest, [0.0, yaw, 0.0], crate::boombox::SCALE)],
-            }));
+            things.push(ThingRow {
+                thing: Thing::Boombox,
+                id: 0,
+                label: name,
+                mine: slot.is_none(),
+                origin: rest,
+                parts: vec![(
+                    crate::boombox::MODEL.to_owned(),
+                    rest,
+                    [0.0, yaw, 0.0],
+                    crate::boombox::SCALE,
+                )],
+            });
         }
         for (id, origin, yaw) in self.mystery_boxes.standing() {
-            things.push(json!({
-                "thing": "mystery_box",
-                "id": id,
-                "label": format!("Mystery box {id}"),
-                "mine": false,
-                "origin": origin.to_array(),
-                "parts": [
-                    part(crate::mystery_box::MODEL, origin, [0.0, yaw, 0.0], 1.0),
-                    part(
-                        crate::mystery_box::LID_MODEL,
+            things.push(ThingRow {
+                thing: Thing::MysteryBox,
+                id,
+                label: format!("Mystery box {id}"),
+                mine: false,
+                origin,
+                parts: vec![
+                    (
+                        crate::mystery_box::MODEL.to_owned(),
+                        origin,
+                        [0.0, yaw, 0.0],
+                        1.0,
+                    ),
+                    (
+                        crate::mystery_box::LID_MODEL.to_owned(),
                         crate::mystery_box::lid_origin(origin, yaw),
                         [0.0, yaw, 0.0],
                         1.0,
                     ),
                 ],
-            }));
+            });
         }
         for toy in self.toy_master.hidden() {
             let escorted = if toy.escorted {
@@ -75,15 +101,44 @@ impl GpuState {
             } else {
                 ""
             };
-            things.push(json!({
-                "thing": "toy",
-                "id": toy.id,
-                "label": format!("Toy {}: {}{escorted}", toy.id, toy.kind.unwrap_or("?")),
-                "mine": false,
-                "origin": toy.origin.to_array(),
-                "parts": [part(toy.model, toy.origin, [0.0, toy.yaw, 0.0], toy.scale)],
-            }));
+            things.push(ThingRow {
+                thing: Thing::Toy,
+                id: toy.id,
+                label: format!("Toy {}: {}{escorted}", toy.id, toy.kind.unwrap_or("?")),
+                mine: false,
+                origin: toy.origin,
+                parts: vec![(
+                    toy.model.to_owned(),
+                    toy.origin,
+                    [0.0, toy.yaw, 0.0],
+                    toy.scale,
+                )],
+            });
         }
+        things
+    }
+
+    /// The things on the map for `api/edits`, each with its parts to draw, and what
+    /// placing them needs (a game server; the hub's toy kinds).
+    pub(super) fn map_edit_web_things(&self) -> Value {
+        let things: Vec<Value> = self
+            .map_edit_thing_rows()
+            .iter()
+            .map(|row| {
+                json!({
+                    "thing": match row.thing {
+                        Thing::Boombox => "boombox",
+                        Thing::MysteryBox => "mystery_box",
+                        Thing::Toy => "toy",
+                    },
+                    "id": row.id,
+                    "label": row.label,
+                    "mine": row.mine,
+                    "origin": row.origin.to_array(),
+                    "parts": row.parts.iter().map(part).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
         let on_server = self
             .live_session
             .as_ref()
@@ -97,7 +152,7 @@ impl GpuState {
 
     /// Stand `thing` where the page's ray from `eye` along `dir` meets the map, facing
     /// back along `forward` as the console commands face the player.
-    pub(super) fn map_edit_web_place_thing(
+    pub(crate) fn map_edit_web_place_thing(
         &mut self,
         thing: Thing,
         ray: [[f32; 3]; 3],
@@ -138,7 +193,7 @@ impl GpuState {
 
     /// Take `thing` `id` away: the hub's through their own commands, the boombox back
     /// on the shoulder.
-    pub(super) fn map_edit_web_remove_thing(
+    pub(crate) fn map_edit_web_remove_thing(
         &mut self,
         thing: Thing,
         id: i64,

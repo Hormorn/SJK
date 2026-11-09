@@ -24,6 +24,7 @@
 //!
 //! Staff edit in game ([`editor`], [`panel`]) or in a web browser ([`web`]).
 
+pub(crate) mod clip;
 pub(crate) mod document;
 pub(crate) mod editor;
 pub(crate) mod faces;
@@ -33,7 +34,9 @@ pub(crate) mod lights;
 pub(crate) mod linked;
 pub(crate) mod nearby;
 pub(crate) mod panel;
+pub(crate) mod panel_lights;
 mod panel_view;
+pub(crate) mod pictures;
 pub(crate) mod recent;
 pub(crate) mod web;
 

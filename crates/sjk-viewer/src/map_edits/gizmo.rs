@@ -1019,6 +1019,9 @@ pub(crate) struct Gizmo {
     /// models' pick numbers follow the map's entities).
     lump: Option<(usize, usize, usize)>,
     list: sjk_ui::DrawList,
+    /// What the transform under way moves: placed models, or the Lights page's chosen
+    /// light or lamp ([`super::panel_lights`]), which only move.
+    subject: Option<super::panel_lights::LightChoice>,
 }
 
 impl Default for Gizmo {
@@ -1031,6 +1034,7 @@ impl Default for Gizmo {
             change: None,
             lump: None,
             list: sjk_ui::DrawList::new(LIST_CAPACITY),
+            subject: None,
         }
     }
 }
@@ -1101,6 +1105,12 @@ impl GpuState {
     /// The placed models the gizmo is on, as drawn: a multiple selection's (the newest
     /// first: its axes are the local ones), else the selected one, else the current one.
     fn map_edit_gizmo_targets(&mut self) -> Vec<Placement> {
+        if self.map_edits.panel.tab == super::panel::Tab::Lights {
+            return self
+                .map_edit_light_target()
+                .map(|(_, placement)| vec![placement])
+                .unwrap_or_default();
+        }
         let set = self.map_edit_set_ids();
         if !set.is_empty() {
             return self.map_edits.placements(&set);
@@ -1146,8 +1156,17 @@ impl GpuState {
         let placements = active.placements(change);
         let line = active.describe(change);
         self.map_edits.gizmo.change = Some(change);
-        for placement in &placements {
-            self.map_edits.preview(placement);
+        match self.map_edits.gizmo.subject {
+            Some(choice) => {
+                for placement in &placements {
+                    self.map_edit_light_preview(choice, placement);
+                }
+            }
+            None => {
+                for placement in &placements {
+                    self.map_edits.preview(placement);
+                }
+            }
         }
         let panel = &mut self.map_edits.panel;
         if panel.status != line {
@@ -1164,11 +1183,22 @@ impl GpuState {
         else {
             return false;
         };
+        let subject = self
+            .map_edit_light_target()
+            .map(|(choice, _)| choice)
+            .filter(|_| !targets.is_empty());
+        if subject.is_some() && matches!(how, How::Keys(mode, _) if mode != Mode::Move) {
+            self.map_edits.panel.answer(Err(
+                "Lights and lamps only move: G, or the gizmo's arrows".into(),
+            ));
+            return true;
+        }
         let gizmo = &self.map_edits.gizmo;
-        let Some(frame) = Frame::new(&view, &targets, gizmo.local) else {
+        let Some(frame) = Frame::new(&view, &targets, gizmo.local && subject.is_none()) else {
             return false;
         };
-        if let Some(first) = targets.first() {
+        self.map_edits.gizmo.subject = subject;
+        if let Some(first) = targets.first().filter(|_| subject.is_none()) {
             self.map_edits.editor.set_current(first.id);
         }
         self.map_edits.gizmo.active = Some(Active::new(how, targets, &frame, &view, at));
@@ -1191,16 +1221,30 @@ impl GpuState {
         let (Some(active), change) = (gizmo.active.take(), gizmo.change.take()) else {
             return;
         };
-        let result = match change.filter(|_| keep) {
-            Some(change) => {
+        let subject = gizmo.subject.take();
+        let result = match (change.filter(|_| keep), subject) {
+            (Some(change), None) => {
                 let placements = active.placements(change);
                 self.map_edit_command(COMMAND, &set_args(&placements))
             }
-            None => Ok(vec!["Transform cancelled".into()]),
+            (Some(change), Some(choice)) => {
+                let placements = active.placements(change);
+                match placements
+                    .first()
+                    .and_then(|placement| self.map_edit_light_commit(choice, placement))
+                {
+                    Some((name, args)) => self.map_edit_command(name, &args),
+                    None => Err("That light is gone".into()),
+                }
+            }
+            (None, _) => Ok(vec!["Transform cancelled".into()]),
         };
         if result.is_err() || !keep {
             for placement in &active.start {
-                self.map_edits.preview(placement);
+                match subject {
+                    Some(choice) => self.map_edit_light_preview(choice, placement),
+                    None => self.map_edits.preview(placement),
+                }
             }
         }
         let panel = &mut self.map_edits.panel;
@@ -1269,8 +1313,18 @@ impl GpuState {
     fn map_edit_gizmo_pick(&mut self, at: Vec2) -> Option<Handle> {
         let view = self.map_edit_gizmo_view()?;
         let targets = self.map_edit_gizmo_targets();
-        let frame = Frame::new(&view, &targets, self.map_edits.gizmo.local)?;
-        frame.pick(&view, self.map_edits.gizmo.mode, at)
+        let lights = self.map_edits.panel.tab == super::panel::Tab::Lights;
+        let frame = Frame::new(&view, &targets, self.map_edits.gizmo.local && !lights)?;
+        frame.pick(&view, self.map_edit_gizmo_mode(), at)
+    }
+
+    /// The gizmo's mode: Move on the Lights page (lights and lamps only move).
+    fn map_edit_gizmo_mode(&self) -> Mode {
+        if self.map_edits.panel.tab == super::panel::Tab::Lights {
+            Mode::Move
+        } else {
+            self.map_edits.gizmo.mode
+        }
     }
 
     /// A key while the panel is open: the gizmo's (1, 2, 3, L, G, R, T, and every key
@@ -1388,11 +1442,18 @@ impl GpuState {
             if self.map_edits.gizmo.busy() {
                 self.map_edit_gizmo_end(false);
             }
+            self.map_edit_pictures_release();
             return;
         }
         let Some(view) = self.map_edit_gizmo_view() else {
             return;
         };
+        let mut markers =
+            std::mem::replace(&mut self.map_edits.gizmo.list, sjk_ui::DrawList::new(0));
+        self.map_edit_markers_draw(&mut markers);
+        self.map_edits.gizmo.list = markers;
+        let mode = self.map_edit_gizmo_mode();
+        let lights = self.map_edits.panel.tab == super::panel::Tab::Lights;
         let targets = match &self.map_edits.gizmo.active {
             Some(active) => {
                 let change = self.map_edits.gizmo.change;
@@ -1401,7 +1462,7 @@ impl GpuState {
             None => self.map_edit_gizmo_targets(),
         };
         let gizmo = &mut self.map_edits.gizmo;
-        let Some(frame) = Frame::new(&view, &targets, gizmo.local) else {
+        let Some(frame) = Frame::new(&view, &targets, gizmo.local && !lights) else {
             return;
         };
         let held = match gizmo.active.as_ref().map(|a| a.how) {
@@ -1420,7 +1481,7 @@ impl GpuState {
             }
             None => gizmo.hover,
         };
-        draw(&mut gizmo.list, &view, &frame, gizmo.mode, held);
+        draw(&mut gizmo.list, &view, &frame, mode, held);
     }
 }
 
