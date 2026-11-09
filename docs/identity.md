@@ -519,6 +519,7 @@ the SJK team gives them.
 | Contributor | `early_contributor` | Contributed to SJK's code. | no |
 | Bug Hunter | `bug_hunter` | Found bugs that got fixed. | no (since 21/10/2026: bug hunting is rewarded with holocrons) |
 | Supporter | `supporter` | Donated to SJK's development (more than 1 euro on Ko-fi, since 13/10/2026; [sjk.md](sjk.md#donations)): given by the hub itself when the Ko-fi message holds the donor's key id, else by the SJK team. | no |
+| Videographer | `videographer` | Filmed SJK's features for its videos: the hub counts one more each time the SJK team accepts a video sent for a video bounty ([Your SJK page](#your-sjk-page), since 09/11/2026). Its art is provisional. | yes, once per accepted video |
 
 Tester and Contributor were called Early Tester and Early Contributor until 27/10/2026
 (Sol's decision): the names lost "Early" and their texts "in its early days", since the
@@ -1489,6 +1490,31 @@ presence lists, its own holocron drops and looks in the feed, and on the Staff p
 and what is kept per key on this PC (the medal and holocron pop-ups' seen lists) keeps
 using it. When staff unlink the key this PC uses, the client registers it again at
 once.
+
+## Your SJK page
+
+Since 09/11/2026: SJK's web page for players, which the hub serves on a site of its own.
+There is no password: the player's SJK key is their account, and the private key never
+leaves the game.
+
+- `identity site` asks the hub for a one-use sign-in link (it works once, for 10
+  minutes) and opens it in the browser, signed in. The link is never printed: it signs
+  in whoever opens it.
+- Joining keys: each SJK install has its own key. On the page, Make a code shows a link
+  code (working once, for 15 minutes); in SJK on the other computer, `identity link
+  <code>` asks the hub whose account it is and says that everything this key holds
+  moves there; `identity link <code> confirm` joins it (the hub's usual merge,
+  [Players with several keys](#players-with-several-keys)). The code is made on the
+  page and typed in the game, never the other way round: a code the game showed could
+  be read on a stream and typed by someone else first. A staff key cannot join another
+  account.
+- Video bounties: the SJK team posts what to film and its reward. A signed-in player
+  sends a link to the original file, or uploads it (straight from the browser to SJK's
+  video storage, MP4, WebM, MOV or MKV), ticking that SJK may use the video and credit
+  them. An accepted video's reward waits in Contributor rewards, claimed in the game
+  as any reward, and counts one more Videographer medal. The hub lists open bounties at
+  `GET /v1/bounties`; an announcement can link to the page with `open:site`
+  ([ui_links.rs](../crates/sjk-viewer/src/ui_links.rs)).
 
 ## Settings and commands
 

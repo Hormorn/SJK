@@ -478,6 +478,7 @@ mod tests {
                 (Medal::Tester, true),
                 (Medal::BugHunter, true),
                 (Medal::Contributor, false),
+                (Medal::Videographer, false),
             ]
         );
         // Bug Hunter is held once since 21/10/2026: an old count of 3 reads as one.

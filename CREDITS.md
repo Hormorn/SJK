@@ -14,6 +14,8 @@ contributor's pull request: the credits page counts them on Sol's card
 includes:
 
 - the Sol JK name, README, credits and website;
+- the players' SJK page: sign-in from the game with the SJK key, joining keys,
+  video bounties and the Videographer medal (provisional art from Supporter's);
 - the SJK emblem, provided by Sol: in the classic menu's ring (in place of the
   retail logo video) and the SJK UI's holo ring, as the programs' and window's
   icons, and on the README, release notes and site;

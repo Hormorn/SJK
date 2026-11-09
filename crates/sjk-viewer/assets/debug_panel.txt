@@ -24,6 +24,19 @@
 
 # ---- Console & chat ----
 
+[sjk-page]
+area: Menus & settings
+title: Your SJK page: identity site, identity link, video bounties
+change: identity site opens SJK's web page signed in with your key (no password).
+change: identity link <code> joins this key to the account that made the code on the page.
+change: Needs the hub with the site on (not deployed yet): test against a local hub.
+test: Local hub: serve --site-host localhost:8787 --site-dev; cl_hubUrl http://127.0.0.1:8787
+test: identity site: the browser opens the page signed in; the console never shows the link.
+test: On the page, Make a code; in another install, identity link <code> names your account.
+test: identity link <code> confirm: the page lists both keys; the code no longer works.
+test: Send a bounty video link; accept it on the panel; Claim the reward in game.
+note: Videographer medal art is provisional (Supporter's frame, blue ribbon, camera).
+
 [emote-music-waits]
 area: Audio
 title: An emote's music waits for its decoder (hub report #270)

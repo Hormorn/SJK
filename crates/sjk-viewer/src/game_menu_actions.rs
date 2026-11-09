@@ -129,6 +129,17 @@ impl GpuState {
                 }
                 self.sync_cursor_policy();
             }
+            // `identity site`: the browser opens the player's SJK page, signed in.
+            ingame_menu::sjk::SJK_PAGE => {
+                let lines = self
+                    .identity_command(&["site".to_owned()])
+                    .unwrap_or_else(|why| vec![why]);
+                if let Some(console) = self.console.as_mut() {
+                    for line in lines {
+                        console.push_log(line);
+                    }
+                }
+            }
             ingame_menu::sjk::REPORT => self.open_bug_report(),
             ingame_menu::sjk::REPORT_PLAYER => self.open_players_page(),
             ingame_menu::sjk::SJK_CHAT => {

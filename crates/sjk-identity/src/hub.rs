@@ -395,6 +395,25 @@ pub trait Hub: Send {
             "this hub client does not read rewards".to_owned(),
         ))
     }
+    /// A one-use link that signs the browser in to the players' site
+    /// (`POST /v1/site/sign-in`, 09/11/2026).
+    fn site_sign_in(&mut self, _identity: &Identity) -> Result<crate::site::SignInLink, HubError> {
+        Err(HubError::Protocol(
+            "this hub client has no players' site".to_owned(),
+        ))
+    }
+    /// Type a link code the players' site made (`POST /v1/site/link`, 09/11/2026): the
+    /// account it joins this key to, and with `confirm` the key joins it.
+    fn site_link(
+        &mut self,
+        _identity: &Identity,
+        _code: &str,
+        _confirm: bool,
+    ) -> Result<crate::site::Linked, HubError> {
+        Err(HubError::Protocol(
+            "this hub client has no players' site".to_owned(),
+        ))
+    }
     /// Claim reward `id` (`POST /v1/rewards/claim`, 25/10/2026): the hub grants it and
     /// answers the person's profile and rewards after it.
     fn claim_reward(
@@ -2109,6 +2128,24 @@ impl Hub for HttpHub {
 
     fn rewards(&mut self, identity: &Identity) -> Result<crate::news::Rewards, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/rewards", None)?)
+    }
+
+    fn site_sign_in(&mut self, identity: &Identity) -> Result<crate::site::SignInLink, HubError> {
+        parse(self.send(Some(identity), "POST", "/v1/site/sign-in", Some(json!({})))?)
+    }
+
+    fn site_link(
+        &mut self,
+        identity: &Identity,
+        code: &str,
+        confirm: bool,
+    ) -> Result<crate::site::Linked, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/site/link",
+            Some(json!({ "code": code, "confirm": confirm })),
+        )?)
     }
 
     fn claim_reward(

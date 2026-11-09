@@ -1038,6 +1038,7 @@ mod tests {
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
             public_key: String::new(),
         }
     }

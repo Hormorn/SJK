@@ -419,6 +419,9 @@ pub struct Snapshot {
     /// What became of the last news picture uploaded ([`Service::upload_news_image`]):
     /// its serial, and the picture or why it was refused.
     pub news_image: Option<(u64, Result<crate::news::NewsImage, String>)>,
+    /// What became of the last players' site request ([`Service::site_sign_in`],
+    /// [`Service::site_link_code`]).
+    pub site: Option<crate::site::SiteOutcome>,
 }
 
 /// The player's trades with other players, as last read (`crate::trades`).
@@ -798,6 +801,7 @@ impl Snapshot {
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
         }
     }
 
@@ -1038,6 +1042,10 @@ enum Command {
     Announce(AnnounceRequest),
     /// A news picture for an announcement: its bytes and type.
     UploadNewsImage(Vec<u8>, &'static str),
+    /// A sign-in link for the players' site.
+    SiteSignIn,
+    /// A link code the players' site made, typed by the player; joined when confirmed.
+    SiteLink(String, bool),
     Stop,
 }
 
@@ -2055,6 +2063,8 @@ impl Worker {
             Command::ClaimReward(id) => self.claim_reward(id, now),
             Command::Announce(request) => self.announce(&request),
             Command::UploadNewsImage(bytes, mime) => self.upload_news_image(&bytes, mime),
+            Command::SiteSignIn => self.site_ask(None),
+            Command::SiteLink(code, confirm) => self.site_ask(Some((code, confirm))),
             Command::Stop => self.release(),
         }
         self.publish_feed();
@@ -3052,6 +3062,33 @@ impl Worker {
         self.update(|snapshot| {
             let serial = snapshot.news_image.as_ref().map_or(1, |(last, _)| last + 1);
             snapshot.news_image = Some((serial, outcome));
+        });
+    }
+
+    /// Ask the hub for a sign-in link to the players' site, or type a link code (and
+    /// join with its `confirm`); the answer arrives in [`Snapshot::site`].
+    fn site_ask(&mut self, link: Option<(String, bool)>) {
+        use crate::site::SiteAnswer;
+        let joined = link.as_ref().is_some_and(|(_, confirm)| *confirm);
+        let result = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => {
+                let answer = match &link {
+                    Some((code, confirm)) => hub
+                        .site_link(&self.identity, code, *confirm)
+                        .map(SiteAnswer::Link),
+                    None => hub.site_sign_in(&self.identity).map(SiteAnswer::SignIn),
+                };
+                answer.map_err(|error| crate::site::refusal(&error))
+            }
+            _ => Err(self.not_connected().to_string()),
+        };
+        // This key is another person's now: read the profile again at once.
+        if joined && result.is_ok() {
+            self.due_profile = self.due_profile.min(Instant::now());
+        }
+        self.update(|snapshot| {
+            let serial = snapshot.site.as_ref().map_or(1, |last| last.serial + 1);
+            snapshot.site = Some(crate::site::SiteOutcome { serial, result });
         });
     }
 
@@ -4749,6 +4786,19 @@ impl Service {
     /// creator.
     pub fn announce(&self, request: AnnounceRequest) {
         let _ = self.commands.send(Command::Announce(request));
+    }
+
+    /// Ask for a one-use link that signs the browser in to the players' site; it
+    /// arrives in [`Snapshot::site`].
+    pub fn site_sign_in(&self) {
+        let _ = self.commands.send(Command::SiteSignIn);
+    }
+
+    /// Type a link code the players' site made: without `confirm` the hub only names
+    /// the account; with it this key joins that account. The answer arrives in
+    /// [`Snapshot::site`].
+    pub fn site_link(&self, code: String, confirm: bool) {
+        let _ = self.commands.send(Command::SiteLink(code, confirm));
     }
 
     /// Upload a news picture (a PNG or JPEG, `mime`) for an announcement: the hub's id

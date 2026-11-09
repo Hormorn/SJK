@@ -33,6 +33,7 @@ pub(crate) enum Medal {
     Contributor,
     BugHunter,
     Supporter,
+    Videographer,
 }
 
 /// One stripe across a ribbon: where it starts and how wide it is, as fractions of
@@ -87,16 +88,25 @@ const SUPPORTER: Ribbon = Ribbon {
     base: rgb(0x8A_1538),
     stripes: &[stripe(0.0, 0.1, GOLD), stripe(0.9, 0.1, GOLD)],
 };
+const VIDEOGRAPHER: Ribbon = Ribbon {
+    base: rgb(0x1C_46AA),
+    stripes: &[
+        stripe(0.0, 0.1, GOLD),
+        stripe(0.45, 0.1, rgb(0x46_C8FF)),
+        stripe(0.9, 0.1, GOLD),
+    ],
+};
 
 impl Medal {
     /// How many medals the client knows.
-    pub(crate) const COUNT: usize = 4;
+    pub(crate) const COUNT: usize = 5;
     /// Every medal, in the hub's catalogue order.
     pub(crate) const ALL: [Self; Self::COUNT] = [
         Self::Tester,
         Self::Contributor,
         Self::BugHunter,
         Self::Supporter,
+        Self::Videographer,
     ];
 
     /// The medal the hub's `id` names, if the client knows it.
@@ -116,6 +126,7 @@ impl Medal {
             Self::Contributor => "early_contributor",
             Self::BugHunter => "bug_hunter",
             Self::Supporter => "supporter",
+            Self::Videographer => "videographer",
         }
     }
 
@@ -126,6 +137,7 @@ impl Medal {
             Self::Contributor => "Contributor",
             Self::BugHunter => "Bug Hunter",
             Self::Supporter => "Supporter",
+            Self::Videographer => "Videographer",
         }
     }
 
@@ -136,6 +148,7 @@ impl Medal {
             Self::Contributor => "Contributed to SJK's code.",
             Self::BugHunter => "Found bugs that got fixed.",
             Self::Supporter => "Donated to SJK's development.",
+            Self::Videographer => "Filmed SJK's features for its videos.",
         }
     }
 
@@ -150,6 +163,9 @@ impl Medal {
             Self::Supporter => {
                 "Given by the SJK team to players who donate more than 1 euro to SJK, through the SJK site."
             }
+            Self::Videographer => {
+                "Given by the SJK team for each video you send to a video bounty that they accept (identity site)."
+            }
         }
     }
 
@@ -160,7 +176,7 @@ impl Medal {
             Self::Tester => Some("saber_hologram"),
             Self::Contributor => Some("saber_runic"),
             Self::BugHunter => Some("saber_glitch"),
-            Self::Supporter => None,
+            Self::Supporter | Self::Videographer => None,
         }
     }
 
@@ -170,15 +186,17 @@ impl Medal {
             Self::Tester | Self::Contributor | Self::BugHunter | Self::Supporter => {
                 crate::editions::ALPHA
             }
+            Self::Videographer => crate::editions::BETA,
         }
     }
 
-    /// Whether the SJK team may give it again, so its count can pass 1. None is since
-    /// 21/10/2026: Bug Hunter is held once (bug hunting earns holocrons instead). The
-    /// counting stays for a future repeatable medal; a new one must choose here.
+    /// Whether the SJK team may give it again, so its count can pass 1. Bug Hunter is
+    /// held once since 21/10/2026 (bug hunting earns holocrons instead); Videographer
+    /// (09/11/2026) counts each accepted bounty video. A new medal must choose here.
     pub(crate) const fn repeatable(self) -> bool {
         match self {
             Self::Tester | Self::Contributor | Self::BugHunter | Self::Supporter => false,
+            Self::Videographer => true,
         }
     }
 
@@ -189,6 +207,7 @@ impl Medal {
             Self::Contributor => CONTRIBUTOR,
             Self::BugHunter => BUG_HUNTER,
             Self::Supporter => SUPPORTER,
+            Self::Videographer => VIDEOGRAPHER,
         }
     }
 
@@ -200,6 +219,7 @@ impl Medal {
             Self::Contributor => rgb(0x86_A6F0),
             Self::BugHunter => rgb(0x46_D69E),
             Self::Supporter => rgb(0xF0_C35A),
+            Self::Videographer => rgb(0x46_C8FF),
         }
     }
 
@@ -210,6 +230,8 @@ impl Medal {
             Self::Contributor => include_bytes!("../assets/medals/early_contributor.png"),
             Self::BugHunter => include_bytes!("../assets/medals/bug_hunter.png"),
             Self::Supporter => include_bytes!("../assets/medals/supporter.png"),
+            // Provisional art (09/11/2026): Supporter's frame, until Sol picks one.
+            Self::Videographer => include_bytes!("../assets/medals/videographer.png"),
         }
     }
 
@@ -222,6 +244,7 @@ impl Medal {
             }
             Self::BugHunter => include_bytes!("../assets/medals/bug_hunter_small.png"),
             Self::Supporter => include_bytes!("../assets/medals/supporter_small.png"),
+            Self::Videographer => include_bytes!("../assets/medals/videographer_small.png"),
         }
     }
 
@@ -452,7 +475,12 @@ mod tests {
         assert_eq!(Medal::from_id("from_the_future"), None);
         assert_eq!(Medal::from_id("supporter"), Some(Medal::Supporter));
         assert_eq!(Medal::Supporter.blade(), None);
-        assert!(Medal::ALL.iter().all(|medal| !medal.repeatable()));
+        // Only Videographer counts (one per accepted bounty video, 09/11/2026).
+        assert!(
+            Medal::ALL
+                .iter()
+                .all(|medal| medal.repeatable() == (*medal == Medal::Videographer))
+        );
         // The JoF Clan medal is gone (the clan's emblem now follows its tag,
         // `jof_tag`): an old award is an unknown id.
         let medals = Medals::from_wire(&[

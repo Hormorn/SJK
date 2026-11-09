@@ -82,6 +82,11 @@ pub(crate) const PAGES: &[Page] = &[
         command: "rewards",
     },
     Page {
+        id: "site",
+        name: "My SJK page (video bounties)",
+        command: "identity site",
+    },
+    Page {
         id: "changelog",
         name: "Changelog",
         command: "changelog",
@@ -173,7 +178,7 @@ mod tests {
             crate::console::ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
         for page in PAGES.iter().filter(|page| !page.command.is_empty()) {
             assert!(
-                console.has_command(page.command),
+                console.has_command(page.command.split_whitespace().next().unwrap_or("")),
                 "{} runs {}, which the console does not have",
                 page.id,
                 page.command
