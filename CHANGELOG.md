@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
+- Clicking the game window to bring it back no longer attacks _(Slash)_
 
 ## 2026.1109.2 (Alpha) | 09/11/2026
 
