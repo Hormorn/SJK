@@ -427,7 +427,11 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::server_caps::OVERRIDE_CVAR,
-        "On, Gameplay FPS applies on servers SJK knows to cap commands (JoF's: 125) too. Inputs may stop going through.",
+        "On, Gameplay FPS applies on servers SJK knows to cap commands (JoF's: 125) too. Inputs may not go through; Heimdall may kick you.",
+    ),
+    (
+        crate::server_caps::FRESH_STAMPS_CVAR,
+        "On, commands carry this frame's server time on every server, not the previous frame's as stock. Heimdall (JoF) may kick you.",
     ),
     (
         crate::gameplay_fps::CVAR,

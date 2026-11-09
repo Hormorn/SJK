@@ -9504,7 +9504,7 @@ test: Wear it (a staff grant): the rose body, crescents and sounds show in a mat
 note: Its sounds come with hub shared #20's sjk_skins_2 pack.
 
 [toy-authors]
-area: Menus
+area: Menus & settings
 title: Collection > Toys: three sections and who made each toy
 change: Rows under Around you, With others, Earn and win; a By column (Sol or Slash).
 change: The card says Made by Sol, or Made by Slash, Sanji's idea, under the toy's name.
@@ -9545,3 +9545,11 @@ test: aminfo lists the council's commands; amtele <bot>; amslap needs admToggle 
 test: Server console: amcode knight, then amlogin <code> on a second client: logged as knight.
 test: amsilence <bot>, amsleep <bot>, amprotect, amlockteam s then team spectator: refused.
 note: Not run with a client yet. Ghost, empower, merc, mindtrick, npc, polls: not built.
+
+[fresh-stamps-setting]
+area: Menus & settings
+title: Settings > Display > Fresh command stamps (cl_freshStamps), after PR #385
+change: A row under Ignore server caps; both rows say Heimdall may kick you.
+test: Settings > Display: Fresh command stamps under Ignore server caps, help in two lines.
+test: Turn both on, join JoF at 142 FPS: help_tickrate says 7 ms steps, no restart asked.
+note: Both on = the timing of 2026.1028.1 that #385 asked for (closed as a duplicate).
