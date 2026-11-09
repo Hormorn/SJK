@@ -3503,6 +3503,9 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #398 | SJK UI: typed slider values in a gold pill at full size
+- 4ba4405 |  | SJK UI: typed slider values in a gold pill at full size
+- da68cb9 |  | Format menu_stage/mod.rs
 + 09/11/2026 | SJK #396 | A boombox on the floor is hidden in a private duel (hub report #271)
 - ea391e9 |  | A boombox on the floor is hidden in a private duel (hub report #271)
 + 09/11/2026 | SJK #395 | A click that brings the window back no longer attacks (hub report #281)

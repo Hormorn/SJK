@@ -9628,3 +9628,10 @@ title: A boombox on the floor is hidden in a private duel (report #271)
 change: No floor boxes are drawn while the viewed player is in a private duel.
 test: Place a boombox, start a private duel: the box is gone, the music is unchanged.
 test: End the duel: the box is back. A box on a shoulder stays.
+
+[slider-gold-pill]
+area: Menus & settings
+title: SJK UI: typed slider values in a gold pill at full size (#398)
+change: Replaces the small red box. It widens left when needed and limits the digits to the slider's.
+test: Settings, type a value on a slider: dark gold-edged pill, same size as the number.
+test: An invalid value turns the edge ember. Classic+ keeps its own look.

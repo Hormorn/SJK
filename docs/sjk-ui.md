@@ -941,7 +941,8 @@ that mode for the visit and leaves the player's choice as it was.
   category scrolls (wheel, scrollbar), keeping the focused row in view.
   - Controls, from the kit: a switch (gold with its knob right when on, On or
     Off after it); a slider (a gold-filled track and its number, which a click
-    or a typed digit opens for typing); segments for a choice of up to three; a
+    or a typed digit opens for typing, in a gold-edged pill at the number's own size
+    that widens left over the track as the draft grows); segments for a choice of up to three; a
     field with a caret for a longer list, the display mode, the resolution and
     the HUD (the last two open their pickers); a field for text; a Play button (a chat
     sound's preview: Enter or a click plays it).
