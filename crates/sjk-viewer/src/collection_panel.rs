@@ -1456,6 +1456,11 @@ impl Panel {
                 achievements::sideways(&self.achievement_slots, self.achievement, by, wrap);
             return;
         }
+        if self.tab == Tab::Toys {
+            // The list's order is its sections', not the toys' own.
+            self.toy = toys::step(self.toy.min(TOY_COUNT - 1), by, wrap);
+            return;
+        }
         let count = self.things() as isize;
         let Some(chosen) = self.chosen_mut() else {
             return;
@@ -3342,14 +3347,16 @@ fossil 1
         assert_eq!(action, PanelAction::SellRubble);
     }
 
-    /// Order 66 is the third toy: chosen, then turned on or off by the state the page
-    /// was told; its row chooses it, its row's own switch runs it.
+    /// Order 66 is the third toy, the sixth row (the first With others): chosen, then
+    /// turned on or off by the state the page was told; its row chooses it, its row's
+    /// own switch runs it.
     #[test]
     fn order_66_is_chosen_then_turned_on_or_off() {
         let mut shown = inputs(Holdings::Known(&[]), "");
         let mut panel = drawn(Tab::Toys, &shown);
-        let _ = panel.key(KeyCode::ArrowRight, false, false);
-        let _ = panel.key(KeyCode::ArrowRight, false, false);
+        for _ in 0..5 {
+            let _ = panel.key(KeyCode::ArrowRight, false, false);
+        }
         assert_eq!(panel.toy, 2);
         assert_eq!(
             panel.key(KeyCode::Enter, false, false),

@@ -19,19 +19,82 @@ use crate::menu::sjk::{Frame, color, kit, text};
 use crate::menu_widgets::TextFamily;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign, TextureId};
 
-/// The rows: their left edge and width, where the column heads and the first row stand,
-/// a row's height and the room between rows, and its picture's side. Fourteen fit over
-/// the keys (45 tall 2 apart with Mining and Quests, 09/11/2026; 49 and 2 for thirteen, 52 and 2 for twelve).
+/// The rows: their left edge and width, where the first section's head stands (the
+/// column heads on its line), a section head's room above its rows and the room before
+/// the next head, a row's height and the room between rows, and its picture's side.
+/// Fourteen rows in three sections fit over the keys (09/11/2026; 45 tall 2 apart in one
+/// list before).
 const ROWS_X: f32 = LEFT_X - 12.0;
 const ROWS_WIDTH: f32 = 860.0;
 const HEADS_Y: f32 = 300.0;
-const ROWS_Y: f32 = 336.0;
-const ROW_HEIGHT: f32 = 45.0;
+const HEAD_STEP: f32 = 26.0;
+const SECTION_GAP: f32 = 6.0;
+const ROW_HEIGHT: f32 = 42.0;
 const ROW_GAP: f32 = 2.0;
-const ROW_ART: f32 = 42.0;
-/// A row's key column: its width, and the room the switch keeps at the row's right.
+const ROW_ART: f32 = 38.0;
+/// A row's author column, key column (their widths), and the room the switch keeps at
+/// the row's right.
+const AUTHOR_WIDTH: f32 = 110.0;
 const KEY_WIDTH: f32 = 150.0;
 const SWITCH_ROOM: f32 = 130.0;
+
+/// The list's sections (Sol's pick of 09/11/2026, once there were fourteen toys): each
+/// head and how many toys of [`ORDER`] stand under it.
+const SECTIONS: [(&str, usize); 3] = [("Around you", 5), ("With others", 4), ("Earn and win", 5)];
+/// The toys in the list's order, as indices into [`TOYS`] (whose order the panel, the
+/// tokens and the bits keep): around you, the ones that need others with them on, and
+/// the ones that earn or win something.
+pub(super) const ORDER: [usize; TOY_COUNT] = [0, 1, 4, 5, 6, 2, 3, 7, 9, 8, 10, 12, 13, 11];
+
+/// Where each toy's row stands, in the order of [`TOYS`].
+fn row_tops() -> [f32; TOY_COUNT] {
+    let mut tops = [0.0; TOY_COUNT];
+    let mut y = HEADS_Y;
+    let mut next = 0;
+    for (_, count) in SECTIONS {
+        y += HEAD_STEP;
+        for &toy in &ORDER[next..next + count] {
+            tops[toy] = y;
+            y += ROW_HEIGHT + ROW_GAP;
+        }
+        next += count;
+        y += SECTION_GAP;
+    }
+    tops
+}
+
+/// The heads' tops, in the order of [`SECTIONS`].
+fn head_tops() -> [f32; SECTIONS.len()] {
+    let tops = row_tops();
+    let mut heads = [0.0; SECTIONS.len()];
+    let mut next = 0;
+    for (index, (_, count)) in SECTIONS.iter().enumerate() {
+        heads[index] = tops[ORDER[next]] - HEAD_STEP;
+        next += count;
+    }
+    heads
+}
+
+/// The toy `by` rows on from `toy` in the list's order: wrapping round, or stopping at
+/// the ends.
+pub(super) fn step(toy: usize, by: isize, wrap: bool) -> usize {
+    let count = TOY_COUNT as isize;
+    let at = ORDER.iter().position(|&known| known == toy).unwrap_or(0) as isize;
+    let next = if wrap {
+        (at + by).rem_euclid(count)
+    } else {
+        (at + by).clamp(0, count - 1)
+    };
+    ORDER[next as usize]
+}
+
+/// Who made `toy`, for its card: "Made by Sol", and whose idea when someone else's.
+fn signature(toy: &Toy) -> String {
+    match toy.idea {
+        Some(idea) => format!("Made by {}, {idea}'s idea", toy.author),
+        None => format!("Made by {}", toy.author),
+    }
+}
 /// The chosen toy's card beside the model: its left edge and width, its foot and the
 /// highest its top rises; the room inside it.
 const CARD_X: f32 = 1_360.0;
@@ -43,6 +106,8 @@ const CARD_PAD: f32 = 26.0;
 /// size, a line of its other words this many.
 const ABOUT_CHARS: f32 = 46.0;
 const NOTE_CHARS: f32 = 52.0;
+/// The card's "Made by" line under its title.
+const SIGNATURE_ROW: f32 = 28.0;
 /// The card's "See" row under its switch.
 const SIGHT_ROW: f32 = 48.0;
 /// The Fishing card's fish log under its switch: its head (the fish caught), its line of
@@ -101,6 +166,11 @@ struct Toy {
     /// idea); at most [`super::TOY_OPTION_TOKENS`].
     options: &'static [(&'static str, &'static str)],
     token: u16,
+    /// Who made it, signed on its row and its card (Sol's list of 09/11/2026: Illuminate
+    /// to Box hunt and the WHEEL OF DOOM are Sol's), and whose idea it was when that is
+    /// someone else's.
+    author: &'static str,
+    idea: Option<&'static str>,
 }
 
 /// The toys, in the order of [`Panel::toy`].
@@ -117,6 +187,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::toy_sight::ILLUMINATE, "See others' holocrons")),
         options: &[],
         token: TOY_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "cardboard_box",
@@ -130,6 +202,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::toy_sight::CARDBOARD_BOX, "See others' boxes")),
         options: &[],
         token: BOX_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "order66",
@@ -143,6 +217,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: None,
         options: &[],
         token: ORDER_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "hax",
@@ -159,6 +235,8 @@ const TOYS: [Toy; TOY_COUNT] = [
             (crate::hax::AWAY_CVAR, "Trap while away"),
         ],
         token: HAX_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "ragdoll",
@@ -172,6 +250,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::toy_sight::RAGDOLL, "See others fall limp")),
         options: &[],
         token: RAGDOLL_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "drone",
@@ -185,6 +265,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::toy_sight::DRONE, "See others' drones")),
         options: &[],
         token: DRONE_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "boombox",
@@ -203,6 +285,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::toy_sight::BOOMBOX, "See and hear others' boomboxes")),
         options: &[],
         token: BOOMBOX_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "monitor",
@@ -218,6 +302,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::monitor::SHOW_CVAR, "See monitors")),
         options: &[],
         token: MONITOR_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "box_hunt",
@@ -231,6 +317,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: None,
         options: &[],
         token: BOX_HUNT_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "banana",
@@ -249,6 +337,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: Some((crate::banana::SHOW_CVAR, "See banana peels")),
         options: &[],
         token: BANANA_TOKEN,
+        author: "Sol",
+        idea: Some("Kushina"),
     },
     Toy {
         icon: "fishing",
@@ -264,6 +354,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: None,
         options: &[],
         token: FISHING_TOKEN,
+        author: "Slash",
+        idea: Some("Sanji"),
     },
     Toy {
         icon: "wheel_of_doom",
@@ -279,6 +371,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: None,
         options: &[],
         token: WHEEL_OF_DOOM_TOKEN,
+        author: "Sol",
+        idea: None,
     },
     Toy {
         icon: "mining",
@@ -294,6 +388,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: None,
         options: &[],
         token: MINING_TOKEN,
+        author: "Slash",
+        idea: Some("vinry"),
     },
     Toy {
         icon: "quests",
@@ -309,6 +405,8 @@ const TOYS: [Toy; TOY_COUNT] = [
         sight: None,
         options: &[],
         token: QUESTS_TOKEN,
+        author: "Slash",
+        idea: Some("wonner67"),
     },
 ];
 
@@ -447,8 +545,9 @@ impl Panel {
         self.lead(frame, &headline(), &line);
         self.toy_heads(frame);
         let chosen = self.toy.min(TOY_COUNT - 1);
+        let tops = row_tops();
         for (index, toy) in TOYS.iter().enumerate() {
-            let y = ROWS_Y + index as f32 * (ROW_HEIGHT + ROW_GAP);
+            let y = tops[index];
             let key = keys_of(inputs, toy.commands[0].0);
             self.toy_row(frame, index, toy, y, on[index], key, index == chosen);
         }
@@ -500,13 +599,31 @@ impl Panel {
         self.ui.hit_region(TOY_MASTER_TOKEN, area);
     }
 
-    /// The rows' column heads: the toy, its key and its switch.
+    /// The sections' heads, each over its rows with a rule under it; the first's line
+    /// also names the columns: the author, the key and the switch.
     fn toy_heads(&mut self, frame: &Frame) {
         let s = frame.s;
         let right = ROWS_X + ROWS_WIDTH;
         let key_x = right - SWITCH_ROOM - KEY_WIDTH;
+        let author_x = key_x - AUTHOR_WIDTH;
+        for ((words, _), y) in SECTIONS.iter().zip(head_tops()) {
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!("{words}"),
+                frame.rect(ROWS_X + 18.0, y, 300.0, 20.0),
+                15.0 * s,
+                color::HOLO,
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            let _ = self.ui.draw_list_mut().push(DrawCommand::SolidRect {
+                rect: frame.rect(ROWS_X, y + HEAD_STEP - 4.0, ROWS_WIDTH, 1.0),
+                color: color::alpha(color::HOLO, 0.25),
+            });
+        }
         for (words, x, width, align) in [
-            ("Toy", ROWS_X + 18.0, 300.0, TextAlign::Start),
+            ("By", author_x, AUTHOR_WIDTH, TextAlign::Start),
             ("Your key", key_x, KEY_WIDTH, TextAlign::Start),
             (
                 "On",
@@ -519,17 +636,13 @@ impl Panel {
                 &mut self.ui,
                 TextFamily::Display,
                 format_args!("{words}"),
-                frame.rect(x, HEADS_Y, width, 22.0),
+                frame.rect(x, HEADS_Y, width, 20.0),
                 15.0 * s,
                 color::MUTED,
                 FontWeight::Semibold,
                 align,
             );
         }
-        let _ = self.ui.draw_list_mut().push(DrawCommand::SolidRect {
-            rect: frame.rect(ROWS_X, HEADS_Y + 26.0, ROWS_WIDTH, 1.0),
-            color: color::alpha(color::HOLO, 0.25),
-        });
     }
 
     /// Toy `index`'s row at `y`: its picture, name and line, the key bound to it (`key`,
@@ -578,14 +691,15 @@ impl Panel {
             color: Color::new(1.0, 1.0, 1.0, if chosen || on { 1.0 } else { 0.78 }),
         });
         let key_x = right - SWITCH_ROOM - KEY_WIDTH;
+        let author_x = key_x - AUTHOR_WIDTH;
         let words_x = x + 14.0 + art + 16.0;
-        let words_width = key_x - 16.0 - words_x;
+        let words_width = author_x - 12.0 - words_x;
         text(
             &mut self.ui,
             TextFamily::Display,
             format_args!("{}", toy.name),
-            frame.rect(words_x, y + 3.0, words_width, 28.0 * k),
-            23.0 * s,
+            frame.rect(words_x, y + 2.0, words_width, 24.0 * k),
+            21.0 * s,
             if chosen {
                 color::GOLD_BRIGHT
             } else {
@@ -598,13 +712,23 @@ impl Panel {
             &mut self.ui,
             TextFamily::Body,
             format_args!("{}", toy.tag),
-            frame.rect(words_x, y + 3.0 + 27.0 * k, words_width, 22.0 * k),
-            15.0 * s,
+            frame.rect(words_x, y + 2.0 + 22.0 * k, words_width, 18.0 * k),
+            14.0 * s,
             color::MUTED,
             FontWeight::Regular,
             TextAlign::Start,
         );
         let middle = y + ROW_HEIGHT * 0.5;
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{}", toy.author),
+            frame.rect(author_x, middle - 11.0, AUTHOR_WIDTH - 8.0, 22.0),
+            16.0 * s,
+            if chosen { color::TEXT } else { color::MUTED },
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
         if key.is_empty() {
             text(
                 &mut self.ui,
@@ -660,6 +784,7 @@ impl Panel {
         CARD_PAD
             + 24.0
             + 50.0 * k.max(1.0)
+            + SIGNATURE_ROW * k.max(1.0)
             + 10.0
             + about as f32 * line(17.0)
             + 18.0
@@ -744,7 +869,18 @@ impl Panel {
             FontWeight::Semibold,
             TextAlign::Start,
         );
-        y += 50.0 * k.max(1.0) + 10.0;
+        y += 50.0 * k.max(1.0);
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{}", signature(toy)),
+            frame.rect(x, y, width, 24.0 * k.max(1.0)),
+            17.0 * s,
+            color::MUTED,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        y += SIGNATURE_ROW * k.max(1.0) + 10.0;
         y = words(
             &mut self.ui,
             frame,
@@ -1180,6 +1316,31 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The sections hold every toy once, the rows stand in the list's order without
+    /// overlapping, and the arrows walk that order: down from Boombox, the last of
+    /// Around you, comes Order 66.
+    #[test]
+    fn the_sections_hold_every_toy_once() {
+        let mut seen = ORDER.to_vec();
+        seen.sort_unstable();
+        assert_eq!(seen, (0..TOY_COUNT).collect::<Vec<_>>());
+        assert_eq!(
+            SECTIONS.iter().map(|(_, count)| count).sum::<usize>(),
+            TOY_COUNT
+        );
+        let tops = row_tops();
+        for pair in ORDER.windows(2) {
+            assert!(tops[pair[1]] >= tops[pair[0]] + ROW_HEIGHT, "{pair:?}");
+        }
+        assert!(tops[ORDER[TOY_COUNT - 1]] + ROW_HEIGHT <= super::super::view::KEYS_Y);
+        assert_eq!(step(6, 1, false), 2);
+        assert_eq!(step(2, -1, false), 6);
+        assert_eq!(step(ORDER[TOY_COUNT - 1], 1, true), ORDER[0]);
+        assert_eq!(step(ORDER[TOY_COUNT - 1], 1, false), ORDER[TOY_COUNT - 1]);
+        assert_eq!(signature(&TOYS[9]), "Made by Sol, Kushina's idea");
+        assert_eq!(signature(&TOYS[0]), "Made by Sol");
     }
 
     /// Every toy's card holds its words in full below its highest top.

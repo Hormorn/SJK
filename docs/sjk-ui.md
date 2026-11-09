@@ -1768,18 +1768,27 @@ for the run.
   Ragdoll (since 23/10/2026), the Drone (since 24/10/2026), the Boombox (since
   25/10/2026, verified players), the Monitor (since 26/10/2026), Box hunt (since
   27/10/2026), the Banana peel (since 29/10/2026), Fishing and Quests (since 05/11/2026,
-  [quests.md](quests.md)), a row of 53 to each under column heads (Toy, Your key, On;
-  twelve rows fit over the keys, 3 apart; 58 for eleven before Quests): its icon, its
-  name and a line of what it does, the key bound to its command ("Not bound" when none)
-  and its own switch, which runs that toy in place and chooses it; the chosen row framed
-  gold on a soft gold ground. The arrows and Tab choose; a click on a row chooses it.
+  [quests.md](quests.md)), Mining and the WHEEL OF DOOM. Since 09/11/2026 (Sol's pick,
+  once there were fourteen) the rows stand in three sections, each under its head and a
+  rule: **Around you** (Illuminate, Cardboard box, Ragdoll, Drone, Boombox), **With
+  others** (Order 66, Hax, Monitor, Banana peel) and **Earn and win** (Box hunt, Fishing,
+  Mining, Quests, WHEEL OF DOOM); the first head's line names the columns (By, Your key,
+  On). A row of 42, 2 apart (`ORDER` and `SECTIONS` in the file; the toys keep their own
+  order for the panel, the tokens and the bits): its icon, its name and a line of what it
+  does, who made it (the By column: Sol for Illuminate to Box hunt, the Banana peel and
+  the WHEEL OF DOOM, Slash for Fishing, Mining and Quests), the key bound to its command
+  ("Not bound" when none) and its own switch, which runs that toy in place and chooses
+  it; the chosen row framed gold on a soft gold ground. The arrows and Tab choose in the
+  list's order; a click on a row chooses it.
   With Illuminate chosen the holocron floats lit by the model on the stage
   (`illuminate::submit_stage_holocron`); the box has no 3D stand-in on the stage, nor
   have Order 66, the Hax, the Ragdoll, the Drone, the Boombox and the Monitor. On a dark
   card beside
   the model (x
   1360 to 1824, its foot at y 990, as tall as its words): "Toy · everyone's", its name,
-  what it is in full, its keys (Order 66 two: the join key, `toy_order66`, and the order
+  its signature under it ("Made by Sol", or "Made by Slash, Sanji's idea" when the idea
+  was someone else's: Kushina's Banana peel, Sanji's Fishing, vinry's Mining, wonner67's
+  Quests), what it is in full, its keys (Order 66 two: the join key, `toy_order66`, and the order
   key, `order66`; the Monitor two: its key, `toy_monitor`, and the throw key,
   `+monitor_throw`, held to charge; the Banana peel two: its key, `toy_banana`, and the
   drop key, `banana_drop`), each a button: a click (or K for the first) waits for a key ("Press
