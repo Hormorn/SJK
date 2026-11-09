@@ -540,6 +540,7 @@ impl Group {
                 "cg_nameplateRange",
                 "cg_nameplateNear",
                 "cg_nameplateScale",
+                "cg_nameplateOffset",
                 crate::hud::nameplate::OPACITY_CVAR,
                 "cg_nameplateBars",
                 "cg_nameplateSelf",

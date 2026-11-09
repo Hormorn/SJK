@@ -815,6 +815,15 @@ pub(super) const HUD: &[Setting] = &[
         },
     },
     Setting {
+        label: "Nameplate height",
+        cvar: "cg_nameplateOffset",
+        kind: ValueKind::Float {
+            min: -100.0,
+            max: 100.0,
+            step: 5.0,
+        },
+    },
+    Setting {
         label: "Nameplate opacity",
         cvar: crate::hud::nameplate::OPACITY_CVAR,
         kind: ValueKind::Float {

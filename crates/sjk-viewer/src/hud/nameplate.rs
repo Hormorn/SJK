@@ -416,6 +416,12 @@ pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         "Nameplate text size",
     ))?;
     cvars.register(CvarDefinition::new(
+        "cg_nameplateOffset",
+        0.0_f64,
+        CvarFlags::ARCHIVE,
+        "Vertical offset of nameplates above players, in game units",
+    ))?;
+    cvars.register(CvarDefinition::new(
         OPACITY_CVAR,
         1.0_f64,
         CvarFlags::ARCHIVE,
@@ -500,6 +506,8 @@ struct Settings {
     range: f32,
     near: f32,
     scale: f32,
+    /// Vertical offset above the player's head, in game units.
+    offset: f32,
     /// The plates' opacity (`cg_nameplateAlpha`), [`MIN_OPACITY`] to 1.
     opacity: f32,
     bars: i64,
@@ -530,6 +538,7 @@ impl Default for Settings {
             range: 3000.0,
             near: 1000.0,
             scale: 0.5,
+            offset: 0.0,
             opacity: 1.0,
             bars: 2,
             walls: false,
@@ -714,6 +723,8 @@ impl State {
             range: number("cg_nameplaterange", 3000.0).clamp(500.0, 10_000.0),
             near: number("cg_nameplatenear", 1000.0).clamp(0.0, 10_000.0),
             scale: crate::cgame_options::scalar(console, "cg_nameplatescale", 0.5).clamp(0.1, 3.0),
+            offset: crate::cgame_options::scalar(console, "cg_nameplateoffset", 0.0)
+                .clamp(-100.0, 100.0),
             opacity: crate::cgame_options::scalar(console, "cg_nameplatealpha", 1.0)
                 .clamp(MIN_OPACITY, 1.0),
             bars: console
@@ -1147,7 +1158,7 @@ impl State {
             if distance >= settings.range {
                 continue;
             }
-            let anchor = origin + Vec3::Z * (placed.head + math::HEAD_CLEARANCE);
+            let anchor = origin + Vec3::Z * (placed.head + math::HEAD_CLEARANCE + settings.offset);
             let Some(point) = camera.project_within(anchor, SCREEN_MARGIN) else {
                 continue;
             };
@@ -1426,7 +1437,7 @@ impl State {
                 continue;
             }
             let Some(point) = camera.project_within(
-                origin + Vec3::Z * (placed.head + math::HEAD_CLEARANCE),
+                origin + Vec3::Z * (placed.head + math::HEAD_CLEARANCE + settings.offset),
                 SCREEN_MARGIN,
             ) else {
                 continue;
@@ -1518,7 +1529,7 @@ impl State {
             return;
         }
         let Some(point) = camera.project_within(
-            origin + Vec3::Z * (head + math::HEAD_CLEARANCE),
+            origin + Vec3::Z * (head + math::HEAD_CLEARANCE + settings.offset),
             SCREEN_MARGIN,
         ) else {
             return;
