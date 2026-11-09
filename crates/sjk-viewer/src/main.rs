@@ -2152,8 +2152,12 @@ impl GpuState {
             .damage_feedback
             .marker(presentation_time as i32, self.console.as_ref());
         self.update_auto_switch();
-        let mut hud_visibility =
-            ground_hud::frame(self, intermission_view.is_some(), presentation_time as i32);
+        let mut hud_visibility = ground_hud::frame(
+            self,
+            intermission_view.is_some(),
+            detached_before_peek,
+            presentation_time as i32,
+        );
         brush_view::frame(self);
         let [crosshair, names] = scope::crosshair_visibility(
             self.scope.mode,

@@ -9579,3 +9579,19 @@ change: A row under Ignore server caps; both rows say Heimdall may kick you.
 test: Settings > Display: Fresh command stamps under Ignore server caps, help in two lines.
 test: Turn both on, join JoF at 142 FPS: help_tickrate says 7 ms steps, no restart asked.
 note: Both on = the timing of 2026.1028.1 that #385 asked for (closed as a duplicate).
+
+[ground-hud-toy-cameras]
+area: HUD
+title: Ground HUD stays during ragdoll, Peek and Hax
+change: A toy that borrows the camera no longer swaps the ground HUD for the normal HUD.
+test: Set cg_groundHud 1 in third person on a server and go limp (toy_ragdoll).
+test: The numbers stay at your feet and the normal status HUD does not appear.
+test: In the free camera the normal HUD still shows, as before.
+
+[box-hunt-amghost]
+area: Gameplay
+title: Box hunt: amghost on yourself is cheating
+change: A JA+ admin who sends amghost on themselves during a chase is out (hub report #240).
+test: As a logged-in JA+ admin in a box hunt, send amghost: you are out or blow up.
+test: amghost <another player's number> changes nothing for your hunt.
+note: A player already a ghost before the chase began is not caught; the client cannot see it.

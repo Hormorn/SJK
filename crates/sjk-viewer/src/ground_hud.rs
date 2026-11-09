@@ -66,8 +66,15 @@ impl GroundHud {
 ///
 /// Returns the normal HUD's visibility with its status widgets switched off
 /// while the ground HUD stands in for them. `time_ms` picks the demo snapshot
-/// when no live session runs.
-pub(crate) fn frame(gpu: &mut GpuState, intermission: bool, time_ms: i32) -> HudVisibility {
+/// when no live session runs. `camera_detached` is the player's own free camera: a toy
+/// that only borrows the view this frame (limp in a ragdoll, Peek, Hax) leaves the
+/// player's HUD choice alone, though `gpu.detached_camera` is set while it does.
+pub(crate) fn frame(
+    gpu: &mut GpuState,
+    intermission: bool,
+    camera_detached: bool,
+    time_ms: i32,
+) -> HudVisibility {
     let mut visibility =
         if intermission || crate::menu_backdrop::hides_hud(gpu) || gpu.quick_wheel.hides_hud() {
             HudVisibility::HIDDEN
@@ -84,9 +91,9 @@ pub(crate) fn frame(gpu: &mut GpuState, intermission: bool, time_ms: i32) -> Hud
     let presentation = sample.map_or(Presentation::Normal, |(ref conditions, ..)| {
         readout::select(Conditions {
             enabled,
-            third_person: gpu.third_person && !gpu.detached_camera && gpu.scope.mode == 0,
+            third_person: gpu.third_person && !camera_detached && gpu.scope.mode == 0,
             zoomed: gpu.third_person_choice
-                && !gpu.detached_camera
+                && !camera_detached
                 && (gpu.zoom_first_person || gpu.scope.mode != 0),
             status_visible: visibility.status,
             intermission,
