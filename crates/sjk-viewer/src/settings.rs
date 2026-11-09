@@ -1069,6 +1069,23 @@ fn section_settings(section: Section, tab: usize) -> &'static [Setting] {
     }
 }
 
+/// The cvars of the Video tab's rows and of the renderer's tabs (Image, Lighting,
+/// Shadows, Weather), in their order: what the frame timings log records with its
+/// times (`frame_timings.rs`). Rows that stand for a command, not a cvar, are in it
+/// too; the console has no value for them.
+pub(crate) fn graphics_cvars() -> impl Iterator<Item = &'static str> {
+    [
+        VIDEO,
+        RENDER_IMAGE,
+        RENDER_LIGHTING,
+        RENDER_SHADOWS,
+        RENDER_WEATHER,
+    ]
+    .into_iter()
+    .flatten()
+    .map(|setting| setting.cvar)
+}
+
 /// Whether `cvar` has a row a Settings search finds (any case), so a chip naming it
 /// (`inline_code`) can open Settings on it.
 pub(crate) fn has_row(cvar: &str) -> bool {

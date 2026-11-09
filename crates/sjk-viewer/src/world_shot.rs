@@ -374,6 +374,8 @@ mod saber_kill;
 
 #[path = "world_shot_fps_help.rs"]
 mod fps_help_shots;
+#[path = "world_shot_frame_timings.rs"]
+mod frame_timings_shots;
 #[path = "world_shot_small_card.rs"]
 mod small_card;
 

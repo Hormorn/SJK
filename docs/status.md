@@ -1,3 +1,26 @@
+## Frame timings readout and log
+
+09/11/2026, `personal/frame-timings` (Sol: an on-screen readout of the milliseconds each
+part of the frame takes, and logs of it, to work on the experimental graphics settings and
+make them cheaper). `r_drawTimings` 1 shows the graphics card's sections of the frame in a
+panel on the left (the `gpu_phases.rs` timestamps that `SJK_GPU_PHASES` printed), 2 the
+processor's heaviest host phases too (the `frame_budget.rs` phases), each the mean over half
+a second and the worst frame; `r_logTimings` writes the same each second to
+`logs/timings.log` with the window, the map, every Video and renderer setting and each change
+to them, and `perfmark` lines ([rendering](rendering.md#frame-timings-readout-and-log)).
+While either runs, the profiler samples every frame whose previous readback has landed
+instead of one in 32; the `gpu-phases` report and the low-FPS help keep their pace.
+Verified on Windows 11: unit tests (the windows' means and worsts with a name twice in a frame,
+the rows' order kept across windows, the host phases heaviest first, the log lines with and
+without timestamps, every setting once then each change, the fullest panel within its storage,
+the level kept in 0 to 2, the report's pace while the timings sample more), the settings'
+help and label tests, the world shot `frame_timings_panel` (duel6 at 1920x1080, levels 2
+and 1, looked at: GPU 1.41 ms over 13 sections, `opaque` and `volumetrics` the heaviest at
+0.33 ms, the rows summing to the total), the startup stack check; fmt, build, clippy (no new
+warning) and the workspace tests. The 2D pass now also runs for the panel alone (a map
+explored without a session or menu drew nothing at first). Not verified: in the client (the
+sampling cost on a real frame rate, the log file on a real run, which a test cannot open).
+
 ## Staff tools: finding players, and staff gifts
 
 08/11/2026, `personal/staff-tools-3` (Sol: "make the staff tools better in game, for search,

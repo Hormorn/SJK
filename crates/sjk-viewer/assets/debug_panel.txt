@@ -24,6 +24,16 @@
 
 # ---- Console & chat ----
 
+[frame-timings]
+area: Rendering & effects
+title: Frame timings panel and log (GPU / CPU milliseconds per part of the frame)
+change: r_drawTimings 1: a panel on the left, the GPU's sections; 2: the CPU's phases too.
+change: r_logTimings 1: logs/timings.log, a line a second, settings and each change logged.
+test: Settings > HUD > Readouts: Frame timings GPU, then GPU + CPU: the panel, numbers move.
+test: Toggle r_ssao or a preset in the menu: the panel stays up, the GPU rows change.
+test: Log frame timings on, change a setting, perfmark test: timings.log has set/mark lines.
+note: The log is in the session log's folder; Sol: send it to Claude to tune the settings.
+
 [wheel-off]
 area: Gameplay
 title: WHEEL OF DOOM out of order for now (bugged)

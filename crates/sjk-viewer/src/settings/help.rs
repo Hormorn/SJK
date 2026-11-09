@@ -253,6 +253,9 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     ("cg_cameraFPS", "125.0", "Default"),
     ("cg_cameraFPS", "30.0", "Smooth (SP)"),
     ("cg_cameraFPS", "0.0", "BaseJKA"),
+    (crate::frame_timings::DRAW_CVAR, "0", "Off"),
+    (crate::frame_timings::DRAW_CVAR, "1", "GPU"),
+    (crate::frame_timings::DRAW_CVAR, "2", "GPU + CPU"),
     (crate::brush_view::CVAR, "0", "Off"),
     (crate::brush_view::CVAR, "1", "Gameplay"),
     (crate::brush_view::CVAR, "2", "All"),
@@ -454,6 +457,14 @@ const HELP: &[(&str, &str)] = &[
     (
         "cg_drawFps",
         "Shows frames per second and frame time in a corner of the screen.",
+    ),
+    (
+        crate::frame_timings::DRAW_CVAR,
+        "Panel on the left: the milliseconds each part of the frame takes on the graphics card (GPU), and on the processor (CPU) too.",
+    ),
+    (
+        crate::frame_timings::LOG_CVAR,
+        "Writes the frame timings to logs/timings.log every second, with your graphics settings and each change you make to them.",
     ),
     (
         "r_gamma",

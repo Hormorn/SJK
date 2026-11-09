@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Frame timings, to see what each graphics setting costs: Settings > HUD "Frame timings" (`r_drawTimings`, off by default) shows a panel on the left with the milliseconds the graphics card spends on each part of the frame (1), and the processor's too (2); "Log frame timings" (`r_logTimings`) writes them every second to logs/timings.log with your graphics settings and each change to them _(Sol)_
+
 ## 2026.1109.1 (Alpha) | 09/11/2026
 
 A mining toy, the E-Web, a spawn list, toggle keys, a HUD clock and an easier vote panel; profile banners and the WHEEL OF DOOM rest for now.

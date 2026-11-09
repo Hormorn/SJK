@@ -138,6 +138,17 @@ impl Session {
     }
 }
 
+/// The `logs` folder the session's file is in, once it is started: other logs of the
+/// session (`frame_timings.rs`) go beside it.
+pub(crate) fn folder() -> Option<PathBuf> {
+    try_lock()?.as_ref().map(|session| session.dir.clone())
+}
+
+/// Now as the session's first line stamps it: `dd/mm/yyyy hh:mm UTC`.
+pub(crate) fn now_stamp() -> String {
+    stamp(unix_now())
+}
+
 /// Write one trail line to the session's file, once it is started.
 pub(crate) fn write(line: &str) {
     if let Some(mut session) = try_lock()
