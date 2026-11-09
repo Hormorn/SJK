@@ -155,10 +155,9 @@ mean rebuilding all of that on every change; the page says which lamp edits wait
 | `mapedit_lamp <fixture> off\|on\|move <dx dy dz>\|reset` | Turn a lamp fixture off or on, move it to an offset from where the map has it, or take its edit away; refused for a fixture this world has no lamp of (unless it has an edit) |
 
 `mapedit_delete <id>` removes either kind, and every change is one step to undo. The
-in-game panel lists them on its Edits page (`Light: #ffd9a6 r320`, `Lamp off: light
-(surface:1043)`), where Delete, Undo and Redo work; it has no page of its own for them, and
-the in-game gizmo does not move a light. The browser editor's [Lights](#lights-in-the-page)
-page is where they are seen and edited.
+in-game panel's Lights page ([below](#the-panel), 09/11/2026) and the browser editor's
+[Lights](#lights-in-the-page) page show and edit them the same way, through these commands;
+the Edits page lists them too (`Light: #ffd9a6 r320`, `Lamp off: light (surface:1043)`).
 
 Clients from before this release do not know the kinds and ignore the map's whole document
 (`map edits ... ignored` in their log; `an_unknown_kind_refuses_the_whole_document`), so
@@ -219,9 +218,11 @@ a command without a selection acts on what is under the crosshair.
 | Click on the scene | Select what is under the pointer (a grabbed model: put it down) |
 | Shift+click | Add the surface, hidden face or placed model under the pointer to the selection, or take it out |
 | World-note key (Shift: add) | Select (add) what is under the crosshair, flying or not |
-| Escape | Take back a gizmo's drag or transform; else put a grabbed model back; else drop the selection; else leave the editor |
+| Escape | Stop adding a light or placing a thing; else take back a gizmo's drag or transform; else put a grabbed model back; else drop the selection; else leave the editor |
 | G, R, T; X, Y, Z; 1, 2, 3; L | The [gizmo](#gizmos)'s, only while the right button is not held |
 | Ctrl+Z, Ctrl+Y | Undo, redo |
+| Ctrl+C, Ctrl+V | Copy the selection, paste a model where the pointer is or a shader on the selection ([as the page](#the-browser-editor-creator-only-for-now)), outside a search field |
+| B | The invisible brushes' next view: Play, Caulk, All, off (outside a search field) |
 
 ### Flying in the editor
 
@@ -319,10 +320,49 @@ all takes everything. The [gizmo](#gizmos) stands at the set's middle.
 
 | Page | Offers |
 | --- | --- |
-| Selected | what it is (map prop, placed model, surface, game entity, hidden face: a caulk or nodraw side nearer than any drawn surface, sky: a sky side) with its model and shader, and how many more are selected; on a sky the skies come first in the list, and its buttons are Swap sky (Cover side when a texture is chosen), Swap all skies and Take back; Hide (Remove for a placed model; Hide all for several), Hide whole model (a merged model's surfaces), Place a copy; on a hidden face or a sky side Same plane, Connected (`mapedit_link`) and Fill (`mapedit_fill`), the shader Fill would draw named under it with its share of the vote ("Fill: yavin/stone_walk (62 % nearby)"); Draw another shader: a search over the shaders a remap may draw (the world's `textures/` and the map objects' `models/`, shaders and images, never the player models'), the Recent rows first, opened on the selection's own folder with its own shader chosen, five rows; Remap (or a second click on the chosen row) and Remove remap. A name the list does not know is tried as typed |
-| Place | every MD3 of the game data outside the player models, the Recent rows first, narrowed by a search, six rows; Place where you aimed (or a second click on the chosen row); the current placed model's Turn left and right (15 degrees), Up and Down (8 units), Left, Right, Away and Closer (8 units along the world axis nearest the view's right and ahead, so steps add up straight), Smaller and Bigger (by 1.1), Grab and Remove. Shift held makes the steps 1 degree, 1 unit and a tenth of the growth |
+| Selected | what it is (map prop, placed model, surface, game entity, hidden face: a caulk or nodraw side nearer than any drawn surface, sky: a sky side) with its model and shader, and how many more are selected, with the page's summary: a placed model's edit id and where it stands, a prop's entity number, a surface's number and kind, how many surfaces its whole model is and the remap it is drawn with, a face's brush and side and what draws it; on a sky the skies come first in the list, and its buttons are Swap sky (Cover side when a texture is chosen), Swap all skies and Take back; Hide (Remove for a placed model; Hide all for several), Hide whole model (a merged model's surfaces), Place a copy; on a hidden face or a sky side Same plane, Connected (`mapedit_link`) and Fill (`mapedit_fill`); Draw another shader: a search over the shaders a remap may draw (the world's `textures/` and the map objects' `models/`, shaders and images, never the player models'), opened on the selection's own folder with its own shader chosen, five rows, each with its picture ([below](#shader-pictures)), or as tiles (Tiles, 21 at once); on a face the list starts with Fill's six nearby candidates, each with its share ("62 % nearby"), and Fill draws the chosen one when it is a candidate (`mapedit_fill <shader>`, the vote's first otherwise; the line under the face names it), then the Recent rows; Remap (or a second click on the chosen row) and Remove remap. A name the list does not know is tried as typed |
+| Place | every MD3 of the game data outside the player models, the Recent rows first, narrowed by a search, six rows; Place where you aimed (or a second click on the chosen row); the current placed model's Turn left and right (15 degrees), Up and Down (8 units), Left, Right, Away and Closer (8 units along the world axis nearest the view's right and ahead, so steps add up straight), Smaller and Bigger (by 1.1), Grab and Remove. Shift held makes the steps 1 degree, 1 unit and a tenth of the growth. Things (beside the search) swaps the models for the things standing on the map, as the page's World: the boomboxes, mystery boxes and Toy Master toys listed; Your boombox, Mystery box and Toy stand one where the next click meets the floor, facing the view (`place_boombox_at`, `mystery_box_place_at`, `toy_master_place_at`, the page's code; boxes and toys SJK's creator's on a game server, for this server only when New edits for says so), Toy: <kind> steps through the hub's kinds, Escort shows the next toy only where you are, Remove takes the chosen one away (`mysterybox_remove`, `toymaster_remove`, the boombox back on the shoulder). No move for a box or a toy, as in the page |
+| Lights | the added lights (each `20: #ffd9a6 r320 x1.00` with a dot of its colour; how many of the 8 drawn), Add: click (the next click on the scene puts a light 12 units in front of what it meets, `mapedit_light`; Esc stops), At view centre (what the view's centre meets, then `mapedit_light`), Delete (`mapedit_delete`; on a lamp, its reset); eight colour swatches, Smaller and Bigger (the reach by 1.25), Dimmer and Brighter (the strength by 1.25), each one `mapedit_light_set`; then the map's lamp fixtures, nearest the view first (`light_blue (surface:1043) off (on reload)`), Turn off or on and As the map has it (`mapedit_lamp off\|on\|reset`); without Experimental it says lamps are found there only |
 | Weather | the map's own weather and what an edit keeps here; Drizzle, Rain, Storm and Snow (`r_weatherForce`'s four, keeping the fog), Fog (`mist` on, or every fog off) and Wind (`wind` on, or every wind off), Keep what I see (`mapedit_weather`) and Map's own (`mapedit_weather -`); an ember line while your own `r_weatherForce` hides it |
-| Edits | the map's edits, newest first, eleven rows, named shortly (`3: Placed: crate.md3`, `Hidden surface: floor (1043)`, `Remap: wall -> wall2`, a server's address when for one), those for another server dimmed; choosing a placed model makes it the one Place's buttons move; Delete the chosen one, Undo and Redo; the Recent rows' switch ("Recent: remembered" or off) and Forget recent |
+| Edits | the map's edits, newest first, ten rows, named shortly (`3: Placed: crate.md3`, `Hidden surface: floor (1043)`, `Remap: wall -> wall2`, a server's address when for one), those for another server dimmed; choosing a placed model makes it the one Place's buttons move; Delete the chosen one, Undo and Redo; the Recent rows' switch ("Recent: remembered" or off) and Forget recent; Invisible brushes: Off, Play, Caulk and All, the browser editor's presets (`r_showBrushes 0`, `1`, `2` with `r_showBrushesTypes caulk nodraw solid`, `2`; B steps through them) |
+
+### Shader pictures
+
+Sol, 09/11/2026: "be able to see textures better too". Each shader row of Selected has the
+shader's picture at its left, and Tiles shows the list as pictures only, seven a line and
+three lines (21 at once; Up and Down go a line, Left and Right a tile, the wheel a line).
+A card left of the column, over the scene's edge, shows the shader under the pointer (or
+the chosen one) large, 200 units square at its picture's own shape, with its name and the
+picture's size, and under it the shader drawn there now, small: a texture is judged before
+it is drawn, against what it replaces. A press on the card is the panel's, never a pick.
+
+A picture is the image the game draws the shader with: the one its script selects for the
+world renderer (`ShaderCatalog::resolve_image`, as the HUD finds its icons; a shader with
+no script, an image's), a sky's box front (`<box>_ft`, as the page's sky list), decoded
+through the world's decoded-image cache; a shader with none shows its name. Only the rows
+and tiles drawn ask for theirs, two decoded a frame at most (the large one counts), so a
+long list costs nothing until it is scrolled to
+([pictures.rs](../crates/sjk-viewer/src/map_edits/pictures.rs)). The thumbnails, 128
+square (the middle of a picture that is not), live in one 1024 square texture of 64 cells
+(4 MB), the least lately drawn giving up its cell when they are all held; the large one in
+its own texture, at most 512 along its longest edge with its mips. Both textures are made
+on the first picture and dropped when the panel closes, so a player who never opens the
+editor carries none of it ([map_edit_pictures.rs](../crates/sjk-viewer/src/ui_renderer/map_edit_pictures.rs)).
+A picture is a still of the first image: a shader's scrolls, blends and later stages show
+in the scene once remapped.
+
+### Lights in the panel
+
+The Lights page (09/11/2026, the page's [Lights](#lights-in-the-page) in game): while it
+shows, each added light is a bulb over the scene in its colour and the 64 lamp fixtures
+nearest the view small squares in theirs (grey when off), the chosen one ringed in gold, an
+added light with the ring of its reach; a click on one chooses it (a light before a lamp at
+the same spot, [panel_lights.rs](../crates/sjk-viewer/src/map_edits/panel_lights.rs)). The
+[gizmo](#gizmos) stands on the chosen one and only moves it (R and T say so; the axes are
+the world's): a light's drag ends in one `mapedit_light_set`, a lamp's in one `mapedit_lamp
+<fixture> move <dx dy dz>` from where the map has it (`reset` when put back), as the page's.
+A lamp edit applies from the map's next load or `vid_restart force`, and its row says "(on
+reload)" until then.
 
 Under them on every page: New edits for All servers or This server, the last command's
 answer (ember when refused; Publish's comes when the hub answers; with nothing to say, a
@@ -381,7 +421,8 @@ Shift+click adds placed models to the multiple selection in both (each outlined)
 takes the whole transform back.
 
 In game the gizmo shows with the panel (flying too), on the selected placed model, else
-the current one (Place's), and a press on a handle in the scene drags it; G, R and T, 1, 2,
+the current one (Place's), on the Lights page the chosen light or lamp (Move only,
+[above](#lights-in-the-panel)), and a press on a handle in the scene drags it; G, R and T, 1, 2,
 3 and L are the panel's keys unless a search field types or the right button is held (the
 movement keys fly then; S is one of them, which is why scale is T), and while a transform
 runs every key is its own and the right button takes it back instead of flying. The keys
@@ -736,6 +777,20 @@ draws one sky, the map's first (a map with several shows the first one's swap on
   put down as one step (each origin within 0.05 units of its turn about the pivot), the
   outlines following, an undo bringing all three back. Not tried in a running client: the
   keys and drags with the real pointer, and the page's `hide_many` with placed models.
+- The panel's pictures, Lights page, things, brushes and copy and paste (09/11/2026): unit
+  tests of the pictures' cache (asked by the rows drawn, rows scrolled away dropped, a full
+  grid giving up the least lately drawn cell, never one on show; the preview asked then
+  shown; a wide picture's middle kept), the thumbnails' texture ids and cells, the tiles'
+  steps, Fill's candidates at the head of a face's list with their shares, the Lights rows'
+  words for `mapedit_light_set` and `mapedit_lamp move` (and reset), the steps within the
+  document's limits, the swatches, the brush presets read back from the cvars, the pasted
+  text read as the page reads it with `mapedit_place`'s words, and every page at four
+  window shapes. The world shot `duel6_map_editor_pictures_and_lights`: the floor's shader
+  list with its pictures and the preview card, the same as tiles, the Lights page with two
+  added lights (their bulbs and the gizmo on the chosen one), and Place's things. Not tried
+  in a running client: the pictures with the real pointer and their cost on a long list,
+  the markers' clicks, the gizmo's drag on a light or a lamp, Ctrl+C and Ctrl+V with the
+  system clipboard, things placed on a server, the brush presets in play.
 - Lights (08/11/2026): unit tests of the kinds (round trip in the hub's shape, the limits,
   one lamp edit per fixture, an unknown kind refusing the whole document), the fixtures
   (written and read back, the lamps grouped one marker per fixture, turned off and moved),

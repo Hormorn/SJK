@@ -2152,25 +2152,49 @@ the column stays drawn, its keys lines turned to the flight's.
 
 - **Top:** "Map editor" (Rajdhani 42), the map and its state (no edits yet, N edits not
   published, or published with the hub's revision), then the pages as tabs: Selected,
-  Place, Edits, Weather (Camera control's tabs, 28 apart so four fit the column).
+  Place, Lights, Edits, Weather (Camera control's tabs at Rajdhani 22, 18 apart so five
+  fit the column; 09/11/2026).
 - **Selected:** what it is (Rajdhani 26; "Hidden face and 11 more" for several), its model
   or shader and its detail (Exo 2 16, muted, two lines; on faces the second is Fill's
   shader and share in gold), a row of kit buttons (two; three on a hidden face or a sky:
   Same plane, Connected, Fill), then Draw another shader: the kit's search pill (with its
-  count), a list of five rows as Place's (names without `textures/` or `models/`, the
-  selection's own shader in quiet print unless chosen, the Recent rows first with a quiet
-  "Recent" at their right and a line under the last), and Remap and Remove remap. With
+  count) and a Tiles switch (92 wide) at its right, a list of five rows as Place's, each
+  with the shader's picture (28 square on a dark ground) before its name (names without
+  `textures/` or `models/`, the selection's own shader in quiet print unless chosen; on a
+  face Fill's candidates first with their share in gold at their right, "62 % nearby",
+  then the Recent rows with a quiet "Recent", a line under the last of each group), or as
+  tiles (Rows to go back): seven 52-square pictures a line, three lines, the chosen one
+  framed gold, the hovered one holo, the selection's own quiet, a candidate's share on a
+  dark band at its foot, a Recent one a holo dot at its corner; then Remap and Remove
+  remap. Left of the column, over the scene's edge from the heading down (x 1164, 224
+  wide, 372 high), the preview card: the navy glass of the lists, "Under the pointer" or
+  "Chosen" (Exo 2 13, quiet), the picture 200 square at its own shape on a darker ground,
+  its name (two lines) and size, and "Drawn there now" with the selection's own shader at
+  40 square and its name. With
   nothing selected, how to select and to fly. On a sky (04/11/2026) the kind is "Sky", the
   skies lead the list after the Recent rows, and its last row has three buttons: Swap sky
   (Cover side when a texture is chosen), Swap all skies (only with a sky chosen) and Take
   back.
-- **Place:** the kit's search pill, a list of six rows (34 each, the chosen one gold with
-  a gold tick at its left, paths without `models/`, the Recent rows first), Place where you
-  aimed across the column, then Placed model: its line and three rows of four buttons
-  (turn and lift, the nudges, scale with Grab, Put down while grabbing, and Remove).
-- **Edits:** a list of eleven rows, an edit for another server in quiet print; Delete,
+- **Place:** the kit's search pill with a Things switch at its right, a list of six rows
+  (34 each, the chosen one gold with a gold tick at its left, paths without `models/`, the
+  Recent rows first), Place where you aimed across the column, then Placed model: its line
+  and three rows of four buttons (turn and lift, the nudges, scale with Grab, Put down
+  while grabbing, and Remove). Things (09/11/2026): "On this map" with Models at its
+  right, six rows of the things standing there (another player's boombox quiet), two rows
+  of three buttons (Your boombox, Mystery box, Toy, a gold pill while the next click
+  places it; Toy: <kind>, Escort, Remove) and a muted note.
+- **Lights** (09/11/2026): "Added lights", a muted line of how many are drawn, Add: click
+  (a gold pill while the next click adds), At view centre and Delete, three rows each
+  with a dot of the light's colour, eight colour swatches (30 high, gold-framed on the
+  chosen light's colour, faint with no light chosen), Smaller, Bigger, Dimmer, Brighter;
+  then "Map lamps", a muted line, three rows (a dot of the lamp's colour, grey and quiet
+  when off) and Turn off (Turn on) and As the map has it. Over the scene, the lights'
+  bulbs (a dark ring round their colour), the nearest lamps' small squares and the chosen
+  one's gold ring, a light's reach as a faint gold circle.
+- **Edits:** a list of ten rows, an edit for another server in quiet print; Delete,
   Undo and Redo (each dimmed with nothing to do); then the Recent rows' switch ("Recent:
-  remembered" or "Recent: off") and Forget recent.
+  remembered" or "Recent: off") and Forget recent; then "Invisible brushes (B)" and its
+  four presets (Off, Play, Caulk, All), the one in force a gold pill.
 - **Weather** (05/11/2026, Sol's request): "This map's weather" heading, the map's own
   weather (muted) and what an edit keeps here (gold; "Kept for this server" when the
   edit is this server's), an ember note while the player forces weather; then Choose: a
@@ -2189,8 +2213,9 @@ the column stays drawn, its keys lines turned to the flight's.
 
 It is a page of the in-game menu (`Page::MapEdit`), drawn by `InGameMenu::append_own_page`
 from the panel's state, which lives with the map's edits; its keys come before the game
-menu's (`GpuState::map_edit_key`), its pointer through `map_edit_pointer`. World shot:
-`duel6_map_editor_panel` (`world_shot_map_edits.rs`).
+menu's (`GpuState::map_edit_key`), its pointer through `map_edit_pointer`. World shots:
+`duel6_map_editor_panel` and `duel6_map_editor_pictures_and_lights`
+(`world_shot_map_edits.rs`).
 
 ## Ghost editor
 

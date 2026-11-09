@@ -1407,9 +1407,12 @@ impl GpuState {
                 };
                 let at = Vec2::from_array(self.cursor_position);
                 if !self.map_edit_gizmo_begin(How::Keys(mode, Constraint::None), at) {
-                    self.map_edits
-                        .panel
-                        .answer(Err("Select a placed model first".into()));
+                    let first = if self.map_edits.panel.tab == super::panel::Tab::Lights {
+                        "Choose a light or a lamp first"
+                    } else {
+                        "Select a placed model first"
+                    };
+                    self.map_edits.panel.answer(Err(first.into()));
                 }
                 return true;
             }

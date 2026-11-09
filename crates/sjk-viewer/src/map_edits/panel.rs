@@ -523,6 +523,11 @@ pub(crate) struct Facts {
     pub(crate) brushes: Option<BrushPreset>,
 }
 
+/// What the panel's facts were read for ([`Panel`]'s `seen`): the document's revision,
+/// the current placed model, grabbing, the map's checksum known, the free camera, the
+/// flight, the page, the things standing.
+type Seen = (u64, Option<u32>, bool, bool, bool, bool, Tab, usize);
+
 /// The panel's state.
 #[derive(Default)]
 pub(crate) struct Panel {
@@ -570,7 +575,7 @@ pub(crate) struct Panel {
     /// What [`Facts`] were read for: the document's revision, the current placed model,
     /// grabbing, whether the map's checksum was known, the free camera, the flight, the
     /// page.
-    seen: Option<(u64, Option<u32>, bool, bool, bool, bool, Tab, usize)>,
+    seen: Option<Seen>,
     /// The Recent rows (newest first, [`super::recent`]) and their switch.
     recent_models: Vec<String>,
     recent_shaders: Vec<String>,
@@ -2575,11 +2580,26 @@ impl GpuState {
         self.map_edits.panel.stale();
     }
 
+    /// The world shots: where the gizmo stands on the Lights page's chosen light or lamp.
+    pub(crate) fn shot_light_target(&self) -> Option<glam::Vec3> {
+        self.map_edit_light_target()
+            .map(|(_, placement)| placement.origin)
+    }
+
     /// The world shots: a Shift+click at `point` (physical pixels).
     pub(crate) fn shot_map_edit_toggle(&mut self, point: [f32; 2]) -> crate::world_notes::Toggled {
         let toggled = self.map_edit_toggle_pick(Some(point));
         self.map_edit_toggled(toggled);
         toggled
+    }
+
+    /// The world shots: type `query` in the Selected page's shader search.
+    pub(crate) fn shot_map_edit_remap_search(&mut self, query: &str) {
+        let panel = &mut self.map_edits.panel;
+        panel.remap = query.to_owned();
+        panel.refilter_shaders();
+        panel.shader_row = 2;
+        panel.focus = REMAP_FIELD;
     }
 
     /// The world shots: type `query` in the Place page's search.

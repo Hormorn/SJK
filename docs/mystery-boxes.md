@@ -163,11 +163,11 @@ shattering a Legendary shader gives. The blade fanfares like the jackpot.
 | `mysterybox_remove [id]` | Remove the box nearest you (within 256 units), or the one with that id |
 | `mysterybox_list` | The boxes on this map, their ids and distance, and the price (anyone) |
 
-The map editor's Place page (`mapedit_panel`) shows the creator Mystery box and Remove
-box beside Place model; Mystery box follows the editor's scope (All servers or This
-server). The browser map editor's World page ([map-edits.md](map-edits.md#the-browser-editor-creator-only-for-now))
-shows the boxes and places one where a click meets the floor, or removes one, through the
-same code (`mystery_box_place_at`, `mysterybox_remove <id>`); the hub has no move. Placing needs the map's BSP checksum (as map edits do, `sv_mapChecksum`): the box
+The map editor's Place page (`mapedit_panel`), under Things (09/11/2026; before, a Mystery
+box and a Remove box button beside Place model), and the browser map editor's World page
+([map-edits.md](map-edits.md#the-browser-editor-creator-only-for-now)) list the boxes and
+place one where a click meets the floor (following the editor's scope, All servers or This
+server), or remove the chosen one, through the same code (`mystery_box_place_at`, `mysterybox_remove <id>`); the hub has no move. Placing needs the map's BSP checksum (as map edits do, `sv_mapChecksum`): the box
 stands in that exact map file only. The hub takes the creator's request only; every
 placing and removal goes to the staff log. The client reads the hub's list once registered,
 every 10 minutes, and at once after a placing, a removal or a box that is gone.
