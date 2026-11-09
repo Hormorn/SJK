@@ -200,7 +200,7 @@ mod tests {
         let error = parse(&words("bug_hunter x3 The fog"), NOW).unwrap_err();
         assert_eq!(
             error,
-            "Bug Hunter is given only once; no medal takes a count"
+            "Bug Hunter is given only once; only Videographer takes a count"
         );
         let list = parse(&words("bug_hunter x1 The fog"), NOW).unwrap();
         assert_eq!((list[0].count, list[0].note.as_str()), (1, "The fog"));
@@ -222,14 +222,17 @@ mod tests {
                 "early_tester",
                 "early_contributor",
                 "bug_hunter",
-                "supporter"
+                "supporter",
+                "videographer"
             ]
         );
         assert!(list.iter().all(|medal| medal.note == "Well done"));
         let counts: Vec<u32> = list.iter().map(|medal| medal.count).collect();
-        assert_eq!(counts, [1, 1, 1, 1]);
-        // No medal is repeatable, so all takes no count either.
-        assert!(parse(&words("all x2 Well done"), NOW).is_err());
+        assert_eq!(counts, [1, 1, 1, 1, 1]);
+        // A count goes to the repeatable medal only (Videographer).
+        let counted = parse(&words("all x2 Well done"), NOW).unwrap();
+        let counts: Vec<u32> = counted.iter().map(|medal| medal.count).collect();
+        assert_eq!(counts, [1, 1, 1, 1, 2]);
     }
 
     #[test]
@@ -245,7 +248,7 @@ mod tests {
         assert_eq!(awards.len(), 5, "not folded into one");
         assert_eq!(awards[4].rank, Rank::Solar);
         assert!(queued(&awards)[0].contains("Bug Hunter (Rank V Solar)"));
-        assert_eq!(parse(&words("all ranks"), NOW).unwrap().len(), 20);
+        assert_eq!(parse(&words("all ranks"), NOW).unwrap().len(), 25);
         assert!(parse(&words("early_tester r6"), NOW).is_err());
         assert!(parse(&words("early_tester r0"), NOW).is_err());
         // A word that only looks like one is part of the note.

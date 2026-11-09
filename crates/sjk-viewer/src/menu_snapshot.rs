@@ -1633,6 +1633,7 @@ fn identity_page(shots: &Snapshot, art: ArtSet) {
         claim: None,
         announce: None,
         news_image: None,
+        site: None,
         public_key: String::new(),
     };
     let online = hub(Status::Online, "^1Sol", &["^4Vulpes", "Padawan"]);
@@ -3285,6 +3286,7 @@ fn medals_snapshot() {
         claim: None,
         announce: None,
         news_image: None,
+        site: None,
         public_key: String::new(),
     };
     let with = hub(shot_medals());

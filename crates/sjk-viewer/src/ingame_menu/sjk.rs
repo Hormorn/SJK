@@ -12,7 +12,7 @@ pub(crate) struct Entry {
 }
 
 /// The pop-up's entries, top to bottom.
-pub(crate) const ENTRIES: [Entry; 9] = [
+pub(crate) const ENTRIES: [Entry; 10] = [
     Entry {
         label: "Changelog",
         hint: "What changed in each SJK release, and who made it",
@@ -32,6 +32,10 @@ pub(crate) const ENTRIES: [Entry; 9] = [
     Entry {
         label: "Identity",
         hint: "Your SJK key and profile, and the players the hub knows here",
+    },
+    Entry {
+        label: "My SJK page",
+        hint: "SJK's website, signed in: your keys and the video bounties",
     },
     Entry {
         label: "Report a bug",
@@ -57,7 +61,8 @@ pub(crate) const CREDITS: usize = 1;
 pub(crate) const PROFILE: usize = 2;
 pub(crate) const COLLECTION: usize = 3;
 pub(crate) const IDENTITY: usize = 4;
-pub(crate) const REPORT: usize = 5;
-pub(crate) const REPORT_PLAYER: usize = 6;
-pub(crate) const SJK_CHAT: usize = 7;
-pub(crate) const CAMERA_CONTROL: usize = 8;
+pub(crate) const SJK_PAGE: usize = 5;
+pub(crate) const REPORT: usize = 6;
+pub(crate) const REPORT_PLAYER: usize = 7;
+pub(crate) const SJK_CHAT: usize = 8;
+pub(crate) const CAMERA_CONTROL: usize = 9;
