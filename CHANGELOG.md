@@ -30,7 +30,16 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1109.1 (Alpha) | 09/11/2026
+
+A mining toy, the E-Web, a spawn list, toggle keys, a HUD clock and an easier vote panel; profile banners and the WHEEL OF DOOM rest for now.
+
+> Mining: A new toy: a pickaxe, boulders rising round you, nine ores to find and five achievements on the board's new Hobbies page.
+> E-Web: Set the heavy repeater down from the inventory and fire it; the E-Webs of single-player maps such as hoth2 work too.
+> Tools: A spawn list for NPCs, vehicles and cheats (`spawn_panel`), keys that flip any setting (`togglebind`) and a HUD clock (`cg_drawClock`).
+> Easier to read: A new vote panel, a chat-only console, species first on the Character tab and a custom RGB skin colour.
+> Collection: Break several shaders down at once in the Forge, fishing counts as play, and Creyon's Malachor Rose blade is back.
+> Resting for now: Profile banners and the WHEEL OF DOOM are out until they are finished and fixed; banners you found stay yours.
 
 - The WHEEL OF DOOM is out of order for now, as it is bugged: it stays in Collection > Toys, but spinning it only says so, and no credits are taken _(Sol)_
 - Profile banners are out of the game for now, as they are not finished: holocrons no longer bring them, the Collection has no Banners tab and no profile or player card shows one. Banners you found stay yours for when they come back _(Sol)_
@@ -51,8 +60,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - The Forge, Break down: break several saber shaders down at once. Switch on Select (or press S), click the shaders you want to let go (Space picks the chosen one), choose how many copies of each with + and - (or the buttons beside Break down selected), and Break down selected turns them all into kyber shards in one go, after a card shows what goes and warns about last copies and one you wear; if one cannot go, the line under the button names it and nothing is broken down. Locked shaders are never picked, and Escape stops picking. Needs a hub that offers it _(Slash, PR #367, after Atrosex's idea)_
 - Malachor Rose blade (blade 300, Mythical): the blade left out of the 130, back with its own name, picture and sounds; the 131st of Creyon's round. It comes to holocrons with the others _(Creyon, PR #378, after Foshin's idea)_
 - Mining toy: `toy_mining` (the quick wheel's Toys catalogue, Collection > Toys) puts a pickaxe in your hand, and boulders come up out of the ground round you. Walk up to one and strike it with Attack (hold it to keep swinging), your whole body in the swing; a few blows break it for ore or rubble, and a blow as it glints is a clean strike that counts twice and digs out rarer ore. Nine ores to find for your mining log, and five achievements on the board's new Hobbies page, beside Fishing's _(Slash, PR #363, after vinry's idea)_
-- Mining: sell your dug rubble to the SJK hub for a few credits, from the Mining card in Collection > Toys or with `mining_sell`; it shares the fishing junk's small sum a day, and `mining_log` prints your whole mining log _(Slash, PR #364, after vinry's idea)_
-- Quests, a new toy (`toy_quests`: Collection > Toys, the quick wheel's Toys group, Key bindings > Interaction): with it on, now and then you may be given a quest, such as hugging or kissing two other players within a minute, and find an Echo for it (one of the day's Echoes, sooner), or be one of the players named; a card at the top counts the seconds down, gold arrows point you and the players named at each other, and a chime plays as a quest is given and done (Settings > Sound > Toys "Quests sounds"); only players with it on take part _(Slash, PR #365, after wonner67's idea)_
+- Mining: sell your dug rubble to the SJK hub for a few credits, from the Mining card in Collection > Toys or with `mining_sell`, once the hub opens selling; it shares the fishing junk's small sum a day, and `mining_log` prints your whole mining log _(Slash, PR #364, after vinry's idea)_
+- Quests, a new toy, not given out yet: the hub turns it on later (`toy_quests`: Collection > Toys, the quick wheel's Toys group, Key bindings > Interaction): with it on, now and then you may be given a quest, such as hugging or kissing two other players within a minute, and find an Echo for it (one of the day's Echoes, sooner), or be one of the players named; a card at the top counts the seconds down, gold arrows point you and the players named at each other, and a chime plays as a quest is given and done (Settings > Sound > Toys "Quests sounds"); only players with it on take part _(Slash, PR #365, after wonner67's idea)_
 - RGB shader blades take any custom colour: a chroma shader worn with a white, grey or pale custom RGB colour is now white, grey or paler too, instead of keeping its own colour (a blue one could not be white); stock colours and strong custom colours look as before _(Slash, PR #376, after Dante's idea)_
 
 ## 2026.1108.1 (Alpha) | 08/11/2026
