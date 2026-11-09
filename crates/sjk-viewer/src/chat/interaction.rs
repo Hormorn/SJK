@@ -116,20 +116,19 @@ impl ChatOverlay {
             }
             KeyCode::PageUp | KeyCode::ArrowUp => self.scroll_by(3),
             KeyCode::PageDown | KeyCode::ArrowDown => self.scroll_by(-3),
+            // With nothing typed the caret has nowhere to go: the bare arrows walk the
+            // chat buttons, in Tab's order.
+            KeyCode::ArrowLeft if self.arrows_walk_tabs() => {
+                let channel = self.input.as_ref().expect("active input").channel;
+                self.go_to_tab(self.previous_channel(channel));
+            }
+            KeyCode::ArrowRight if self.arrows_walk_tabs() => {
+                let channel = self.input.as_ref().expect("active input").channel;
+                self.go_to_tab(self.next_channel(channel));
+            }
             KeyCode::Tab => {
                 let channel = self.input.as_ref().expect("active input").channel;
-                // The row's channels in turn (`chat/tabs.rs`), then the last whisperer
-                // (`chat/reply.rs`), then All.
-                match self.next_channel(channel) {
-                    Some(next) => self.choose(next),
-                    None => {
-                        let target = self.reply_target().ok();
-                        let input = self.input.as_mut().expect("active input");
-                        input.channel = Channel::Whisper;
-                        input.recipient = target;
-                        self.notice = "";
-                    }
-                }
+                self.go_to_tab(self.next_channel(channel));
             }
             _ => {
                 let input = self.input.as_mut().expect("active input");
@@ -334,6 +333,30 @@ impl ChatOverlay {
             input.recipient = None;
             input.pm_list = false;
             self.notice = "";
+        }
+    }
+
+    /// Whether the bare Left and Right arrows change chat button: only on an empty
+    /// draft with no menu or list of whisperers open.
+    fn arrows_walk_tabs(&self) -> bool {
+        self.modifiers.is_empty()
+            && self.input.as_ref().is_some_and(|input| {
+                input.text.is_empty() && input.menu.is_none() && !input.pm_list
+            })
+    }
+
+    /// Go to a step of Tab's cycle (`chat/tabs.rs`); `None` is the last whisperer
+    /// (`chat/reply.rs`).
+    fn go_to_tab(&mut self, channel: Option<Channel>) {
+        match channel {
+            Some(channel) => self.choose(channel),
+            None => {
+                let target = self.reply_target().ok();
+                let input = self.input.as_mut().expect("active input");
+                input.channel = Channel::Whisper;
+                input.recipient = target;
+                self.notice = "";
+            }
         }
     }
 

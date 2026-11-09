@@ -3336,7 +3336,9 @@ and PM, each behind its own setting in Settings > Chat (`cg_chatTabTeam`,
 `cg_chatTabPm` 0): a channel switched off (0) leaves the row and Tab skips it, but its
 key still opens it; since 03/11/2026 (Sol's request) Not in Tab (2) keeps the button
 while Tab skips it, so a player keeps Team or Admin clickable out of the cycle (Tab
-from a channel it skips goes on to the next one it stops on). The clan chats' keys are
+from a channel it skips goes on to the next one it stops on). With nothing typed, and
+no modifier held, Left and Right walk the same cycle backwards and forwards (since
+09/11/2026, akr's idea); with a draft they move the caret. The clan chats' keys are
 `messagemode7` (JoF) and `messagemode8` (S). Admin sends `amsay`, which only the
 server's admins read (JoF EJK `Cmd_Amsay_f`, `SAY_ADMIN`; they see it as `<Admin>`), and
 shows only on JA+ and jaPRO servers; its key is `messagemode6` (Controls > Admin chat, no
