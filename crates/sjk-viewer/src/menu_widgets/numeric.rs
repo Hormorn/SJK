@@ -2,7 +2,9 @@
 
 use super::MenuCanvas;
 use crate::console::line_edit::{LineEdit, Motion};
-use sjk_ui::{Color, FontWeight, Rect, TextAlign};
+use crate::menu::sjk::{color, text};
+use crate::menu_widgets::TextFamily;
+use sjk_ui::{Color, DrawCommand, FontWeight, Rect, TextAlign};
 use winit::keyboard::KeyCode;
 
 /// Separate targets keep clicks on a value from moving its slider. Row `row`'s
@@ -26,6 +28,20 @@ pub(crate) enum EditResult {
 
 /// Longest draft SJK accepts, in characters.
 const MAX_CHARS: usize = 10;
+/// Most digits a draft takes after its decimal point.
+const MAX_DECIMALS: usize = 3;
+
+/// The SJK field's type size, the size of the number it replaces.
+const SJK_TEXT: f32 = 21.0;
+/// Room for a digit in the SJK field, a little over the widest at [`SJK_TEXT`].
+const SJK_DIGIT: f32 = 10.0;
+/// Room for a decimal point, a minus sign and the caret.
+const SJK_POINT: f32 = 5.0;
+const SJK_MINUS: f32 = 7.0;
+const SJK_CARET: f32 = 4.0;
+/// The SJK field's padding left of the text, and how far it passes the number's right edge.
+const SJK_PAD_LEFT: f32 = 10.0;
+const SJK_PAD_RIGHT: f32 = 8.0;
 
 /// Owns the target row so pointer hover cannot redirect an unfinished edit.
 pub(crate) struct NumericEdit {
@@ -73,8 +89,9 @@ impl NumericEdit {
     }
 
     /// SJK's stricter filter: digits, one decimal point (a comma counts as one),
-    /// a minus sign only first and only when the slider goes below zero, and at
-    /// most [`MAX_CHARS`] characters. True when anything was typed.
+    /// a minus sign only first and only when the slider goes below zero, at
+    /// most [`MAX_CHARS`] characters, no more whole digits than the slider's
+    /// limit has and at most [`MAX_DECIMALS`] decimals. True when anything was typed.
     fn type_text(&mut self, typed: &str) -> bool {
         let mut accepted = false;
         for character in typed.chars() {
@@ -94,7 +111,9 @@ impl NumericEdit {
                 '-' => self.min < 0.0 && at == 0,
                 _ => false,
             };
-            if fits && allowed {
+            let mut candidate = rest;
+            candidate.insert(at, character);
+            if fits && allowed && self.within_range(&candidate) {
                 let mut buffer = [0; 4];
                 self.caret.insert(
                     &mut self.text,
@@ -105,6 +124,16 @@ impl NumericEdit {
             }
         }
         accepted
+    }
+
+    /// Whether `draft` has no more whole digits than the slider's largest
+    /// value and no more than [`MAX_DECIMALS`] decimals.
+    fn within_range(&self, draft: &str) -> bool {
+        let limit = self.min.abs().max(self.max.abs()).trunc();
+        let whole_digits = format!("{limit:.0}").len();
+        let unsigned = draft.strip_prefix('-').unwrap_or(draft);
+        let (whole, decimals) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+        whole.len() <= whole_digits && decimals.len() <= MAX_DECIMALS
     }
 
     /// Enter validates without step quantization; Escape discards the draft.
@@ -145,6 +174,86 @@ impl NumericEdit {
         let value = self.text.trim().parse::<f64>().ok()?;
         let value = if self.integer { value.round() } else { value };
         value.is_finite().then(|| value.clamp(self.min, self.max))
+    }
+
+    /// Where the SJK field stands for a value drawn at `number`: its right
+    /// edge stays put and it widens leftwards, over the slider, as the draft
+    /// grows, so the digits keep their size.
+    pub(crate) fn sjk_field(&self, number: Rect, s: f32) -> Rect {
+        let digits = SJK_CARET
+            + self
+                .text
+                .chars()
+                .map(|character| match character {
+                    '.' => SJK_POINT,
+                    '-' => SJK_MINUS,
+                    _ => SJK_DIGIT,
+                })
+                .sum::<f32>();
+        let width = ((digits + SJK_PAD_LEFT + SJK_PAD_RIGHT) * s).max(number.height * 1.5);
+        Rect::new(
+            number.right() + SJK_PAD_RIGHT * s - width,
+            number.y,
+            width,
+            number.height,
+        )
+    }
+
+    /// The draft in SJK UI: a dark pill outlined gold (ember while invalid),
+    /// replacing the value drawn at `number`.
+    pub(crate) fn draw_sjk(&self, ui: &mut MenuCanvas, number: Rect, s: f32) {
+        let field = self.sjk_field(number, s);
+        let radius = field.height * 0.5;
+        let edge = if self.invalid {
+            color::EMBER
+        } else {
+            color::GOLD
+        };
+        let selected = self.caret.selection(&self.text).is_some();
+        let list = ui.draw_list_mut();
+        let _ = list.push(DrawCommand::RoundedRect {
+            rect: field,
+            radius,
+            color: color::alpha(color::SPACE, 0.96),
+        });
+        if selected {
+            let inset = 4.0 * s;
+            let band = Rect::new(
+                field.x + inset,
+                field.y + inset,
+                field.width - inset * 2.0,
+                field.height - inset * 2.0,
+            );
+            let _ = list.push(DrawCommand::RoundedRect {
+                rect: band,
+                radius: band.height * 0.5,
+                color: color::alpha(color::HOLO, 0.32),
+            });
+        }
+        let _ = list.push(DrawCommand::Border {
+            rect: field,
+            radius,
+            width: 1.5 * s,
+            color: edge,
+        });
+        let cursor = self.caret.cursor(&self.text);
+        let marker = if selected { "" } else { "|" };
+        let left = field.x + SJK_PAD_LEFT * s;
+        text(
+            ui,
+            TextFamily::Display,
+            format_args!("{}{marker}{}", &self.text[..cursor], &self.text[cursor..]),
+            Rect::new(left, number.y, number.right() - left, number.height),
+            SJK_TEXT * s,
+            if self.invalid {
+                color::EMBER
+            } else {
+                color::TEXT
+            },
+            FontWeight::Regular,
+            TextAlign::End,
+        );
+        ui.set_family(TextFamily::Body);
     }
 
     /// Compact inline editing, using retained text storage instead of frame allocations.
@@ -221,14 +330,55 @@ mod tests {
         edit.key(KeyCode::Minus, Some("-"), false);
         edit.key(KeyCode::KeyE, Some("e"), false);
         assert_eq!(edit.text, "1.");
+        let mut long = NumericEdit::typed(0, "1", -10.0, 1e12, false).unwrap();
         for _ in 0..20 {
-            edit.key(KeyCode::Digit5, Some("5"), false);
+            long.key(KeyCode::Digit5, Some("5"), false);
         }
-        assert_eq!(edit.text.len(), MAX_CHARS);
+        assert_eq!(long.text.len(), MAX_CHARS);
         let mut comma = NumericEdit::typed(0, "0", 0.0, 1.0, false).unwrap();
         comma.key(KeyCode::Comma, Some(","), false);
         comma.key(KeyCode::Digit5, Some("5"), false);
         assert_eq!(commit(&mut comma), Some(0.5));
+    }
+
+    #[test]
+    fn the_sjk_field_widens_left_and_fits_a_full_draft() {
+        let number = Rect::new(500.0, 100.0, 52.0, 30.0);
+        let short = NumericEdit::typed(0, "1", 0.0, 1e12, false).unwrap();
+        let long = NumericEdit::typed(0, "1234567890", 0.0, 1e12, false).unwrap();
+        let (narrow, wide) = (short.sjk_field(number, 1.0), long.sjk_field(number, 1.0));
+        assert_eq!(narrow.right(), wide.right());
+        assert!(wide.x < narrow.x);
+        assert!(wide.width >= MAX_CHARS as f32 * SJK_DIGIT + SJK_CARET);
+        assert!(narrow.width <= number.height * 1.5);
+    }
+
+    #[test]
+    fn the_sjk_field_has_room_for_every_character_it_takes() {
+        use crate::text::{DISPLAY, TextFace, load_family, visible_text_width_style};
+        let loaded = load_family(&DISPLAY, 1.0, None).expect("a bundled family");
+        let font = &loaded.font;
+        let scale = SJK_TEXT / font.height;
+        let width = |text| visible_text_width_style(font, text, scale, TextFace::Regular, 0.0);
+        for digit in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] {
+            assert!(width(digit) <= SJK_DIGIT, "{digit}: {}", width(digit));
+        }
+        assert!(width(".") <= SJK_POINT, "{}", width("."));
+        assert!(width("-") <= SJK_MINUS, "{}", width("-"));
+        assert!(width("|") <= SJK_CARET, "{}", width("|"));
+    }
+
+    #[test]
+    fn the_slider_range_limits_the_digits() {
+        let typed = |max: f64, text: &str| {
+            let mut edit = NumericEdit::new(0, String::new(), 0.0, max, false);
+            edit.type_text(text);
+            edit.text
+        };
+        assert_eq!(typed(130.0, "12345"), "123");
+        assert_eq!(typed(2000.0, "12345"), "1234");
+        assert_eq!(typed(1.0, "0.12345"), "0.123");
+        assert_eq!(typed(1.0, "25"), "2");
     }
 
     #[test]

@@ -906,12 +906,10 @@ impl PlayerMenu {
             NUMBER_WIDTH + 6.0,
             30.0,
         );
-        match self.numeric.as_ref().filter(|edit| edit.row == index) {
-            Some(edit) => {
-                self.canvas.set_family(TextFamily::Display);
-                edit.draw(&mut self.canvas, number, 1.4 * frame.s);
-                self.canvas.set_family(TextFamily::Body);
-            }
+        let edit = self.numeric.as_ref().filter(|edit| edit.row == index);
+        let value_target = edit.map_or(number, |edit| edit.sjk_field(number, frame.s));
+        match edit {
+            Some(edit) => edit.draw_sjk(&mut self.canvas, number, frame.s),
             None => text(
                 &mut self.canvas,
                 TextFamily::Display,
@@ -931,7 +929,7 @@ impl PlayerMenu {
         self.sjk_targets(frame, index, track, area);
         self.canvas.hit_region(
             crate::menu_widgets::numeric::VALUE_BASE + index as u16,
-            number,
+            value_target,
         );
     }
 
@@ -1087,12 +1085,10 @@ impl PlayerMenu {
                 NUMBER_WIDTH + 6.0,
                 30.0,
             );
-            match self.numeric.as_ref().filter(|edit| edit.row == index) {
-                Some(edit) => {
-                    self.canvas.set_family(TextFamily::Display);
-                    edit.draw(&mut self.canvas, number, 1.4 * frame.s);
-                    self.canvas.set_family(TextFamily::Body);
-                }
+            let edit = self.numeric.as_ref().filter(|edit| edit.row == index);
+            let value_target = edit.map_or(number, |edit| edit.sjk_field(number, frame.s));
+            match edit {
+                Some(edit) => edit.draw_sjk(&mut self.canvas, number, frame.s),
                 None => text(
                     &mut self.canvas,
                     TextFamily::Display,
@@ -1115,7 +1111,7 @@ impl PlayerMenu {
             // where they overlap.
             self.canvas.hit_region(
                 crate::menu_widgets::numeric::VALUE_BASE + index as u16,
-                number,
+                value_target,
             );
         }
     }

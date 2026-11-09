@@ -524,16 +524,13 @@ impl SettingsMenu {
             NUMBER_WIDTH + 6.0,
             30.0,
         );
+        let edit = self.numeric.as_ref().filter(|edit| edit.row == row);
         self.ui.hit_region(
             crate::menu_widgets::numeric::VALUE_BASE + row as u16,
-            number,
+            edit.map_or(number, |edit| edit.sjk_field(number, s)),
         );
-        match self.numeric.as_ref().filter(|edit| edit.row == row) {
-            Some(edit) => {
-                self.ui.set_family(TextFamily::Display);
-                edit.draw(&mut self.ui, number, 1.4 * s);
-                self.ui.set_family(TextFamily::Body);
-            }
+        match edit {
+            Some(edit) => edit.draw_sjk(&mut self.ui, number, s),
             None => text(
                 &mut self.ui,
                 TextFamily::Display,
