@@ -466,6 +466,9 @@ includes:
 - storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
   the game's own thunder after it, single gusts of wind heard as they rise, and rain
   running down walls and slopes in rivulets with drops along each slope's fall;
+- door and lift shadows on lamp light within a budget (09/11/2026, Sol's request): the
+  lamp cache is baked again 16 chunks of 64×64 texels a frame at most, only where a
+  mover's shadow changed, so `T2_Rancor` no longer spends 14 ms a frame on it;
 - SJK Alpha (19/10/2026), the first collection of cards: the Mythical rarity, the
   Credits and Meme kinds, and card 1, "Bishop", honouring the author of JKR (art by
   Sol, AI-assisted: a rusted helmet portrait).

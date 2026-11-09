@@ -1598,11 +1598,23 @@ otherwise come from a trace of the static world only, done once when the map loa
 - **Lamp cache.** The static lamp cache is baked with the door tiles as they are. When
   tiles are traced again, the cache texels their movers can shadow are baked again: at
   load, each door tile finds the cache surfaces in its lamp's reach that lie behind its
-  movers (the cone from the lamp around the mover's box), one texel rectangle per
-  layer. A refresh clears and lights that rectangle again, then runs the steep and rim
-  passes over the layer; outside the rectangle that can only poison a few more texels
-  (evaluated directly), never change their light. While tiles keep coming the cache
-  follows every 100 ms, at once when the queue is empty, at most four layers a frame.
+  movers (the cone from the lamp around the mover's box) and lists the 64×64-texel
+  chunks under them (`mover_occlusion::cache_regions`). A traced tile marks its chunks
+  stale; a refresh takes at most 16 of them (`CHUNKS_PER_FRAME`, 65,536 texels) round
+  the map from where the last one stopped, so a lift that keeps moving cannot starve
+  the rest, joins neighbours along a row and, per layer, clears and lights only those
+  rectangles, drawing only the surfaces under them, with the steep pass over them grown
+  by one texel and the rim pass over them alone: the rest of the layer is untouched.
+  While tiles keep coming the cache follows every 100 ms, every frame once the queue is
+  empty. A busy map's door shadows then lag a few frames behind its movers instead of
+  costing the frame what they touched. Until 09/11/2026 a refresh baked one rectangle
+  round everything stale on each of four layers and ran the steep and rim passes over
+  every 2048² layer it touched: 16 ms of a 4K frame on `T2_Rancor` (7,977 lamps, 61
+  movers). The tests `a_refresh_never_bakes_more_than_its_chunks_a_frame` and
+  `a_mover_that_keeps_moving_cannot_starve_the_rest_of_the_map` hold the budget. The
+  rule for every renderer system that updates part of its data each frame (door tiles,
+  GI probes, this cache): bound it by work done (rays, probes, texels), never by a
+  count of items whose size depends on the map.
 - **Sun.** The view and close cascades already drew movers every frame. The far
   cascade, redrawn only when the sun turns, now also redraws when movers have moved,
   at most every 250 ms, and once more after they stop. Every shadow-casting mover is

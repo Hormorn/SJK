@@ -178,6 +178,8 @@ pub(crate) fn reach(entity: Option<&sjk_entity::Entity>, lower: Vec3, upper: Vec
 /// and `func_pendulum`. Every pose change traces its door tiles again and re-bakes the
 /// lamp cache around it, every frame without end (on `JoFTemple` 15 bobbing platforms
 /// cost about 4 ms a frame at 4K), so it blocks no lamp; it still casts sun shadows.
+/// Trains (`func_train`) are not here: they stop at their corners, and the bake's
+/// per-frame budget ([`CHUNKS_PER_FRAME`]) bounds what one costs while it runs.
 pub(crate) fn endless(entity: Option<&sjk_entity::Entity>) -> bool {
     matches!(
         entity.and_then(sjk_entity::Entity::classname),
@@ -296,24 +298,40 @@ pub(crate) fn may_shadow(
     angle <= cone + spread
 }
 
-/// Per door tile, the lamp cache texels its movers can shadow: per layer, the union of
-/// the texel rectangles (`[x0, y0, x1, y1)`, grown by two texels for the bake's filters)
-/// of the surfaces in its lamp's reach that [`may_shadow`] finds behind them.
+/// Texels along a side of a cache chunk: movers make the lamp cache stale chunk by chunk,
+/// and a frame bakes at most [`CHUNKS_PER_FRAME`] of them again.
+pub(crate) const CHUNK: u32 = 64;
+/// Chunks baked again in one frame, whatever the map: 16 of 64² is 65,536 texels, about
+/// a thirtieth of one 2048² layer. Their lamp shadows lag a few frames behind a mover
+/// rather than the frame paying for every texel it touched at once (16 ms of 4K frame on
+/// `T2_Rancor`, 09/11/2026, when four whole layers were baked again together).
+pub(crate) const CHUNKS_PER_FRAME: usize = 16;
+
+/// A chunk's key: its layer in the high half, its index in the layer's grid of
+/// [`CHUNK`]-texel chunks in the low half. Keys sort by layer, then row, then column.
+fn chunk_key(layer: u32, x: u32, y: u32, resolution: u32) -> u32 {
+    layer << 16 | (y * resolution.div_ceil(CHUNK) + x)
+}
+
+/// Per door tile, the lamp cache chunks its movers can shadow ([`chunk_key`], sorted):
+/// the chunks under the texel rectangles (`[x0, y0, x1, y1)`, grown by two texels for the
+/// bake's filters) of the surfaces in its lamp's reach that [`may_shadow`] finds behind
+/// them. Chunk by chunk, not one rectangle round them all: two small surfaces at opposite
+/// corners of a layer make two chunks stale, not the whole layer.
 pub(crate) fn cache_regions(
     lamps: &[crate::lamp_lights::Lamp],
     doors: &Doors,
     occluders: &[Occluder],
     surfaces: &[Vec<crate::world_materials::lamp_cache::CachedSurface>],
     resolution: u32,
-) -> Vec<Vec<(u32, [u32; 4])>> {
+) -> Vec<Vec<u32>> {
     doors
         .tiles
         .iter()
         .map(|tile| {
             let lamp = &lamps[tile.lamp as usize];
-            let mut regions = Vec::new();
+            let mut chunks = Vec::new();
             for (layer, list) in surfaces.iter().enumerate() {
-                let mut union: Option<[u32; 4]> = None;
                 for surface in list {
                     if !touches(lamp.position, lamp.radius, surface.lower, surface.upper)
                         || !tile.occluders.iter().any(|&o| {
@@ -324,31 +342,73 @@ pub(crate) fn cache_regions(
                         continue;
                     }
                     let [x0, y0, x1, y1] = surface.texels;
-                    let grown = [
-                        x0.saturating_sub(2),
-                        y0.saturating_sub(2),
-                        (x1 + 2).min(resolution),
-                        (y1 + 2).min(resolution),
-                    ];
-                    union = Some(union.map_or(grown, |u| merge(u, grown)));
-                }
-                if let Some(rect) = union {
-                    regions.push((layer as u32, rect));
+                    let (x0, y0) = (x0.saturating_sub(2), y0.saturating_sub(2));
+                    let (x1, y1) = ((x1 + 2).min(resolution), (y1 + 2).min(resolution));
+                    if x1 <= x0 || y1 <= y0 {
+                        continue;
+                    }
+                    for y in y0 / CHUNK..=(y1 - 1) / CHUNK {
+                        for x in x0 / CHUNK..=(x1 - 1) / CHUNK {
+                            chunks.push(chunk_key(layer as u32, x, y, resolution));
+                        }
+                    }
                 }
             }
-            regions
+            chunks.sort_unstable();
+            chunks.dedup();
+            chunks
         })
         .collect()
 }
 
-/// The smallest rectangle holding both.
-pub(crate) fn merge(a: [u32; 4], b: [u32; 4]) -> [u32; 4] {
-    [
-        a[0].min(b[0]),
-        a[1].min(b[1]),
-        a[2].max(b[2]),
-        a[3].max(b[3]),
-    ]
+/// Take up to [`CHUNKS_PER_FRAME`] stale chunks as texel rectangles per layer
+/// (`(layer, [x0, y0, x1, y1))`), neighbours along a row joined into one rectangle, and
+/// push them into `out`, at most [`CHUNKS_PER_FRAME`] rectangles. The chunks are taken
+/// in key order from `cursor` on, wrapping round, and `cursor` moves past the last: a
+/// mover that keeps making the same chunks stale cannot starve the rest of the map.
+pub(crate) fn take_chunks(
+    stale: &mut std::collections::BTreeSet<u32>,
+    cursor: &mut u32,
+    resolution: u32,
+    mut out: impl FnMut(u32, [u32; 4]),
+) {
+    let across = resolution.div_ceil(CHUNK);
+    let mut open: Option<(u32, u32, [u32; 4])> = None; // (layer, last index, rect)
+    for _ in 0..CHUNKS_PER_FRAME {
+        let Some(key) = stale
+            .range(*cursor..)
+            .next()
+            .or_else(|| stale.first())
+            .copied()
+        else {
+            break;
+        };
+        stale.remove(&key);
+        *cursor = key.wrapping_add(1);
+        let (layer, index) = (key >> 16, key & 0xffff);
+        let (x, y) = (index % across, index / across);
+        let rect = [
+            x * CHUNK,
+            y * CHUNK,
+            ((x + 1) * CHUNK).min(resolution),
+            ((y + 1) * CHUNK).min(resolution),
+        ];
+        match &mut open {
+            Some((l, last, r)) if *l == layer && *last + 1 == index && x != 0 => {
+                *last = index;
+                r[2] = rect[2];
+            }
+            _ => {
+                if let Some((l, _, r)) = open.take() {
+                    out(l, r);
+                }
+                open = Some((layer, index, rect));
+            }
+        }
+    }
+    if let Some((l, _, r)) = open {
+        out(l, r);
+    }
 }
 
 /// The clusters and areas a mover's reach box touches (`CM_BoxLeafnums`), to tell whether

@@ -9,10 +9,8 @@ const RAYS_PER_FRAME: u32 = 1 << 19;
 /// The most tiles one frame traces, whatever the resolution.
 const MAX_TILES: usize = 512;
 /// While movers keep moving, the lamp cache follows them this often; once every queued
-/// tile is traced it follows at once.
+/// tile is traced it follows at once, [`super::CHUNKS_PER_FRAME`] chunks a frame.
 const CACHE_REFRESH: std::time::Duration = std::time::Duration::from_millis(100);
-/// Cache layers baked again in one frame; the rest wait for the next.
-const LAYERS_PER_FRAME: usize = 4;
 
 /// Pose tracking of one map's shadow-casting movers and the tracer of their door tiles.
 pub(crate) struct Runtime {
@@ -42,11 +40,15 @@ struct Tracer {
     publish: wgpu::ComputePipeline,
     group: wgpu::BindGroup,
     pitch: u32,
-    /// Per door tile, the lamp cache texels its movers can shadow
+    /// Per door tile, the lamp cache chunks its movers can shadow
     /// (`mover_occlusion::cache_regions`).
-    regions: Vec<Vec<(u32, [u32; 4])>>,
-    /// Cache texels of traced tiles waiting to be baked again, one rectangle per layer.
-    stale: std::cell::RefCell<std::collections::BTreeMap<u32, [u32; 4]>>,
+    regions: Vec<Vec<u32>>,
+    /// The lamp cache's texels per layer edge, 0 without a cache.
+    resolution: u32,
+    /// Cache chunks of traced tiles waiting to be baked again.
+    stale: std::cell::RefCell<std::collections::BTreeSet<u32>>,
+    /// Where the next refresh starts taking stale chunks (`mover_occlusion::take_chunks`).
+    cursor: std::cell::Cell<u32>,
     refreshed: std::cell::Cell<Option<std::time::Instant>>,
 }
 
@@ -289,7 +291,9 @@ impl Tracer {
             group,
             pitch: resolution + 2,
             regions,
+            resolution: cache.map_or(0, |pages| pages.resolution()),
             stale: Default::default(),
+            cursor: std::cell::Cell::new(0),
             refreshed: std::cell::Cell::new(None),
         }
     }
@@ -344,20 +348,16 @@ impl Tracer {
         pass.dispatch_workgroups(tiles, 1, 1);
         let mut stale = self.stale.borrow_mut();
         for &tile in &self.batch[..tiles as usize] {
-            for &(layer, rect) in &self.regions[tile as usize] {
-                stale
-                    .entry(layer)
-                    .and_modify(|r| *r = super::merge(*r, rect))
-                    .or_insert(rect);
-            }
+            stale.extend(&self.regions[tile as usize]);
         }
     }
 }
 
-/// Lamp cache regions to bake again this frame (`Runtime::take_refresh`), without a heap.
+/// Lamp cache regions to bake again this frame (`Runtime::take_refresh`), without a heap:
+/// at most [`super::CHUNKS_PER_FRAME`] chunks, sorted by layer.
 #[derive(Default)]
 pub(crate) struct Refresh {
-    regions: [(u32, [u32; 4]); LAYERS_PER_FRAME],
+    regions: [(u32, [u32; 4]); super::CHUNKS_PER_FRAME],
     count: usize,
 }
 
@@ -406,7 +406,7 @@ impl Runtime {
     }
 
     /// Cache regions to bake again this frame: every [`CACHE_REFRESH`] while tiles are
-    /// still queued, at once when none are; at most [`LAYERS_PER_FRAME`] layers.
+    /// still queued, at once when none are; at most [`super::CHUNKS_PER_FRAME`] chunks.
     pub(crate) fn take_refresh(&self) -> Refresh {
         let mut refresh = Refresh::default();
         let Some(tracer) = &self.tracer else {
@@ -422,13 +422,12 @@ impl Runtime {
             return refresh;
         }
         tracer.refreshed.set(Some(std::time::Instant::now()));
-        while refresh.count < LAYERS_PER_FRAME {
-            let Some(region) = stale.pop_first() else {
-                break;
-            };
-            refresh.regions[refresh.count] = region;
+        let mut cursor = tracer.cursor.get();
+        super::take_chunks(&mut stale, &mut cursor, tracer.resolution, |layer, rect| {
+            refresh.regions[refresh.count] = (layer, rect);
             refresh.count += 1;
-        }
+        });
+        tracer.cursor.set(cursor);
         refresh
     }
 

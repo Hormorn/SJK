@@ -187,11 +187,80 @@ fn a_door_tile_refreshes_the_cache_texels_behind_its_mover() {
         vec![surface(5000., [0, 0, 8, 8])],
     ];
     let regions = cache_regions(&lamps, &doors, &[door(0, [0.; 3])], &surfaces, 128);
+    // 64-texel chunks, two across: layer 0's first chunk, layer 1's lower left one.
+    assert_eq!(regions, vec![vec![0, 1 << 16 | 2]]);
+}
+
+#[test]
+fn surfaces_far_apart_make_their_own_chunks_stale_not_the_space_between() {
+    use crate::world_materials::lamp_cache::CachedSurface;
+    let lamps = [lamp([-200., 4., 64.], 600., 1.)];
+    let doors = Doors::assign(&lamps, &[door(0, [0.; 3])], 4);
+    let behind = |texels| CachedSurface {
+        texels,
+        lower: Vec3::new(200., -64., 0.),
+        upper: Vec3::new(216., 64., 128.),
+    };
+    let surfaces = vec![vec![behind([0, 0, 8, 8]), behind([2000, 2000, 2040, 2040])]];
+    let regions = cache_regions(&lamps, &doors, &[door(0, [0.; 3])], &surfaces, 2048);
+    // 32 chunks across: (0, 0) and (31, 31), never the 1024 of one rectangle round both.
+    assert_eq!(regions, vec![vec![0, 31 * 32 + 31]]);
+}
+
+#[test]
+fn a_refresh_never_bakes_more_than_its_chunks_a_frame() {
+    let mut stale: std::collections::BTreeSet<u32> = (0..8u32)
+        .flat_map(|layer| (0..1024).map(move |i| layer << 16 | i))
+        .collect();
+    let total = stale.len();
+    let mut cursor = 0;
+    let mut frames = 0;
+    while !stale.is_empty() {
+        let (mut rects, mut texels) = (0, 0);
+        take_chunks(&mut stale, &mut cursor, 2048, |_, [x0, y0, x1, y1]| {
+            rects += 1;
+            texels += (x1 - x0) * (y1 - y0);
+        });
+        assert!(rects <= CHUNKS_PER_FRAME);
+        assert!(texels as usize <= CHUNKS_PER_FRAME * (CHUNK * CHUNK) as usize);
+        frames += 1;
+    }
+    assert_eq!(frames, total.div_ceil(CHUNKS_PER_FRAME));
+}
+
+#[test]
+fn chunks_along_a_row_join_and_a_new_row_or_layer_starts_a_rectangle() {
+    // 256 texels: four chunks across.
+    let mut stale: std::collections::BTreeSet<u32> = [0, 1, 2, 3, 4, 1 << 16].into();
+    let mut rects = Vec::new();
+    take_chunks(&mut stale, &mut 0, 256, |layer, rect| {
+        rects.push((layer, rect))
+    });
     assert_eq!(
-        regions,
-        vec![vec![(0, [8, 8, 22, 22]), (1, [0, 118, 10, 128])]]
+        rects,
+        vec![
+            (0, [0, 0, 256, 64]),
+            (0, [0, 64, 64, 128]),
+            (1, [0, 0, 64, 64])
+        ]
     );
-    assert_eq!(merge([0, 5, 10, 10], [2, 0, 4, 20]), [0, 0, 10, 20]);
+}
+
+#[test]
+fn a_mover_that_keeps_moving_cannot_starve_the_rest_of_the_map() {
+    let mut stale = std::collections::BTreeSet::new();
+    let busy: Vec<u32> = (0..CHUNKS_PER_FRAME as u32 * 2).collect();
+    let far = 7 << 16 | 500;
+    stale.insert(far);
+    let mut cursor = 0;
+    let mut baked_far = false;
+    for _ in 0..4 {
+        stale.extend(&busy); // the lift made its chunks stale again
+        take_chunks(&mut stale, &mut cursor, 2048, |layer, [x0, y0, ..]| {
+            baked_far |= layer == 7 && (y0 / CHUNK) * 32 + x0 / CHUNK == 500;
+        });
+    }
+    assert!(baked_far);
 }
 
 fn pose(origin: [f32; 3], blocking: bool) -> Pose {
