@@ -9442,6 +9442,15 @@ test: Collection > Shaders: search malachor: it lists, its look plays on the sta
 test: Wear it (a staff grant): the rose body, crescents and sounds show in a match.
 note: Its sounds come with hub shared #20's sjk_skins_2 pack.
 
+[toy-authors]
+area: Menus
+title: Collection > Toys: three sections and who made each toy
+change: Rows under Around you, With others, Earn and win; a By column (Sol or Slash).
+change: The card says Made by Sol, or Made by Slash, Sanji's idea, under the toy's name.
+test: Collection > Toys: three heads, 14 rows, the last clear of the keys line.
+test: Arrows and Tab walk the rows top to bottom; Order 66 follows Boombox.
+test: Choose Banana peel: Made by Sol, Kushina's idea. Fishing: Made by Slash, Sanji's idea.
+
 [mining-toy]
 area: Gameplay
 title: Mining toy and selling rubble (Slash, #363, #364, after vinry's idea)
