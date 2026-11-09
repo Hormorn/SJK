@@ -2342,7 +2342,8 @@ The same measurements in game, without a variable (Sol's request, 09/11/2026, to
 on the graphics settings; [frame_timings.rs](../crates/sjk-viewer/src/frame_timings.rs)).
 Both are off by default and live in Settings > HUD > Readouts:
 
-- `r_drawTimings` ("Frame timings"): a panel on the left of the screen, in the SJK
+- `r_drawTimings` ("Frame timings"): a panel at the top right of the screen (since
+  09/11/2026; the HUD edit mode moves it, `timings` in `cg_hudOffsets`), in the SJK
   UI's look in every menu style, over everything but the full-frame console, so it
   can be watched while settings change in the menus. 1 lists the graphics card's
   sections of the frame (GPU), 2 the processor's eight heaviest host phases (CPU)

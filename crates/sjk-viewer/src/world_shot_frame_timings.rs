@@ -31,7 +31,10 @@ fn frame_timings_panel() {
         shoot(&mut gpu, 2, "frame-timings-gpu");
         if let Some(console) = gpu.console.as_mut() {
             console.set_cvar(crate::frame_timings::LOG_CVAR, "0");
+            // Moved as the HUD edit mode keeps it: 100 units left, 40 down.
+            console.set_cvar(crate::hud::placement::OFFSETS_CVAR, "timings:-100,40");
         }
-        let _ = frame(&mut gpu, 1);
+        let _ = frame(&mut gpu, 4);
+        shoot(&mut gpu, 2, "frame-timings-moved");
     });
 }

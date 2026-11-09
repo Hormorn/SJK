@@ -2761,6 +2761,10 @@ impl GpuState {
             }
         }
         // A trade running while its window is closed: the toast at the top, over play.
+        // The frame timings over everything but the full-frame console, so they can be
+        // watched while settings change in the menus; laid out before the HUD edit
+        // mode, which outlines the panel to move it.
+        let timings_shown = self.append_frame_timings(viewport, console_covers_frame);
         // The HUD edit mode's outlines and panel, over the game it edits.
         let hud_edit_shown = !console_covers_frame && self.prepare_hud_edit();
         if hud_edit_shown {
@@ -2770,9 +2774,6 @@ impl GpuState {
         // An achievement unlocked, or a medal or holocron in a match: its card over play or
         // the menus, never input-taking.
         let unlock_toast = self.append_unlock_toast(viewport, console_covers_frame || medal_popup);
-        // The frame timings over everything but the full-frame console, so they can be
-        // watched while settings change in the menus.
-        let timings_shown = self.append_frame_timings(viewport, console_covers_frame);
         self.world_notes.draw_highlight(viewport);
         self.map_edit_gizmo_draw();
         // The menu camera tour's fades, over the menu world only.
@@ -2804,7 +2805,6 @@ impl GpuState {
                 .then(|| self.quick_wheel.draw_list()),
             information_visible.then(|| self.hud.draw_list()),
             (chat_visible && !chat_over_trade).then(|| self.chat.draw_list()),
-            hud_edit_shown.then(|| self.hud_edit.draw_list()),
             self.ghost
                 .editor
                 .as_deref()
@@ -2846,6 +2846,7 @@ impl GpuState {
             alpha_shown.then(|| self.alpha_card.draw_list()),
             unlock_toast.then(|| self.unlock_toast.draw_list()),
             timings_shown.then(|| self.frame_timings.draw_list()),
+            hud_edit_shown.then(|| self.hud_edit.draw_list()),
         ];
         self.ui_shapes
             .prepare_layers(&self.queue, layers.into_iter().flatten(), viewport);
