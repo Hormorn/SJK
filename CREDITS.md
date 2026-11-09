@@ -1231,7 +1231,9 @@ coding assistant; such commits carry a `Co-Authored-By: Claude` trailer.
 
 OpenJK (`codemp`), EternalJK, JoF EJK and TaystJK/jaPRO are compatibility
 references for Jedi Academy behaviour; SJK reimplements that behaviour and does
-not include their code. The bundled Inter fonts keep their
+not include their code. The Jedi Knight II HUD's pictures
+(`crates/sjk-viewer/assets/hud/jk2`) are EternalJK's `hudfiles 2` graphics, by Bucky,
+used with Sol's approval. The bundled Inter fonts keep their
 [license](crates/sjk-viewer/assets/fonts/LICENSE.txt), the console font, JetBrains
 Mono by The JetBrains Mono Project Authors, keeps its
 [SIL Open Font License](crates/sjk-viewer/assets/fonts/JetBrainsMono-OFL.txt), the SJK UI's

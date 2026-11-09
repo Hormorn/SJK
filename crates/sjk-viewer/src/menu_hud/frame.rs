@@ -8,6 +8,8 @@
 use super::layout::{Layout, Piece, Side, TICS, VEHICLE_TICS};
 use std::fmt::Write as _;
 
+pub(super) mod jk2;
+
 /// Most pictures one frame can draw (two frames, 16 tics, 4 three-digit
 /// numbers, a saber style and the painted backgrounds, then the vehicle HUD's
 /// two frames, five backgrounds, 32 tics and two marks).
@@ -18,6 +20,7 @@ pub(crate) const MAX_TEXTS: usize = 8;
 
 /// `colorTable` entries (`shared/qcommon/q_color.c`) the HUD uses.
 const WHITE: [f32; 4] = [1.0; 4];
+const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 const YELLOW: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
 const LIGHT_GREY: [f32; 4] = [0.75, 0.75, 0.75, 1.0];
@@ -104,6 +107,8 @@ pub(crate) struct Timers {
     /// below a quarter of maximum armor.
     armor_flag: bool,
     tick_flash_time: i32,
+    /// `cg.HUDHealthFlag`: the Jedi Knight II health tic, off while it blinks.
+    health_flag: bool,
 }
 
 /// One picture: the [`Piece`]'s rectangle and edge, with its draw colour.
@@ -248,11 +253,15 @@ impl Frame {
     /// right-aligned in three cells of `w`, one unit between digits, drawn
     /// with the `gfx/2d/numbers/t_*` pictures from `digits` (0-9, minus).
     fn number(&mut self, piece: &Piece, value: i32, color: [f32; 4], digits: u16) {
+        self.number_at(piece.rect, piece.side, value, color, digits);
+    }
+
+    fn number_at(&mut self, rect: [f32; 4], side: Side, value: i32, color: [f32; 4], digits: u16) {
         const WIDTH: usize = 3;
         let value = value.clamp(-99, 999);
         let mut buffer = [0_u8; 4];
         let length = format_into(&mut buffer, value).min(WIDTH);
-        let [mut x, y, char_width, char_height] = piece.rect;
+        let [mut x, y, char_width, char_height] = rect;
         x += 2.0 + char_width * (WIDTH - length) as f32;
         for &character in &buffer[..length] {
             let frame = if character == b'-' {
@@ -260,12 +269,7 @@ impl Frame {
             } else {
                 u16::from(character - b'0')
             };
-            self.picture_at(
-                [x, y, char_width, char_height],
-                piece.side,
-                digits + frame,
-                color,
-            );
+            self.picture_at([x, y, char_width, char_height], side, digits + frame, color);
             x += 1.0 + char_width;
         }
     }
@@ -421,6 +425,10 @@ impl Frame {
         digits: u16,
         score_label: &str,
     ) {
+        if let Some(base) = layout.jk2 {
+            self.jk2_status(base, readout, timers, digits, score_label);
+            return;
+        }
         if let Some(left) = &layout.left {
             let start = (self.picture_count, self.text_count);
             for piece in &left.painted {

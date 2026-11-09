@@ -697,7 +697,7 @@ did: SJK Menu and SJK HUD are traced from the JoF HD Fonts & Icons pack (author 
 
 [OpenJK, EternalJK, JoF EJK, TaystJK and jaPRO]
 role: References for how Jedi Academy behaves
-did: SJK reimplements their behaviour and includes none of their code
+did: SJK reimplements their behaviour; the only thing taken from them is the Jedi Knight II HUD's pictures, EternalJK's hudfiles 2 graphics by Bucky
 link: https://github.com/JACoders/OpenJK
 link: https://github.com/eternalcodes/EternalJK
 

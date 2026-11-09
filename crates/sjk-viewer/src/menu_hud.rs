@@ -119,14 +119,28 @@ pub(crate) enum Source<'a> {
     Text,
     /// A menu list or menu file.
     Menus(&'a str),
+    /// EternalJK's Jedi Knight II HUD ([`frame::jk2`]), over the default list.
+    Jk2,
+}
+
+impl<'a> Source<'a> {
+    /// The menu list it reads; `None` for the text HUD.
+    pub(crate) fn list(&self) -> Option<&'a str> {
+        match *self {
+            Self::Text => None,
+            Self::Menus(list) => Some(list),
+            Self::Jk2 => Some(DEFAULT_LIST),
+        }
+    }
 }
 
 pub(crate) fn source(value: &str) -> Source<'_> {
     let value = value.trim();
     match value.parse::<i64>() {
-        // EternalJK reads 0 as the default list and 3/4 as its bundled
-        // elegance and JoF HUDs; 1 and 2 are its (and stock's) text HUDs.
+        // EternalJK reads 0 as the default list, 2 as its Jedi Knight II HUD
+        // and 3/4 as its bundled elegance and JoF HUDs; 1 is the text HUD.
         Ok(0) => Source::Menus(DEFAULT_LIST),
+        Ok(2) => Source::Jk2,
         Ok(3) => Source::Menus("ui/elegance_hud.txt"),
         Ok(4) => Source::Menus("ui/jof_hud.txt"),
         Ok(_) => Source::Text,
@@ -146,7 +160,7 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         FILES_CVAR,
         DEFAULT_LIST,
         CvarFlags::ARCHIVE,
-        "Game HUD menu list (ui/jahud.txt); 1 or 2 is the text HUD, 3/4 EternalJK's HUDs",
+        "Game HUD menu list (ui/jahud.txt); 1 is the text HUD, 2 the Jedi Knight II HUD, 3/4 EternalJK's HUDs",
     ))?;
     cvars.register(CvarDefinition::new(
         PACK_CVAR,
@@ -301,13 +315,11 @@ impl MenuHud {
         self.timers = Timers::default();
         self.gpu.unload();
         self.loaded = Loaded::None;
-        let list = match source(files) {
-            Source::Text => {
-                self.loaded = Loaded::Text;
-                crate::log::progress(format_args!("game HUD: text HUD (cg_hudFiles {files})"));
-                return;
-            }
-            Source::Menus(list) => list,
+        let hud = source(files);
+        let Some(list) = hud.list() else {
+            self.loaded = Loaded::Text;
+            crate::log::progress(format_args!("game HUD: text HUD (cg_hudFiles {files})"));
+            return;
         };
         // CG_LoadMenus falls back to the default list when a file is missing.
         let menus = read_menus(vfs, list)
@@ -320,8 +332,15 @@ impl MenuHud {
             ));
             return;
         }
+        if hud == Source::Jk2 {
+            frame::jk2::attach(&mut layout);
+        }
         let digits = layout.pictures.len() as u16;
         let mut largest = vec![0.0_f32; layout.pictures.len()];
+        if hud == Source::Jk2 {
+            let first = layout.pictures.len() - frame::jk2::PICTURE_COUNT;
+            largest[first..].fill(frame::jk2::LARGEST);
+        }
         layout.for_each_piece(|piece| {
             if let Some(picture) = piece.picture {
                 let [_, _, w, h] = piece.rect;
@@ -667,7 +686,7 @@ mod tests {
             Source::Menus("ui/elegance_hud.txt")
         );
         assert_eq!(source("1"), Source::Text);
-        assert_eq!(source("2"), Source::Text);
+        assert_eq!(source("2"), Source::Jk2);
         assert_eq!(source("3"), Source::Menus("ui/elegance_hud.txt"));
         assert_eq!(source("4"), Source::Menus("ui/jof_hud.txt"));
     }

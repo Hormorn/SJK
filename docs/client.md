@@ -3827,8 +3827,8 @@ original Jedi Academy HUD, or a custom HUD pack that replaces `ui/hud.menu`),
 or SJK's own `classic` or `radial` layout. The default is `game`, the classic
 HUD, and a saved `cg_hudStyle` is kept (but the retired `modern`, see
 [Menu style](#menu-style)). `cg_hudFiles`
-names the menu list, `ui/jahud.txt` by default; `1` gives the text-only HUD and
-EternalJK's `3`/`4` name its elegance and JoF HUD lists when those files are
+names the menu list, `ui/jahud.txt` by default; `1` gives the text-only HUD, `2` the
+Jedi Knight II HUD with its pictures built in, and EternalJK's `3`/`4` name its elegance and JoF HUD lists when those files are
 installed. `cg_hudPack` names the PK3 whose HUD to use when several replace
 `ui/hud.menu` (`assets1.pk3` is the original); empty, the one installed last
 wins, as in the game. See [game-data HUD](rendering.md#game-data-hud) for what
