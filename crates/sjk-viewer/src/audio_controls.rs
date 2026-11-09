@@ -182,6 +182,9 @@ impl GameAudio {
                 .unwrap_or(0.5) as f32,
         ));
         self.output.show = console.and_then(|c| c.bool_cvar("s_show")).unwrap_or(false);
+        if let Some(language) = console.and_then(|c| c.text_cvar(assets::LANGUAGE_CVAR).ok()) {
+            assets::set_voice_language(language);
+        }
         self.allow_dynamic = console
             .and_then(|c| c.bool_cvar("s_allowDynamicMusic"))
             .unwrap_or(true);

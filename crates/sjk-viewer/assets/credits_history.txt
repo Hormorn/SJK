@@ -9,6 +9,16 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 09/11/2026 | - | s_language voices; the strafe helper on jaPRO servers
+- 75bb655 |  | s_language voices; the strafe helper on jaPRO servers
++ 09/11/2026 | - | 3D sound rebuilt as SJK's own acoustics engine (s_spatial)
+- 12516cd |  | 3D sound rebuilt as SJK's own acoustics engine (s_spatial)
++ 09/11/2026 | - | Frame timings panel at the top right, movable in the HUD edit mode
+- 37f843f |  | Frame timings panel at the top right, movable in the HUD edit mode
++ 09/11/2026 | - | Dynamic-light shadows trace one ray per invocation: 0.38 -> 0.23 ms at 4K
+- d594dc7 |  | Dynamic-light shadows trace one ray per invocation: 0.38 -> 0.23 ms at 4K
++ 09/11/2026 | - | Test list: dlight shadow rays
+- 7e3501e |  | Test list: dlight shadow rays
 + 09/11/2026 | - | Ground HUD through toy cameras; amghost on oneself cheats in a box hunt
 - cc3ea44 |  | Ground HUD through toy cameras; amghost on oneself cheats in a box hunt
 + 09/11/2026 | - | Credits history: the map editor panel round
