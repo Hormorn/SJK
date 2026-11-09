@@ -208,7 +208,7 @@ impl GameplayInput {
     /// Reset button impulses only after a real command, not a prediction preview.
     pub(crate) fn finish_command(&mut self) {
         for state in &mut self.held {
-            state.pressed = false;
+            state.pressed = std::mem::take(&mut state.pressed_again);
             state.command_elapsed = 0;
         }
         self.motion.command_millis = 0;

@@ -24,6 +24,22 @@
 
 # ---- Console & chat ----
 
+[emote-music-waits]
+area: Audio
+title: An emote's music waits for its decoder (hub report #270)
+change: Music not decoded yet starts when it is, as far in as the song is by then.
+change: Before, it was dropped after 300 ms and the dance stayed silent.
+test: Right after a map change or a join, watch a player dance: the music is heard.
+test: Start and stop your own emote: its sound starts at once and stops with it.
+test: A synced emote still plays in step with its leader.
+
+[grapple-release]
+area: Input
+title: +grapple lets go of the hook every time (hub report #238)
+change: On JA+ servers the release's +use lasts two commands instead of one.
+test: bind g +grapple on a JoF server: hook and let go about 100 times, it always lets go.
+test: Hooking again right after letting go still fires.
+
 [voice-language]
 area: Audio
 title: s_language: French, German and Spanish voices (hub report #289)
