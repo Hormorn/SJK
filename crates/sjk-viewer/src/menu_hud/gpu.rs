@@ -175,6 +175,9 @@ impl Gpu {
                     let white = image::RgbaImage::from_pixel(8, 8, image::Rgba([255; 4]));
                     return Some((white, false));
                 }
+                if let Some(additive) = super::frame::jk2::additive(name) {
+                    return Some((super::frame::jk2::decode(name)?, additive));
+                }
                 let image = crate::shader_image::load_shader_image(vfs, shaders, name).ok()?;
                 let additive = shaders
                     .get(name)

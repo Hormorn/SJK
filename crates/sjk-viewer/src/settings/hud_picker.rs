@@ -942,8 +942,8 @@ mod tests {
         assert_eq!(menu.values[row], "Elegance HUD");
         assert_eq!(console.text_value(FILES_CVAR), Some("ui/elegance_hud.txt"));
         assert_eq!(console.text_value(PACK_CVAR), Some(""));
-        // Text only, then SJK's radial HUD, which needs no pack.
-        for _ in 0..2 {
+        // Jedi Knight II, Text only, then SJK's radial HUD, which needs no pack.
+        for _ in 0..3 {
             menu.adjust(&mut console, 1);
         }
         assert_eq!(menu.values[row], "SJK radial");

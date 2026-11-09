@@ -3503,6 +3503,10 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #399 | Jedi Knight II HUD (cg_hudFiles 2)
+- 7b8cd0d |  | Jedi Knight II HUD (cg_hudFiles 2), pictures from EternalJK
+- b4b513e |  | Format menu_stage, which fails the CI formatting check on main
+- 09934d6 |  | HUD picker test: step past the Jedi Knight II row
 + 09/11/2026 | SJK #398 | SJK UI: typed slider values in a gold pill at full size
 - 4ba4405 |  | SJK UI: typed slider values in a gold pill at full size
 - da68cb9 |  | Format menu_stage/mod.rs

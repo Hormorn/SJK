@@ -793,7 +793,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 136 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 137 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1029,6 +1029,7 @@ medal pictures carry their own labels in `vram` and crash reports.
 - #395 A click that brings the window back no longer attacks.
 - #396 A boombox on the floor is hidden in a private duel.
 - #398 SJK UI: a typed slider value opens a gold pill at the number's size.
+- #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK.
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):
@@ -1239,7 +1240,9 @@ coding assistant; such commits carry a `Co-Authored-By: Claude` trailer.
 
 OpenJK (`codemp`), EternalJK, JoF EJK and TaystJK/jaPRO are compatibility
 references for Jedi Academy behaviour; SJK reimplements that behaviour and does
-not include their code. The bundled Inter fonts keep their
+not include their code. The Jedi Knight II HUD's pictures
+(`crates/sjk-viewer/assets/hud/jk2`) are EternalJK's `hudfiles 2` graphics, by Bucky,
+used with Sol's approval. The bundled Inter fonts keep their
 [license](crates/sjk-viewer/assets/fonts/LICENSE.txt), the console font, JetBrains
 Mono by The JetBrains Mono Project Authors, keeps its
 [SIL Open Font License](crates/sjk-viewer/assets/fonts/JetBrainsMono-OFL.txt), the SJK UI's

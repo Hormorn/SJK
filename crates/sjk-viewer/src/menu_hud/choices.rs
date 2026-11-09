@@ -92,6 +92,12 @@ pub(crate) fn list(vfs: &VirtualFileSystem) -> Vec<HudChoice> {
         choices.push(HudChoice::game(list_label(&name), path.clone(), &path, ""));
     }
     choices.push(HudChoice::game(
+        "Jedi Knight II".to_owned(),
+        "Built in, from EternalJK".to_owned(),
+        "2",
+        "",
+    ));
+    choices.push(HudChoice::game(
         "Text only".to_owned(),
         "Numbers, no pictures".to_owned(),
         "1",
@@ -123,6 +129,7 @@ pub(crate) fn current(
             Source::Text => {
                 position(&|choice| game(choice) && source(&choice.files) == Source::Text)
             }
+            Source::Jk2 => position(&|choice| game(choice) && source(&choice.files) == Source::Jk2),
             Source::Menus(list) if list.eq_ignore_ascii_case(DEFAULT_LIST) => {
                 let packs = || {
                     choices.iter().enumerate().filter(|(_, choice)| {
@@ -275,6 +282,7 @@ pub(crate) mod tests {
                 "JoF AssetsExtra",
                 "TheRisqe Radial HUD",
                 "Elegance HUD",
+                "Jedi Knight II",
                 "Text only",
                 "SJK radial",
                 "SJK classic",
@@ -284,8 +292,8 @@ pub(crate) mod tests {
         assert_eq!(choices[2].pack, "zz_TheRisqe_Radial_HUD.pk3");
         assert_eq!(choices[3].files, "ui/elegance_hud.txt");
         assert!(choices[3].pack.is_empty());
-        assert!(choices[..5].iter().all(HudChoice::has_preview));
-        assert!(choices[5..].iter().all(|choice| !choice.has_preview()));
+        assert!(choices[..6].iter().all(HudChoice::has_preview));
+        assert!(choices[6..].iter().all(|choice| !choice.has_preview()));
     }
 
     #[test]
@@ -300,11 +308,12 @@ pub(crate) mod tests {
             find(HudStyle::Game, "ui/jahud.txt", "JoF_AssetsExtra.pk3"),
             Some(1)
         );
-        // EternalJK's 3 is the elegance list; 1 and 2 are the text HUD.
+        // EternalJK's 3 is the elegance list, 2 the Jedi Knight II HUD and 1 the text HUD.
         assert_eq!(find(HudStyle::Game, "3", ""), Some(3));
         assert_eq!(find(HudStyle::Game, "2", ""), Some(4));
-        assert_eq!(find(HudStyle::Radial, "1", ""), Some(5));
-        assert_eq!(find(HudStyle::Classic, "1", ""), Some(6));
+        assert_eq!(find(HudStyle::Game, "1", ""), Some(5));
+        assert_eq!(find(HudStyle::Radial, "1", ""), Some(6));
+        assert_eq!(find(HudStyle::Classic, "1", ""), Some(7));
         assert_eq!(find(HudStyle::Game, "ui/other.txt", ""), None);
     }
 
