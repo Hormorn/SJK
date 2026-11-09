@@ -9,8 +9,50 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 09/11/2026 | - | Map editor panel: shader pictures, tiles, Fill candidates, Lights page, things, brushes, copy and paste
+- 2a6e203 |  | Map editor panel: shader pictures, tiles, Fill candidates, Lights page, things, brushes, copy and paste
++ 09/11/2026 | - | Map editor panel: world shot, docs, test list and changelog for the pictures and new pages
+- de82c2c |  | Map editor panel: world shot, docs, test list and changelog for the pictures and new pages
++ 09/11/2026 | - | Draw char_color model colours in linear light, as retail shows them
+- 7b210f5 |  | Draw char_color model colours in linear light, as retail shows them
++ 09/11/2026 | - | Site: SJK Launcher section, download and screenshots; refresh features and credits
+- 3da834a |  | Site: SJK Launcher section, download and screenshots; refresh features and credits
++ 09/11/2026 | - | Settings > Display: Fresh command stamps (cl_freshStamps)
+- 02ea03c |  | Settings > Display: Fresh command stamps (cl_freshStamps)
++ 09/11/2026 | - | Release 2026.1109.2 (Alpha)
+- 93d0717 |  | Release 2026.1109.2 (Alpha)
++ 09/11/2026 | - | Collection > Toys: three sections and who made each toy
+- f5e36e4 |  | Collection > Toys: three sections and who made each toy
++ 09/11/2026 | - | Lamp cache refresh within a fixed budget a frame
+- a8964e7 |  | Lamp cache refresh within a fixed budget a frame
++ 09/11/2026 | - | JA+ step 3 integration: one refuseTele flag for the player command and amtele
+- 866a1b3 |  | JA+ step 3 integration: one refuseTele flag for the player command and amtele
++ 09/11/2026 | - | Cards: design of holocron seasons (Alpha, Beta) with guaranteed prizes, pity and no duplicate faces
+- 2065d24 |  | Cards: design of holocron seasons (Alpha, Beta) with guaranteed prizes, pity and no duplicate faces
++ 09/11/2026 | - | rig_reload: upload a re-exported rig texture again
+- c37b67b |  | rig_reload: upload a re-exported rig texture again
++ 09/11/2026 | - | Console MCP bridge: let an AI assistant read the console, run local commands and take screenshots through cl_consoleSocket
+- 24d88ac |  | Console MCP bridge: let an AI assistant read the console, run local commands and take screenshots through cl_consoleSocket
++ 09/11/2026 | - | Merge personal/mapedit-lights (Sol: lights added, moved and recoloured in map edits; the map's lamps turned off or moved)
+- 72d1cf6 |  | Merge personal/mapedit-lights (Sol: lights added, moved and recoloured in map edits; the map's lamps turned off or moved)
++ 09/11/2026 | - | Map edits: lights added, moved and recoloured; the map's lamps turned off or moved
+- da0c353 |  | Map edits: lights added, moved and recoloured; the map's lamps turned off or moved
++ 09/11/2026 | - | Frame timings: an on-screen GPU/CPU readout and a timings log
+- 11e368e |  | Frame timings: an on-screen GPU/CPU readout and a timings log
++ 09/11/2026 | - | Release 2026.1109.1 (Alpha)
+- 90938d1 |  | Release 2026.1109.1 (Alpha)
 + 09/11/2026 | - | WHEEL OF DOOM out of order: honour the hub's off switch
 - 2613fcd |  | WHEEL OF DOOM out of order: honour the hub's off switch
++ 09/11/2026 | - | JA+ admins on the server, step 1: ranks, rights, logins, abuse, admin bans
+- a833304 |  | JA+ admins on the server, step 1: ranks, rights, logins, abuse, admin bans
++ 09/11/2026 | - | JA+ admins, step 2: SJK key login and one-time codes
+- 9efd3e8 |  | JA+ admins, step 2: SJK key login and one-time codes
++ 09/11/2026 | - | JA+ admins, step 3: the admin commands
+- e72e623 |  | JA+ admins, step 3: the admin commands
++ 09/11/2026 | - | JA+ server mode: the grappling hook
+- 36747c9 |  | JA+ server mode: the grappling hook
++ 09/11/2026 | - | JA+ server mode step 3: emotes and player commands
+- a703379 |  | JA+ server mode step 3: emotes and player commands
 + 08/11/2026 | - | Banners out of the game for now: no Banners tab, no banner odds note
 - f8678ae |  | Banners out of the game for now: no Banners tab, no banner odds note
 + 08/11/2026 | - | Format the nameplate client icon code (cargo fmt)
