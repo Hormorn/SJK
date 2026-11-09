@@ -9719,3 +9719,9 @@ title: Jedi Knight II HUD: cg_hudFiles 2 (#399)
 change: Settings > HUD lists Jedi Knight II, with a preview. cg_hudFiles 1 is still the text HUD.
 test: Settings > HUD: pick Jedi Knight II. Health, armor, Force and ammo draw and drain.
 test: Low health blinks. On a wide screen the corners keep to their edges.
+
+[credits-pr-count]
+area: Menus & settings
+title: Credits count the pull requests of older merge names (#403)
+change: Merges named "Merge PR #N (Author): title" or "Merge PR #N" count as pull requests.
+test: Main menu > Credits: Slash's card shows 138 pull requests, Sol's 32.

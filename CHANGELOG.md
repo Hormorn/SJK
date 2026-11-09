@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
+
 ## 2026.1109.3 (Alpha) | 09/11/2026
 
 3D sound rebuilt, the Jedi Knight II HUD, voices in other languages, a surer grapple, the strafe helper on jaPRO, and a handful of fixes.
