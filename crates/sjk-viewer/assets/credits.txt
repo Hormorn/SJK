@@ -210,6 +210,7 @@ did: Collection marks: worn, favourite, locked and New saber shaders, the lock h
 did: Toon models: cartoon-style banded shading with a bright rim, an option off by default
 did: Toon shading by choice: each player picks it for their own model, everyone sees it
 did: 3D sound: sounds muffled behind walls and doors, rooms that ring (after VisionJK)
+did: 3D sound rebuilt as SJK's own acoustics: a measured head, walls by material, corners, traced room echo
 did: White edge on dark text: black names and chat in a white outline, an option
 did: Weather in map edits: rain, storms, snow, fog and wind kept for a map, synced to every player
 did: Rain and wind sounds: the game's own loops, as strong as the weather, quieter under a roof
@@ -541,6 +542,7 @@ role: Contributor: 1 merged pull request
 did: #333 JA+ dual jump attack: feet lift only over a player ahead, as the server does
 did: Inspiration: VisionJK's boombox, standing on the floor, gave SJK's boombox its place on the floor (boombox_place)
 did: VisionJK's 3D sound (v_spatial), the idea behind SJK's 3D sound (s_spatial)
+did: VisionJK's table of what each shader is made of (GPL-2.0, with his approval), for the 3D sound's walls
 did: VisionJK's puddle mirror (wet.frag), the march SJK's puddles mirror the world with
 did: VisionJK's web admin page (GPL-2.0, with his approval) draws the map in SJK's browser map editor (mapedit_web)
 did: VisionJK's rebuild of the JA+ 2.4 B7 server module, the reference for SJK's JA+ server mode (g_mod japlus)
@@ -686,6 +688,16 @@ github: JoFKypdurron
 role: JoF's launcher and its repository, which SJK's JoF content reads
 did: SJK reads the launcher's manifest and hosts and checks files as it does; it includes none of its code
 link: https://github.com/JoFKypdurron/jof-launcher
+
+[MIT Media Lab KEMAR measurements]
+role: The dummy head the 3D sound hears through
+did: Head-related impulse responses of a KEMAR dummy head by Bill Gardner and Keith Martin (1994)
+link: https://sound.media.mit.edu/resources/KEMAR.html
+
+[Valve's Steam Audio]
+role: The ideas SJK's own 3D sound acoustics follow
+did: Ray-traced room echo, sound through walls and round corners; SJK includes none of its code
+link: https://github.com/ValveSoftware/steam-audio
 
 [JKAdmin by Lixsl]
 role: The web admin panel VisionJK's page grew from

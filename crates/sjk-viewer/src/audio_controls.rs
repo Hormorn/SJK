@@ -10,11 +10,12 @@ impl crate::GpuState {
         right: glam::Vec3,
     ) {
         if let Some(audio) = audio {
-            // `s_spatial`: heard from the player's head, panned by the camera's axes.
+            // `s_spatial`: heard from the player's head, turned as the camera is.
             let hearing = self.audio_hearing_point(audio.spatial_enabled());
-            audio.listener(hearing, forward, right, glam::Vec3::Z, glam::Vec3::ZERO);
+            let up = right.cross(forward).normalize_or(glam::Vec3::Z);
+            audio.listener(hearing, forward, right, up, glam::Vec3::ZERO);
             audio.sync_gains(self.console.as_ref());
-            self.spatial_audio_frame(audio, hearing, right);
+            self.spatial_audio_frame(audio, hearing, [forward, right, up]);
             #[cfg(feature = "mod-jof")]
             {
                 let dialogue = self
@@ -220,6 +221,13 @@ impl GameAudio {
         self.output.spatial.enabled = console
             .and_then(|console| console.bool_cvar(spatial::CVAR))
             .unwrap_or(false);
+        self.output.spatial.headphones = console
+            .and_then(|console| console.bool_cvar(spatial::HEADPHONES_CVAR))
+            .unwrap_or(true);
+        self.output.spatial.reverb = console
+            .and_then(|console| console.float_cvar(spatial::REVERB_CVAR))
+            .unwrap_or(spatial::DEFAULT_REVERB)
+            .clamp(0.0, 2.0) as f32;
         self.weather_sounds = console
             .and_then(|console| console.bool_cvar(crate::weather::sound::CVAR))
             .unwrap_or(false);

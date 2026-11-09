@@ -560,7 +560,19 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             crate::audio::spatial::CVAR,
             false,
             archive,
-            "3D sound: heard from your head, muffled behind walls and doors, rooms ring",
+            "3D sound: heard from your head, muffled behind walls and doors, round corners, rooms ring",
+        ),
+        CvarDefinition::new(
+            crate::audio::spatial::HEADPHONES_CVAR,
+            true,
+            archive,
+            "3D sound through the head for headphones (0: panned for speakers)",
+        ),
+        CvarDefinition::new(
+            crate::audio::spatial::REVERB_CVAR,
+            crate::audio::spatial::DEFAULT_REVERB,
+            archive,
+            "3D sound: how loud rooms ring, 1 as traced (0 to 2, 0 none)",
         ),
         CvarDefinition::new(
             crate::weather::sound::CVAR,

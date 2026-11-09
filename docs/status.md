@@ -880,6 +880,19 @@ test), mixing and the render thread's tick allocate nothing, and the mixer took 
 budget). Not verified: heard in a game; the strengths (muffling, reverb level) are
 first guesses to tune by ear.
 
+09/11/2026, `personal/acoustics`, based on `main` `13e2e2d0`: Sol heard the first version
+and found it far from VisionJK's Steam Audio one, and asked for that level in SJK's own
+Rust (no Steam Audio code or library). Rebuilt: measured head filters (MIT KEMAR) per
+sound, materials per band through walls, a way round one corner, and the room's echo
+traced with 2048 rays into each ear's impulse response and convolved, on the new
+[sjk-acoustics](../crates/sjk-acoustics/src/lib.rs) threads. Verified on Windows 11: fmt,
+workspace build, tests and Clippy (no new warning); off, the mix is bit for bit the plain
+one; the audio thread allocates nothing; mixer cost 326 us a block with 64 sounds and a
+3 s room while turning (release, 2.9 ms budget); mp/ffa3, mp/ffa5 and mp/duel1 build and
+trace from the installed game (`retail_levels`). Not verified: heard in a game, and
+therefore every strength (walls, corners, how loud and long rooms ring); macOS and Linux
+builds.
+
 ## Heimdall's time nudge kicks at low frame rates
 
 02/11/2026, `personal/heimdall-catchup`, based on `main` `3d9e8fe2`, Krieger's and

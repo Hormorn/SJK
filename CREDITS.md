@@ -441,10 +441,11 @@ includes:
   and livelier colour, live and off by default; since 08/11/2026 each player chooses it
   for their own model (`cg_toonModel`, the Character tab's Toon shading), synced through
   the hub look, and `r_toonModels`, on by default, shows those choices;
-- 3D sound (03/11/2026, after VisionJK's `v_spatial`, Blackwolf's idea): `s_spatial`
-  hears from the player's head, muffles sounds behind walls and shut doors and rings
-  the room round the player with a small reverb sized by rays, in SJK's own mixer,
-  off by default;
+- 3D sound (03/11/2026, after VisionJK's `v_spatial`, Blackwolf's idea; rebuilt
+  09/11/2026 as SJK's own acoustics engine): `s_spatial` hears from the player's head
+  through measured head filters, muffles sounds behind walls and shut doors by what
+  they are made of, brings them round corners and rings the room round the player
+  with its traced echo, off by default;
 - white edge on dark text (03/11/2026): `cg_darkTextOutline` rings black and other dark
   letters of nameplates and chat in a crisp white outline instead of the soft halo,
   off by default;
@@ -1052,7 +1053,9 @@ agreement): `boombox_place` stands SJK's boombox on the floor, its music quieter
 as VisionJK's does; SJK's code is its own.
 
 Blackwolf's VisionJK client and its 3D sound (`v_spatial`, Steam Audio) gave SJK the
-idea of its own 3D sound (`s_spatial`), built in SJK's mixer with his agreement.
+idea of its own 3D sound (`s_spatial`), built in SJK's mixer with his agreement; since
+09/11/2026 its acoustics also take VisionJK's table of what each shader is made of
+(`crates/sjk-acoustics/data/materials.txt`, GPL-2.0, with his approval).
 
 VisionJK's wet ground (`wet.frag`, GPL-2.0, with his approval) gave SJK's puddles their
 mirror (05/11/2026): the same screen-space march (32 steps from 2 units growing by 1.18,
@@ -1258,7 +1261,12 @@ manifest, hosts and checks, none of its code) and fetches JoF's files from JoF's
 repository (JoF Cloud and jofhub.eu) to each player who asks, the radial HUD is SJK's own take on TheRisqe's Radial HUD (none
 of its pictures included), the website's effects use
 the [Shaders](https://github.com/shader-effects-inc/shaders) library by Shader
-Effects Inc. under its [MIT license](site/assets/vendor/shaders/LICENSE), the
+Effects Inc. under its [MIT license](site/assets/vendor/shaders/LICENSE), the 3D sound
+hears through the KEMAR dummy head's impulse responses measured by Bill Gardner and
+Keith Martin at the MIT Media Lab (1994, free to use with credit,
+[KEMAR-README.txt](crates/sjk-audio/data/KEMAR-README.txt); turned into minimum-phase
+filters by `scripts/hrtf_kemar.py`) and follows the ideas of Valve's Steam Audio, none of
+its code, the
 credits' sign is the galactic credit's of the Star Wars setting, its outline after
 the one drawn on Wikipedia and redrawn by SJK from shapes, and other dependencies
 keep their respective licenses.

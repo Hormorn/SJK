@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- 3D sound (`s_spatial`, Settings > Sound) rebuilt as SJK's own acoustics engine: sounds come from all round your head through a measured dummy head (in front, behind, above, below), walls and shut doors muffle them by what they are made of, they come round corners and through doorways, and each room rings with the echo its own walls make; "3D sound for headphones" (off pans for speakers) and "3D sound room echo" set it to taste _(Sol, after VisionJK's v_spatial by Blackwolf)_
 - Frame timings (`r_drawTimings`) sit at the top right of the screen, and Move HUD elements (`hud_edit`) drags them anywhere like the rest of the HUD _(Sol)_
 - The map editor's panel in game does what the page (`mapedit_web`) does: a picture of each texture in its lists, a tile view and a large preview beside what is drawn there now; Fill's nearby textures to choose from; a Lights page (add, recolour, move and delete lights, turn the map's lamps off or move them, with markers over the scene); boomboxes, mystery boxes and toys on Place; the invisible brushes' presets (B); and Ctrl+C, Ctrl+V of models and textures _(Sol)_
 - Walls stopping saber and blaster lights cost about 40 % less on the graphics card (0.38 to 0.23 ms a frame at 4K), with the same picture _(Sol)_

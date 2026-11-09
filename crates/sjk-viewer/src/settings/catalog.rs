@@ -299,6 +299,20 @@ pub(super) const AUDIO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "3D sound for headphones",
+        cvar: crate::audio::spatial::HEADPHONES_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "3D sound room echo",
+        cvar: crate::audio::spatial::REVERB_CVAR,
+        kind: ValueKind::Float {
+            min: 0.0,
+            max: 2.0,
+            step: 0.1,
+        },
+    },
+    Setting {
         label: "Rain and wind sounds",
         cvar: crate::weather::sound::CVAR,
         kind: ValueKind::Bool,

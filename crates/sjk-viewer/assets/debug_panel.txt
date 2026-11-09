@@ -391,7 +391,7 @@ change: Idea from VisionJK's v_spatial (Blackwolf); SJK's own, no Steam Audio.
 test: Settings > Sound > 3D sound on. A player shooting behind a wall: duller, then clear in view.
 test: Close a door between you and a sound: muffled. Walk outside: little reverb; a hall rings.
 test: Third person: turning the camera does not change what is muffled. Off: sounds as before.
-note: Not heard in game yet. soundinfo / s_spatial 0 to compare.
+note: Replaced 09/11 by the acoustics engine, see [acoustics] below.
 
 [join-stack-overflow]
 area: Gameplay
@@ -9610,3 +9610,15 @@ change: r_drawTimings draws its panel from the top right corner; hud_edit outlin
 test: r_drawTimings 1: the panel is at the top right, clear of the kill feed in a fight.
 test: hud_edit in a game: Frame timings is outlined; drag it, leave, it stays there.
 test: Right-click it in hud_edit (or hud_edit reset timings): back to the top right.
+
+[acoustics]
+area: Audio
+title: 3D sound rebuilt: measured head, walls by material, corners, room echo
+change: s_spatial now: sounds all round the head (front, back, up, down) through a KEMAR head.
+change: Walls muffle by material per band; a hidden sound comes round a corner or doorway.
+change: The room rings with an echo traced from its walls (2048 rays, convolved per ear).
+test: Headphones, s_spatial 1: a player circling you sounds behind you when behind.
+test: Close a door between you and a sound: muffled; open it: heard from the doorway.
+test: Small room vs big hall vs outside: short ring, long ring, almost none.
+test: Settings > Sound: 3D sound for headphones off pans; room echo 0 to 2 changes the ring.
+note: Not heard in game yet. Console says when the level's walls are ready.
