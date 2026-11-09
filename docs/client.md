@@ -7694,6 +7694,19 @@ viewer feeds it once per frame from `run_console_command_buffer`. Covered by uni
 tests over real loopback connections (authentication, limits, chat separator,
 command execution); not yet run against a game session or Sol's Archive itself.
 
+An AI assistant can use the socket through
+[sjk_console_mcp.py](../scripts/sjk_console_mcp.py), an MCP server (stdio, standard
+library, Pillow optional) that reads the port and password from `config.cfg` and
+offers three tools: `console` (one command, its printed lines back), `console_log`
+(the lines seen since it connected, filtered by a regex) and `screenshot`
+(`screenshotJPEG mcp_<time>`, returned as an image 1600 pixels wide). It refuses
+commands that speak or act for the player on a server: chat, votes, `rcon`,
+`connect`/`disconnect`, `+`/`-` actions, binds, `exec`/`vstr`/`alias`, JA+ `am*`
+admin commands, and setting `name`, passwords or the socket's own cvars. Unknown
+commands still reach the server as client commands, so the list is a guard rail,
+not a sandbox. Register it with
+`claude mcp add -s local sjk-client -- python <checkout>/scripts/sjk_console_mcp.py`.
+
 ## Useful console commands
 
 Every command and cvar the client knows, with its help, default and Settings row, is
