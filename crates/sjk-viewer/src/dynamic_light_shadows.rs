@@ -20,7 +20,7 @@ use crate::dynamic_lights::{MAX_POINT_LIGHTS, SHADOW_HEADER_OFFSET, SHADOW_TILE_
 
 /// The header word group (lights with a tile) ahead of the tiles.
 const HEADER_BYTES: u64 = 16;
-/// Invocations per workgroup; each traces one word (two texels) of a tile.
+/// Invocations per workgroup; each traces one texel of a tile.
 const WORKGROUP: u32 = 64;
 
 /// The frame's tile trace and the copy of its tiles into the point-light block.
@@ -175,10 +175,10 @@ fn copy_bytes(lights: u32) -> u64 {
     HEADER_BYTES + u64::from(lights) * SHADOW_TILE_BYTES
 }
 
-/// One invocation per tile word, one row of workgroups per light.
+/// One invocation per tile texel, one row of workgroups per light.
 fn workgroups(lights: u32) -> [u32; 3] {
-    let words = (SHADOW_TILE_BYTES / 4) as u32;
-    [words.div_ceil(WORKGROUP), lights, 1]
+    let texels = (SHADOW_TILE_BYTES / 2) as u32;
+    [texels.div_ceil(WORKGROUP), lights, 1]
 }
 
 #[cfg(test)]

@@ -3963,7 +3963,9 @@ unit on both axes, right and down positive), an element left out being where its
 puts it: `vitals` (health and armour), `force` (Force and saber style, and the radial
 look's ammo, which sits in its right pill), `weapon` (weapon name and ammo), `timer`,
 `vote`, `jetpack`, `vehicle`, `selection` (the weapon, Force and inventory selectors),
-`flags` (CTF flags and team scores) and `follow` (the followed player's name)
+`flags` (CTF flags and team scores), `follow` (the followed player's name) and
+`timings` (the frame timings panel, `r_drawTimings`, kept from the screen's top right
+corner so it stays there on any width)
 ([placement.rs](../crates/sjk-viewer/src/hud/placement.rs)). The layouts' widgets move
 in the layout pass, the rest by moving what they drew
 (`sjk_ui::DrawList::translate_from`); with the game-data HUD, `vitals` moves its left

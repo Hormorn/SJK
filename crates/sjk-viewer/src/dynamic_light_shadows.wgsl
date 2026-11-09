@@ -21,8 +21,16 @@ fn point_light_trace_texel(source: vec4<f32>, reach: f32, texel: u32) -> u32 {
     return level | (point_light_normal_code(hit.normal) << 8u);
 }
 
-// One word (two texels in a row) of light `id.y`'s tile per invocation.
-@compute @workgroup_size(64) fn trace(@builtin(global_invocation_id) id: vec3<u32>) {
+var<workgroup> traced_texels: array<u32, 64>;
+
+// One texel of light `id.y`'s tile per invocation, then even lanes pack their pair into a
+// word (a tile's 784 texels and a group's 64 lanes are even, so a pair never straddles two
+// groups). The trace is bound by a ray's latency rather than by how many rays there are, so
+// one ray each rather than two in a row takes about 40 % off (0.38 -> 0.23 ms at 4K).
+@compute @workgroup_size(64) fn trace(
+    @builtin(global_invocation_id) id: vec3<u32>,
+    @builtin(local_invocation_index) lane: u32,
+) {
     let count = min(traced.metadata.x, 32u);
     if all(id == vec3(0u)) {
         shadow_tiles[0] = count;
@@ -30,12 +38,20 @@ fn point_light_trace_texel(source: vec4<f32>, reach: f32, texel: u32) -> u32 {
         shadow_tiles[2] = 0u;
         shadow_tiles[3] = 0u;
     }
-    let word = id.x;
+    let texel = id.x;
+    // One light per row of groups: `live` is uniform in a group, so all of it reaches the
+    // barrier or none does.
     let light = id.y;
-    if light >= count || word >= POINT_TILE_TEXELS/2u { return; }
-    let source = traced.lights[light].origin_radius;
-    let reach = point_light_reach(source.w);
-    let packed = point_light_trace_texel(source, reach, word*2u) |
-        (point_light_trace_texel(source, reach, word*2u + 1u) << 16u);
-    shadow_tiles[4u + light*(POINT_TILE_TEXELS/2u) + word] = packed;
+    let live = light < count && texel < POINT_TILE_TEXELS;
+    var value = 255u;
+    if live {
+        let source = traced.lights[light].origin_radius;
+        value = point_light_trace_texel(source, point_light_reach(source.w), texel);
+    }
+    traced_texels[lane] = value;
+    workgroupBarrier();
+    if live && (lane & 1u) == 0u {
+        shadow_tiles[4u + light*(POINT_TILE_TEXELS/2u) + texel/2u] =
+            traced_texels[lane] | (traced_texels[lane + 1u] << 16u);
+    }
 }

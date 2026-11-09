@@ -55,6 +55,9 @@ pub(crate) enum Element {
     Chat,
     /// The local time (`cg_drawClock`, 05/11/2026).
     Clock,
+    /// The frame timings panel (`r_drawTimings`, [`crate::frame_timings`]): from the
+    /// top right corner.
+    Timings,
 }
 
 /// How many [`Element`]s there are.
@@ -113,7 +116,7 @@ pub(crate) enum Binding {
 }
 
 impl Element {
-    pub(crate) const ALL: [Self; 17] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Vitals,
         Self::Force,
         Self::Weapon,
@@ -131,6 +134,7 @@ impl Element {
         Self::Score,
         Self::Chat,
         Self::Clock,
+        Self::Timings,
     ];
 
     pub(crate) const fn index(self) -> usize {
@@ -157,6 +161,7 @@ impl Element {
             Self::Score => "score",
             Self::Chat => "chat",
             Self::Clock => "clock",
+            Self::Timings => "timings",
         }
     }
 
@@ -180,6 +185,7 @@ impl Element {
             Self::Score => "Score",
             Self::Chat => "Chat",
             Self::Clock => "Local time",
+            Self::Timings => "Frame timings",
         }
     }
 

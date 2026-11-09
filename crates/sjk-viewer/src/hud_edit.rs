@@ -463,6 +463,7 @@ impl crate::GpuState {
     /// Draw the outlines and the panel, for what the HUD drew this frame.
     pub(crate) fn append_hud_edit(&mut self, viewport: [f32; 2]) {
         let mut boxes = self.hud.element_bounds;
+        boxes.add(Element::Timings, self.frame_timings.panel_rect());
         boxes.add(
             Element::Chat,
             Some(crate::chat::options::box_rect(
