@@ -42,6 +42,9 @@ enum MoveKind {
     /// JA+'s `amtele`: teleports the player unless its first argument names another
     /// player in a form that moves them.
     Amtele,
+    /// JA+'s `amghost`: walks through players, unseen, unless its argument names another
+    /// player.
+    Ghost,
 }
 
 /// A server command that moves the player who sends it.
@@ -70,6 +73,12 @@ const OWN_MOVES: &[OwnMove] = &[
         name: "amtele",
         kind: MoveKind::Amtele,
     },
+    // JA+ `Cmd_amghost_f` (VisionJK g_japlus_fx.c): no argument is the sender (hub report
+    // #240). A ghost shows in nothing the client receives, so the command is the evidence.
+    OwnMove {
+        name: "amghost",
+        kind: MoveKind::Ghost,
+    },
 ];
 
 /// What `command` (a released reliable command) does to the player on slot `own`.
@@ -81,6 +90,13 @@ fn own_move(command: &[u8], own: u8) -> Option<MoveKind> {
         .iter()
         .find(|entry| entry.name.eq_ignore_ascii_case(name))?
         .kind;
+    if kind == MoveKind::Ghost {
+        // A number names a slot; a name may be the player's own, so it counts.
+        let other = words
+            .get(1)
+            .is_some_and(|target| target.parse::<u8>().is_ok_and(|slot| slot != own));
+        return (!other).then_some(kind);
+    }
     if kind != MoveKind::Amtele {
         return Some(kind);
     }
@@ -137,6 +153,8 @@ pub(super) struct Watch {
     teleported: Option<Instant>,
     /// The player sent `noclip` on this map.
     noclip: bool,
+    /// When the player last ghosted themselves, not yet judged.
+    ghosted: Option<Instant>,
 }
 
 impl Watch {
@@ -161,6 +179,7 @@ impl Watch {
             self.read = number;
             match own_move(command, own) {
                 Some(MoveKind::Noclip) => self.noclip = true,
+                Some(MoveKind::Ghost) => self.ghosted = Some(at),
                 Some(_) => self.teleported = Some(at),
                 None => {}
             }
@@ -175,6 +194,13 @@ impl Watch {
             return false;
         }
         if sample.fake_noclip || (sample.noclip && self.noclip) {
+            return true;
+        }
+        if self
+            .ghosted
+            .take()
+            .is_some_and(|at| now.saturating_duration_since(at) <= OWN_MOVE_WINDOW)
+        {
             return true;
         }
         let Some(last) = last.filter(|last| last.time < sample.time) else {
@@ -194,6 +220,7 @@ impl Watch {
         self.last = None;
         self.noclip = false;
         self.teleported = None;
+        self.ghosted = None;
     }
 }
 
@@ -281,6 +308,27 @@ mod tests {
         assert_eq!(own_move(b"setviewpos 1 2 3 0", 4), Some(MoveKind::Teleport));
         assert_eq!(own_move(b"noclip", 4), Some(MoveKind::Noclip));
         assert_eq!(own_move(b"say amtele", 4), None);
+    }
+
+    #[test]
+    fn ghosting_oneself_is_a_cheat_and_ghosting_another_is_not() {
+        assert_eq!(own_move(b"amghost", 4), Some(MoveKind::Ghost));
+        assert_eq!(own_move(b"AMGHOST 4", 4), Some(MoveKind::Ghost));
+        assert_eq!(own_move(b"amghost Kyle", 4), Some(MoveKind::Ghost));
+        assert_eq!(own_move(b"amghost 5", 4), None);
+
+        let now = Instant::now();
+        let mut watch = Watch::default();
+        assert!(!watch.step(sample(100, false), now));
+        watch.read_commands([(1, now, b"amghost 5".as_slice())].into_iter(), 4);
+        assert!(!watch.step(sample(150, false), now));
+        watch.read_commands([(2, now, b"amghost".as_slice())].into_iter(), 4);
+        assert!(watch.step(sample(200, false), now));
+        // Judged once.
+        assert!(!watch.step(sample(250, false), now));
+        // Sent long before the chase began: not this chase's cheat.
+        watch.read_commands([(3, now, b"amghost".as_slice())].into_iter(), 4);
+        assert!(!watch.step(sample(300, false), now + Duration::from_secs(30)));
     }
 
     #[test]

@@ -34,6 +34,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 
 - The map editor's panel in game does what the page (`mapedit_web`) does: a picture of each texture in its lists, a tile view and a large preview beside what is drawn there now; Fill's nearby textures to choose from; a Lights page (add, recolour, move and delete lights, turn the map's lamps off or move them, with markers over the scene); boomboxes, mystery boxes and toys on Place; the invisible brushes' presets (B); and Ctrl+C, Ctrl+V of models and textures _(Sol)_
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
+- Ground HUD (`cg_groundHud`): going limp in a ragdoll, or watching through Peek or the Hax, keeps it instead of bringing the normal HUD back _(Sol, after Kushina's report)_
+- Box hunt: ghosting yourself with JA+'s `amghost` during a chase counts as cheating, as a teleport does; ghosting someone else does not _(Sol, hub report #240, after Nib's report)_
 
 ## 2026.1109.2 (Alpha) | 09/11/2026
 
