@@ -9661,7 +9661,9 @@ test: Headphones, s_spatial 1: a player circling you sounds behind you when behi
 test: Close a door between you and a sound: muffled; open it: heard from the doorway.
 test: Small room vs big hall vs outside: short ring, long ring, almost none.
 test: Settings > Sound: 3D sound for headphones off pans; room echo 0 to 2 changes the ring.
-note: Not heard in game yet. Console says when the level's walls are ready.
+change: 09/11 fix: the room echo was louder than the sounds and clipped; now well under them, about 1 s.
+test: After the fix: the echo sits behind the sounds, nothing distorts; say if too dry or too wet.
+note: Sol 09/11: first try loud and unreadable. Fix not heard yet.
 
 [camera-damp-ejk]
 area: Rendering & effects

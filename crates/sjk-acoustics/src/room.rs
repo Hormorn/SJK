@@ -47,6 +47,16 @@ const RAY_REACH: f32 = 16_384.0;
 const AIR: [f32; 3] = [0.0, 0.000_02, 0.000_08];
 /// The quietest the response is kept to, against its loudest bin (-60 dB).
 const FLOOR: f32 = 1.0e-6;
+/// What every wall takes on top of its material, of the energy: the game's rooms are
+/// bare boxes, real ones hold things and people. Without it halls ring for seconds.
+const FURNISHED: f32 = 0.8;
+/// How loud the room rings against physics (of the energy, about -18 dB): traced as
+/// it is, a room is several times louder than a sound a few steps away, which a
+/// real head sorts out and a game's mix cannot.
+const WET: f32 = 0.015;
+/// The loudest a room rings (of the energy, against a sound [`REFERENCE_DISTANCE`]
+/// away in the open at 1): the biggest hall stays under the sounds themselves.
+const LOUDEST: f32 = 0.04;
 /// Moved less than this since the last pass: the passes are averaged.
 const SAME_PLACE: f32 = 48.0;
 /// The weight of the newest pass in that average.
@@ -81,6 +91,9 @@ pub struct RoomStats {
     pub length_seconds: f32,
     /// Microseconds the pass took.
     pub micros: u64,
+    /// The response's energy, both ears' mean: how loud the room rings against a
+    /// sound [`REFERENCE_DISTANCE`] away in the open (1 as loud), after [`WET`].
+    pub energy: f32,
 }
 
 /// Energy by ear, band and time bin.
@@ -205,13 +218,20 @@ impl RoomTracer {
             table = last.clone();
         }
         self.last = Some((listener, table.clone()));
-        let (left, right, length) = self.synthesize(&table);
+        let (mut left, mut right, length) = self.synthesize(&table);
+        let traced = left.iter().chain(&right).map(|s| s * s).sum::<f32>() * 0.5;
+        let energy = (traced * WET).min(LOUDEST);
+        if traced > 0.0 {
+            let gain = (energy / traced).sqrt();
+            left.iter_mut().chain(&mut right).for_each(|s| *s *= gain);
+        }
         let decay_seconds = decay_seconds(&table, 1);
         let stats = RoomStats {
             enclosed: enclosed as f32 / rays as f32,
             decay_seconds,
             length_seconds: length as f32 / RATE,
             micros: started.elapsed().as_micros() as u64,
+            energy,
         };
         (RoomResponse::from_impulses(&left, &right), stats)
     }
@@ -372,8 +392,9 @@ fn trace_rays(
             travelled += hit.distance;
             let material = &MATERIALS[usize::from(hit.material).min(MATERIALS.len() - 1)];
             for band in 0..BANDS {
-                energy[band] *=
-                    (1.0 - material.absorption[band]) * (-AIR[band] * hit.distance).exp();
+                energy[band] *= (1.0 - material.absorption[band])
+                    * FURNISHED
+                    * (-AIR[band] * hit.distance).exp();
             }
             let normal = if hit.normal.dot(direction) > 0.0 {
                 -hit.normal
