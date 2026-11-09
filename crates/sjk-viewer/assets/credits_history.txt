@@ -9,6 +9,8 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 09/11/2026 | - | WHEEL OF DOOM out of order: honour the hub's off switch
+- 2613fcd |  | WHEEL OF DOOM out of order: honour the hub's off switch
 + 08/11/2026 | - | Banners out of the game for now: no Banners tab, no banner odds note
 - f8678ae |  | Banners out of the game for now: no Banners tab, no banner odds note
 + 08/11/2026 | - | Format the nameplate client icon code (cargo fmt)
@@ -3457,6 +3459,11 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #369 | Collection > Banners: break a banner down for kyber shards (needs hub #18)
+- a0a6dfd |  | Collection > Banners: break a banner down for kyber shards
+- 11aa879 |  | Debug panel: name hub shared #18 for banner break down
++ 09/11/2026 | SJK #376 | Chroma shader blades take a pale custom colour: white, grey, pastel (Dante's idea)
+- 790f1d5 |  | Chroma shader blades take a pale custom colour: white, grey, pastel
 + 09/11/2026 | SJK #365 | Quests toy: the hub gives a social quest, its targets' clients prove it
 - b136cc1 |  | Quests toy: the hub gives a social quest, its targets' clients prove it
 - 8ff6dae |  | Quests: a card counts the seconds down, gold arrows point the players at each other

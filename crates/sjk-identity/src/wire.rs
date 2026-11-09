@@ -610,6 +610,20 @@ impl PlaySignals {
 /// (03/11/2026, Blep's idea).
 pub const TAG_COPIES_ABILITY: &str = "tag_copies";
 
+/// The economy's ability that says the hub breaks profile banners down through
+/// `POST /v1/unlocks/shatter` (05/11/2026, headshotsmcgee117's idea), for
+/// [`EconomyTables::banners`].
+pub const BANNER_SHATTER_ABILITY: &str = "banner_shatter";
+
+/// What breaking a profile banner's copy gives (`economy.banners`): `shatter` by the
+/// banner's tier, common to mythical.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct BannerTables {
+    /// Shards by tier.
+    #[serde(default)]
+    pub shatter: Vec<u64>,
+}
+
 /// One copy of a tag in a finish (`normal`, `holo`, `solar`), as the tag requests name it.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct TagCopy {
@@ -858,9 +872,22 @@ pub struct EconomyTables {
     /// from hubs before.
     #[serde(default)]
     pub tags: Option<TagTables>,
+    /// What breaking a banner's copy gives (05/11/2026, with [`BANNER_SHATTER_ABILITY`]);
+    /// `None` from hubs before.
+    #[serde(default)]
+    pub banners: Option<BannerTables>,
 }
 
 impl EconomyTables {
+    /// The shards a copy of a banner of tier index `tier` breaks into, when the hub breaks
+    /// banners down (`None` from a hub that does not).
+    pub fn banner_yield(&self, tier: usize) -> Option<u64> {
+        if !self.can(BANNER_SHATTER_ABILITY) {
+            return None;
+        }
+        self.banners.as_ref()?.shatter.get(tier).copied()
+    }
+
     /// Whether the hub's trade can do `ability` (`shatter_last`, `shatter_duplicates`).
     pub fn can(&self, ability: &str) -> bool {
         self.abilities.iter().any(|known| known == ability)
@@ -2293,7 +2320,18 @@ mod tests {
         assert_eq!(caught.activity.unwrap().pace, Some(50));
         let economy = caught.economy.unwrap();
         assert!(economy.can(TAG_COPIES_ABILITY));
+        // A hub before banner break down (05/11/2026) gives none, a later one its table.
+        assert_eq!(economy.banner_yield(1), None);
         assert_eq!(economy.tags.unwrap().yield_of(1, "holo"), Some(25));
+        let banners: EconomyTables = serde_json::from_str(
+            r#"{"abilities":["banner_shatter"],"banners":{"shatter":[2,5,12,30,75]}}"#,
+        )
+        .unwrap();
+        assert_eq!(banners.banner_yield(1), Some(5));
+        assert_eq!(banners.banner_yield(9), None);
+        let unsaid: EconomyTables =
+            serde_json::from_str(r#"{"banners":{"shatter":[2,5,12,30,75]}}"#).unwrap();
+        assert_eq!(unsaid.banner_yield(1), None, "only with the ability");
         let spent: HolocronState = serde_json::from_str(
             r#"{"progress_secs":0,"every_secs":1800,"catchup":{"pool":4,"left":0,"every_secs":900},
                 "activity":{"pace":null}}"#,

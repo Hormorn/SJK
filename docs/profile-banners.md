@@ -29,6 +29,19 @@ central crop. Avatar, name colours, badges, bio, medals and actions keep their e
 layout. Every menu style uses these SJK controls. A dark veil keeps text readable.
 There is no animated version in this first set and no motion setting is needed.
 
+## Breaking banners down
+
+Since 05/11/2026 (headshotsmcgee117's idea: duplicates had no use) a banner you hold
+breaks down for kyber shards, on a hub whose economy says `banner_shatter`. Choose it
+in Collection > Banners and press Break down a copy, then once more within five seconds
+to confirm. A duplicate goes first; the last copy breaks down too on a hub that also says
+`shatter_last`, after a warning that it leaves your collection (and your profile, when
+worn). The shards come from the hub's `economy.banners.shatter` table by tier
+(provisional: Uncommon 5, Rare 12, Legendary 30, Mythical 75). The request is the
+shaders' `POST /v1/unlocks/shatter`; Break down all duplicates in the Forge stays for
+shaders. Banners are never crafted, sold in the shop or traded. The neutral cover never
+breaks down. Against an older hub the button does not show.
+
 ## First edition
 
 | Permanent id | Cover | Tier | Original native UI art |
