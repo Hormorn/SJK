@@ -12,6 +12,15 @@ words, the price card, the HUD line, Blind's darkness),
 [mirror.rs](../crates/sjk-viewer/src/wheel_of_doom/mirror.rs) (Mirror's flip), and the hub
 calls in [sjk-identity's wheel_of_doom.rs](../crates/sjk-identity/src/wheel_of_doom.rs).
 
+**Out of order since 09/11/2026** (Sol: it is bugged): the hub has the wheel off (its
+`--wheel-of-doom` switch, off by default). It stays in Collection > Toys, the quick wheel
+and the bindings, but every press says "The WHEEL OF DOOM is out of order for now." in the
+centre of the screen, with no price card and nothing paid. The client reads that from
+`GET /v1/wheel-of-doom`'s `open` (false), and asks again at most every 5 seconds while it
+is off, so the wheel spins again without a restart once the hub opens it; a client from
+before that change gets the same words from the hub's `wheel_off` refusal at the second
+press. To bring it back, set the hub's switch to `everyone` (`staff` to test a fix).
+
 No game server knows of the wheel. It is drawn by SJK clients only and has no collision;
 what it does reaches the server only as the user commands the player sends anyway (and,
 on `explode`, the game's `kill`).
