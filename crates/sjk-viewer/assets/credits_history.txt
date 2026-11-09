@@ -3503,6 +3503,8 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #396 | A boombox on the floor is hidden in a private duel (hub report #271)
+- ea391e9 |  | A boombox on the floor is hidden in a private duel (hub report #271)
 + 09/11/2026 | SJK #395 | A click that brings the window back no longer attacks (hub report #281)
 - 90bc932 |  | A click that brings the window back no longer attacks (hub report #281)
 + 09/11/2026 | SJK #394 | Console: a held key types again (hub report #282)

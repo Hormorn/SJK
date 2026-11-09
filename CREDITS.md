@@ -793,7 +793,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 134 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 135 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1027,6 +1027,7 @@ medal pictures carry their own labels in `vram` and crash reports.
 - #393 Chat: Left and Right change the chat button while nothing is typed.
 - #394 Console: a held key types again.
 - #395 A click that brings the window back no longer attacks.
+- #396 A boombox on the floor is hidden in a private duel.
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

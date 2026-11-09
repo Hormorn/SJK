@@ -9621,3 +9621,10 @@ title: A click that brings the window back no longer attacks (report #281)
 change: The press within 250 ms of getting focus, and its release, stop before the game bindings.
 test: In game, alt-tab away, click the window: no attack. Click again: it attacks.
 test: With a menu open, the click that brings the window back still reaches the menu.
+
+[boombox-private-duel]
+area: Gameplay
+title: A boombox on the floor is hidden in a private duel (report #271)
+change: No floor boxes are drawn while the viewed player is in a private duel.
+test: Place a boombox, start a private duel: the box is gone, the music is unchanged.
+test: End the duel: the box is back. A box on a shoulder stays.
