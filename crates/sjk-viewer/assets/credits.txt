@@ -218,6 +218,7 @@ did: Lighter rain and fog: the fog at half size, about three times cheaper, glow
 did: Lightning in storms with thunder and gusts, and rain running down walls and slopes
 did: JA+ server mode: SJK's server runs as a JA+ 2.4 B7 server with g_mod japlus (after VisionJK)
 did: Lights in map edits: lights added, moved and recoloured for every player, map lamps turned off or moved
+did: Door and lift shadows on lamp light within a fixed budget a frame: no more stutter when they move
 link: https://github.com/Sol-Vulpes/SJK
 link: https://sol-vulpes.github.io/SJK/
 

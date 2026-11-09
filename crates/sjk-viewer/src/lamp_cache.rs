@@ -66,6 +66,16 @@ pub(crate) struct Pages {
     runs: Vec<Vec<Range<u32>>>,
     /// Per layer: each surface baked into it, for partial refreshes.
     surfaces: Vec<Vec<CachedSurface>>,
+    /// Per layer: each surface's index range beside its texels, so a partial refresh
+    /// draws only the surfaces under its rectangles.
+    pieces: Vec<Vec<Piece>>,
+}
+
+/// A surface of a cache layer as the bake draws it: its index range and its texels.
+#[derive(Clone, Debug)]
+pub(crate) struct Piece {
+    indices: Range<u32>,
+    texels: [u32; 4],
 }
 
 /// A surface of a cache layer: the texels it covers, `[x0, y0, x1, y1)`, and its world
@@ -166,6 +176,7 @@ impl Pages {
         let mut stream = vec![0f32; positions.len()];
         let mut runs: Vec<Vec<Range<u32>>> = vec![Vec::new(); layers.len()];
         let mut cached: Vec<Vec<CachedSurface>> = vec![Vec::new(); layers.len()];
+        let mut pieces: Vec<Vec<Piece>> = vec![Vec::new(); layers.len()];
         for &(index, scale, _) in &measured {
             if scale / resolution as f32 > COARSEST * spacing {
                 continue;
@@ -188,13 +199,18 @@ impl Pages {
             let size = resolution as f32;
             let texel =
                 |v: f32, round: fn(f32) -> f32| (round(v * size).max(0.) as u32).min(resolution);
+            let texels = [
+                texel(low.x, f32::floor),
+                texel(low.y, f32::floor),
+                texel(high.x, f32::ceil),
+                texel(high.y, f32::ceil),
+            ];
+            pieces[layer as usize].push(Piece {
+                indices: surface.indices.clone(),
+                texels,
+            });
             cached[layer as usize].push(CachedSurface {
-                texels: [
-                    texel(low.x, f32::floor),
-                    texel(low.y, f32::floor),
-                    texel(high.x, f32::ceil),
-                    texel(high.y, f32::ceil),
-                ],
+                texels,
                 lower,
                 upper,
             });
@@ -210,6 +226,7 @@ impl Pages {
             stream,
             runs,
             surfaces: cached,
+            pieces,
         })
     }
 }
@@ -248,6 +265,7 @@ fn join(mut ranges: Vec<Range<u32>>) -> Vec<Range<u32>> {
 pub(crate) struct Cache {
     resolution: u32,
     runs: Vec<Vec<Range<u32>>>,
+    pieces: Vec<Vec<Piece>>,
     /// Vertex stream at slot 1 of the cached static receiver pipeline.
     pub(crate) pages: wgpu::Buffer,
     array: wgpu::TextureView,
@@ -323,6 +341,7 @@ impl Cache {
         Self {
             resolution: pages.resolution,
             runs: pages.runs.clone(),
+            pieces: pages.pieces.clone(),
             array,
             layers,
             directions,
@@ -490,7 +509,8 @@ impl Cache {
     /// Bake `regions` (layer, texel rectangle `[x0, y0, x1, y1)`) again with the lamps'
     /// current visibility: a mover's shadow changed there (`mover_occlusion.rs`). Nothing
     /// before the first bake, which already sees it. The bake's targets are made again
-    /// if the first bake did not keep them, and then kept.
+    /// if the first bake did not keep them, and then kept. Consecutive regions of one
+    /// layer share its passes; every pass is clipped to them.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn refresh(
         &self,
@@ -508,7 +528,13 @@ impl Cache {
         let mut baker = self.baker.borrow_mut();
         let baker = baker.get_or_insert_with(|| Baker::new(device, self, bounds));
         let light_group = baker.light_group(device, lamps);
-        for &(layer, rect) in regions {
+        let mut rects: Vec<[u32; 4]> = Vec::with_capacity(regions.len());
+        let mut rest = regions;
+        while let Some(&(layer, _)) = rest.first() {
+            let same = rest.iter().take_while(|(l, _)| *l == layer).count();
+            rects.clear();
+            rects.extend(rest[..same].iter().map(|&(_, rect)| rect));
+            rest = &rest[same..];
             if (layer as usize) < self.layers.len() {
                 self.bake_layer(
                     baker,
@@ -517,16 +543,17 @@ impl Cache {
                     vertices,
                     indices,
                     layer as usize,
-                    Some(rect),
+                    Some(&rects),
                 );
             }
         }
     }
 
-    /// One layer: its surfaces' extents, their light, then the steep and rim passes over
-    /// the whole layer. With `region`, only that rectangle is cleared and lit again; the
-    /// post passes still cover the layer, which outside it can only poison a few more
-    /// texels (evaluated directly), never change their light.
+    /// One layer: its surfaces' extents, their light, then the steep and rim passes.
+    /// With `rects`, only those rectangles are cleared and lit again, drawing only the
+    /// surfaces under them; the steep pass covers them grown by one texel (the rim pass
+    /// reads that far) and the rim pass the rectangles themselves, so the rest of the
+    /// layer is left as it was. A refresh costs what it changes, not whole layers.
     #[allow(clippy::too_many_arguments)]
     fn bake_layer(
         &self,
@@ -536,14 +563,49 @@ impl Cache {
         vertices: &wgpu::Buffer,
         indices: &wgpu::Buffer,
         index: usize,
-        region: Option<[u32; 4]>,
+        rects: Option<&[[u32; 4]]>,
     ) {
         let layer = &self.layers[index];
         let runs = &self.runs[index];
+        let pieces = &self.pieces[index];
+        let resolution = self.resolution;
         let direction = self.directions.as_ref().map(|(_, layers)| &layers[index]);
-        let scissor = |pass: &mut wgpu::RenderPass<'_>| {
-            if let Some([x0, y0, x1, y1]) = region {
-                pass.set_scissor_rect(x0, y0, x1 - x0, y1 - y0);
+        let partial = rects.is_some();
+        // Run `draw` once over the whole layer, or once per rectangle (grown by `grow`
+        // texels, within the layer) with the scissor set to it.
+        let each =
+            |pass: &mut wgpu::RenderPass<'_>,
+             grow: u32,
+             draw: &mut dyn FnMut(&mut wgpu::RenderPass<'_>, Option<[u32; 4]>)| {
+                match rects {
+                    None => draw(pass, None),
+                    Some(rects) => {
+                        for &[x0, y0, x1, y1] in rects {
+                            let r = [
+                                x0.saturating_sub(grow),
+                                y0.saturating_sub(grow),
+                                (x1 + grow).min(resolution),
+                                (y1 + grow).min(resolution),
+                            ];
+                            if r[2] > r[0] && r[3] > r[1] {
+                                pass.set_scissor_rect(r[0], r[1], r[2] - r[0], r[3] - r[1]);
+                                draw(pass, Some(r));
+                            }
+                        }
+                    }
+                }
+            };
+        // The layer's surfaces, or those whose texels meet `rect`, adjacent index ranges
+        // joined into one draw.
+        let surfaces = |pass: &mut wgpu::RenderPass<'_>, rect: Option<[u32; 4]>| {
+            let Some(rect) = rect else {
+                for run in runs {
+                    pass.draw_indexed(run.clone(), 0, 0..1);
+                }
+                return;
+            };
+            for run in pieces_in(pieces, rect) {
+                pass.draw_indexed(run, 0, 0..1);
             }
         };
         let color = |view, keep: bool| {
@@ -582,16 +644,13 @@ impl Cache {
             });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &baker.extent_group, &[]);
-            scissor(&mut pass);
             pass.set_vertex_buffer(0, vertices.slice(..));
             pass.set_index_buffer(indices.slice(..), wgpu::IndexFormat::Uint32);
-            for run in runs {
-                pass.draw_indexed(run.clone(), 0, 0..1);
-            }
+            each(&mut pass, 0, &mut |pass, rect| surfaces(pass, rect));
         }
         let targets = || [Some(layer), direction].into_iter().flatten();
-        if region.is_some() {
-            // Empty the rectangle: texels no surface covers any more take rim again.
+        if partial {
+            // Empty the rectangles: texels no surface covers any more take rim again.
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("SJK lamp cache clear"),
                 color_attachments: &targets().map(|v| color(v, true)).collect::<Vec<_>>(),
@@ -602,15 +661,12 @@ impl Cache {
             });
             pass.set_pipeline(&baker.clear_pipeline);
             pass.set_bind_group(0, &baker.from_rim, &[]);
-            scissor(&mut pass);
-            pass.draw(0..3, 0..1);
+            each(&mut pass, 0, &mut |pass, _| pass.draw(0..3, 0..1));
         }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("SJK lamp cache light"),
-                color_attachments: &targets()
-                    .map(|v| color(v, region.is_some()))
-                    .collect::<Vec<_>>(),
+                color_attachments: &targets().map(|v| color(v, partial)).collect::<Vec<_>>(),
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
@@ -618,30 +674,38 @@ impl Cache {
             });
             pass.set_pipeline(&baker.light_pipeline);
             pass.set_bind_group(0, light_group, &[]);
-            scissor(&mut pass);
             pass.set_vertex_buffer(0, vertices.slice(..));
             pass.set_index_buffer(indices.slice(..), wgpu::IndexFormat::Uint32);
-            for run in runs {
-                pass.draw_indexed(run.clone(), 0, 0..1);
-            }
+            each(&mut pass, 0, &mut |pass, rect| surfaces(pass, rect));
         }
-        // Poison texels too steep to interpolate, then add one texel of rim.
+        // Poison texels too steep to interpolate into the rim target (cleared: only what
+        // this pass writes is read), then add one texel of rim back into the layer, which
+        // a partial bake keeps outside its rectangles.
         let from_layer = baker.rim_group(layer, direction);
-        for (target, target_direction, source, pipeline) in [
+        for (target, target_direction, source, pipeline, keep, grow) in [
             (
                 &baker.rim,
                 baker.rim_direction.as_ref(),
                 &from_layer,
                 &baker.steep_pipeline,
+                false,
+                1,
             ),
-            (layer, direction, &baker.from_rim, &baker.rim_pipeline),
+            (
+                layer,
+                direction,
+                &baker.from_rim,
+                &baker.rim_pipeline,
+                partial,
+                0,
+            ),
         ] {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("SJK lamp cache rim"),
                 color_attachments: &[Some(target), target_direction]
                     .into_iter()
                     .flatten()
-                    .map(|v| color(v, false))
+                    .map(|v| color(v, keep))
                     .collect::<Vec<_>>(),
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -650,9 +714,26 @@ impl Cache {
             });
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, source, &[]);
-            pass.draw(0..3, 0..1);
+            each(&mut pass, grow, &mut |pass, _| pass.draw(0..3, 0..1));
         }
     }
+}
+
+/// The index ranges of the `pieces` whose texels meet `rect` (`[x0, y0, x1, y1)`), in
+/// order, adjacent ranges joined.
+fn pieces_in(pieces: &[Piece], [x0, y0, x1, y1]: [u32; 4]) -> Vec<Range<u32>> {
+    let mut runs: Vec<Range<u32>> = Vec::new();
+    for piece in pieces {
+        let [a, b, c, d] = piece.texels;
+        if c <= x0 || a >= x1 || d <= y0 || b >= y1 {
+            continue;
+        }
+        match runs.last_mut() {
+            Some(run) if run.end == piece.indices.start => run.end = piece.indices.end,
+            _ => runs.push(piece.indices.clone()),
+        }
+    }
+    runs
 }
 
 /// The bake's scratch targets at `resolution`: nearest and farthest depth (Depth32Float),

@@ -24,6 +24,16 @@
 
 # ---- Console & chat ----
 
+[lamp-cache-budget]
+area: Rendering & effects
+title: Door and lift shadows on lamp light no longer cost a frame-time spike
+change: When movers change the lamp light, it is baked again 16 small chunks a frame at most,
+change: only where their shadows changed (light-cache was 14-16 ms on T2_Rancor, now ~0.3).
+test: On T2_Rancor with real-time lighting, r_drawTimings 1: light-cache stays well under 1 ms.
+test: Open and close a door near a lamp: its shadow on walls and floor follows within a second.
+test: Walk the whole map after doors moved: no stale dark or bright patch stays behind.
+note: Door shadows may now lag a few frames behind a fast mover; that is the trade-off.
+
 [frame-timings]
 area: Rendering & effects
 title: Frame timings panel and log (GPU / CPU milliseconds per part of the frame)
