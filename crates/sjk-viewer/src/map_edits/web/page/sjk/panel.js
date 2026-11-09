@@ -4,7 +4,7 @@
 // Every button asks the game for the command the in-game panel's button runs (sjkEdit), so both stay one editor.
 
 const SJK_ROWS = 200, SJK_TILES = 120;
-const SJK_TABS = ['selected', 'place', 'edits', 'world'];
+const SJK_TABS = ['selected', 'place', 'edits', 'world', 'lights'];
 let sjkTab = 'selected';
 
 function sjkShowTab(tab) {
@@ -13,6 +13,9 @@ function sjkShowTab(tab) {
 	for (const t of SJK_TABS) $('tab-' + t).hidden = t !== tab;
 	if (tab === 'selected') sjkRenderShaders();
 	if (tab === 'place') sjkRenderModels();
+	// the Lights page reads the game's lamps again: a reload may have built the world anew
+	if (tab === 'lights') sjkLoadLamps(true);
+	sjkRenderLights();
 	sjkRenderRecent();
 }
 
@@ -102,6 +105,7 @@ function sjkRender() {
 	sjkRenderThings();
 	sjkRenderMulti();
 	sjkRenderSky();
+	sjkRenderLights();
 }
 
 // ---- the sky: a sky side selected offers the skies of the game data (their scripts have skyParms) to swap it for
@@ -356,8 +360,8 @@ $('editList').addEventListener('click', e => {
 $('editList').addEventListener('dblclick', e => {
 	const row = e.target.closest('.row');
 	const edit = row && sjk.state.edits.find(x => x.id === +row.dataset.id);
-	// a double click flies to a placed model
-	if (edit && edit.edit.kind === 'place') sjkFlyTo(edit.edit.origin);
+	// a double click flies to a placed model or an added light
+	if (edit && (edit.edit.kind === 'place' || edit.edit.kind === 'light')) sjkFlyTo(edit.edit.origin);
 });
 $('btnDelete').addEventListener('click', () => { if (sjk.chosenEdit !== null) sjkEdit({ op: 'delete', id: sjk.chosenEdit }); });
 $('btnUndo').addEventListener('click', () => sjkEdit({ op: 'undo' }));

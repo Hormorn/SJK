@@ -105,6 +105,8 @@ function gzScreenTurn(c, from, to) {
 function gzTargets() {
 	const s = sjk.state;
 	if (!s) return null;
+	// on the Lights page: the chosen added light or map lamp (moved only)
+	if (sjkTab === 'lights') return sjkLightTarget();
 	const ids = sjk.multi.filter(m => m.kind === 'placed').map(m => m.placed).reverse();
 	if (!ids.length && s.selection && s.selection.kind === 'placed' && s.selection.target) ids.push(s.selection.target.placed);
 	if (!ids.length && sjkTab === 'place' && s.current) ids.push(s.current);
@@ -120,6 +122,15 @@ function gzTargets() {
 
 // what a boombox takes: along the floor and about Z
 const gzBoomboxTakes = h => (h.k === 'axis' && h.i < 2) || (h.k === 'plane' && h.i === 2) || h.k === 'free' || (h.k === 'ring' && h.i === 2);
+// what a light or a lamp takes: moves only
+const gzMoveTakes = h => h.k === 'axis' || h.k === 'plane' || h.k === 'free';
+const gzMovedOnly = kind => kind === 'light' || kind === 'lamp';
+// the handles a kind of target takes
+function gzTakesOf(kind) {
+	if (kind === 'boombox') return gzBoomboxTakes;
+	if (gzMovedOnly(kind)) return gzMoveTakes;
+	return () => true;
+}
 
 // ---- the gizmo laid out on the screen (CSS pixels)
 
@@ -171,11 +182,12 @@ function gzInside(p, q) {
 const gzKey = h => h ? h.k + (h.i === undefined ? '' : h.i) : '';
 
 // the handle under the mouse: the centre first, then the squares, the arms and the rings
-function gzPick(f, mode, m, boombox) {
+function gzPick(f, mode, m, kind) {
 	if (!f) return null;
 	const reach = gzReach(), nearCentre = Math.hypot(m[0] - f.centre[0], m[1] - f.centre[1]) <= Math.max(gzCentreRadius(), reach);
 	const seg = (a, b) => { const pa = project(a), pb = project(b); return pa && pb ? gzSegDist(m, pa, pb) : Infinity; };
-	const takes = h => !boombox || gzBoomboxTakes(h);
+	const takes = gzTakesOf(kind), boombox = kind === 'boombox';
+	if (gzMovedOnly(kind) && mode !== 'move') return null;
 	let best = null, bestAt = Infinity;
 	const offer = (d, h) => { if (d <= reach && d < bestAt && takes(h)) { best = h; bestAt = d; } };
 	if (mode === 'move') {
@@ -217,7 +229,7 @@ function gzBegin(how, targets, at) {
 	const f = gzFrame(targets.list);
 	if (!f) return false;
 	gz.active = { how, kind: targets.kind, size: targets.size, start: targets.list, pivot: f.pivot, own: f.own, basis: f.basis,
-		begin: at, last: at, turned: 0, typed: '', change: null };
+		begin: at, last: at, turned: 0, typed: '', change: null, fixture: targets.fixture, base: targets.base };
 	gz.hover = null;
 	gzFollow(at, false, false);
 	return true;
@@ -345,10 +357,11 @@ async function gzEnd(keep) {
 	gzRenderBar();
 	try {
 		if (a.kind === 'boombox') await sjkEdit({ op: 'set_thing', thing: 'boombox', origin: list[0].origin, yaw: list[0].angles[1] });
+		else if (gzMovedOnly(a.kind)) await sjkLightMoved(a, list[0].origin);
 		else await sjkEdit({ op: 'set', edits: list.map(p => ({ id: p.id, origin: p.origin, angles: p.angles, scale: p.scale })) });
 	} finally {
 		// the state read after the answer draws them where the game put them
-		if (!gz.active) { gz.preview = null; sjkSel.key = ''; }
+		if (!gz.active) { gz.preview = null; sjkSel.key = ''; sjkLights.preview = null; }
 	}
 }
 
@@ -358,6 +371,12 @@ async function gzEnd(keep) {
 // them, and the selection's tint with them.
 function sjkGizmoPreview() {
 	if (!gz.preview) return;
+	const kind = gz.active ? gz.active.kind : gzLastKind;
+	if (gzMovedOnly(kind)) {
+		const a = gz.active, p = gz.preview[0];
+		if (a && p) sjkLights.preview = { kind, id: kind === 'light' ? p.id : a.fixture, origin: p.origin };
+		return;
+	}
 	for (const p of gz.preview) {
 		if (p.id === 0 && (gz.active ? gz.active.kind : gzLastKind) === 'boombox') {
 			const t = sjk.things.find(x => x.thing === 'boombox' && x.mine);
@@ -388,10 +407,12 @@ function gzCircle(out, centre, r, w) {
 	}
 }
 
-function gzParts(f, mode, lit, boombox) {
+function gzParts(f, mode, lit, kind) {
 	const parts = [], upp = f.arm / gzArmPixels(), w = upp * 2, litKey = gzKey(lit);
 	const colour = (i, h, alpha = 0.95) => litKey === gzKey(h) ? [1, 0.82, 0.3, 1] : i === null ? [0.92, 0.92, 0.92, 0.85] : [...GZ_COLORS[i], alpha];
-	const takes = h => !boombox || gzBoomboxTakes(h);
+	const takes = gzTakesOf(kind);
+	// a light or a lamp shows the move handles whatever the mode
+	if (gzMovedOnly(kind)) mode = 'move';
 	const right = gzNorm(gzCross(camDir(), [0, 0, 1])), up = gzCross(right, camDir());
 	if (mode === 'move' || mode === 'scale') {
 		const axes = mode === 'move' ? f.basis : f.own;
@@ -486,7 +507,7 @@ function sjkDrawGizmo(now) {
 	}
 	const f = list && gzFrame(list, a ? a.basis : null);
 	if (f) {
-		const parts = a && a.how.keys ? gzKeyParts(a, f) : gzParts(f, gz.mode, a ? a.how.handle : gz.hover, (a ? a.kind : targets.kind) === 'boombox');
+		const parts = a && a.how.keys ? gzKeyParts(a, f) : gzParts(f, gz.mode, a ? a.how.handle : gz.hover, a ? a.kind : targets.kind);
 		const data = new Float32Array(parts.reduce((n, p) => n + p.tris.length, 0));
 		let at = 0;
 		for (const p of parts) { data.set(p.tris, at); p.first = at / 3; p.count = p.tris.length / 3; at += p.tris.length; }
@@ -536,7 +557,7 @@ window.addEventListener('pointerdown', e => {
 	}
 	if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey) return;
 	const t = gzTargets();
-	const h = t && gzPick(gzFrame(t.list), gz.mode, m, t.kind === 'boombox');
+	const h = t && gzPick(gzFrame(t.list), gzMovedOnly(t.kind) ? 'move' : gz.mode, m, t.kind);
 	if (!h) return;
 	canvas.focus({ preventScroll: true });
 	canvas.setPointerCapture(e.pointerId);
@@ -550,7 +571,7 @@ window.addEventListener('pointermove', e => {
 	gz.mouse = m;
 	if (gz.active) { gzFollow(m, e.ctrlKey || e.metaKey, e.shiftKey); gzStop(e); return; }
 	const t = gzTargets();
-	const h = t && gzPick(gzFrame(t.list), gz.mode, m, t.kind === 'boombox');
+	const h = t && gzPick(gzFrame(t.list), gzMovedOnly(t.kind) ? 'move' : gz.mode, m, t.kind);
 	if (gzKey(h) !== gzKey(gz.hover)) { gz.hover = h; canvas.style.cursor = h ? 'pointer' : ''; }
 }, true);
 window.addEventListener('pointerup', e => {
@@ -582,8 +603,9 @@ window.addEventListener('keydown', e => {
 	if (k === 'g' || k === 'r' || k === 't') {
 		gzStop(e);
 		const t = gzTargets(), mode = { g: 'move', r: 'rotate', t: 'scale' }[k];
-		if (!t) { toast('Select a placed model (or choose your boombox on World) first', false); return; }
+		if (!t) { toast('Select a placed model (or choose your boombox on World, a light on Lights) first', false); return; }
 		if (t.kind === 'boombox' && mode === 'scale') { toast('The boombox keeps its size: it moves and turns', false); return; }
+		if (gzMovedOnly(t.kind) && mode !== 'move') { toast('A light moves only (G); its reach and colour are on the Lights page', false); return; }
 		const m = gz.mouse || [canvas.clientWidth / 2, canvas.clientHeight / 2];
 		if (!gzBegin({ keys: mode, con: { kind: 'none' } }, t, m)) toast('The gizmo is out of view', false);
 	}
@@ -647,7 +669,7 @@ gzRenderBar();
 // the controls card names the gizmo's keys
 {
 	const dl = document.querySelector('#hudBody dl');
-	for (const [keys, does] of [['G / R / T', 'move, rotate, scale with the mouse (placed model, your boombox)'],
+	for (const [keys, does] of [['G / R / T', 'move, rotate, scale with the mouse (placed model, your boombox; a light: G)'],
 		['X Y Z', 'then: along an axis, twice its own; Shift: the plane'], ['0-9 Enter', 'then: type the amount, put it down (Esc takes it back)'],
 		['1 2 3 / L', 'gizmo: move, rotate, scale / own axes'], ['Ctrl / Shift', 'while dragging: snap / fine']]) {
 		const dt = document.createElement('dt'), dd = document.createElement('dd');
@@ -658,5 +680,6 @@ gzRenderBar();
 
 // The page's names stay inside its function; the headless check (`&test` in the address) reaches them here.
 if (new URLSearchParams(location.search).has('test')) {
-	window.sjkTest = { gz, sjk, gzTargets, gzFrame, gzPick, gzKey, gzRingPoints, gzAdd, gzMul, project, sjkShowTab, sjkEdit, canvas, cam, camDir, gzPivot };
+	window.sjkTest = { gz, sjk, gzTargets, gzFrame, gzPick, gzKey, gzRingPoints, gzAdd, gzMul, project, sjkShowTab, sjkEdit, canvas, cam, camDir, gzPivot,
+		sjkLights, sjkLampRows, sjkLightAt, sjkChooseLight, sjkLoadLamps, get sjkTab() { return sjkTab; } };
 }

@@ -13,10 +13,13 @@ pub(super) fn extract(
     shaders: &ShaderCatalog,
     lightmap: &wgpu::TextureView,
 ) -> Result<Vec<Lamp>, Box<dyn Error>> {
-    let mut models = BTreeMap::<String, Vec<crate::static_models::Spawn>>::new();
-    for (_, spawn) in crate::static_models::spawns(bsp) {
+    let mut models = BTreeMap::<String, Vec<(u32, crate::static_models::Spawn)>>::new();
+    for (number, spawn) in crate::static_models::spawns(bsp) {
         if valid(&spawn) {
-            models.entry(spawn.model.clone()).or_default().push(spawn);
+            models
+                .entry(spawn.model.clone())
+                .or_default()
+                .push((number, spawn));
         }
     }
     let mut cache = ImageCache::new();
@@ -37,7 +40,7 @@ pub(super) fn extract(
                 continue;
             }
         };
-        for draw in mesh.draws {
+        for (surface, draw) in mesh.draws.into_iter().enumerate() {
             let key = &geometry.materials[draw.material];
             let Some(definition) = shaders.get(&key.shader) else {
                 continue;
@@ -64,7 +67,7 @@ pub(super) fn extract(
             let source = &geometry.indices[draw.indices.start as usize..draw.indices.end as usize];
             let mut corners = Vec::new();
             let mut emitters = Vec::new();
-            for placement in &placements {
+            for (entity, placement) in &placements {
                 let rotation =
                     Quat::from_array(sjk_client::legacy_angles_to_quaternion(placement.angles));
                 let scale = Vec3::from_array(placement.scale);
@@ -87,6 +90,10 @@ pub(super) fn extract(
                     texture: &material.emission_texture,
                     radiance: material.emission,
                     ranges: vec![start..u32::try_from(corners.len())?],
+                    fixture: Some(crate::lamp_lights::Fixture::Prop {
+                        entity: *entity,
+                        surface: u32::try_from(surface)?,
+                    }),
                 });
             }
             let count = u32::try_from(corners.len())?;

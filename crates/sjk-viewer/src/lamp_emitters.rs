@@ -1,6 +1,6 @@
 //! Texture-aware quadrature at installation. Flux and its spatial moments become
 //! finite rectangular sources; dark housing and gaps do not receive uniform emission.
-use super::{Emitter, FLOOR, Lamp, POWER_SCALE};
+use super::{Emitter, FLOOR, Fixture, Lamp, POWER_SCALE};
 use glam::{IVec3, Vec2, Vec3};
 use std::collections::HashMap;
 #[path = "lamp_patch.rs"]
@@ -179,11 +179,18 @@ fn cook_emitter_at(
         return Some((Vec::new(), 0));
     }
     let mut patches: Vec<Patch> = Vec::new();
+    // The index-buffer position of each patch's first triangle: its fixture, unless the
+    // emitter names one.
+    let mut sources: Vec<u32> = Vec::new();
     let mut cells: HashMap<IVec3, Vec<usize>> = HashMap::new();
     let mut pending = Vec::new();
     let mut candidates = candidates::Candidates::default();
     for range in &emitter.ranges {
-        for t in indices[range.start as usize..range.end as usize].chunks_exact(3) {
+        for (k, t) in indices[range.start as usize..range.end as usize]
+            .chunks_exact(3)
+            .enumerate()
+        {
+            let source = range.start + 3 * k as u32;
             let corners = [t[0], t[1], t[2]].map(|i| vertices[i as usize]);
             // A huge tiled face must not reduce mask detail on other fixtures.
             let mask_lod = (emitter.texture.span(corners.map(uv))
@@ -234,6 +241,7 @@ fn cook_emitter_at(
                 let id = found.unwrap_or_else(|| {
                     let id = patches.len();
                     cells.entry(cell).or_default().push(id);
+                    sources.push(source);
                     patches.push(Patch::new(
                         sample.position,
                         sample.uv,
@@ -252,11 +260,13 @@ fn cook_emitter_at(
     }
     let mut result: Vec<Lamp> = patches
         .into_iter()
-        .map(|patch| {
+        .zip(sources)
+        .map(|(patch, source)| {
             let mut lamp = patch.finish();
             if emitter.omnidirectional {
                 lamp.normal = Vec3::ZERO;
             }
+            lamp.fixture = emitter.fixture.unwrap_or(Fixture::Index(source));
             lamp
         })
         .collect();

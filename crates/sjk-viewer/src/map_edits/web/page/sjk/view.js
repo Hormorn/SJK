@@ -318,6 +318,7 @@ function drawFrame(now) {
 	}
 	deferLate = false;
 	sjkDrawSelection(now);
+	sjkDrawLights(now);
 	sjkDrawGizmo(now);
 }
 
@@ -360,7 +361,10 @@ canvas.addEventListener('pointerup', e => {
 	const r = canvas.getBoundingClientRect(), ray = sjkRay(e.clientX - r.left, e.clientY - r.top);
 	// a thing chosen on World goes where the click is; on Place with a model chosen the model; else a click on a
 	// boombox, box or toy chooses it, and anywhere else selects what the game's pick finds
-	if (sjk.placeThing) {
+	const marker = !sjkLights.placing && !sjk.placeThing && !(sjkTab === 'place' && sjk.chosenModel) ? sjkLightAt(e.clientX - r.left, e.clientY - r.top) : null;
+	if (sjkLights.placing) sjkAddLight(ray);
+	else if (marker) sjkChooseLight(marker);
+	else if (sjk.placeThing) {
 		const thing = sjk.placeThing;
 		sjk.placeThing = null;
 		sjkEdit(Object.assign({ op: 'place_thing', thing, server: $('thingServer').checked && thing !== 'boombox', escort: $('thingEscort').checked && thing === 'toy' },
@@ -410,6 +414,7 @@ window.addEventListener('keydown', e => {
 	if (k === 'escape') { if (!sjkStopPlacing()) sjkClearSelection(); return; }
 	if (k === 'b') { sjkBrushToggle(); return; }
 	if (k === 'delete' && sjk.chosenEdit !== null && sjkTab === 'edits') { sjkEdit({ op: 'delete', id: sjk.chosenEdit }); return; }
+	if (k === 'delete' && sjkTab === 'lights' && sjkLights.chosen && sjkLights.chosen.kind === 'light') { sjkEdit({ op: 'delete', id: sjkLights.chosen.id }); sjkLights.chosen = null; return; }
 	if (k === 'h' && sjk.state && (sjk.state.selection || sjkMany())) { sjkHideSelection(); return; }
 	keys.add(k);
 	if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
@@ -420,9 +425,10 @@ $('editList').addEventListener('keydown', e => {
 });
 
 function sjkStopPlacing() {
-	if (!sjk.placeThing && !sjk.chosenModel) return false;
+	if (!sjk.placeThing && !sjk.chosenModel && !sjkLights.placing) return false;
 	sjk.placeThing = null;
 	sjk.chosenModel = '';
+	sjkLights.placing = false;
 	for (const r of document.querySelectorAll('#modelList .row, #modelRecent .row')) r.classList.remove('sel');
 	sjkRender();
 	toast('Stopped placing');
@@ -550,5 +556,6 @@ if (!gl) {
 	sjkPoll();
 	sjkLoadRecent();
 	sjkBrushRestore();
+	sjkLightsRestore();
 	requestAnimationFrame(frame);
 }

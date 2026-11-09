@@ -52,6 +52,9 @@ pub(crate) struct PointLightList {
     len: usize,
     dropped: usize,
     radiant: u32,
+    /// Slots kept for [`Self::push_reserved`] (map edits' lights): the other lights
+    /// fill the rest, so neither evicts the other.
+    reserved: usize,
 }
 
 impl Default for PointLightList {
@@ -61,6 +64,7 @@ impl Default for PointLightList {
             len: 0,
             dropped: 0,
             radiant: 0,
+            reserved: 0,
         }
     }
 }
@@ -70,19 +74,35 @@ impl PointLightList {
         self.len = 0;
         self.dropped = 0;
         self.radiant = 0;
+        self.reserved = 0;
+    }
+
+    /// Keep `count` slots of this frame for [`Self::push_reserved`] (at most every slot
+    /// left): [`Self::push`] then stops that many short of the capacity.
+    pub(crate) fn reserve(&mut self, count: usize) {
+        self.reserved = count.min(MAX_POINT_LIGHTS - self.len);
     }
 
     pub(crate) fn push(&mut self, light: PointLight) -> bool {
         if light.radius <= 0.0 {
             return false;
         }
-        let Some(slot) = self.lights.get_mut(self.len) else {
+        if self.len + self.reserved >= MAX_POINT_LIGHTS {
             self.dropped += 1;
             return false;
-        };
-        *slot = light;
+        }
+        self.lights[self.len] = light;
         self.len += 1;
         true
+    }
+
+    /// Fill one of the slots [`Self::reserve`] kept; refused when none is left.
+    pub(crate) fn push_reserved(&mut self, light: PointLight) -> bool {
+        if self.reserved == 0 || light.radius <= 0.0 {
+            return false;
+        }
+        self.reserved -= 1;
+        self.push(light)
     }
 
     /// Add emitted illumination independently of the existing surface light in day mode.
@@ -150,6 +170,37 @@ pub(crate) struct GpuPointLightBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reserved slots (map edits' lights) and the other lights never evict each other:
+    /// a full frame of effects leaves the reserved slots, which only `push_reserved`
+    /// fills, and a frame with fewer edit lights than reserved simply has spare slots.
+    #[test]
+    fn reserved_slots_keep_edit_lights_and_effects_apart() {
+        let light = |radius: f32| PointLight {
+            origin: [0.0; 3],
+            radius,
+            color: [1.0; 3],
+        };
+        let mut list = PointLightList::default();
+        list.reserve(8);
+        let effects = (0..40).filter(|_| list.push(light(100.0))).count();
+        assert_eq!(effects, MAX_POINT_LIGHTS - 8);
+        assert_eq!(list.dropped, 40 - effects);
+        let edits = (0..10).filter(|_| list.push_reserved(light(300.0))).count();
+        assert_eq!(edits, 8, "only the reserved slots");
+        assert_eq!(list.as_slice().len(), MAX_POINT_LIGHTS);
+        assert!(!list.push_radiant(light(50.0)), "still full");
+        // The next frame starts with nothing kept.
+        list.clear();
+        assert!(!list.push_reserved(light(300.0)));
+        assert_eq!(
+            (0..40).filter(|_| list.push(light(100.0))).count(),
+            MAX_POINT_LIGHTS
+        );
+        // A reserve never claims slots already filled.
+        list.reserve(8);
+        assert!(!list.push_reserved(light(300.0)));
+    }
 
     #[test]
     fn the_shadow_tiles_follow_the_cpu_block_within_the_uniform_limit() {

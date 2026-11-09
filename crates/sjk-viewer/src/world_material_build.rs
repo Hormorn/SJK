@@ -27,6 +27,7 @@ pub(crate) fn create_filtered_runtime(
     realtime: bool,
     lamps: bool,
     material_maps: super::material_maps::Settings,
+    lamp_edits: &crate::lamp_lights::LampEdits,
 ) -> Result<(Runtime, usize), Box<dyn Error>> {
     build(
         device,
@@ -45,6 +46,7 @@ pub(crate) fn create_filtered_runtime(
         realtime,
         lamps,
         material_maps,
+        lamp_edits,
     )
 }
 
@@ -66,6 +68,7 @@ fn build(
     realtime: bool,
     lamps_wanted: bool,
     material_maps: super::material_maps::Settings,
+    lamp_edits: &crate::lamp_lights::LampEdits,
 ) -> Result<(Runtime, usize), Box<dyn Error>> {
     let started = Instant::now();
     let mut forge = Forge::new(device, queue, camera_layout, format);
@@ -303,6 +306,7 @@ fn build(
                 .iter()
                 .map(|draw| draw.indices.clone())
                 .collect(),
+            fixture: None,
         }
     }
     let emitting = |material: &&PendingMaterial| material.surface.emission.iter().any(|c| *c > 0.);
@@ -323,6 +327,7 @@ fn build(
     // Without sun shadows, light shafts or real-time lighting (Performance and
     // EJK) no pass reads the lamps and the map shows its lightmaps; finding
     // them is seconds of a large map's load, so it is skipped.
+    let mut lamp_fixtures = Vec::new();
     let lamps = if lamps_wanted {
         let mut extra = Vec::new();
         if !mapped.is_empty() {
@@ -346,7 +351,21 @@ fn build(
         )?);
         extra.extend(flare_lamps::extract(&pending, &positions, geometry.1));
         extra.extend(vertex_lamps::extract(&pending, geometry.0, geometry.1));
-        let lamps = crate::lamp_lights::LampSet::extract(&positions, geometry.1, &emitters, extra);
+        let mut found = crate::lamp_lights::collect_patches(&positions, geometry.1, &emitters);
+        found.extend(extra);
+        // Each lamp named by its fixture, the map editor's markers made, then the map
+        // edits' lamps turned off and moved (map_edits/lights.rs).
+        resolve_fixtures(&mut found, draws);
+        lamp_fixtures = crate::lamp_lights::summarise(&found);
+        lamp_edits.apply(&mut found);
+        if !lamp_edits.is_empty() {
+            crate::log::progress(format_args!(
+                "Lamps: map edits turn {} fixtures off and move {}",
+                lamp_edits.off.len(),
+                lamp_edits.moved.len()
+            ));
+        }
+        let lamps = crate::lamp_lights::LampSet::from_lamps(found);
         let brightest = lamps
             .lamps
             .iter()
@@ -386,6 +405,8 @@ fn build(
     result.0.remaps.map = super::map_remaps::MapRemaps::load(bsp, vfs, shaders);
     result.0.light_styles = super::light_styles::Live::new(bsp, &lightmaps);
     result.0.lamps = lamps;
+    result.0.lamp_fixtures = lamp_fixtures;
+    result.0.lamp_edits = lamp_edits.clone();
     // The static lamp cache covers lightmapped, light-buffered surfaces of the static world.
     if !result.0.lamps.lamps.is_empty() {
         let surfaces: Vec<super::lamp_cache::Surface> = draws
@@ -615,6 +636,33 @@ fn compile_all(
 
 /// Bounce colour and light emission. Explicit compiler intensity takes precedence;
 /// otherwise the resolved emissive stages supply the light missing from legacy BSPs.
+/// Name each lamp found from a triangle of the world ([`crate::lamp_lights::Fixture::Index`])
+/// by the BSP surface that triangle belongs to (the world draws' own index ranges); one
+/// outside any surface's range is left unnamed.
+fn resolve_fixtures(lamps: &mut [crate::lamp_lights::Lamp], draws: &[DrawBatch]) {
+    use crate::lamp_lights::Fixture;
+    let mut ranges: Vec<(u32, u32, u32)> = draws
+        .iter()
+        .filter(|draw| draw.world_surface)
+        .filter_map(|draw| {
+            let surface = u32::try_from(draw.surface_index?).ok()?;
+            Some((draw.indices.start, draw.indices.end, surface))
+        })
+        .collect();
+    ranges.sort_unstable();
+    for lamp in lamps {
+        let Fixture::Index(index) = lamp.fixture else {
+            continue;
+        };
+        let at = ranges.partition_point(|range| range.0 <= index);
+        lamp.fixture = at
+            .checked_sub(1)
+            .map(|at| ranges[at])
+            .filter(|range| index < range.1)
+            .map_or(Fixture::None, |range| Fixture::Surface(range.2));
+    }
+}
+
 pub(super) fn gi_surface(
     compiled: &super::forge::CompiledMaterial,
     definition: Option<&sjk_shader::ShaderDefinition>,

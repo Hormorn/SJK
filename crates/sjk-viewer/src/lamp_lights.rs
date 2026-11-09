@@ -31,6 +31,134 @@ pub(crate) struct Lamp {
     /// Half-axes of the finite emitting rectangle.
     pub(crate) axis_u: Vec3,
     pub(crate) axis_v: Vec3,
+    /// The fixture the lamp comes from, so map edits can turn it off or move it.
+    pub(crate) fixture: Fixture,
+}
+
+/// Which of the map's things a lamp comes from: one BSP surface, one surface of a
+/// `misc_model_static` prop's model, or one steady effect. Stable across loads of the
+/// same BSP (the numbers are the file's own), so a map edit names it
+/// ([`crate::map_edits::document::Kind::Lamp`]).
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) enum Fixture {
+    /// Not tied to one thing (a vertex-coloured cluster over several surfaces): not
+    /// editable.
+    #[default]
+    None,
+    /// While lamps are found: the index-buffer position of the first triangle of the
+    /// patch, resolved to its [`Fixture::Surface`] by the world's build.
+    Index(u32),
+    /// BSP surface `0`.
+    Surface(u32),
+    /// Surface `surface` of prop `entity`'s model (its number in the entity lump).
+    Prop { entity: u32, surface: u32 },
+    /// The steady `fx_runner` of entity number `0`.
+    Effect(u32),
+}
+
+impl Fixture {
+    /// Read a fixture as [`std::fmt::Display`] writes it: `surface:1043`, `prop:12:3`,
+    /// `effect:40`. `None` for anything else (and for the build's own kinds).
+    pub(crate) fn parse(text: &str) -> Option<Self> {
+        let mut parts = text.split(':');
+        let kind = parts.next()?;
+        let mut number = || parts.next()?.parse::<u32>().ok();
+        let fixture = match kind {
+            "surface" => Self::Surface(number()?),
+            "prop" => Self::Prop {
+                entity: number()?,
+                surface: number()?,
+            },
+            "effect" => Self::Effect(number()?),
+            _ => return None,
+        };
+        parts.next().is_none().then_some(fixture)
+    }
+
+    /// Whether a map edit may name it.
+    pub(crate) fn editable(self) -> bool {
+        matches!(self, Self::Surface(_) | Self::Prop { .. } | Self::Effect(_))
+    }
+}
+
+impl std::fmt::Display for Fixture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => f.write_str("none"),
+            Self::Index(index) => write!(f, "index:{index}"),
+            Self::Surface(surface) => write!(f, "surface:{surface}"),
+            Self::Prop { entity, surface } => write!(f, "prop:{entity}:{surface}"),
+            Self::Effect(entity) => write!(f, "effect:{entity}"),
+        }
+    }
+}
+
+/// What map edits do to the lamps when a world is built: fixtures turned off, and
+/// fixtures moved (by an offset). Empty off a map with no lamp edits.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct LampEdits {
+    pub(crate) off: std::collections::BTreeSet<Fixture>,
+    pub(crate) moved: std::collections::BTreeMap<Fixture, Vec3>,
+}
+
+impl LampEdits {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.off.is_empty() && self.moved.is_empty()
+    }
+
+    /// Drop the lamps of fixtures turned off and move those of fixtures moved; the rest
+    /// keep their order.
+    pub(crate) fn apply(&self, lamps: &mut Vec<Lamp>) {
+        if self.is_empty() {
+            return;
+        }
+        lamps.retain(|lamp| !self.off.contains(&lamp.fixture));
+        for lamp in lamps.iter_mut() {
+            if let Some(offset) = self.moved.get(&lamp.fixture) {
+                lamp.position += *offset;
+            }
+        }
+    }
+}
+
+/// One fixture as the map editor shows it: where its lamps are (their power-weighted
+/// middle), their colour, total power, reach and count, as found before any edit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FixtureSummary {
+    pub(crate) fixture: Fixture,
+    pub(crate) position: Vec3,
+    pub(crate) color: [f32; 3],
+    pub(crate) power: f32,
+    pub(crate) radius: f32,
+    pub(crate) lamps: u32,
+}
+
+/// The editable fixtures of `lamps`, one each, in fixture order.
+pub(crate) fn summarise(lamps: &[Lamp]) -> Vec<FixtureSummary> {
+    let mut sums: std::collections::BTreeMap<Fixture, (Vec3, Vec3, f32, f32, f32, u32)> =
+        Default::default();
+    for lamp in lamps.iter().filter(|lamp| lamp.fixture.editable()) {
+        let weight = lamp.power.max(1e-6);
+        let sum = sums.entry(lamp.fixture).or_default();
+        sum.0 += lamp.position * weight;
+        sum.1 += Vec3::from_array(lamp.color) * weight;
+        sum.2 += weight;
+        sum.3 += lamp.power;
+        sum.4 = sum.4.max(lamp.radius);
+        sum.5 += 1;
+    }
+    sums.into_iter()
+        .map(
+            |(fixture, (position, color, weight, power, radius, count))| FixtureSummary {
+                fixture,
+                position: position / weight,
+                color: (color / weight).to_array(),
+                power,
+                radius,
+                lamps: count,
+            },
+        )
+        .collect()
 }
 
 /// Every lamp of a map and the grid that finds them.
@@ -61,18 +189,15 @@ pub(crate) struct Emitter<'a> {
     pub(crate) texture: &'a crate::world_materials::emission::Texture,
     pub(crate) radiance: [f32; 3],
     pub(crate) ranges: Vec<std::ops::Range<u32>>,
+    /// The fixture its lamps come from; `None`: each patch's own first triangle
+    /// ([`Fixture::Index`]), for the world's build to resolve.
+    pub(crate) fixture: Option<Fixture>,
 }
 
 impl LampSet {
-    /// Extract all map-owned sources, then build their shared lookup exactly once.
-    pub(crate) fn extract(
-        vertices: &[([f32; 3], [f32; 3], [f32; 2])],
-        indices: &[u32],
-        emitters: &[Emitter],
-        extra: Vec<Lamp>,
-    ) -> Self {
-        let mut lamps = emitters::collect(vertices, indices, emitters);
-        lamps.extend(extra);
+    /// The set of the map's lamps, found ([`collect_patches`] and the other sources,
+    /// then map edits'), with their shared lookup, built exactly once.
+    pub(crate) fn from_lamps(lamps: Vec<Lamp>) -> Self {
         grid::build(lamps)
     }
 }
@@ -136,6 +261,7 @@ impl Gpu {
                 radius: 0.,
                 axis_u: Vec3::ZERO,
                 axis_v: Vec3::ZERO,
+                fixture: Fixture::None,
             }]
         } else {
             &set.lamps
@@ -351,6 +477,105 @@ mod tests {
         }
         let word = data[(k / 8) as usize][((k / 2) & 3) as usize];
         (word >> ((k & 1) * 16)) & 0xffff
+    }
+
+    fn lamp(position: [f32; 3], power: f32, fixture: Fixture) -> Lamp {
+        Lamp {
+            position: Vec3::from_array(position),
+            normal: Vec3::Z,
+            color: [1.0, 0.5, 0.0],
+            power,
+            radius: 100.0 + power,
+            axis_u: Vec3::ZERO,
+            axis_v: Vec3::ZERO,
+            fixture,
+        }
+    }
+
+    #[test]
+    fn fixtures_read_back_as_written() {
+        for fixture in [
+            Fixture::Surface(1043),
+            Fixture::Prop {
+                entity: 12,
+                surface: 3,
+            },
+            Fixture::Effect(40),
+        ] {
+            assert_eq!(Fixture::parse(&fixture.to_string()), Some(fixture));
+            assert!(fixture.editable());
+        }
+        for text in [
+            "",
+            "surface",
+            "surface:",
+            "surface:-1",
+            "prop:1",
+            "prop:1:2:3",
+            "index:4",
+            "none",
+        ] {
+            assert_eq!(Fixture::parse(text), None, "{text}");
+        }
+        assert!(!Fixture::Index(3).editable());
+        assert!(!Fixture::None.editable());
+    }
+
+    /// The ten thousand patches of a big map show as one marker per fixture: their
+    /// power-weighted middle, colour and count; unnamed lamps are left out.
+    #[test]
+    fn lamps_group_by_fixture() {
+        let lamps = [
+            lamp([0.0, 0.0, 0.0], 1.0, Fixture::Surface(7)),
+            lamp([30.0, 0.0, 0.0], 2.0, Fixture::Surface(7)),
+            lamp(
+                [0.0, 90.0, 0.0],
+                1.0,
+                Fixture::Prop {
+                    entity: 4,
+                    surface: 0,
+                },
+            ),
+            lamp([5.0, 5.0, 5.0], 9.0, Fixture::None),
+        ];
+        let fixtures = summarise(&lamps);
+        assert_eq!(fixtures.len(), 2);
+        let surface = fixtures
+            .iter()
+            .find(|f| f.fixture == Fixture::Surface(7))
+            .unwrap();
+        assert_eq!(surface.lamps, 2);
+        assert!((surface.position - Vec3::new(20.0, 0.0, 0.0)).length() < 1e-4);
+        assert!((surface.power - 3.0).abs() < 1e-6);
+        assert_eq!(surface.radius, 102.0);
+        assert_eq!(surface.color, [1.0, 0.5, 0.0]);
+    }
+
+    /// A fixture turned off loses all its lamps, a moved one moves all of its lamps, the
+    /// others stay as they were and in their order.
+    #[test]
+    fn lamp_edits_turn_fixtures_off_and_move_them() {
+        let mut lamps = vec![
+            lamp([0.0, 0.0, 0.0], 1.0, Fixture::Surface(1)),
+            lamp([10.0, 0.0, 0.0], 1.0, Fixture::Surface(2)),
+            lamp([20.0, 0.0, 0.0], 1.0, Fixture::Surface(1)),
+            lamp([30.0, 0.0, 0.0], 1.0, Fixture::Effect(9)),
+            lamp([40.0, 0.0, 0.0], 1.0, Fixture::None),
+        ];
+        let mut edits = LampEdits::default();
+        edits.off.insert(Fixture::Surface(1));
+        edits
+            .moved
+            .insert(Fixture::Effect(9), Vec3::new(0.0, 0.0, 64.0));
+        edits.apply(&mut lamps);
+        let positions: Vec<[f32; 3]> = lamps.iter().map(|l| l.position.to_array()).collect();
+        assert_eq!(
+            positions,
+            [[10.0, 0.0, 0.0], [30.0, 0.0, 64.0], [40.0, 0.0, 0.0]]
+        );
+        let before = lamps.clone();
+        LampEdits::default().apply(&mut lamps);
+        assert_eq!(lamps, before);
     }
 
     #[test]

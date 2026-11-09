@@ -9115,6 +9115,21 @@ test: mapedit_web: click the sky; Swap the sky shows pictures; Swap this sky cha
 test: Page: B, tick sky: blue sky faces; click one, Same plane: the sky round it, no caulk.
 test: Page: Fill on a sky side suggests the walls round it; Fill covers it in the game too.
 
+[mapedit-lights]
+area: Rendering & effects
+title: Map editor in the page: lights added, moved, recoloured; the map's lamps off or moved
+change: Added lights: dynamic lights every SJK player sees on every preset (8 nearest at once).
+change: Map lamps (Experimental only), grouped by fixture: turn off, move, reset.
+change: Page Lights button + page; commands mapedit_light, mapedit_light_set, mapedit_lamp.
+note: Baked light never changes. Older clients drop the whole document: publish after a release.
+test: mapedit_web on duel6, Lights button: bulbs and lamp cubes show, faint through walls.
+test: Add light, click a wall: a light 12 units off it lights the wall in game; Ctrl+Z removes it.
+test: Change its colour, radius, intensity: the game follows; each change is one undo step.
+test: Drag it with the gizmo: it moves in game at the drag's end; R and T say Move only.
+test: Experimental preset: Map lamps lists fixtures; Turn off one, vid_restart force: it's dark.
+test: Move a lamp, Reset: it is back where the map had it after the next load.
+test: Normal preset: lamp list says lamps are found on Experimental only; added lights still show.
+
 [map-weather]
 area: Rendering & effects
 title: Map editor: weather kept for a map (rain, storm, snow, fog, wind), synced to all

@@ -1348,6 +1348,17 @@ impl GpuState {
                 wide: &wide_text,
             },
         );
+        // The map edits' lamp changes, read from the map's document now: the lamps are
+        // found while the world is built (map_edits/lights.rs).
+        let lamp_edits = if session_active {
+            let server = live_session
+                .as_ref()
+                .filter(|session| !session.is_local())
+                .map(|session| session.server().to_string());
+            map_edits::lights::lamp_edits_at_build(&bsp, console.as_ref(), server.as_deref())
+        } else {
+            Default::default()
+        };
         let (mut world_materials, resolved_world_stages) =
             world_materials::create_filtered_runtime(
                 &device,
@@ -1365,6 +1376,7 @@ impl GpuState {
                 context.sun_shadows.day.enabled,
                 context.sun_shadows.enabled,
                 context.material_maps,
+                &lamp_edits,
             )?;
         world_materials.bind_geometry(&geometry);
         world_materials.install_gi(
@@ -2888,6 +2900,9 @@ impl GpuState {
         self.mover_groups.iter_mut().for_each(Vec::clear);
         self.entity_instances.clear();
         self.dynamic_lights.clear();
+        // Map edits' added lights get slots of their own, filled before the upload.
+        self.dynamic_lights
+            .reserve(map_edits::lights::reserve(&self.map_edits));
         self.begin_saber_instances(presentation_time);
         self.particle_groups.iter_mut().for_each(Vec::clear);
         self.submit_illuminate(presentation_time, visual_now);
@@ -3216,6 +3231,7 @@ impl GpuState {
             &self.particle_atlas,
             &mut particle_groups[1],
         );
+        map_edits::lights::append(&self.map_edits, view_position, &mut self.dynamic_lights);
         self.context.dynamic_light_settings.upload(
             &self.world_materials,
             &self.queue,

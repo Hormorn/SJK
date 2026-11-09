@@ -912,6 +912,7 @@ mod tests {
             radius: 64.,
             axis_u: glam::Vec3::X,
             axis_v: glam::Vec3::Y,
+            fixture: crate::lamp_lights::Fixture::None,
         };
         let mut few: Vec<_> = [3., 1., 2.].map(lamp).to_vec();
         lights::keep_brightest(&mut few);

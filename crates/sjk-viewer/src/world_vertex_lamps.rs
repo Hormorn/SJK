@@ -123,6 +123,8 @@ fn clusters<'a>(
                 radius: (power / FLOOR).sqrt().clamp(32., 1024.),
                 axis_u: Vec3::ZERO,
                 axis_v: Vec3::ZERO,
+                // A cluster may span surfaces: not one fixture.
+                fixture: crate::lamp_lights::Fixture::None,
             })
         })
         .collect()

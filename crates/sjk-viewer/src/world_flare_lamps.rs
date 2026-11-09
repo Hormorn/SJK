@@ -23,8 +23,9 @@ pub(super) fn extract(
         let power = luminance * 4. * radius * radius * crate::lamp_lights::POWER_SCALE;
         for draw in &material.static_draws {
             // Each original flare is exactly one six-index quad, even after draw merging.
-            for quad in
-                indices[draw.indices.start as usize..draw.indices.end as usize].chunks_exact(6)
+            for (k, quad) in indices[draw.indices.start as usize..draw.indices.end as usize]
+                .chunks_exact(6)
+                .enumerate()
             {
                 let corner = vertices[quad[0] as usize];
                 let position = Vec3::from_array(corner.0) + Vec3::from_array(corner.1) * 3.;
@@ -36,6 +37,8 @@ pub(super) fn extract(
                     radius: (power / 0.004).sqrt().clamp(32., 1024.),
                     axis_u: Vec3::ZERO,
                     axis_v: Vec3::ZERO,
+                    // Its surface, once the build resolves the quad's place.
+                    fixture: crate::lamp_lights::Fixture::Index(draw.indices.start + 6 * k as u32),
                 });
             }
         }

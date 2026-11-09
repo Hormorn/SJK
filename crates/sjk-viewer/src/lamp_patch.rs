@@ -98,6 +98,7 @@ impl Patch {
             radius: (power / FLOOR).sqrt().clamp(32., 1024.) + major,
             axis_u,
             axis_v,
+            fixture: Fixture::None,
         }
     }
 }

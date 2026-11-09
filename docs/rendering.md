@@ -1691,6 +1691,30 @@ walls there as in the original game; movers are not in the triangles, so a close
 dynamic light through; models lit once each (`r_modelPixelLight 0`) are unchanged; dynamic
 lights still cast no shadows of actors or movers.
 
+### Map edits' lights
+
+SJK's map edits ([map-edits.md](map-edits.md#lights), 08/11/2026) reach the lighting two
+ways:
+
+- **Added lights** go into this list each frame, after every other light, into slots kept
+  for them when the list is cleared: `PointLightList::reserve` (as many as the map has, 8
+  at most, `map_edits::lights::BUDGET`) makes `push` stop that many short of 32, and only
+  `push_reserved` fills them. So a frame of explosions keeps its 24 or more lights and the
+  added lights their slots; a slot left unfilled is simply unused. Of more than 8, those
+  whose reach comes nearest the view are drawn. They are ordinary (not radiant) lights, so
+  every preset draws them, with the walls stopping them in real-time lighting as above.
+- **The map's lamps** each carry their fixture (`lamp_lights::Fixture`): the BSP surface of
+  a patch's first triangle (the world draws' index ranges resolve it,
+  `world_material_build::resolve_fixtures`), a prop's entity and model surface, or a steady
+  effect's entity; vertex-coloured flare clusters span surfaces and carry none. When the
+  world is built, the fixtures are summed up for the browser editor
+  (`lamp_lights::summarise`: one marker per fixture, its lamps' power-weighted middle), then
+  the map's lamp edits drop the lamps of the fixtures turned off and move those of the
+  fixtures moved (`LampEdits::apply`), before the grid, the visibility atlas and the light
+  cache are made from them. Without lamp edits the lamps, their order and so every lamp sum
+  are as before. A change applies when the world is built again (a map load, or
+  `vid_restart force`); nothing is rebuilt live.
+
 ## Indirect lighting and dark-area readability
 
 These controls affect the day/night real-time material-lighting path, including
