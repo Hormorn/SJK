@@ -1676,7 +1676,8 @@ and wall within its radius that faced it was lit, whatever stood between.
   (the lamps' mapping): per direction, how far the light gets before the static triangles
   of the lamp visibility stop it, in 255ths of its reach (radius plus 8 units), and the
   normal of what stops it. Glass, grates and sky let it through, as for the lamps. The GPU
-  traces them (784 rays a light, 25,088 for a full list) and copies them into the
+  traces them (784 rays a light, 25,088 for a full list, one ray per invocation) and
+  copies them into the
   point-light uniform block after the CPU's part (58,208 bytes in all), so the programs
   read them without a new binding. A frame that traces none reads every light unshadowed.
 - **Receivers.** World surfaces, their material-map highlights and models lit per pixel
@@ -1696,7 +1697,18 @@ and wall within its radius that faced it was lit, whatever stood between.
 `r_dynamicLightShadows 0` lights through walls again for comparisons. `SJK_GPU_PHASES`
 times the trace as `dlight-shadows`. Unit tests follow the shaders' arithmetic in Rust on
 small scenes (a wall, a corner, stairs, a light just inside the face it hit) and validate
-the programs; nothing here has been rendered or timed on a GPU yet.
+the programs.
+
+Timed on 09/11/2026 off screen at 3840×2160 on mp/ffa3 under the renderer's defaults
+(`world_shot_dynamic_light_cost.rs`, `dynamic_light_shadow_cost`), the trace costs the same
+for 2 lights as for 32: it is bound by how long one ray takes, not by how many there are.
+Tracing two texels in a row per invocation took 0.38-0.39 ms; one texel each, packed in
+pairs through workgroup memory, takes 0.23 ms, with the same picture. Skipping lights the
+camera cannot see was tried and dropped: on this card it saved nothing, and mirrors,
+portals and probe captures would each have needed every light anyway. Depth writes left
+off for draws the depth prime already covers (to let the card reject hidden pixels
+before shading) saved 0.012 of `opaque`'s 0.53 ms, too little for a pipeline variant per
+path; `frame_section_cost` in the same file times every section to compare two builds.
 
 Not covered: baked lightmaps (`r_dayNight 0`) build no triangles, so dynamic lights pass
 walls there as in the original game; movers are not in the triangles, so a closed door lets

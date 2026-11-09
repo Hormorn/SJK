@@ -279,6 +279,9 @@ mod lamp_light;
 mod notes;
 
 #[cfg(test)]
+#[path = "world_shot_dynamic_light_cost.rs"]
+mod dynamic_light_cost;
+#[cfg(test)]
 #[path = "world_shot_movers.rs"]
 mod movers;
 

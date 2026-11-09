@@ -9595,3 +9595,10 @@ change: A JA+ admin who sends amghost on themselves during a chase is out (hub r
 test: As a logged-in JA+ admin in a box hunt, send amghost: you are out or blow up.
 test: amghost <another player's number> changes nothing for your hunt.
 note: A player already a ghost before the chase began is not caught; the client cannot see it.
+
+[dlight-shadow-rays]
+area: Rendering & effects
+title: Saber and blaster light shadows cost about 40 % less on the GPU
+change: The walls-stop-lights trace does one ray per GPU thread: 0.38 -> 0.23 ms at 4K.
+test: r_drawTimings 1 in a saber fight: dlight-shadows reads lower than before.
+test: Saber light next to a wall: the wall still stops it, shadows look as before.
