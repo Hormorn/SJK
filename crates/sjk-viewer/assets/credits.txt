@@ -393,7 +393,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 133 merged pull requests
+role: Contributor: 134 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -529,6 +529,7 @@ did: #391 A double click selects the search text in the cvar list, Settings and 
 did: #392 Profile: the model turns in the main menu too, the right button zooms it
 did: #393 Chat: Left and Right change the chat button while nothing is typed
 did: #394 Console: a held key types again
+did: #395 A click that brings the window back no longer attacks
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]

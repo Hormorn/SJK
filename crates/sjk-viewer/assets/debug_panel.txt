@@ -9614,3 +9614,10 @@ title: Console: a held key types again (report #282)
 change: The console's typing branch dropped every key repeat.
 test: Open the console, hold a letter: it repeats.
 test: Hold a dead key: the accent arms only once. History keys repeat as before.
+
+[focus-click-no-attack]
+area: Input
+title: A click that brings the window back no longer attacks (report #281)
+change: The press within 250 ms of getting focus, and its release, stop before the game bindings.
+test: In game, alt-tab away, click the window: no attack. Click again: it attacks.
+test: With a menu open, the click that brings the window back still reaches the menu.

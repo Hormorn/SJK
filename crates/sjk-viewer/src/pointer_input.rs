@@ -76,6 +76,43 @@ impl CursorPolicy {
     }
 }
 
+/// How long after the window gets the focus a press counts as the click that gave it.
+/// Windows delivers the two together; the rest allows for a frame or a hitch between.
+const REFOCUS_CLICK: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// The mouse press that brings the window back into focus (hub report #281): the pointer
+/// is captured again by then, so without this it would reach the game as an attack.
+#[derive(Default)]
+pub(crate) struct RefocusClick {
+    gained: Option<std::time::Instant>,
+    swallowing: Option<MouseButton>,
+}
+
+impl RefocusClick {
+    fn gained(&mut self, now: std::time::Instant) {
+        self.gained = Some(now);
+    }
+
+    /// Whether this press is the focus click, which the game must not see.
+    fn press(&mut self, button: MouseButton, now: std::time::Instant) -> bool {
+        let refocus = self
+            .gained
+            .take()
+            .is_some_and(|gained| now.duration_since(gained) <= REFOCUS_CLICK);
+        self.swallowing = refocus.then_some(button);
+        refocus
+    }
+
+    /// Whether this release ends a focus click.
+    fn release(&mut self, button: MouseButton) -> bool {
+        if self.swallowing == Some(button) {
+            self.swallowing = None;
+            return true;
+        }
+        false
+    }
+}
+
 impl GpuState {
     pub(crate) fn pointer_moved(&mut self, position: PhysicalPosition<f64>) {
         self.cursor_position = [position.x as f32, position.y as f32];
@@ -148,6 +185,21 @@ impl GpuState {
                 self.capture_pointer();
                 return;
             }
+        }
+        // The click that brought the window back only does that: no attack.
+        let stock_button = match button {
+            PointerButton::Primary => MouseButton::Left,
+            PointerButton::Secondary => MouseButton::Right,
+            PointerButton::Middle => MouseButton::Middle,
+        };
+        let refocus_click = if state == ElementState::Pressed {
+            self.refocus_click
+                .press(stock_button, std::time::Instant::now())
+        } else {
+            self.refocus_click.release(stock_button)
+        };
+        if refocus_click {
+            return;
         }
         if button == PointerButton::Primary {
             if state == ElementState::Released && std::mem::take(&mut self.spectator_follow_click) {
@@ -223,6 +275,9 @@ impl GpuState {
     pub(crate) fn pointer_focus(&mut self, focused: bool) {
         self.cursor_policy.set_focus(focused);
         self.gameplay_input.focus(focused);
+        if focused {
+            self.refocus_click.gained(std::time::Instant::now());
+        }
         if !focused {
             // The window that took the focus takes the right button's release too.
             self.map_edit_fly_stop();
@@ -659,5 +714,43 @@ mod tests {
         assert_eq!(spectator_follow_target(true, 2, None), None);
         assert_eq!(spectator_follow_target(true, 2, Some(2)), None);
         assert_eq!(spectator_follow_target(true, 2, Some(32)), None);
+    }
+}
+
+#[cfg(test)]
+mod refocus_click_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn the_click_that_gives_the_focus_never_reaches_the_game() {
+        let now = Instant::now();
+        let mut click = RefocusClick::default();
+        click.gained(now);
+        assert!(click.press(MouseButton::Left, now + Duration::from_millis(5)));
+        assert!(click.release(MouseButton::Left));
+        // The next click is an ordinary one, press and release.
+        assert!(!click.press(MouseButton::Left, now + Duration::from_millis(50)));
+        assert!(!click.release(MouseButton::Left));
+    }
+
+    #[test]
+    fn a_later_click_after_alt_tabbing_back_still_attacks() {
+        let now = Instant::now();
+        let mut click = RefocusClick::default();
+        click.gained(now);
+        assert!(!click.press(MouseButton::Left, now + Duration::from_secs(1)));
+        assert!(!click.release(MouseButton::Left));
+    }
+
+    #[test]
+    fn a_lost_release_does_not_eat_a_later_one() {
+        let now = Instant::now();
+        let mut click = RefocusClick::default();
+        click.gained(now);
+        assert!(click.press(MouseButton::Left, now));
+        // A menu took the release; the next press starts clean.
+        assert!(!click.press(MouseButton::Left, now + Duration::from_secs(2)));
+        assert!(!click.release(MouseButton::Left));
     }
 }
