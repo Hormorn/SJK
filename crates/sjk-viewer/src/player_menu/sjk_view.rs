@@ -379,7 +379,7 @@ impl PlayerMenu {
             });
         }
         scrims(&mut self.canvas, viewport, &frame);
-        if in_game {
+        if in_game || self.model_lifted() {
             self.sjk_preview(&frame);
         }
         self.sjk_top(&frame);
@@ -636,46 +636,52 @@ impl PlayerMenu {
     /// Opened from a game, the live model this view wants
     /// ([`crate::menu_stage::preview`]): standing right of the form, holding
     /// the saber draft lit in its style's stance, as the stage model does on
-    /// the menu map. On the menu map the stage holds it instead.
+    /// the menu map. On the menu map the stage holds it instead, until a drag lifts it
+    /// off ([`Self::model_lifted`]).
     pub(super) fn sjk_model_preview(&self) -> Option<ModelPreview> {
-        (self.return_target == ReturnTarget::InGame).then_some(ModelPreview {
-            area: PreviewArea::Sjk(MODEL_AREA),
-            stance: "BOTH_STAND2",
-            sabers: true,
-            // The Force page's model shows the power under the pointer, and only while
-            // the pointer is on it.
-            pose: self
-                .sjk_pointer_power()
-                .and_then(|(power, _)| super::force_pose::gesture(power, self.saber.style())),
-            shell: self
-                .sjk_pointer_power()
-                .and_then(|(power, _)| super::force_pose::shell(power)),
-            effect: self.sjk_pointer_power().and_then(|(power, level)| {
-                super::force_pose::effect(power, level, self.saber.style())
-            }),
-            showcase: false,
-            room: MODEL_ROOM,
-            // Still, as the stage model stands, a little to its right; the camera goes
-            // round the model the other way to turn it as the pointer does
-            // ([`Self::model_turn`]).
-            angle: Some(-28.0 - self.model_turn()),
-        })
+        (self.return_target == ReturnTarget::InGame || self.model_lifted()).then_some(
+            ModelPreview {
+                area: PreviewArea::Sjk(MODEL_AREA),
+                stance: "BOTH_STAND2",
+                sabers: true,
+                // The Force page's model shows the power under the pointer, and only while
+                // the pointer is on it.
+                pose: self
+                    .sjk_pointer_power()
+                    .and_then(|(power, _)| super::force_pose::gesture(power, self.saber.style())),
+                shell: self
+                    .sjk_pointer_power()
+                    .and_then(|(power, _)| super::force_pose::shell(power)),
+                effect: self.sjk_pointer_power().and_then(|(power, level)| {
+                    super::force_pose::effect(power, level, self.saber.style())
+                }),
+                showcase: false,
+                room: MODEL_ROOM * self.turn.framing(),
+                // Still, as the stage model stands, a little to its right; the camera goes
+                // round the model the other way to turn it as the pointer does
+                // ([`Self::model_turn`]).
+                angle: Some(-28.0 - self.model_turn()),
+            },
+        )
     }
 
     /// The live preview on its shadow, once the renderer has drawn a frame.
     fn sjk_preview(&mut self, frame: &Frame) {
         let s = frame.s;
         let [x, y, width, height] = MODEL_AREA;
-        let shadow = [x + width * 0.34, MODEL_FEET_Y - 12.0, width * 0.32, 24.0];
-        let _ = self.canvas.draw_list_mut().push(DrawCommand::RoundedRect {
-            rect: frame.rect(shadow[0], shadow[1], shadow[2], shadow[3]),
-            radius: 14.0 * s,
-            color: color::alpha(color::SPACE, 0.55),
-        });
-        let _ = self.canvas.draw_list_mut().push(DrawCommand::SolidRect {
-            rect: frame.rect(x + width * 0.25, MODEL_FEET_Y, width * 0.5, 1.5),
-            color: color::alpha(color::GOLD, 0.35),
-        });
+        // Zoomed, the feet are no longer on the shadow's line.
+        if self.turn.framing() == 1.0 {
+            let shadow = [x + width * 0.34, MODEL_FEET_Y - 12.0, width * 0.32, 24.0];
+            let _ = self.canvas.draw_list_mut().push(DrawCommand::RoundedRect {
+                rect: frame.rect(shadow[0], shadow[1], shadow[2], shadow[3]),
+                radius: 14.0 * s,
+                color: color::alpha(color::SPACE, 0.55),
+            });
+            let _ = self.canvas.draw_list_mut().push(DrawCommand::SolidRect {
+                rect: frame.rect(x + width * 0.25, MODEL_FEET_Y, width * 0.5, 1.5),
+                color: color::alpha(color::GOLD, 0.35),
+            });
+        }
         if self.preview_ready {
             let _ = self.canvas.draw_list_mut().push(DrawCommand::TexturedQuad {
                 rect: frame.rect(x, y, width, height),

@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Profile: drag the model to turn it in the main menu too, and drag with the right button to zoom _(Slash, after akr's idea)_
+
 ## 2026.1109.2 (Alpha) | 09/11/2026
 
 JA+ servers grow (emotes, the grappling hook, admins by SJK key), lights in map edits, smoother doors under real-time light, frame timings, and a tidier Toys list.
