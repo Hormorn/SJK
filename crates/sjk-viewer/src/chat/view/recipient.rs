@@ -424,10 +424,13 @@ mod tests {
         assert_eq!(recipient(&chat), "Fox", "round to the last");
         chat.edit_key(KeyCode::ArrowRight, &Key::Named(NamedKey::ArrowRight), None);
         assert_eq!(recipient(&chat), "Bear");
-        // Without Alt the arrows still move the caret, not the recipient.
+        // Without Alt the arrows still move the caret of a draft, not the recipient.
         chat.modifiers = ModifiersState::empty();
-        chat.edit_key(KeyCode::ArrowRight, &Key::Named(NamedKey::ArrowRight), None);
+        chat.input.as_mut().unwrap().insert("hi");
+        chat.edit_key(KeyCode::ArrowLeft, &Key::Named(NamedKey::ArrowLeft), None);
         assert_eq!(recipient(&chat), "Bear");
+        let input = chat.input.as_ref().unwrap();
+        assert_eq!(input.edit.cursor(&input.text), 1);
     }
 
     #[test]

@@ -49,6 +49,12 @@ test: Place > Things: Your boombox, click the floor: it stands there; Remove tak
 test: Edits > Invisible brushes Caulk (or B): caulk, nodraw and invisible walls show; Off hides.
 test: Select a placed model, Ctrl+C, point elsewhere, Ctrl+V: a copy with its turn and scale.
 test: Close the panel (mapedit): no cost left; reopen: the pictures load again.
+[chat-arrow-tabs]
+area: Console & chat
+title: Left and Right change chat button while nothing is typed
+change: With an empty chat line the Left and Right arrows go through the chat buttons in Tab's order.
+test: Open the chat, press Right and Left: All, Team, SJK and the rest change, round at each end.
+test: Type some text: Left and Right move the caret and the button stays.
 
 [lamp-cache-budget]
 area: Rendering & effects
