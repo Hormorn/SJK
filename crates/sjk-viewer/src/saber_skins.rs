@@ -199,15 +199,24 @@ pub(crate) struct Glint {
 
 /// A chroma skin ([`crate::unlockables::Unlockable::chroma`]) takes its wearer's saber
 /// colour: every colour it draws is turned round the grey axis ([`turn_hue`]) from the
-/// skin's own hue to the colour's, keeping brightness and saturation. A grey or white
-/// colour (custom RGB) leaves the skin as its file draws it.
+/// skin's own hue to the colour's, keeping brightness. A custom RGB colour paler than the
+/// skin (Dante's idea, 06/11/2026: a blue chroma could not be worn white) also takes its
+/// paleness: the colours are drawn toward grey ([`greyed`]) by [`Chroma::grey`], so white
+/// or grey gives a white or grey blade at the skin's brightness and a pastel a paler one.
+/// A stock colour, or an RGB one at least as strong as the skin's (or [`CHROMA_FULL`]),
+/// keeps the skin's saturation, as before.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Chroma {
     /// The skin's own hue, in turns ([`hue_of`] of its corona's rim); `None` for a skin
     /// that is not a chroma.
     pub(crate) base: Option<f32>,
+    /// The saturation ([`saturation_of`]) of the colour `base` was taken from.
+    pub(crate) saturation: f32,
     /// Turns from the skin's hue to its wearer's colour; 0 draws the file's colours.
     pub(crate) turn: f32,
+    /// How far its colours are drawn toward grey for a pale wearer's colour, 0 (none) to
+    /// 1 (grey); [`greyed`].
+    pub(crate) grey: f32,
     /// Whether its emitter's smoke, ribbons, sparks and bolts turn too (`chroma.effects`).
     pub(crate) effects: bool,
 }
@@ -216,6 +225,65 @@ pub(crate) struct Chroma {
 /// small: a pastel (207, 190, 234 is 0.19) still has one, and a cliff higher up flipped a
 /// chroma blade from violet to its own cyan between two slider steps (Kushina's report).
 const CHROMA_GREY: f32 = 0.03;
+
+/// A wearer's colour at least this saturated keeps a chroma's own saturation (the stock
+/// colours are 0.8 to 0.9): below it, or below the skin's own when that is less, the
+/// blade fades toward grey in step with the colour ([`Chroma::grey`]).
+pub(crate) const CHROMA_FULL: f32 = 0.75;
+
+/// `rgb`'s saturation, `(max - min) / max`; 0 for black.
+pub(crate) fn saturation_of(rgb: [f32; 3]) -> f32 {
+    let high = rgb[0].max(rgb[1]).max(rgb[2]);
+    let low = rgb[0].min(rgb[1]).min(rgb[2]);
+    if high <= 0.0 {
+        0.0
+    } else {
+        (high - low) / high
+    }
+}
+
+/// `rgb` drawn `grey` (0 to 1) of the way to the grey of its own brightness (the mean of
+/// its channels): `saber.wgsl`'s `skin_greyed`. Linear, so it can be applied to a sum.
+pub(crate) fn greyed(rgb: [f32; 3], grey: f32) -> [f32; 3] {
+    kept_saturation(rgb, 1.0 - grey)
+}
+
+/// `rgb` with `keep` of its distance from the grey axis (1 unchanged, 0 grey, above 1
+/// stronger: what undoes an earlier [`greyed`]).
+fn kept_saturation(rgb: [f32; 3], keep: f32) -> [f32; 3] {
+    let mean = (rgb[0] + rgb[1] + rgb[2]) / 3.0;
+    rgb.map(|channel| (mean + (channel - mean) * keep).max(0.0))
+}
+
+/// A chroma's turn and greying in one number, as the blade instance (`saber.wgsl`
+/// decodes it in `blade_vertex`), the swatches and the petals carry it: the turn in
+/// [0, 1) plus the greying in 255ths as the whole part. 0 draws the file's colours.
+pub(crate) fn pack_chroma(turn: f32, grey: f32) -> f32 {
+    let turn = turn.rem_euclid(1.0);
+    let turn = if turn < 1.0 { turn } else { 0.0 };
+    turn + (grey.clamp(0.0, 1.0) * 255.0).round()
+}
+
+/// `rgb` as a chroma packed `packed` ([`pack_chroma`]) draws it: turned, then greyed.
+pub(crate) fn wear_chroma(rgb: [f32; 3], packed: f32) -> [f32; 3] {
+    if packed == 0.0 {
+        return rgb;
+    }
+    let grey = (packed.floor() / 255.0).min(1.0);
+    let turned = turn_hue(rgb, packed.fract());
+    if grey > 0.0 {
+        greyed(turned, grey)
+    } else {
+        turned
+    }
+}
+
+impl Chroma {
+    /// Its turn and greying packed for the shader ([`pack_chroma`]).
+    pub(crate) fn packed(self) -> f32 {
+        pack_chroma(self.turn, self.grey)
+    }
+}
 
 /// `rgb`'s hue in turns [0, 1): its angle round the grey axis from pure red, in the
 /// direction [`turn_hue`] turns; `None` for a colour too grey to have one.
@@ -238,20 +306,41 @@ impl SkinColor {
         let Some(base) = self.chroma.base else {
             return self;
         };
-        let rgb = match stock {
-            BladeColor::Retail(color) => color.blade_rgb(),
-            BladeColor::Rgb(rgb) => rgb,
+        let (rgb, custom) = match stock {
+            BladeColor::Retail(color) => (color.blade_rgb(), false),
+            BladeColor::Rgb(rgb) => (rgb, true),
             BladeColor::Skin(_) | BladeColor::Black => return self,
         };
-        let turn = hue_of(rgb.map(|channel| f32::from(channel) / 255.0))
-            .map_or(0.0, |hue| (hue - base).rem_euclid(1.0));
+        let rgb = rgb.map(|channel| f32::from(channel) / 255.0);
+        let turn = hue_of(rgb).map_or(0.0, |hue| (hue - base).rem_euclid(1.0));
+        // A custom colour paler than the skin (and than CHROMA_FULL) greys it in step.
+        let full = self.chroma.saturation.min(CHROMA_FULL);
+        let grey = if custom && full > 0.0 {
+            (1.0 - saturation_of(rgb) / full).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         let effects = self.chroma.effects;
         // The emitter's particles turn with it, when the skin says (`chroma.effects`): by
-        // what is left of the turn, so wearing it again turns nothing.
+        // what is left of the turn and the greying, so wearing it again changes nothing
+        // (a fully grey skin worn again in a colour stays grey: its hue is gone).
         let left = turn - self.chroma.turn;
+        let keep = if self.chroma.grey < 1.0 {
+            (1.0 - grey) / (1.0 - self.chroma.grey)
+        } else {
+            1.0
+        };
         let turned = |rgb: [f32; 3]| {
-            if effects && left != 0.0 {
+            if !effects {
+                return rgb;
+            }
+            let rgb = if left != 0.0 {
                 turn_hue(rgb, left)
+            } else {
+                rgb
+            };
+            if keep != 1.0 {
+                kept_saturation(rgb, keep)
             } else {
                 rgb
             }
@@ -259,7 +348,9 @@ impl SkinColor {
         Self {
             chroma: Chroma {
                 base: Some(base),
+                saturation: self.chroma.saturation,
                 turn,
+                grey,
                 effects,
             },
             smoke: self.smoke.map(|smoke| crate::saber_smoke::SmokeSpec {
@@ -305,11 +396,7 @@ impl SkinColor {
     }
 
     fn chromatic(&self, rgb: [f32; 3]) -> [f32; 3] {
-        if self.chroma.turn == 0.0 {
-            rgb
-        } else {
-            turn_hue(rgb, self.chroma.turn)
-        }
+        wear_chroma(rgb, self.chroma.packed())
     }
 }
 
@@ -346,7 +433,10 @@ impl SkinColor {
             return self.light_color();
         }
         let t = (time_millis.rem_euclid(1_024_000)) as f32 * 0.001;
-        turn_hue(self.light, t * rate + middle + self.chroma.turn)
+        greyed(
+            turn_hue(self.light, t * rate + middle + self.chroma.turn),
+            self.chroma.grey,
+        )
     }
 }
 
@@ -788,15 +878,20 @@ impl LoadedSkin {
     fn chroma(&self) -> Chroma {
         let chroma = crate::unlockables::is_chroma(self.id) || self.def.chroma.is_some();
         let def = self.shown();
+        // The design's colour is what the shader turns, else the corona's rim (or the
+        // light, for a rim with no hue).
+        let source = match self.design_shown() {
+            Some(design) => Some(design.color),
+            None => [def.corona.rim_cool, def.light.color]
+                .into_iter()
+                .find(|rgb| hue_of(*rgb).is_some()),
+        };
+        let base = source.filter(|_| chroma).and_then(hue_of);
         Chroma {
-            base: chroma
-                .then(|| match self.design_shown() {
-                    // The design's colour is what the shader turns.
-                    Some(design) => hue_of(design.color),
-                    None => hue_of(def.corona.rim_cool).or_else(|| hue_of(def.light.color)),
-                })
-                .flatten(),
+            base,
+            saturation: source.filter(|_| base.is_some()).map_or(0.0, saturation_of),
             turn: 0.0,
+            grey: 0.0,
             effects: chroma && self.def.chroma.is_none_or(|chroma| chroma.effects),
         }
     }
@@ -863,10 +958,11 @@ impl LoadedSkin {
         }
     }
 
-    /// How far a blade whose stock colour is `stock` turns its colours: a chroma's turn
-    /// to that colour ([`SkinColor::worn_with`]), 0 for any other skin.
+    /// How a blade whose stock colour is `stock` changes its colours: a chroma's turn and
+    /// greying to that colour ([`SkinColor::worn_with`]), packed ([`Chroma::packed`]); 0
+    /// for any other skin.
     pub(crate) fn chroma_turn(&self, stock: BladeColor) -> f32 {
-        self.color(0, 0).worn_with(stock).chroma.turn
+        self.color(0, 0).worn_with(stock).chroma.packed()
     }
 
     /// What its blades are drawn with, as the loaded skin numbered `index`, worn with

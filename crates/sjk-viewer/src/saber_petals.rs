@@ -71,8 +71,8 @@ pub(crate) struct PetalSpec {
     /// running, jumping, riding): the Moon sheds moondust as its wearer moves. 0 for none.
     #[serde(default)]
     pub(crate) moving: f32,
-    /// Turns from the skin's own hue to its wearer's saber colour (a chroma's
-    /// [`crate::saber_skins::Chroma::turn`]), set where the blade sheds them, never in the
+    /// The turn (and greying) from the skin's own colours to its wearer's saber colour (a
+    /// chroma's [`crate::saber_skins::Chroma::packed`]), set where the blade sheds them, never in the
     /// signature's line: the Moon's coloured moondust takes the wearer's colour (Creyon's
     /// wish), white dust stays white.
     #[serde(skip)]
@@ -230,7 +230,7 @@ const MOONLIGHT: [[f32; 3]; 4] = [
 /// A speck of moondust's colour for `seed`, turned `turn` round to its wearer's saber colour
 /// (a chroma's turn; 0 keeps the Moon's own).
 fn moonlight(seed: u32, turn: f32) -> [f32; 3] {
-    crate::saber_skins::turn_hue(
+    crate::saber_skins::wear_chroma(
         MOONLIGHT[((seed >> 3) % MOONLIGHT.len() as u32) as usize],
         turn,
     )

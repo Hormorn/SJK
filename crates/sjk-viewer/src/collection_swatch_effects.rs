@@ -66,11 +66,7 @@ impl Shaping {
     /// `saber.wgsl`'s `skin_apply_tint`.
     /// A chroma's colours are turned to its wearer's first.
     pub(super) fn tinted(self, rgb: Rgb) -> Rgb {
-        let rgb = if self.turn == 0.0 {
-            rgb
-        } else {
-            crate::saber_skins::turn_hue(rgb, self.turn)
-        };
+        let rgb = crate::saber_skins::wear_chroma(rgb, self.turn);
         match self.tint {
             Some((tint, amount)) => {
                 let level = rgb.into_iter().fold(0.0, f32::max);

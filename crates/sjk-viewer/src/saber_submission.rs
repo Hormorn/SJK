@@ -370,7 +370,7 @@ pub(crate) fn submit(
             {
                 // A chroma's coloured petals take the wearer's colour.
                 let spec = crate::saber_petals::PetalSpec {
-                    turn: skin.chroma.turn,
+                    turn: skin.chroma.packed(),
                     ..spec
                 };
                 let base = Vec3::from_array(blade.base);

@@ -81,7 +81,8 @@ pub(super) fn blade(list: &mut DrawList, skin: &'static Unlockable, rect: Rect, 
         [rect.x, rect.y, rect.width, rect.height],
         look,
         true,
-        swatch::chroma_turn(look, [255, 255, 255]),
+        // The file's own colours (white once left a chroma so; it greys one now).
+        0.0,
     );
     let _ = list.push(DrawCommand::PopOpacity);
 }

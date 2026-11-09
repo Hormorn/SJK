@@ -843,15 +843,107 @@ fn only_chromas_take_the_wearers_colour() {
         // Wearing it again changes nothing.
         assert_eq!(worn.worn_with(BladeColor::Retail(color)), worn);
     }
-    // A custom colour too; white or grey leaves the file's colours.
+    // A custom colour too.
     let custom = storm.worn_with(BladeColor::Rgb([255, 0, 200]));
     assert!(close(
         base + custom.chroma.turn,
         hue_of([1.0, 0.0, 200.0 / 255.0]).unwrap()
     ));
+    // White has no hue to turn to: it greys the blade instead (Dante's idea).
     let white = storm.worn_with(BladeColor::Rgb([255, 255, 255]));
     assert_eq!(white.chroma.turn, 0.0);
-    assert_eq!(white.light_color(), storm.light);
+    assert_eq!(white.chroma.grey, 1.0);
+}
+
+fn grey_enough(rgb: [f32; 3]) -> bool {
+    let high = rgb[0].max(rgb[1]).max(rgb[2]);
+    let low = rgb[0].min(rgb[1]).min(rgb[2]);
+    high - low < 1e-4
+}
+
+#[test]
+fn a_chroma_worn_white_or_grey_is_drawn_grey_at_its_own_brightness() {
+    let storm = chroma_sample();
+    assert!(storm.chroma.saturation > 0.0);
+    for rgb in [[255, 255, 255], [128, 128, 128]] {
+        let worn = storm.worn_with(BladeColor::Rgb(rgb));
+        assert_eq!(worn.chroma.grey, 1.0, "{rgb:?}");
+        let light = worn.light_color();
+        assert!(grey_enough(light), "{rgb:?}: {light:?}");
+        let mean = |c: [f32; 3]| (c[0] + c[1] + c[2]) / 3.0;
+        assert!((mean(light) - mean(storm.light)).abs() < 1e-4);
+        assert!(grey_enough(worn.trail_color()));
+        // The shader gets it packed: no turn, the whole greying.
+        assert_eq!(worn.chroma.packed(), 255.0);
+        assert!(grey_enough(wear_chroma(
+            [0.2, 0.5, 1.0],
+            worn.chroma.packed()
+        )));
+        // Wearing it again changes nothing.
+        assert_eq!(worn.worn_with(BladeColor::Rgb(rgb)), worn);
+    }
+}
+
+#[test]
+fn stock_and_strong_custom_colours_keep_a_chromas_saturation() {
+    let storm = chroma_sample();
+    for color in Color::ALL {
+        assert_eq!(storm.worn_with(BladeColor::Retail(color)).chroma.grey, 0.0);
+    }
+    for rgb in [[255, 0, 0], [255, 51, 51], [40, 255, 60], [0, 0, 255]] {
+        let worn = storm.worn_with(BladeColor::Rgb(rgb));
+        assert_eq!(worn.chroma.grey, 0.0, "{rgb:?}");
+        // Packed with no greying, the turn is the shader's as it was.
+        assert_eq!(worn.chroma.packed(), worn.chroma.turn);
+        assert_eq!(worn.trail_color(), turn_hue(storm.trail, worn.chroma.turn));
+    }
+}
+
+#[test]
+fn a_pastel_custom_colour_makes_a_chroma_paler_in_step() {
+    let storm = chroma_sample();
+    let pastel = storm.worn_with(BladeColor::Rgb([207, 190, 234]));
+    let paler = storm.worn_with(BladeColor::Rgb([230, 222, 244]));
+    assert!(pastel.chroma.grey > 0.0 && pastel.chroma.grey < 1.0);
+    assert!(paler.chroma.grey > pastel.chroma.grey);
+    // Its hue is still the pastel's.
+    let base = storm.chroma.base.unwrap();
+    assert!(close(
+        base + pastel.chroma.turn,
+        hue_of([207.0 / 255.0, 190.0 / 255.0, 234.0 / 255.0]).unwrap()
+    ));
+    let sat = |c: [f32; 3]| saturation_of(c);
+    assert!(sat(paler.trail_color()) < sat(pastel.trail_color()));
+    assert!(sat(pastel.trail_color()) < sat(turn_hue(storm.trail, pastel.chroma.turn)));
+    // Worn pastel, then strong again: the effects get their saturation back.
+    let strong = pastel.worn_with(BladeColor::Rgb([255, 0, 200]));
+    let direct = storm.worn_with(BladeColor::Rgb([255, 0, 200]));
+    assert_eq!(strong.chroma.grey, 0.0);
+    assert!(close(strong.chroma.turn, direct.chroma.turn));
+}
+
+#[test]
+fn packed_chromas_unpack_to_their_turn_and_greying() {
+    assert_eq!(pack_chroma(0.0, 0.0), 0.0);
+    assert_eq!(wear_chroma([0.9, 0.3, 0.1], 0.0), [0.9, 0.3, 0.1]);
+    let packed = pack_chroma(0.25, 0.5);
+    assert!((packed.fract() - 0.25).abs() < 1e-4);
+    assert_eq!(packed.floor(), 128.0);
+    // A turn of a whole round is none.
+    assert_eq!(pack_chroma(1.0, 0.0), 0.0);
+    assert_eq!(pack_chroma(-0.25, 0.0), 0.75);
+    let rgb = [1.0, 0.0, 0.0];
+    let worn = wear_chroma(rgb, pack_chroma(1.0 / 3.0, 0.5));
+    let expected = greyed(turn_hue(rgb, 1.0 / 3.0), 128.0 / 255.0);
+    for i in 0..3 {
+        assert!(
+            (worn[i] - expected[i]).abs() < 1e-3,
+            "{worn:?} {expected:?}"
+        );
+    }
+    // Greying keeps the brightness (the mean).
+    let grey = greyed([0.9, 0.3, 0.0], 1.0);
+    assert!(grey.iter().all(|c| (c - 0.4).abs() < 1e-6));
 }
 
 #[test]
@@ -865,7 +957,7 @@ fn each_saber_of_a_pair_takes_its_own_colour() {
     for instance in [glow, core] {
         assert_eq!(
             bytemuck::bytes_of(&instance)[76..80],
-            second.chroma.turn.to_ne_bytes()
+            second.chroma.packed().to_ne_bytes()
         );
     }
 }

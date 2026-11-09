@@ -232,8 +232,8 @@ pub(crate) struct Instance {
     /// is (three bytes) and the afterimage's brightness (top byte, 255 for the blade);
     /// lanes 1 to 3 the name's letters and the team. Unused by the retail and RGB pairs.
     persona: [u32; 4],
-    /// A chroma skin's turn to its wearer's colour, in turns
-    /// ([`crate::saber_skins::Chroma`]); 0 for every other blade.
+    /// A chroma skin's turn and greying to its wearer's colour, packed
+    /// ([`crate::saber_skins::Chroma::packed`]); 0 for every other blade.
     chroma: f32,
     /// The sections of a skin its wearer switched off
     /// ([`crate::saber_skins::SkinColor::off`]): its low word, then its high one (the
@@ -360,7 +360,7 @@ impl Instance {
         };
         let (chroma, off, room) = match color {
             BladeColor::Skin(skin) => (
-                skin.chroma.turn,
+                skin.chroma.packed(),
                 [skin.off as u32, (skin.off >> 32) as u32],
                 skin.room,
             ),
