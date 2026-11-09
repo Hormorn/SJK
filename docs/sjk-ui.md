@@ -365,9 +365,13 @@ on the 16:9 frame, dark behind the form on the left and clear over the model.
   game, on every page, dragging over the model turns it (about 0.45 degrees a pixel):
   the live preview's camera goes round it. Under the model's feet, drawn as the
   screen's keys are, "Drag" in a key cap and "turn the model" say so on every page.
-  The turn holds from page to page; opening the screen again faces it front. On the
-  menu map's stage the model does not turn (Creyon's tests, 12/10/2026: a raised blade
-  turned end on to the stage's camera looked far too long). Where the model turns, it
+  Dragging with the right button up or down brings it nearer or further (akr's idea,
+  09/11/2026), "Right drag" "zoom" beside the first hint. The turn and the zoom hold
+  from page to page; opening the screen again faces it front at its usual size. The menu
+  map's stage itself does not turn (Creyon's tests, 12/10/2026: a raised blade turned
+  end on to the stage's camera looked far too long): there the first drag takes the model
+  off the stage into the same live preview until the screen closes. The menu map's Saber
+  page looks at the thrown saber, so nothing turns on it. Where the model turns, it
   shows its back to the camera on the Cape category, and its front on the others. The
   chips picker of Creyon's #97 (10/10/2026) is the Hat and Cape categories now.
 - **Saber:** Style as three buttons (Single, Staff, Dual); the hilts as a list
@@ -937,7 +941,8 @@ that mode for the visit and leaves the player's choice as it was.
   category scrolls (wheel, scrollbar), keeping the focused row in view.
   - Controls, from the kit: a switch (gold with its knob right when on, On or
     Off after it); a slider (a gold-filled track and its number, which a click
-    or a typed digit opens for typing); segments for a choice of up to three; a
+    or a typed digit opens for typing, in a gold-edged pill at the number's own size
+    that widens left over the track as the draft grows); segments for a choice of up to three; a
     field with a caret for a longer list, the display mode, the resolution and
     the HUD (the last two open their pickers); a field for text; a Play button (a chat
     sound's preview: Enter or a click plays it).

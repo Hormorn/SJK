@@ -1217,7 +1217,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         "cg_thirdPersonCameraDamp",
-        "How loosely the third-person camera follows you: lower is smoother, 1 sticks to you.",
+        "How loosely the third-person camera follows you: lower is smoother, 0 holds it still, 1 sticks to you.",
     ),
     (
         "cg_thirdPersonTargetDamp",

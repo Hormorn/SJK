@@ -61,6 +61,7 @@ impl Browser {
             BACK_TOKEN => self.cancel(),
             SEARCH_TOKEN => {
                 self.editing = None;
+                crate::text_entry::clicked(&self.filter);
                 BrowserAction::None
             }
             RESET_TOKEN => self.reset_selected(),

@@ -1343,6 +1343,14 @@ impl GpuState {
     /// Add this frame's boxes on the floor: the player's own, and the others' unless
     /// hidden here (`cg_toyBoomboxShow` 0).
     pub(crate) fn submit_boomboxes(&mut self) {
+        // A private duel shows only the two duellists, as stock hides everyone else.
+        if self
+            .live_session
+            .as_ref()
+            .is_some_and(|session| session.latest_snapshot().player.duel_in_progress())
+        {
+            return;
+        }
         let unseen = self.boombox.unseen;
         let own = self.boombox.down.iter();
         let others = self.boombox.boxes.iter().flatten().filter(|_| !unseen);

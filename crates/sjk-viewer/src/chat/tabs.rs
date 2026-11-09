@@ -340,6 +340,20 @@ impl ChatOverlay {
         Some(Channel::Global)
     }
 
+    /// The step of Tab's cycle before `channel`, with [`Self::next_channel`]'s `None`;
+    /// a channel outside the cycle (a hidden Team opened by its key) goes to its end.
+    pub(super) fn previous_channel(&self, channel: Channel) -> Option<Channel> {
+        let step = |from| self.next_channel(from).unwrap_or(Channel::Whisper);
+        let mut before = Channel::Global;
+        let mut at = step(before);
+        // The cycle only moves along the row, so it comes back to All.
+        while at != Channel::Global && at != channel {
+            before = at;
+            at = step(at);
+        }
+        (before != Channel::Whisper).then_some(before)
+    }
+
     /// The players who whispered you, newest first, each once, while they are still
     /// in the game: the PM button's choices.
     pub(super) fn whisperers(&self) -> Vec<ChatTarget> {

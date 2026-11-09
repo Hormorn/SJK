@@ -190,6 +190,13 @@ impl Browser {
                 TextAlign::Start,
             );
         } else {
+            if typing && crate::text_entry::is_selected(&self.filter) {
+                fill(
+                    &mut self.ui,
+                    place.rect([field[0], y + 2.0, field[2], height - 4.0]),
+                    with_alpha(FOCUS, 0.25),
+                );
+            }
             text(
                 &mut self.ui,
                 place,

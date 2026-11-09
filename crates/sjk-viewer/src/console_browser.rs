@@ -402,7 +402,10 @@ impl Browser {
     /// Ctrl+C: copy the text selected with the mouse, or else the chosen entry
     /// as a console line, and say so in the footer.
     fn copy(&mut self) -> BrowserAction {
+        let search_selected =
+            self.editing.is_none() && crate::text_entry::is_selected(&self.filter);
         let text = match self.select.selected() {
+            _ if search_selected => self.filter.clone(),
             Some(text) => text,
             None => match self.selected_entry() {
                 Some(entry) => entry_line(entry),

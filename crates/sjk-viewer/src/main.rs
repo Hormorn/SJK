@@ -857,6 +857,7 @@ struct GpuState {
     pointer_captured: bool,
     /// A primary press consumed by spectator aim-to-follow; consume its release too.
     spectator_follow_click: bool,
+    refocus_click: pointer_input::RefocusClick,
     cursor_policy: pointer_input::CursorPolicy,
     cursor_position: [f32; 2],
     ui_epoch: Instant,
@@ -1830,6 +1831,7 @@ impl GpuState {
             frame_view: None,
             pointer_captured: false,
             spectator_follow_click: false,
+            refocus_click: Default::default(),
             cursor_policy: pointer_input::CursorPolicy::new(),
             cursor_position: [0.0; 2],
             ui_epoch: Instant::now(),

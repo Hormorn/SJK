@@ -83,6 +83,12 @@ test: Place > Things: Your boombox, click the floor: it stands there; Remove tak
 test: Edits > Invisible brushes Caulk (or B): caulk, nodraw and invisible walls show; Off hides.
 test: Select a placed model, Ctrl+C, point elsewhere, Ctrl+V: a copy with its turn and scale.
 test: Close the panel (mapedit): no cost left; reopen: the pictures load again.
+[chat-arrow-tabs]
+area: Console & chat
+title: Left and Right change chat button while nothing is typed
+change: With an empty chat line the Left and Right arrows go through the chat buttons in Tab's order.
+test: Open the chat, press Right and Left: All, Team, SJK and the rest change, round at each end.
+test: Type some text: Left and Right move the caret and the button stays.
 
 [lamp-cache-budget]
 area: Rendering & effects
@@ -9656,3 +9662,60 @@ test: Close a door between you and a sound: muffled; open it: heard from the doo
 test: Small room vs big hall vs outside: short ring, long ring, almost none.
 test: Settings > Sound: 3D sound for headphones off pans; room echo 0 to 2 changes the ring.
 note: Not heard in game yet. Console says when the level's walls are ready.
+
+[camera-damp-ejk]
+area: Rendering & effects
+title: cg_thirdPersonCameraDamp and TargetDamp work in the ejk camera style
+change: Each damping cvar moved off its default (0.3 camera, 0.5 target) now applies in ejk too.
+test: cg_cameraStyle ejk, defaults: the camera stays locked to the player as before.
+test: cg_thirdPersonCameraDamp 0: the camera holds still and looks at the player, as in EternalJK.
+test: cg_cameraStyle sjk: unchanged.
+
+[search-double-click]
+area: Menus & settings
+title: A double click selects a search field's text (akr's idea, #391)
+change: Commands and cvars list, Settings, server list. Ctrl+C in the list copies a selected search.
+test: Type in each search, double click: the text is selected; a single click drops it.
+test: Commands and cvars list: double click, Ctrl+C, paste elsewhere: the search text.
+
+[profile-turn-zoom]
+area: Menus & settings
+title: Profile: turn the model in the main menu, right drag zooms (akr's idea, #392)
+change: Over the menu map the first drag moves the model into the live preview, which can turn.
+test: Main menu, SJK UI, Character and Force: drag turns the model, right drag zooms it.
+test: In game, Profile: the same. Reopen the screen: turn and zoom are reset.
+
+[console-held-key]
+area: Console & chat
+title: Console: a held key types again (report #282)
+change: The console's typing branch dropped every key repeat.
+test: Open the console, hold a letter: it repeats.
+test: Hold a dead key: the accent arms only once. History keys repeat as before.
+
+[focus-click-no-attack]
+area: Input
+title: A click that brings the window back no longer attacks (report #281)
+change: The press within 250 ms of getting focus, and its release, stop before the game bindings.
+test: In game, alt-tab away, click the window: no attack. Click again: it attacks.
+test: With a menu open, the click that brings the window back still reaches the menu.
+
+[boombox-private-duel]
+area: Gameplay
+title: A boombox on the floor is hidden in a private duel (report #271)
+change: No floor boxes are drawn while the viewed player is in a private duel.
+test: Place a boombox, start a private duel: the box is gone, the music is unchanged.
+test: End the duel: the box is back. A box on a shoulder stays.
+
+[slider-gold-pill]
+area: Menus & settings
+title: SJK UI: typed slider values in a gold pill at full size (#398)
+change: Replaces the small red box. It widens left when needed and limits the digits to the slider's.
+test: Settings, type a value on a slider: dark gold-edged pill, same size as the number.
+test: An invalid value turns the edge ember. Classic+ keeps its own look.
+
+[jk2-hud]
+area: HUD
+title: Jedi Knight II HUD: cg_hudFiles 2 (#399)
+change: Settings > HUD lists Jedi Knight II, with a preview. cg_hudFiles 1 is still the text HUD.
+test: Settings > HUD: pick Jedi Knight II. Health, armor, Force and ammo draw and drain.
+test: Low health blinks. On a wide screen the corners keep to their edges.

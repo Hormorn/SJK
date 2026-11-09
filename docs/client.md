@@ -1413,7 +1413,7 @@ their choice.
 
 | Value | Camera |
 | --- | --- |
-| `ejk` (default, MP camera) | Sits at its ideal place every frame: no camera or target damping, whatever the damping cvars say. |
+| `ejk` (default, MP camera) | Sits at its ideal place every frame, unless `cg_thirdPersonCameraDamp` or `cg_thirdPersonTargetDamp` is moved off its default (0.3, 0.5): the changed one then applies, so `cg_thirdPersonCameraDamp 0` holds the camera still. |
 | `sjk` (SP camera) | Eases towards its ideal place with `cg_thirdPersonCameraDamp` and `cg_thirdPersonTargetDamp`, as described above, so it trails a moving or turning player a little. |
 
 An unknown value selects `ejk`. `ejk` became the default on 08/10/2026 (Sol's
@@ -3428,7 +3428,9 @@ and PM, each behind its own setting in Settings > Chat (`cg_chatTabTeam`,
 `cg_chatTabPm` 0): a channel switched off (0) leaves the row and Tab skips it, but its
 key still opens it; since 03/11/2026 (Sol's request) Not in Tab (2) keeps the button
 while Tab skips it, so a player keeps Team or Admin clickable out of the cycle (Tab
-from a channel it skips goes on to the next one it stops on). The clan chats' keys are
+from a channel it skips goes on to the next one it stops on). With nothing typed, and
+no modifier held, Left and Right walk the same cycle backwards and forwards (since
+09/11/2026, akr's idea); with a draft they move the caret. The clan chats' keys are
 `messagemode7` (JoF) and `messagemode8` (S). Admin sends `amsay`, which only the
 server's admins read (JoF EJK `Cmd_Amsay_f`, `SAY_ADMIN`; they see it as `<Admin>`), and
 shows only on JA+ and jaPRO servers; its key is `messagemode6` (Controls > Admin chat, no
@@ -3911,8 +3913,8 @@ original Jedi Academy HUD, or a custom HUD pack that replaces `ui/hud.menu`),
 or SJK's own `classic` or `radial` layout. The default is `game`, the classic
 HUD, and a saved `cg_hudStyle` is kept (but the retired `modern`, see
 [Menu style](#menu-style)). `cg_hudFiles`
-names the menu list, `ui/jahud.txt` by default; `1` gives the text-only HUD and
-EternalJK's `3`/`4` name its elegance and JoF HUD lists when those files are
+names the menu list, `ui/jahud.txt` by default; `1` gives the text-only HUD, `2` the
+Jedi Knight II HUD with its pictures built in, and EternalJK's `3`/`4` name its elegance and JoF HUD lists when those files are
 installed. `cg_hudPack` names the PK3 whose HUD to use when several replace
 `ui/hud.menu` (`assets1.pk3` is the original); empty, the one installed last
 wins, as in the game. See [game-data HUD](rendering.md#game-data-hud) for what

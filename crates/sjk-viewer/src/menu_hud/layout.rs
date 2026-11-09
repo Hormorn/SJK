@@ -122,6 +122,9 @@ pub(crate) struct Layout {
     pub(crate) saber_styles: [Option<Piece>; 8],
     /// `swoopvehiclehud`, the vehicle HUD.
     pub(crate) vehicle: Option<VehiclePieces>,
+    /// The first of the Jedi Knight II pictures when this is that HUD
+    /// ([`super::frame::jk2`]), which then draws the status HUD.
+    pub(crate) jk2: Option<u16>,
     /// Shader names, indexed by [`Piece::picture`].
     pub(crate) pictures: Vec<String>,
 }

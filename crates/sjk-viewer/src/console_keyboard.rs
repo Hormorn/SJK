@@ -343,7 +343,9 @@ impl ViewerConsole {
             KeyCode::ArrowDown if !event.repeat => self.navigate_history(1),
             // Caret, deletion and clipboard keys: see `console_editing.rs`.
             _ if self.edit_key(event, key) => self.dead_key.other_key(event.text.as_deref()),
-            _ if !event.repeat => {
+            // A held key types again, as stock's character events do; a held dead key
+            // only arms its accent once.
+            _ if !event.repeat || !matches!(event.logical_key, winit::keyboard::Key::Dead(_)) => {
                 let mut dead = self.dead_key;
                 dead.type_key(
                     &mut PromptLine {
