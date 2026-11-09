@@ -39,5 +39,18 @@ Saber tab lists installed hilt packs by name; the old `character.jpg` was droppe
 that), and renders of features no release has yet (on 25/10/2026, the Holocrons
 tab's kyber crystals).
 
+## The launcher's pictures
+
+`launcher-home.jpg`, `launcher-content.jpg`, `launcher-pk3s.jpg`, `launcher-doctor.jpg`
+and `launcher-tools.jpg` (the SJK Launcher section, not the gallery) are the SJK
+Launcher's own window, saved by a debug build of
+[sjk-launcher](https://github.com/Sol-Vulpes/sjk-launcher) with
+`SJK_LAUNCHER_SHOT=<file.bmp>` and `SJK_LAUNCHER_TAB=sjk|content|pk3s|doctor|tools`
+(`SJK_LAUNCHER_SEARCH=assets SJK_LAUNCHER_PK3=assets1.pk3` for the PK3s one, so the
+list shows the game's and SJK's own PK3s rather than installed mods), 1800 px wide,
+JPEG quality 84. Close the launcher you use first (a second start only brings up the
+running one), take them with Developer mode off, and paint over the key id on the
+Doctor's identity line: no key id goes on the site.
+
 Game screenshots are fine to show, but do not add extracted game files
 (textures, logos, fonts) to the site.

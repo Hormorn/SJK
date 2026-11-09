@@ -20,6 +20,11 @@ const COUNTS_KEY = "sjk-site-pr-counts";
 const COUNTS_TTL_MS = 60 * 60 * 1000;
 
 /** Release ZIPs by platform, as the release workflow names them. */
+// The SJK Launcher's own repository: its latest release is the launcher section's
+// download, picked for the visitor's platform as SJK's is.
+const LAUNCHER_REPO = "Sol-Vulpes/sjk-launcher";
+const LAUNCHER_API = `https://api.github.com/repos/${LAUNCHER_REPO}/releases/latest`;
+
 const PLATFORMS = {
   "windows-x64": { system: "Windows", label: "Windows 10/11 x64" },
   "linux-x64": { system: "Linux", label: "Linux x64" },
@@ -77,6 +82,12 @@ function assetFor(release, platform) {
   return (release.assets || []).find((a) => a.name.endsWith(`-${platform}.zip`)) || null;
 }
 
+/** The launcher's archive for a platform, as its build workflow names them
+ * (`sjk-launcher-windows-x64.zip`, `sjk-launcher-linux-x64.tar.gz`…). */
+function launcherAssetFor(release, platform) {
+  return (release.assets || []).find((a) => a.name.startsWith(`sjk-launcher-${platform}.`)) || null;
+}
+
 function versionOf(release) {
   return (release.tag_name || "").replace(/^sjk-v/, "") || release.name || "";
 }
@@ -120,6 +131,60 @@ function enhanceDownload(release, platform) {
     links.push(`<a href="${escapeHtml(release.html_url)}">all files and checksums</a>`);
     others.innerHTML = links.join(" · ");
   }
+}
+
+/** The launcher section's download button for `platform`, the other platforms'
+ * archives under it. Without an answer from GitHub it keeps the releases page. */
+async function loadLauncher(platform) {
+  const button = document.getElementById("launcher-download");
+  if (!button) return;
+  let release;
+  try {
+    release = await fetchJson(LAUNCHER_API);
+  } catch (error) {
+    console.info("Launcher release unavailable:", error);
+    return;
+  }
+  if (!release || !release.html_url) return;
+  const version = (release.tag_name || "").replace(/^v/, "");
+  const asset = launcherAssetFor(release, platform);
+  button.href = asset ? asset.browser_download_url : release.html_url;
+  const label = document.getElementById("launcher-download-label");
+  if (label && asset) label.textContent = `Get it for ${PLATFORMS[platform].system}`;
+  const line = document.getElementById("launcher-line");
+  if (line) line.textContent = asset ? `SJK Launcher ${version} · ${PLATFORMS[platform].label}` : `SJK Launcher ${version}`;
+  const others = document.getElementById("launcher-others");
+  if (others) {
+    const links = Object.keys(PLATFORMS)
+      .filter((p) => !asset || p !== platform)
+      .map((p) => [p, launcherAssetFor(release, p)])
+      .filter(([, a]) => a)
+      .map(([p, a]) => `<a href="${escapeHtml(a.browser_download_url)}">${PLATFORMS[p].label}</a>`);
+    links.push(`<a href="${escapeHtml(release.html_url)}">all files and checksums</a>`);
+    others.innerHTML = links.join(" · ");
+  }
+}
+
+/** The launcher's pictures: each card shows its screenshot in the big frame
+ * instead of opening the file. */
+function setUpLauncherShots() {
+  const frame = document.getElementById("launcher-shot");
+  const caption = document.getElementById("launcher-caption");
+  const cards = [...document.querySelectorAll("[data-launcher-shot]")];
+  if (!frame || !cards.length) return;
+  const show = (card) => {
+    cards.forEach((c) => c.setAttribute("aria-current", String(c === card)));
+    frame.src = card.getAttribute("href");
+    frame.alt = card.querySelector("img").alt;
+    if (caption) {
+      caption.innerHTML = `<strong>${escapeHtml(card.querySelector("strong").textContent)}</strong>${escapeHtml(card.dataset.launcherShot)}`;
+    }
+  };
+  cards.forEach((card) => card.addEventListener("click", (event) => {
+    event.preventDefault();
+    show(card);
+    if (frame.getBoundingClientRect().top < 0) frame.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+  }));
 }
 
 /** The changelog's releases, newest first, without Unreleased: each with its
@@ -597,6 +662,8 @@ if (typeof document !== "undefined") {
     setUpPlatforms(platform);
     setUpDonation();
     loadReleases(platform);
+    setUpLauncherShots();
+    loadLauncher(platform);
     loadGallery();
     loadContributors();
   });
@@ -604,7 +671,7 @@ if (typeof document !== "undefined") {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    escapeHtml, inline, latestRelease, assetFor, versionOf, euDate, guessPlatform,
+    escapeHtml, inline, latestRelease, assetFor, launcherAssetFor, versionOf, euDate, guessPlatform,
     parseChangelog, changelogAnchor, isoDate, countByAuthor, euros, donationState,
     donationFromHub, DONATION, PLATFORMS,
   };
