@@ -207,6 +207,79 @@ fn duel6_map_editor_panel() {
     });
 }
 
+/// The map editor's panel's pictures and new pages over duel6 (09/11/2026): the floor
+/// clicked, its shader list with a picture per row and the large preview card, the same
+/// list as tiles, the Lights page with two added lights (their bulbs over the scene, the
+/// chosen one ringed with its reach), and Place's things.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_map_editor_pictures_and_lights() {
+    on_big_stack(|| {
+        let Some((mut gpu, _profile)) = open("maps/mp/duel6.bsp", [1920, 1080], None, &[]) else {
+            return;
+        };
+        let (spawn, _) = assets::initial_camera(&gpu.bsp).expect("a spawn point");
+        let spawn = Vec3::from_array(spawn);
+        let (_, prop) = crate::static_models::spawns(&gpu.bsp)
+            .into_iter()
+            .min_by(|(_, a), (_, b)| {
+                let distance =
+                    |s: &crate::static_models::Spawn| Vec3::from_array(s.origin).distance(spawn);
+                distance(a).total_cmp(&distance(b))
+            })
+            .expect("duel6 places props");
+        let origin = Vec3::from_array(prop.origin);
+        let camera = origin + Vec3::new(-220.0, -160.0, 120.0);
+        let (yaw, pitch) = look(camera.to_array(), (origin + Vec3::Z * 24.0).to_array());
+        aim(&mut gpu, camera.to_array(), yaw, pitch);
+        if let Some(console) = gpu.console.as_mut() {
+            console.close_for_connection();
+        }
+        let _ = frame(&mut gpu, 40);
+        let mut document = Document::new("mp/duel6", 1);
+        for (offset, color) in [
+            (Vec3::new(0.0, 0.0, 64.0), [1.0, 0.3, 0.2]),
+            (Vec3::new(0.0, 160.0, 48.0), [0.3, 0.55, 1.0]),
+        ] {
+            document.add(
+                Kind::Light {
+                    origin: (origin + offset).to_array(),
+                    color,
+                    radius: 200.0,
+                    intensity: 1.0,
+                },
+                None,
+            );
+        }
+        document.unpublished = true;
+        gpu.shot_map_edits(Some(document));
+        let _ = frame(&mut gpu, 10);
+        // The path at the bottom: its shader list, pictured.
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 1010.0]));
+        let _ = frame(&mut gpu, 2);
+        // The map's own textures, the third chosen.
+        gpu.shot_map_edit_remap_search("textures/yavin");
+        println!("{}", shoot(&mut gpu, 16, "map-editor-pictures").display());
+        gpu.map_edits.panel.toggle_tiles();
+        println!("{}", shoot(&mut gpu, 20, "map-editor-tiles").display());
+        let pictures = gpu.map_edits.panel.shader_shown.len();
+        gpu.map_edits.panel.toggle_tiles();
+        gpu.shot_map_edit_panel(Tab::Lights, None);
+        let _ = frame(&mut gpu, 2);
+        gpu.map_edits.panel.light_row = 0;
+        println!("{}", shoot(&mut gpu, 6, "map-editor-lights").display());
+        let lights = gpu.map_edits.panel.facts.lights.len();
+        assert_eq!(lights, 2, "both lights listed");
+        let target = gpu.shot_light_target();
+        assert!(target.is_some(), "the gizmo stands on the chosen light");
+        gpu.shot_map_edit_panel(Tab::Place, None);
+        gpu.map_edits.panel.things = true;
+        gpu.map_edits.panel.stale();
+        println!("{}", shoot(&mut gpu, 6, "map-editor-things").display());
+        println!("{pictures} shaders listed; {lights} lights; gizmo at {target:?}");
+    });
+}
+
 /// The map editor's gizmo over duel6 ([`crate::map_edits::gizmo`]): a placed model
 /// current on Place with its move, rotate and scale handles, then a drag on its X arrow
 /// half-way (the model previewed 40 units along X), and the release (refused here: a shot

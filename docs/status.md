@@ -1,3 +1,27 @@
+## Map editor panel: the page's tools in game, and texture pictures
+
+09/11/2026, `personal/mapedit-ingame-2`, based on `main` `aeb7b1c4` (Sol: "I need all the
+functionality from mapedit_web in the normal map edit of the game + be able to see textures
+better too"). The in-game panel ([map-edits.md](map-edits.md#the-panel)) gets a picture
+beside each shader row, a tile view of 21 and a large preview card of the shader under the
+pointer beside the one drawn now ([shader pictures](map-edits.md#shader-pictures): two
+textures made on the first picture and dropped when the panel closes, 4 MB of thumbnails and
+one preview of 512 at most); Fill's six nearby candidates at the head of a face's list; a
+Lights page (the added lights and the map's lamps listed, markers over the scene, the gizmo
+moving the chosen one, [Lights in the panel](map-edits.md#lights-in-the-panel)); Place's
+Things (boomboxes, mystery boxes, toys through the page's code); the brush view's presets on
+Edits and B; Ctrl+C and Ctrl+V as the page's; and the page's fuller selection summary. Every
+button runs the editor's command. Left as they were: no fly-to (the free camera has no way
+to be put somewhere yet), no move for a box or a toy (the hub has none).
+Verified on Windows 11: unit tests (the pictures' cache and cells, tiles, candidates, the
+Lights rows' commands and limits, the brush presets, the pasted text, every page at four
+window shapes), the world shot `duel6_map_editor_pictures_and_lights` (looked at: the
+pictured rows and the card, the tiles, the Lights page with its bulbs, lamps and the gizmo,
+Place's Things), the startup stack check, fmt, clippy (nothing new in the files touched) and
+the viewer's tests. Not verified: in a running client (the pointer's hover, the markers'
+clicks, the gizmo's drag on a light or a lamp, the clipboard, things on a server, the
+pictures' cost on a long list).
+
 ## Frame timings readout and log
 
 09/11/2026, `personal/frame-timings` (Sol: an on-screen readout of the milliseconds each

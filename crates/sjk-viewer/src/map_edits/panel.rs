@@ -35,6 +35,7 @@ pub(crate) const TAB_SELECTED: u16 = 1;
 pub(crate) const TAB_PLACE: u16 = 2;
 pub(crate) const TAB_EDITS: u16 = 3;
 pub(crate) const TAB_WEATHER: u16 = 4;
+pub(crate) const TAB_LIGHTS: u16 = 5;
 /// Selected: hide it (or remove a placed model), its whole compiled model, a copy of it.
 pub(crate) const HIDE: u16 = 10;
 pub(crate) const HIDE_GROUP: u16 = 11;
@@ -67,10 +68,18 @@ pub(crate) const MOVE_LEFT: u16 = 34;
 pub(crate) const MOVE_RIGHT: u16 = 35;
 pub(crate) const FARTHER: u16 = 36;
 pub(crate) const NEARER: u16 = 37;
-/// Place, SJK's creator only: a mystery box where you aim, the nearest one removed
-/// (`crate::mystery_box`).
-pub(crate) const BOX_PLACE: u16 = 32;
-pub(crate) const BOX_REMOVE: u16 = 33;
+/// Place: the switch between the models and the things standing on the map (the
+/// boomboxes, the mystery boxes and the Toy Master's toys, as the browser editor's World
+/// page): place one where the next click meets the floor, the toy's kind and escort,
+/// remove the chosen one.
+pub(crate) const PLACE_THINGS: u16 = 82;
+pub(crate) const PLACE_MODELS: u16 = 83;
+pub(crate) const THING_BOOMBOX: u16 = 84;
+pub(crate) const THING_BOX: u16 = 85;
+pub(crate) const THING_TOY: u16 = 86;
+pub(crate) const THING_KIND: u16 = 87;
+pub(crate) const THING_ESCORT: u16 = 88;
+pub(crate) const THING_REMOVE: u16 = 89;
 /// Edits: delete the chosen edit, undo the last change, redo it.
 pub(crate) const DELETE: u16 = 30;
 pub(crate) const UNDO: u16 = 31;
@@ -93,14 +102,113 @@ pub(crate) const WEATHER_FOG: u16 = 54;
 pub(crate) const WEATHER_WIND: u16 = 55;
 pub(crate) const WEATHER_SEEN: u16 = 56;
 pub(crate) const WEATHER_OWN: u16 = 57;
+/// Lights: add one where the next click lands, or at the view's centre; delete the
+/// chosen one; its reach and strength; the chosen lamp off or on, and back as the map
+/// has it.
+pub(crate) const LIGHT_ADD: u16 = 60;
+pub(crate) const LIGHT_AT_VIEW: u16 = 61;
+pub(crate) const LIGHT_DELETE: u16 = 62;
+pub(crate) const LIGHT_SMALLER: u16 = 63;
+pub(crate) const LIGHT_BIGGER: u16 = 64;
+pub(crate) const LIGHT_DIMMER: u16 = 65;
+pub(crate) const LIGHT_BRIGHTER: u16 = 66;
+pub(crate) const LAMP_TOGGLE: u16 = 67;
+pub(crate) const LAMP_RESET: u16 = 68;
+/// Lights: the colour swatches, `LIGHT_SWATCH..LIGHT_SWATCH + 8`.
+pub(crate) const LIGHT_SWATCH: u16 = 70;
+/// Edits: the invisible brushes' view (`r_showBrushes`), `BRUSHES..BRUSHES + 4` for its
+/// presets ([`BrushPreset`]).
+pub(crate) const BRUSHES: u16 = 90;
+
+/// The browser editor's brush-view presets, as `r_showBrushes` and `r_showBrushesTypes`
+/// set them: none, what play feels (`r_showBrushes 1`), the faces a caulk fix is about
+/// (caulk, nodraw and invisible walls), every kind.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum BrushPreset {
+    Off,
+    Play,
+    Caulk,
+    All,
+}
+
+/// The kinds the Caulk preset shows, as `r_showBrushesTypes` names them.
+pub(crate) const CAULK_KINDS: &str = "caulk nodraw solid";
+
+impl BrushPreset {
+    pub(crate) const ALL: [Self; 4] = [Self::Off, Self::Play, Self::Caulk, Self::All];
+
+    /// The cvars' values for it: `r_showBrushes`, `r_showBrushesTypes`.
+    pub(crate) fn cvars(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Off => ("0", ""),
+            Self::Play => ("1", ""),
+            Self::Caulk => ("2", CAULK_KINDS),
+            Self::All => ("2", ""),
+        }
+    }
+
+    /// The preset the cvars amount to, if one.
+    pub(crate) fn of(mode: i64, types: &str) -> Option<Self> {
+        let types = types.trim();
+        match (mode, types) {
+            (mode, _) if mode <= 0 => Some(Self::Off),
+            (1, "") => Some(Self::Play),
+            (_, "") => Some(Self::All),
+            (_, types) => {
+                let mut listed: Vec<String> = types
+                    .split(|c: char| c.is_ascii_whitespace() || c == ',' || c == ';')
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_ascii_lowercase)
+                    .collect();
+                listed.sort();
+                let mut caulk: Vec<&str> = CAULK_KINDS.split(' ').collect();
+                caulk.sort_unstable();
+                listed.iter().eq(caulk.iter()).then_some(Self::Caulk)
+            }
+        }
+    }
+
+    /// The next one, for the B key.
+    pub(crate) fn next(this: Option<Self>) -> Self {
+        match this {
+            Some(Self::Off) | None => Self::Play,
+            Some(Self::Play) => Self::Caulk,
+            Some(Self::Caulk) => Self::All,
+            Some(Self::All) => Self::Off,
+        }
+    }
+
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::Play => "Play",
+            Self::Caulk => "Caulk",
+            Self::All => "All",
+        }
+    }
+}
 /// The model list's rows on show are `MODEL_ROW..MODEL_ROW + MODEL_ROWS`, the edits'
 /// `EDIT_ROW..`, the shaders' `SHADER_ROW..`.
 pub(crate) const MODEL_ROW: u16 = 100;
 pub(crate) const MODEL_ROWS: usize = 6;
 pub(crate) const EDIT_ROW: u16 = 200;
-pub(crate) const EDIT_ROWS: usize = 11;
+pub(crate) const EDIT_ROWS: usize = 10;
 pub(crate) const SHADER_ROW: u16 = 300;
 pub(crate) const SHADER_ROWS: usize = 5;
+/// The Lights page's lists: the added lights' rows, the lamps'.
+pub(crate) const LIGHT_ROW: u16 = 400;
+pub(crate) const LAMP_ROW: u16 = 450;
+pub(crate) const LIGHT_ROWS: usize = 3;
+/// Place's things list.
+pub(crate) const THING_ROW: u16 = 500;
+pub(crate) const THING_ROWS: usize = 6;
+/// The shader list as tiles: seven a line, three lines.
+pub(crate) const TILE_COLUMNS: usize = 7;
+pub(crate) const SHADER_TILES: usize = TILE_COLUMNS * 3;
+/// Selected: the shader list's switch between rows and tiles.
+pub(crate) const TILES: u16 = 47;
+/// How many nearby shaders a face's list starts with (Fill's candidates).
+pub(crate) const FILL_CANDIDATES: usize = 6;
 
 /// Longest text the fields take.
 const FIELD_MAX: usize = 96;
@@ -118,11 +226,18 @@ pub(crate) enum Tab {
     Place,
     Edits,
     Weather,
+    Lights,
 }
 
 impl Tab {
     /// Every page, in the tabs' order.
-    pub(crate) const ALL: [Self; 4] = [Self::Selected, Self::Place, Self::Edits, Self::Weather];
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Selected,
+        Self::Place,
+        Self::Lights,
+        Self::Edits,
+        Self::Weather,
+    ];
 
     pub(crate) fn token(self) -> u16 {
         match self {
@@ -130,6 +245,7 @@ impl Tab {
             Self::Place => TAB_PLACE,
             Self::Edits => TAB_EDITS,
             Self::Weather => TAB_WEATHER,
+            Self::Lights => TAB_LIGHTS,
         }
     }
 }
@@ -261,8 +377,17 @@ pub(crate) enum Action {
     Scale(f32),
     Grab,
     Remove,
-    BoxPlace,
-    BoxRemove,
+    /// Place: stand a thing where the next click meets the floor (again: stop).
+    PlaceThing(super::web::http::Thing),
+    /// Place: take the chosen thing away; the toy kind placed next; a toy's escort.
+    ThingRemove,
+    ThingKind,
+    ThingEscort,
+    /// Ctrl+C and Ctrl+V outside a field ([`super::clip`]).
+    ClipCopy,
+    ClipPaste,
+    /// The invisible brushes' view (none: the next one, the B key).
+    Brushes(Option<BrushPreset>),
     /// An edit chosen in the list: a placed model becomes the one the controls move.
     Choose,
     Delete,
@@ -278,6 +403,18 @@ pub(crate) enum Action {
     Forget,
     /// A button of the Weather page.
     Weather(WeatherChoice),
+    /// Lights: add one where the next click lands (again: stop), or at the view's centre.
+    LightAdd,
+    LightAtView,
+    /// Lights: delete the chosen light, or reset the chosen lamp.
+    LightDelete,
+    /// Lights: the chosen light's reach or strength times the factor, or a swatch's colour.
+    LightRadius(f32),
+    LightIntensity(f32),
+    LightColour(usize),
+    /// Lights: the chosen lamp off or on, and back as the map has it.
+    LampToggle,
+    LampReset,
 }
 
 /// What the selection is, as the panel names it.
@@ -339,6 +476,9 @@ pub(crate) struct Facts {
     /// What Fill would draw on the selected faces: the nearby vote's first shader and its
     /// share.
     pub(crate) fill: Option<(String, f32)>,
+    /// The nearby vote's first [`FILL_CANDIDATES`], with their shares: a face's shader
+    /// list starts with them.
+    pub(crate) fill_candidates: Vec<(String, f32)>,
     /// Why the editor has the player's own view, not the free camera, when it has.
     pub(crate) camera: Option<String>,
     /// The editor flies (the right mouse button held).
@@ -367,7 +507,26 @@ pub(crate) struct Facts {
     pub(crate) map_weather: Vec<String>,
     /// The player forces weather (`r_weatherForce`), which replaces the kept one here.
     pub(crate) forced: bool,
+    /// The added lights here, and the map's lamp fixtures nearest first (read while the
+    /// Lights page shows), and whether the real-time lighting finds lamps.
+    pub(crate) lights: Vec<super::panel_lights::LightRow>,
+    pub(crate) lamps: Vec<super::panel_lights::LampRow>,
+    pub(crate) realtime: bool,
+    /// The things standing on the map (read while Place shows them), the hub's toy kinds,
+    /// whether the game is on a server, and whether the player is SJK's creator (boxes and
+    /// toys are the creator's).
+    pub(crate) things: Vec<super::web::things::ThingRow>,
+    pub(crate) toy_kinds: Vec<String>,
+    pub(crate) on_server: bool,
+    pub(crate) creator: bool,
+    /// The invisible brushes' view in force, when it is one of the presets.
+    pub(crate) brushes: Option<BrushPreset>,
 }
+
+/// What the panel's facts were read for ([`Panel`]'s `seen`): the document's revision,
+/// the current placed model, grabbing, the map's checksum known, the free camera, the
+/// flight, the page, the things standing.
+type Seen = (u64, Option<u32>, bool, bool, bool, bool, Tab, usize);
 
 /// The panel's state.
 #[derive(Default)]
@@ -414,8 +573,9 @@ pub(crate) struct Panel {
     pub(crate) edit_list: Option<Rect>,
     pub(crate) shader_list: Option<Rect>,
     /// What [`Facts`] were read for: the document's revision, the current placed model,
-    /// grabbing, whether the map's checksum was known, the free camera, the flight.
-    seen: Option<(u64, Option<u32>, bool, bool, bool, bool)>,
+    /// grabbing, whether the map's checksum was known, the free camera, the flight, the
+    /// page.
+    seen: Option<Seen>,
     /// The Recent rows (newest first, [`super::recent`]) and their switch.
     recent_models: Vec<String>,
     recent_shaders: Vec<String>,
@@ -427,6 +587,39 @@ pub(crate) struct Panel {
     fill_for: Vec<[u32; 2]>,
     /// The gizmo transforms the placed model: the keys line names its keys.
     pub(crate) transforming: bool,
+    /// The shader list drawn as tiles (pictures only, more of them) instead of rows.
+    pub(crate) tiles: bool,
+    /// How many rows at the head of the shader list are Fill's candidates (before the
+    /// Recent ones).
+    pub(crate) candidate_rows: usize,
+    /// The shader row or tile under the pointer (its index in the list), for the preview.
+    pub(crate) hover_shader: Option<usize>,
+    /// Where the large preview card lies (window pixels): a press there is the panel's.
+    pub(crate) preview_rect: Option<Rect>,
+    /// The shaders' pictures ([`super::pictures`]).
+    pub(crate) pictures: super::pictures::Pictures,
+    /// The Lights page: its lists' chosen rows, which list the buttons act on, adding a
+    /// light where the next click lands, and choosing the newest light once it is read.
+    pub(crate) light_row: usize,
+    pub(crate) light_first: usize,
+    pub(crate) lamp_row: usize,
+    pub(crate) lamp_first: usize,
+    pub(crate) light_choice: super::panel_lights::LightChoice,
+    pub(crate) adding_light: bool,
+    pub(crate) choose_newest_light: bool,
+    pub(crate) light_list: Option<Rect>,
+    pub(crate) lamp_list: Option<Rect>,
+    /// Place shows the things on the map instead of the models; their list's chosen row,
+    /// the thing the next click stands, the toy kind and its escort.
+    pub(crate) things: bool,
+    pub(crate) thing_row: usize,
+    pub(crate) thing_first: usize,
+    pub(crate) placing_thing: Option<super::web::http::Thing>,
+    pub(crate) toy_kind: usize,
+    pub(crate) escort: bool,
+    pub(crate) thing_list: Option<Rect>,
+    /// The last copy (Ctrl+C), with its angles and scale ([`super::clip`]).
+    pub(crate) clip: Option<super::clip::Clip>,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -635,7 +828,16 @@ impl Panel {
     pub(crate) fn refilter_shaders(&mut self) {
         let query = self.remap.trim().to_ascii_lowercase();
         self.shader_shown.clear();
-        // The Recent rows first (those the search keeps), then every match.
+        // On faces, Fill's candidates first (whatever the search), then the Recent rows
+        // (those the search keeps), then every match.
+        for (name, _) in &self.facts.fill_candidates {
+            if let Ok(index) = self.shaders.binary_search(&shader_stem(name))
+                && !self.shader_shown.contains(&(index as u32))
+            {
+                self.shader_shown.push(index as u32);
+            }
+        }
+        self.candidate_rows = self.shader_shown.len();
         for name in &self.recent_shaders {
             let stem = shader_stem(name);
             if matches(&stem, &query)
@@ -645,7 +847,7 @@ impl Panel {
                 self.shader_shown.push(index as u32);
             }
         }
-        self.recent_shader_rows = self.shader_shown.len();
+        self.recent_shader_rows = self.shader_shown.len() - self.candidate_rows;
         self.shader_shown.extend(
             self.shaders
                 .iter()
@@ -662,7 +864,7 @@ impl Panel {
             // The skies first: what a sky is most often swapped for.
             let skies = &self.skies;
             let shaders = &self.shaders;
-            self.shader_shown[self.recent_shader_rows..]
+            self.shader_shown[self.candidate_rows + self.recent_shader_rows..]
                 .sort_by_key(|&index| skies.binary_search(&shaders[index as usize]).is_err());
         }
         let own = self
@@ -680,12 +882,75 @@ impl Panel {
             .or_else(|| own.as_deref().and_then(named))
             .unwrap_or(0);
         self.shader_first = 0;
-        Self::settle(
-            &mut self.shader_row,
-            &mut self.shader_first,
-            self.shader_shown.len(),
-            SHADER_ROWS,
-        );
+        self.settle_shaders();
+    }
+
+    /// How many shaders the list shows at once, and how many a line: rows or tiles.
+    pub(crate) fn shader_slots(&self) -> (usize, usize) {
+        if self.tiles {
+            (SHADER_TILES, TILE_COLUMNS)
+        } else {
+            (SHADER_ROWS, 1)
+        }
+    }
+
+    /// Keep the chosen shader on show; a tile list scrolls by whole lines.
+    fn settle_shaders(&mut self) {
+        let (slots, per_line) = self.shader_slots();
+        let count = self.shader_shown.len();
+        self.shader_row = self.shader_row.min(count.saturating_sub(1));
+        let line = self.shader_row / per_line;
+        let lines = slots / per_line;
+        let mut first = self.shader_first / per_line;
+        if line < first {
+            first = line;
+        } else if line >= first + lines {
+            first = line + 1 - lines;
+        }
+        let last = count.div_ceil(per_line).saturating_sub(lines);
+        self.shader_first = first.min(last) * per_line;
+    }
+
+    /// Switch the shader list between rows and tiles.
+    pub(crate) fn toggle_tiles(&mut self) {
+        self.tiles = !self.tiles;
+        self.shader_first = 0;
+        self.settle_shaders();
+        if self.is_shader_row(self.focus) {
+            self.focus = SHADER_ROW + (self.shader_row - self.shader_first) as u16;
+        }
+    }
+
+    /// The picture of the shader list's row `index`, asked for when not held (see
+    /// [`super::pictures::Pictures::thumbnail`]).
+    pub(crate) fn shader_picture(&mut self, index: usize) -> Option<Option<sjk_ui::TextureId>> {
+        let shader = self
+            .shader_shown
+            .get(index)
+            .and_then(|&index| self.shaders.get(index as usize))?;
+        self.pictures.thumbnail(shader)
+    }
+
+    /// The share of the vote of the shader list's row `index`, when it is one of Fill's
+    /// candidates.
+    pub(crate) fn candidate_share(&self, index: usize) -> Option<f32> {
+        if index >= self.candidate_rows {
+            return None;
+        }
+        let shader = self.shown_shader(index)?;
+        self.facts
+            .fill_candidates
+            .iter()
+            .find(|(name, _)| shader_stem(name) == shader)
+            .map(|(_, share)| *share)
+    }
+
+    /// What Fill draws: the chosen row when it is one of the candidates, else the vote's
+    /// first.
+    pub(crate) fn fill_choice(&self) -> Option<&str> {
+        (self.shader_row < self.candidate_rows)
+            .then(|| self.chosen_shader())
+            .flatten()
     }
 
     /// Fill the remap's search with the selected shader's folder, so its neighbours show,
@@ -799,6 +1064,51 @@ impl Panel {
     pub(super) fn show(&mut self, tab: Tab) {
         self.tab = tab;
         self.focus = tab.token();
+        if tab != Tab::Lights {
+            self.adding_light = false;
+        }
+        if tab != Tab::Place {
+            self.placing_thing = None;
+        }
+    }
+
+    fn is_thing_row(&self, token: u16) -> bool {
+        (THING_ROW..THING_ROW + THING_ROWS as u16).contains(&token)
+    }
+
+    /// The thing chosen in Place's things list.
+    pub(crate) fn chosen_thing(&self) -> Option<&super::web::things::ThingRow> {
+        self.facts.things.get(self.thing_row)
+    }
+
+    /// The toy kind placed next, of the hub's.
+    pub(crate) fn toy_kind(&self) -> Option<&str> {
+        let kinds = &self.facts.toy_kinds;
+        (!kinds.is_empty()).then(|| kinds[self.toy_kind % kinds.len()].as_str())
+    }
+
+    /// Keep the Lights page's chosen rows on show.
+    pub(crate) fn settle_light_lists(&mut self) {
+        Self::settle(
+            &mut self.light_row,
+            &mut self.light_first,
+            self.facts.lights.len(),
+            LIGHT_ROWS,
+        );
+        Self::settle(
+            &mut self.lamp_row,
+            &mut self.lamp_first,
+            self.facts.lamps.len(),
+            LIGHT_ROWS,
+        );
+    }
+
+    fn is_light_row(&self, token: u16) -> bool {
+        (LIGHT_ROW..LIGHT_ROW + LIGHT_ROWS as u16).contains(&token)
+    }
+
+    fn is_lamp_row(&self, token: u16) -> bool {
+        (LAMP_ROW..LAMP_ROW + LIGHT_ROWS as u16).contains(&token)
     }
 
     /// Keep `row` of `count` rows on show in a list of `rows` from `first`.
@@ -834,12 +1144,30 @@ impl Panel {
                     EDIT_ROW,
                 )
             } else if self.is_shader_row(self.focus) || self.focus == REMAP_FIELD {
+                return self.move_in_shaders(by, typing);
+            } else if self.is_light_row(self.focus) {
                 (
-                    &mut self.shader_row,
-                    &mut self.shader_first,
-                    self.shader_shown.len(),
-                    SHADER_ROWS,
-                    SHADER_ROW,
+                    &mut self.light_row,
+                    &mut self.light_first,
+                    self.facts.lights.len(),
+                    LIGHT_ROWS,
+                    LIGHT_ROW,
+                )
+            } else if self.is_lamp_row(self.focus) {
+                (
+                    &mut self.lamp_row,
+                    &mut self.lamp_first,
+                    self.facts.lamps.len(),
+                    LIGHT_ROWS,
+                    LAMP_ROW,
+                )
+            } else if self.is_thing_row(self.focus) {
+                (
+                    &mut self.thing_row,
+                    &mut self.thing_first,
+                    self.facts.things.len(),
+                    THING_ROWS,
+                    THING_ROW,
                 )
             } else {
                 return false;
@@ -856,6 +1184,31 @@ impl Panel {
         true
     }
 
+    /// [`Panel::move_in_list`] in the shader list: `by` shaders.
+    pub(crate) fn move_in_shaders(&mut self, by: isize, typing: bool) -> bool {
+        let count = self.shader_shown.len();
+        let wanted = self.shader_row.saturating_add_signed(by);
+        if count == 0 || wanted >= count || (by < 0 && self.shader_row < by.unsigned_abs()) {
+            return typing;
+        }
+        self.shader_row = wanted;
+        self.settle_shaders();
+        if !typing {
+            self.focus = SHADER_ROW + (self.shader_row - self.shader_first) as u16;
+        }
+        true
+    }
+
+    /// Up or Down: a line of the list the keyboard is on (a tile line is several).
+    pub(crate) fn move_line(&mut self, forward: bool) -> bool {
+        let per_line = if self.is_shader_row(self.focus) || self.focus == REMAP_FIELD {
+            self.shader_slots().1 as isize
+        } else {
+            1
+        };
+        self.move_in_list(if forward { per_line } else { -per_line })
+    }
+
     fn is_model_row(&self, token: u16) -> bool {
         (MODEL_ROW..MODEL_ROW + MODEL_ROWS as u16).contains(&token)
     }
@@ -865,7 +1218,7 @@ impl Panel {
     }
 
     fn is_shader_row(&self, token: u16) -> bool {
-        (SHADER_ROW..SHADER_ROW + SHADER_ROWS as u16).contains(&token)
+        (SHADER_ROW..SHADER_ROW + self.shader_slots().0 as u16).contains(&token)
     }
 
     /// Up, Down or Tab: along a list, else the next control in the drawn order.
@@ -875,7 +1228,7 @@ impl Panel {
 
     /// [`Panel::step`]; `along` false (Tab in a search) leaves at once.
     fn step_by(&mut self, canvas: &mut MenuCanvas, forward: bool, along: bool) {
-        if along && self.move_in_list(if forward { 1 } else { -1 }) {
+        if along && self.move_line(forward) {
             return;
         }
         let direction = if forward {
@@ -893,6 +1246,12 @@ impl Panel {
             } else if self.is_shader_row(token) {
                 self.focus =
                     SHADER_ROW + (self.shader_row.saturating_sub(self.shader_first)) as u16;
+            } else if self.is_light_row(token) {
+                self.focus = LIGHT_ROW + (self.light_row.saturating_sub(self.light_first)) as u16;
+            } else if self.is_lamp_row(token) {
+                self.focus = LAMP_ROW + (self.lamp_row.saturating_sub(self.lamp_first)) as u16;
+            } else if self.is_thing_row(token) {
+                self.focus = THING_ROW + (self.thing_row.saturating_sub(self.thing_first)) as u16;
             }
         }
     }
@@ -908,12 +1267,25 @@ impl Panel {
             })
         };
         let lines = if delta.y > 0.0 { -3 } else { 3 };
+        if inside(self.shader_list) {
+            let (slots, per_line) = self.shader_slots();
+            let step = if per_line > 1 { per_line as isize } else { 3 };
+            let step = if delta.y > 0.0 { -step } else { step };
+            let count = self.shader_shown.len();
+            let last = count.div_ceil(per_line).saturating_sub(slots / per_line) * per_line;
+            self.shader_first = self.shader_first.saturating_add_signed(step).min(last);
+            return true;
+        }
         let (first, count, rows) = if inside(self.model_list) {
             (&mut self.model_first, self.shown.len(), MODEL_ROWS)
+        } else if inside(self.light_list) {
+            (&mut self.light_first, self.facts.lights.len(), LIGHT_ROWS)
+        } else if inside(self.lamp_list) {
+            (&mut self.lamp_first, self.facts.lamps.len(), LIGHT_ROWS)
+        } else if inside(self.thing_list) {
+            (&mut self.thing_first, self.facts.things.len(), THING_ROWS)
         } else if inside(self.edit_list) {
             (&mut self.edit_first, self.facts.rows.len(), EDIT_ROWS)
-        } else if inside(self.shader_list) {
-            (&mut self.shader_first, self.shader_shown.len(), SHADER_ROWS)
         } else {
             return false;
         };
@@ -934,7 +1306,13 @@ impl Panel {
         let token = event.token?;
         if matches!(event.kind, UiEventKind::Hover | UiEventKind::HoverEnter) {
             // Hovering a list's row does not choose it; a click does.
-            if !self.is_model_row(token) && !self.is_edit_row(token) && !self.is_shader_row(token) {
+            if !self.is_model_row(token)
+                && !self.is_edit_row(token)
+                && !self.is_shader_row(token)
+                && !self.is_light_row(token)
+                && !self.is_lamp_row(token)
+                && !self.is_thing_row(token)
+            {
                 self.focus = token;
             }
             return None;
@@ -953,6 +1331,42 @@ impl Panel {
             TAB_PLACE => self.show(Tab::Place),
             TAB_EDITS => self.show(Tab::Edits),
             TAB_WEATHER => self.show(Tab::Weather),
+            TAB_LIGHTS => self.show(Tab::Lights),
+            brushes if (BRUSHES..BRUSHES + 4).contains(&brushes) => {
+                return Some(Action::Brushes(Some(
+                    BrushPreset::ALL[usize::from(brushes - BRUSHES)],
+                )));
+            }
+            LIGHT_ADD => return Some(Action::LightAdd),
+            LIGHT_AT_VIEW => return Some(Action::LightAtView),
+            LIGHT_DELETE => return Some(Action::LightDelete),
+            LIGHT_SMALLER => {
+                return Some(Action::LightRadius(1.0 / super::panel_lights::STEP));
+            }
+            LIGHT_BIGGER => return Some(Action::LightRadius(super::panel_lights::STEP)),
+            LIGHT_DIMMER => {
+                return Some(Action::LightIntensity(1.0 / super::panel_lights::STEP));
+            }
+            LIGHT_BRIGHTER => return Some(Action::LightIntensity(super::panel_lights::STEP)),
+            LAMP_TOGGLE => return Some(Action::LampToggle),
+            LAMP_RESET => return Some(Action::LampReset),
+            swatch if (LIGHT_SWATCH..LIGHT_SWATCH + 8).contains(&swatch) => {
+                return Some(Action::LightColour(usize::from(swatch - LIGHT_SWATCH)));
+            }
+            row if self.is_light_row(row) => {
+                let index = self.light_first + usize::from(row - LIGHT_ROW);
+                if index < self.facts.lights.len() {
+                    self.light_row = index;
+                    self.light_choice = super::panel_lights::LightChoice::Light;
+                }
+            }
+            row if self.is_lamp_row(row) => {
+                let index = self.lamp_first + usize::from(row - LAMP_ROW);
+                if index < self.facts.lamps.len() {
+                    self.lamp_row = index;
+                    self.light_choice = super::panel_lights::LightChoice::Lamp;
+                }
+            }
             WEATHER_DRIZZLE => return Some(Action::Weather(WeatherChoice::Preset(1))),
             WEATHER_RAIN => return Some(Action::Weather(WeatherChoice::Preset(2))),
             WEATHER_STORM => return Some(Action::Weather(WeatherChoice::Preset(3))),
@@ -970,6 +1384,7 @@ impl Panel {
             LINK_PLANE => return Some(Action::Link(Grow::Plane)),
             LINK_SURFACE => return Some(Action::Link(Grow::Surface)),
             FILL => return Some(Action::Fill),
+            TILES => self.toggle_tiles(),
             REMEMBER => return Some(Action::Remember),
             FORGET => return Some(Action::Forget),
             PLACE | SEARCH => return Some(Action::Place),
@@ -1005,8 +1420,28 @@ impl Panel {
             BIGGER => return Some(Action::Scale(GROW)),
             GRAB => return Some(Action::Grab),
             REMOVE => return Some(Action::Remove),
-            BOX_PLACE => return Some(Action::BoxPlace),
-            BOX_REMOVE => return Some(Action::BoxRemove),
+            PLACE_THINGS | PLACE_MODELS => {
+                self.things = token == PLACE_THINGS;
+                self.placing_thing = None;
+                self.focus = if self.things {
+                    PLACE_MODELS
+                } else {
+                    PLACE_THINGS
+                };
+                self.seen = None;
+            }
+            THING_BOOMBOX => return Some(Action::PlaceThing(super::web::http::Thing::Boombox)),
+            THING_BOX => return Some(Action::PlaceThing(super::web::http::Thing::MysteryBox)),
+            THING_TOY => return Some(Action::PlaceThing(super::web::http::Thing::Toy)),
+            THING_KIND => return Some(Action::ThingKind),
+            THING_ESCORT => return Some(Action::ThingEscort),
+            THING_REMOVE => return Some(Action::ThingRemove),
+            row if self.is_thing_row(row) => {
+                let index = self.thing_first + usize::from(row - THING_ROW);
+                if index < self.facts.things.len() {
+                    self.thing_row = index;
+                }
+            }
             DELETE => return Some(Action::Delete),
             UNDO => return Some(Action::Undo),
             REDO => return Some(Action::Redo),
@@ -1086,7 +1521,7 @@ impl Panel {
             KeyCode::ArrowLeft | KeyCode::ArrowRight if !event.repeat => {
                 let right = key == KeyCode::ArrowRight;
                 match self.focus {
-                    TAB_SELECTED | TAB_PLACE | TAB_EDITS | TAB_WEATHER => {
+                    TAB_SELECTED | TAB_PLACE | TAB_EDITS | TAB_WEATHER | TAB_LIGHTS => {
                         let tabs = Tab::ALL;
                         let count = tabs.len();
                         let at = tabs.iter().position(|tab| *tab == self.tab).unwrap_or(0);
@@ -1096,6 +1531,10 @@ impl Panel {
                             (at + count - 1) % count
                         };
                         self.show(tabs[next]);
+                    }
+                    focus if self.tiles && (self.is_shader_row(focus) || focus == REMAP_FIELD) => {
+                        let typing = focus == REMAP_FIELD;
+                        let _ = self.move_in_shaders(if right { 1 } else { -1 }, typing);
                     }
                     SCOPE_ALL | SCOPE_SERVER => {
                         self.focus = if right { SCOPE_SERVER } else { SCOPE_ALL };
@@ -1114,8 +1553,28 @@ impl Panel {
             KeyCode::KeyZ if control && shift && !event.repeat => return Some(Action::Redo),
             KeyCode::KeyZ if control && !event.repeat => return Some(Action::Undo),
             KeyCode::KeyY if control && !event.repeat => return Some(Action::Redo),
+            KeyCode::KeyC | KeyCode::KeyV
+                if control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(if key == KeyCode::KeyC {
+                    Action::ClipCopy
+                } else {
+                    Action::ClipPaste
+                });
+            }
+            KeyCode::KeyB
+                if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(Action::Brushes(None));
+            }
             KeyCode::Delete if self.is_edit_row(self.focus) && !event.repeat => {
                 return Some(Action::Delete);
+            }
+            KeyCode::Delete
+                if (self.is_light_row(self.focus) || self.is_lamp_row(self.focus))
+                    && !event.repeat =>
+            {
+                return Some(Action::LightDelete);
             }
             _ => {
                 let search = self.focus == SEARCH;
@@ -1258,6 +1717,16 @@ impl GpuState {
     /// grabbed model.
     pub(crate) fn map_edit_pointer(&mut self, event: InputEvent) {
         let scene_right = self.map_edits.panel.scene_right;
+        // The preview card stands over the scene's edge: a press on it is the panel's.
+        if let InputEvent::PointerPress { position, .. } = event
+            && self
+                .map_edits
+                .panel
+                .preview_rect
+                .is_some_and(|rect| rect.contains(position))
+        {
+            return;
+        }
         // A grabbed model under the pointer: a click puts it down, before its gizmo.
         if let InputEvent::PointerPress {
             position,
@@ -1293,6 +1762,21 @@ impl GpuState {
                 button: PointerButton::Primary,
             } if position.x < scene_right => {
                 let point = [position.x, position.y];
+                if self.map_edits.panel.adding_light {
+                    self.map_edit_light_add_at(point);
+                    return;
+                }
+                if let Some(thing) = self.map_edits.panel.placing_thing {
+                    self.map_edit_thing_at(thing, point);
+                    return;
+                }
+                if self.map_edits.panel.tab == Tab::Lights
+                    && let Some((choice, index)) =
+                        self.map_edit_marker_at(glam::Vec2::new(position.x, position.y))
+                {
+                    self.map_edit_choose_light(choice, index);
+                    return;
+                }
                 if shift {
                     let toggled = self.map_edit_toggle_pick(Some(point));
                     self.map_edit_toggled(toggled);
@@ -1339,10 +1823,112 @@ impl GpuState {
             action => action,
         };
         let (name, args): (&str, Vec<String>) = match action {
+            Action::Escape if self.map_edits.panel.adding_light => {
+                let panel = &mut self.map_edits.panel;
+                panel.adding_light = false;
+                panel.answer(Ok(vec!["Stopped adding a light".into()]));
+                return;
+            }
+            Action::Escape if self.map_edits.panel.placing_thing.is_some() => {
+                let panel = &mut self.map_edits.panel;
+                panel.placing_thing = None;
+                panel.answer(Ok(vec!["Stopped placing".into()]));
+                return;
+            }
+            Action::PlaceThing(thing) => {
+                let panel = &mut self.map_edits.panel;
+                let again = panel.placing_thing == Some(thing);
+                panel.placing_thing = (!again).then_some(thing);
+                panel.answer(Ok(vec![if again {
+                    "Stopped placing".to_owned()
+                } else {
+                    "Click the floor where it should stand (Esc stops)".to_owned()
+                }]));
+                return;
+            }
+            Action::ThingKind => {
+                let panel = &mut self.map_edits.panel;
+                panel.toy_kind = panel.toy_kind.wrapping_add(1);
+                let line = match panel.toy_kind() {
+                    Some(kind) => format!("Toy placed next: {kind}"),
+                    None => "The hub names no toy kind yet".to_owned(),
+                };
+                panel.answer(Ok(vec![line]));
+                return;
+            }
+            Action::ThingEscort => {
+                let panel = &mut self.map_edits.panel;
+                panel.escort = !panel.escort;
+                panel.answer(Ok(vec![if panel.escort {
+                    "Toys placed next are shown only where you are".to_owned()
+                } else {
+                    "Toys placed next are shown to everyone".to_owned()
+                }]));
+                return;
+            }
+            Action::ClipCopy | Action::ClipPaste => {
+                let result = if action == Action::ClipCopy {
+                    self.map_edit_copy()
+                } else {
+                    self.map_edit_paste()
+                };
+                let panel = &mut self.map_edits.panel;
+                panel.answer(result);
+                panel.stale();
+                return;
+            }
+            Action::Brushes(preset) => {
+                let preset =
+                    preset.unwrap_or_else(|| BrushPreset::next(self.map_edits.panel.facts.brushes));
+                let (mode, types) = preset.cvars();
+                if let Some(console) = self.console.as_mut() {
+                    console.set_cvar(crate::brush_view::CVAR, mode);
+                    console.set_cvar(crate::brush_view::TYPES_CVAR, types);
+                }
+                let panel = &mut self.map_edits.panel;
+                panel.facts.brushes = Some(preset);
+                panel.answer(Ok(vec![match preset {
+                    BrushPreset::Off => "Invisible brushes hidden (r_showBrushes 0)".to_owned(),
+                    BrushPreset::Play => {
+                        "Invisible brushes: what play feels (r_showBrushes 1)".to_owned()
+                    }
+                    BrushPreset::Caulk => {
+                        format!("Invisible brushes: {CAULK_KINDS} (B for the next view)")
+                    }
+                    BrushPreset::All => {
+                        "Invisible brushes: every kind (r_showBrushes 2)".to_owned()
+                    }
+                }]));
+                return;
+            }
+            Action::ThingRemove => {
+                let Some(row) = self.map_edits.panel.chosen_thing().cloned() else {
+                    self.map_edits
+                        .panel
+                        .answer(Err("Choose a thing in the list first".into()));
+                    return;
+                };
+                let result = self.map_edit_web_remove_thing(row.thing, row.id);
+                let panel = &mut self.map_edits.panel;
+                panel.answer(result);
+                panel.stale();
+                return;
+            }
             Action::Escape => {
                 self.map_edit_escape();
                 return;
             }
+            Action::LightAdd
+            | Action::LightAtView
+            | Action::LightDelete
+            | Action::LightRadius(_)
+            | Action::LightIntensity(_)
+            | Action::LightColour(_)
+            | Action::LampToggle
+            | Action::LampReset => match self.map_edit_light_action(action) {
+                Some(command) => command,
+                None => return,
+            },
             Action::Remember | Action::Forget => {
                 let remember =
                     (action == Action::Remember).then_some(!self.map_edits.panel.remember);
@@ -1352,18 +1938,6 @@ impl GpuState {
                     Some(false) => "Recent textures and models are not remembered".to_owned(),
                     None => "Recent textures and models forgotten".to_owned(),
                 }]));
-                return;
-            }
-            Action::BoxPlace | Action::BoxRemove => {
-                let (name, args) = match action {
-                    Action::BoxPlace => match self.map_edits.editor.scope() {
-                        Scope::ThisServer => ("mysterybox_place", text(&["server"])),
-                        Scope::AllServers => ("mysterybox_place", vec![]),
-                    },
-                    _ => ("mysterybox_remove", vec![]),
-                };
-                let result = self.mystery_box_command(name, &args);
-                self.map_edits.panel.answer(result);
                 return;
             }
             Action::Hide => ("mapedit_hide", vec![]),
@@ -1390,7 +1964,10 @@ impl GpuState {
             Action::Unremap => ("mapedit_remap", text(&["-"])),
             Action::Link(Grow::Plane) => ("mapedit_link", text(&["plane"])),
             Action::Link(Grow::Surface) => ("mapedit_link", text(&["surface"])),
-            Action::Fill => ("mapedit_fill", vec![]),
+            Action::Fill => match self.map_edits.panel.fill_choice() {
+                Some(shader) => ("mapedit_fill", vec![shader.to_owned()]),
+                None => ("mapedit_fill", vec![]),
+            },
             Action::SkyAll => {
                 let panel = &mut self.map_edits.panel;
                 let Some(sky) = panel.chosen_shader().filter(|_| panel.chosen_is_sky()) else {
@@ -1528,6 +2105,48 @@ impl GpuState {
         panel.stale();
     }
 
+    /// How many things stand on the map while Place shows them (0 otherwise): the facts
+    /// are read again when it changes.
+    fn map_edit_things_stamp(&self) -> usize {
+        let panel = &self.map_edits.panel;
+        if panel.tab != Tab::Place || !panel.things {
+            return 0;
+        }
+        1 + self.boombox.standing().len()
+            + self.mystery_boxes.standing().len()
+            + self.toy_master.hidden().count()
+    }
+
+    /// A click on the scene while placing a thing: stand it where the click's ray meets
+    /// the floor, facing the view, through its own code as the page does.
+    fn map_edit_thing_at(&mut self, thing: super::web::http::Thing, point: [f32; 2]) {
+        let Some(view) = self.map_edit_view() else {
+            return;
+        };
+        let ray = view.ray(glam::Vec2::from_array(point));
+        let panel = &self.map_edits.panel;
+        let kind = panel.toy_kind().unwrap_or_default().to_owned();
+        let one_server = self.map_edits.editor.scope() == Scope::ThisServer;
+        let escort = panel.escort;
+        let result = self.map_edit_web_place_thing(
+            thing,
+            [
+                ray.origin.to_array(),
+                ray.dir.to_array(),
+                view.forward.to_array(),
+            ],
+            &kind,
+            one_server,
+            escort,
+        );
+        let panel = &mut self.map_edits.panel;
+        if result.is_ok() {
+            panel.placing_thing = None;
+        }
+        panel.answer(result);
+        panel.stale();
+    }
+
     /// The world offset of a nudge `right` of the view and `away` from it, along the
     /// world axes nearest those directions (a map's walls mostly follow them), so steps
     /// add up straight.
@@ -1571,7 +2190,7 @@ impl GpuState {
 
     /// Select what is under `point` (physical pixels) for the editor; whether something
     /// was.
-    fn map_edit_pick_at(&mut self, point: [f32; 2]) -> bool {
+    pub(super) fn map_edit_pick_at(&mut self, point: [f32; 2]) -> bool {
         let map = crate::remap_blocked_maps::map_name(&self.world_load_map).to_owned();
         let picked = self.world_notes.select_for_edit_at(
             crate::world_notes::Scene {
@@ -1600,6 +2219,8 @@ impl GpuState {
             self.map_edits.map().is_some(),
             self.free_camera_active(),
             self.map_edit_flying(),
+            self.map_edits.panel.tab,
+            self.map_edit_things_stamp(),
         );
         if self.map_edits.panel.seen == Some(key) {
             return;
@@ -1625,18 +2246,22 @@ impl GpuState {
         // What Fill would draw, voted again only when the selected faces change.
         let faces = self.map_edit_selected_faces();
         if faces != self.map_edits.panel.fill_for {
-            let fill = if faces.is_empty() {
-                None
+            let candidates: Vec<(String, f32)> = if faces.is_empty() {
+                Vec::new()
             } else {
                 self.map_edit_vote(&faces)
                     .into_iter()
-                    .next()
-                    .map(|top| (top.shader, top.share))
+                    .take(FILL_CANDIDATES)
+                    .map(|candidate| (candidate.shader, candidate.share))
+                    .collect()
             };
-            self.map_edits.panel.facts.fill = fill;
-            self.map_edits.panel.fill_for = faces;
+            let panel = &mut self.map_edits.panel;
+            panel.facts.fill = candidates.first().cloned();
+            panel.facts.fill_candidates = candidates;
+            panel.fill_for = faces;
         }
         let fill = self.map_edits.panel.facts.fill.clone();
+        let fill_candidates = self.map_edits.panel.facts.fill_candidates.clone();
         let count = self.world_notes.edit_selection_len();
         let models = self.map_edit_set_ids().len();
         let camera = if self.live_session.is_some() && !self.free_camera_active() {
@@ -1678,6 +2303,32 @@ impl GpuState {
             Some((kept.to_vec(), own))
         });
         let map_weather = self.weather.map_commands().to_vec();
+        let lights =
+            super::panel_lights::light_rows(self.map_edits.document.as_ref(), server.as_deref());
+        let lamps = if self.map_edits.panel.tab == Tab::Lights {
+            let view = self.world_notes.view().map(|(eye, _)| eye);
+            self.map_edit_lamp_rows(view)
+        } else {
+            Vec::new()
+        };
+        let realtime = self.context.sun_shadows.day.enabled;
+        let place_things = self.map_edits.panel.tab == Tab::Place && self.map_edits.panel.things;
+        let things = if place_things {
+            self.map_edit_thing_rows()
+        } else {
+            Vec::new()
+        };
+        let toy_kinds = self.toy_master.kinds().to_vec();
+        let on_server = self.map_edits_server().is_some();
+        let creator = crate::player_identity::is_creator();
+        let brushes = self.console.as_ref().and_then(|console| {
+            BrushPreset::of(
+                console.integer_cvar(crate::brush_view::CVAR).unwrap_or(0),
+                console
+                    .text_value(crate::brush_view::TYPES_CVAR)
+                    .unwrap_or(""),
+            )
+        });
         let forced = self.context.weather.force() != 0;
         let hub_problem = match &state.hub_note {
             Some(Err(problem)) => Some(problem.clone()),
@@ -1697,6 +2348,7 @@ impl GpuState {
             count,
             models,
             fill,
+            fill_candidates,
             camera,
             flying,
             exit_key,
@@ -1712,10 +2364,32 @@ impl GpuState {
             weather,
             map_weather,
             forced,
+            lights,
+            lamps,
+            realtime,
+            things,
+            toy_kinds,
+            on_server,
+            creator,
+            brushes,
         };
         let vfs = self.vfs.clone();
         let panel = &mut self.map_edits.panel;
         panel.facts = facts;
+        if std::mem::take(&mut panel.choose_newest_light)
+            && let Some(newest) =
+                (0..panel.facts.lights.len()).max_by_key(|&i| panel.facts.lights[i].id)
+        {
+            panel.light_row = newest;
+            panel.light_choice = super::panel_lights::LightChoice::Light;
+        }
+        panel.settle_light_lists();
+        Panel::settle(
+            &mut panel.thing_row,
+            &mut panel.thing_first,
+            panel.facts.things.len(),
+            THING_ROWS,
+        );
         panel.set_recent(&recent);
         Panel::settle(
             &mut panel.edit_row,
@@ -1748,24 +2422,35 @@ impl GpuState {
                 model,
                 shader,
             } => {
-                let picked = if self.map_edits.placed_edit(number, lump).is_some() {
+                let placed = self.map_edits.placed_edit(number, lump);
+                let picked = if placed.is_some() {
                     Picked::Placed
                 } else if self.static_models.is_prop(number as u32) {
                     Picked::Prop
                 } else {
                     Picked::Entity
                 };
-                let class = if picked == Picked::Placed {
-                    "placed by an edit"
-                } else {
-                    classname.as_str()
+                // The page's summary: the edit and where it stands, or the entity.
+                let class = match placed {
+                    Some(id) => {
+                        let at = self
+                            .map_edits
+                            .placements(&[id])
+                            .first()
+                            .map(|placed| placed.origin.round().to_array());
+                        match at {
+                            Some([x, y, z]) => format!("edit {id}, at {x} {y} {z}"),
+                            None => format!("edit {id}"),
+                        }
+                    }
+                    None => format!("{classname}, entity {number}"),
                 };
                 Selected {
                     picked,
                     name: model,
                     detail: match &shader {
                         Some(shader) => format!("{shader}, {class}"),
-                        None => class.to_owned(),
+                        None => class,
                     },
                     shader,
                 }
@@ -1774,19 +2459,40 @@ impl GpuState {
                 index,
                 shader,
                 kind,
-            } => Selected {
-                picked: Picked::Surface {
-                    soup: self
-                        .bsp
-                        .render()
-                        .surfaces()
-                        .get(index)
-                        .is_some_and(|surface| surface.kind == sjk_bsp::SurfaceKind::TriangleSoup),
-                },
-                name: shader.clone(),
-                detail: format!("surface {index}, {kind}"),
-                shader: Some(shader),
-            },
+            } => {
+                let soup = self
+                    .bsp
+                    .render()
+                    .surfaces()
+                    .get(index)
+                    .is_some_and(|surface| surface.kind == sjk_bsp::SurfaceKind::TriangleSoup);
+                // The page's summary: the remap it is drawn with, the whole model's size.
+                let server = self.map_edits_server();
+                let remapped = self.map_edits.document.as_ref().and_then(|document| {
+                    document
+                        .active(server.as_deref())
+                        .find_map(|edit| match &edit.kind {
+                            Kind::Remap { from, to } if from.eq_ignore_ascii_case(&shader) => {
+                                Some(to.clone())
+                            }
+                            _ => None,
+                        })
+                });
+                let mut detail = format!("surface {index}, {kind}");
+                if soup {
+                    let group = self.map_edit_hide_group(index).len();
+                    detail.push_str(&format!(", whole model {group} surfaces"));
+                }
+                if let Some(to) = remapped {
+                    detail.push_str(&format!("; drawn as {to}"));
+                }
+                Selected {
+                    picked: Picked::Surface { soup },
+                    name: shader.clone(),
+                    detail,
+                    shader: Some(shader),
+                }
+            }
             EditTarget::Face {
                 brush,
                 side,
@@ -1874,11 +2580,26 @@ impl GpuState {
         self.map_edits.panel.stale();
     }
 
+    /// The world shots: where the gizmo stands on the Lights page's chosen light or lamp.
+    pub(crate) fn shot_light_target(&self) -> Option<glam::Vec3> {
+        self.map_edit_light_target()
+            .map(|(_, placement)| placement.origin)
+    }
+
     /// The world shots: a Shift+click at `point` (physical pixels).
     pub(crate) fn shot_map_edit_toggle(&mut self, point: [f32; 2]) -> crate::world_notes::Toggled {
         let toggled = self.map_edit_toggle_pick(Some(point));
         self.map_edit_toggled(toggled);
         toggled
+    }
+
+    /// The world shots: type `query` in the Selected page's shader search.
+    pub(crate) fn shot_map_edit_remap_search(&mut self, query: &str) {
+        let panel = &mut self.map_edits.panel;
+        panel.remap = query.to_owned();
+        panel.refilter_shaders();
+        panel.shader_row = 2;
+        panel.focus = REMAP_FIELD;
     }
 
     /// The world shots: type `query` in the Place page's search.

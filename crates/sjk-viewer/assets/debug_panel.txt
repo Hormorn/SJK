@@ -33,6 +33,23 @@ test: Character page: pick an RGB model, set a dark colour (60 30 30): stage sho
 test: Online, look at a player on an RGB model: colour matches what they see in EJK.
 test: Force shells (protect, absorb) and pickups look as before.
 
+[mapedit-ingame-pictures-lights]
+area: Menus & settings
+title: Map editor panel: texture pictures, tiles, Lights page, things, brushes, copy and paste
+change: Selected's shader list shows each texture's picture, Tiles shows 21 at once, and a card
+change: left of the panel shows the one under the pointer large beside what is drawn now.
+change: A Lights page, Place > Things, Edits > Invisible brushes (B), Ctrl+C and Ctrl+V.
+test: mapedit, click a wall: each shader row has its picture; the card shows the chosen one large.
+test: Hover rows: the card follows; Tiles: 21 pictures, arrows move by tile and line, wheel a line.
+test: Click a caulk face: the list starts with nearby textures and their %; Fill draws the chosen.
+test: Lights: Add: click, click a wall: a bulb appears, chosen; swatches, Bigger, Brighter change it.
+test: G on the chosen light, X 32 Enter: it moves 32 units; R says lights only move; Ctrl+Z undoes.
+test: On Experimental, choose a lamp, Turn off: its square greys, "(on reload)"; vid_restart force.
+test: Place > Things: Your boombox, click the floor: it stands there; Remove takes it back.
+test: Edits > Invisible brushes Caulk (or B): caulk, nodraw and invisible walls show; Off hides.
+test: Select a placed model, Ctrl+C, point elsewhere, Ctrl+V: a copy with its turn and scale.
+test: Close the panel (mapedit): no cost left; reopen: the pictures load again.
+
 [lamp-cache-budget]
 area: Rendering & effects
 title: Door and lift shadows on lamp light no longer cost a frame-time spike

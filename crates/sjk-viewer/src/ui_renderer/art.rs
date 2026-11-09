@@ -300,6 +300,10 @@ pub(super) enum Source {
     News(u8),
     /// The Collection's live blade pictures, added over what is below.
     BladePictures,
+    /// The map editor's shader thumbnails.
+    MapEditCells,
+    /// The map editor's large shader preview.
+    MapEditPreview,
 }
 
 impl Source {

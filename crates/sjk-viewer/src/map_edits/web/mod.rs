@@ -13,7 +13,7 @@
 pub(crate) mod caulk;
 pub(crate) mod http;
 pub(crate) mod page;
-mod things;
+pub(crate) mod things;
 
 pub(crate) use caulk::Cache;
 
@@ -498,7 +498,7 @@ pub(crate) fn sky_list(
 
 /// The picture of sky shader `name`: its box's front image (`<box>_ft`), else the image
 /// its first stage draws.
-fn sky_picture(
+pub(crate) fn sky_picture(
     vfs: &sjk_vfs::VirtualFileSystem,
     catalog: &sjk_shader::ShaderCatalog,
     name: &str,

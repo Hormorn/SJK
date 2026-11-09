@@ -2645,6 +2645,7 @@ impl GpuState {
                     target,
                     viewport,
                 );
+                self.map_edit_pictures_frame();
             } else if view.page == GameMenuPage::Shot && !self.in_game_menu.is_sjk() {
                 // Camera control has only the SJK UI's look, in every menu style.
                 let target = ingame_menu::sjk_view::text_target(
