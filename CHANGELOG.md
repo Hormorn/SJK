@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Lights in map edits: the map editor in the page (`mapedit_web`) adds, moves and recolours lights that every SJK player sees on every preset, and turns the map's own lamps off or moves them (Experimental preset only); baked light stays as it is _(Sol)_
 - Frame timings, to see what each graphics setting costs: Settings > HUD "Frame timings" (`r_drawTimings`, off by default) shows a panel on the left with the milliseconds the graphics card spends on each part of the frame (1), and the processor's too (2); "Log frame timings" (`r_logTimings`) writes them every second to logs/timings.log with your graphics settings and each change to them _(Sol)_
 
 ## 2026.1109.1 (Alpha) | 09/11/2026
