@@ -552,6 +552,8 @@ impl Group {
                 crate::world_ping::SHOW_CVAR,
                 crate::world_ping::SOUND_CVAR,
                 "cg_drawFps",
+                crate::frame_timings::DRAW_CVAR,
+                crate::frame_timings::LOG_CVAR,
                 "cg_drawTimer",
                 "cg_drawTimerUpperRight",
                 "cg_drawTeamScores",

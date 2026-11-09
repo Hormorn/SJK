@@ -1,7 +1,9 @@
 //! Per-pass GPU timing of the main frame: timestamps between the encoder's sections,
 //! resolved on a sampled frame. They are printed with the frame-budget report
-//! (`SJK_FRAME_BUDGET` or `SJK_GPU_PHASES`), and kept for the low-FPS help
-//! ([`crate::fps_help`]) while it watches. Neither on, nothing is encoded.
+//! (`SJK_FRAME_BUDGET` or `SJK_GPU_PHASES`), kept for the low-FPS help
+//! ([`crate::fps_help`]) while it watches, and handed section by section to the frame
+//! timings readout and log ([`crate::frame_timings`]) while they run. None on, nothing
+//! is encoded.
 use std::cell::{Cell, RefCell};
 use std::sync::{
     Arc,
@@ -10,8 +12,12 @@ use std::sync::{
 
 const CAPACITY: u32 = 32;
 
-/// Frames between sampled frames; the readback of one must finish before the next.
+/// Frames between sampled frames for the report and the low-FPS help; the readback of
+/// one must finish before the next.
 const INTERVAL: u32 = 32;
+/// Frames between sampled frames while the frame timings run ([`Profiler::show`]):
+/// every frame whose previous readback has landed, about one in two or three.
+const SHOWN_INTERVAL: u32 = 1;
 
 /// Timestamp features when the adapter has them; requesting them costs nothing.
 pub(crate) fn features(adapter: &wgpu::Adapter) -> wgpu::Features {
@@ -40,6 +46,16 @@ pub(crate) struct Profiler {
     watch: Cell<bool>,
     /// The last sampled frame's times, until taken.
     sample: Cell<Option<Sample>>,
+    /// The frame timings readout or log wants every section's time.
+    shown: Cell<bool>,
+    /// The frame being sampled, and the last one sampled at [`INTERVAL`]'s pace for the
+    /// report and the low-FPS help, which keep that pace while the timings run.
+    sampled: Cell<u32>,
+    paced: Cell<u32>,
+    /// The last sampled frame's sections and their milliseconds, in frame order, and
+    /// the whole frame's, until taken ([`Profiler::take_sections`]).
+    sections: RefCell<Vec<(&'static str, f32)>>,
+    sections_total: Cell<Option<f32>>,
 }
 
 /// One sampled frame's GPU time.
@@ -97,6 +113,11 @@ impl Profiler {
             print,
             watch: Cell::new(false),
             sample: Cell::new(None),
+            shown: Cell::new(false),
+            sampled: Cell::new(0),
+            paced: Cell::new(0),
+            sections: RefCell::new(Vec::with_capacity(CAPACITY as usize)),
+            sections_total: Cell::new(None),
         })
     }
 
@@ -113,18 +134,44 @@ impl Profiler {
         self.sample.take()
     }
 
-    /// Start a frame; every `INTERVAL`th frame without a readback in flight is sampled,
-    /// while printing or watched.
+    /// Sample frames for [`Self::take_sections`] as often as the readbacks allow
+    /// (`true`), or stop.
+    pub(crate) fn show(&self, on: bool) {
+        self.shown.set(on);
+        if !on {
+            self.sections_total.set(None);
+        }
+    }
+
+    /// The last sampled frame's sections, once: `each` gets every section's name and
+    /// milliseconds in frame order (a name can come twice), and the whole frame's
+    /// milliseconds are returned.
+    pub(crate) fn take_sections(&self, mut each: impl FnMut(&'static str, f32)) -> Option<f32> {
+        let total = self.sections_total.take()?;
+        for &(name, ms) in self.sections.borrow().iter() {
+            each(name, ms);
+        }
+        Some(total)
+    }
+
+    /// Start a frame. Without a readback in flight, every `INTERVAL`th frame is sampled
+    /// while printing or watched, and every frame while the timings run.
     pub(crate) fn begin(&self, encoder: &mut wgpu::CommandEncoder) {
         let frame = self.frame.get().wrapping_add(1);
         self.frame.set(frame);
-        let active = (self.print || self.watch.get())
-            && frame.is_multiple_of(INTERVAL)
+        let interval = if self.shown.get() {
+            SHOWN_INTERVAL
+        } else {
+            INTERVAL
+        };
+        let active = (self.print || self.watch.get() || self.shown.get())
+            && frame.is_multiple_of(interval)
             && !self.pending.get();
         self.active.set(active);
         if !active {
             return;
         }
+        self.sampled.set(frame);
         self.index.set(0);
         self.names.borrow_mut().clear();
         self.stamp(encoder);
@@ -186,19 +233,38 @@ impl Profiler {
         }
         let names = self.names.borrow();
         let count = names.len() + 1;
-        let stamps: Vec<u64> = {
+        let mut stamps = [0_u64; CAPACITY as usize];
+        {
             let view = self
                 .read
                 .slice(..(count as u64) * 8)
                 .get_mapped_range()
                 .expect("mapped readback range");
-            bytemuck::cast_slice::<u8, u64>(&view).to_vec()
-        };
+            stamps[..count].copy_from_slice(bytemuck::cast_slice::<u8, u64>(&view));
+        }
         self.read.unmap();
         self.pending.set(false);
         let ms = |a: u64, b: u64| {
             b.saturating_sub(a) as f64 * f64::from(self.nanoseconds_per_tick) * 1e-6
         };
+        let total_ms = ms(stamps[0], stamps[count - 1]);
+        if self.shown.get() {
+            let mut sections = self.sections.borrow_mut();
+            sections.clear();
+            sections.extend(
+                names
+                    .iter()
+                    .enumerate()
+                    .map(|(i, name)| (*name, ms(stamps[i], stamps[i + 1]) as f32)),
+            );
+            self.sections_total.set(Some(total_ms as f32));
+        }
+        // The report and the low-FPS help keep their pace while the timings run.
+        let sampled = self.sampled.get();
+        if self.shown.get() && !paced(sampled, self.paced.get()) {
+            return;
+        }
+        self.paced.set(sampled);
         let light_ms = names
             .iter()
             .enumerate()
@@ -207,21 +273,47 @@ impl Profiler {
             .sum::<f64>();
         if self.watch.get() {
             self.sample.set(Some(Sample {
-                frame_ms: ms(stamps[0], stamps[count - 1]) as f32,
+                frame_ms: total_ms as f32,
                 light_ms: light_ms as f32,
             }));
         }
         if !self.print {
             return;
         }
-        let mut line = format!(
-            "gpu-phases frame={} total_ms={:.3}",
-            self.frame.get(),
-            ms(stamps[0], stamps[count - 1])
-        );
+        let mut line = format!("gpu-phases frame={sampled} total_ms={total_ms:.3}");
         for (i, name) in names.iter().enumerate() {
             line.push_str(&format!(" {name}={:.3}", ms(stamps[i], stamps[i + 1])));
         }
         eprintln!("{line}");
+    }
+}
+
+/// Whether frame `sampled` comes [`INTERVAL`] or more frames after `last`, the last
+/// sample the report and the low-FPS help took: they keep that pace whatever else samples.
+fn paced(sampled: u32, last: u32) -> bool {
+    sampled.wrapping_sub(last) >= INTERVAL
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// While the timings sample every frame they can, the report and the low-FPS help
+    /// still take one sample in [`INTERVAL`] frames, across the counter's wrap too.
+    #[test]
+    fn the_report_keeps_its_pace_while_the_timings_sample_more() {
+        let mut last = 0;
+        let taken = (1..=320_u32)
+            .filter(|frame| {
+                let take = paced(*frame, last);
+                if take {
+                    last = *frame;
+                }
+                take
+            })
+            .count();
+        assert_eq!(taken, 10);
+        assert!(paced(5, u32::MAX - 40));
+        assert!(!paced(5, u32::MAX - 10));
     }
 }

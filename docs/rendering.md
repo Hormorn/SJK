@@ -2288,6 +2288,77 @@ loading/shader warmup from steady frames and CPU work from GPU timings. The
 500+ FPS target remains open; neither a single GPU timestamp nor an uncapped
 empty scene demonstrates it.
 
+#### Frame timings readout and log
+
+The same measurements in game, without a variable (Sol's request, 09/11/2026, to work
+on the graphics settings; [frame_timings.rs](../crates/sjk-viewer/src/frame_timings.rs)).
+Both are off by default and live in Settings > HUD > Readouts:
+
+- `r_drawTimings` ("Frame timings"): a panel on the left of the screen, in the SJK
+  UI's look in every menu style, over everything but the full-frame console, so it
+  can be watched while settings change in the menus. 1 lists the graphics card's
+  sections of the frame (GPU), 2 the processor's eight heaviest host phases (CPU)
+  under them. Each row is the mean over the last half second and the worst frame of
+  it, with a bar for its share of the frame; a section of a quarter of the frame or
+  more is named in gold. Sections under 0.005 ms are left out. Without timestamp
+  queries (the driver lacks them) the panel says so and lists the CPU phases.
+- `r_logTimings` ("Log frame timings"): `logs/timings.log` beside the configuration
+  (the [session log](client.md)'s folder), one line a second, the session's first
+  log keeping the one before as `logs/previous-timings.log`; it starts again past
+  16 MB. The header names the version, the date (UTC) and the adapter. Before a
+  line, the window's size, the map and the graphics settings are written whenever
+  they change: every Video and renderer row's cvar on a `settings` line the first
+  time, then `set <cvar> <old> -> <new>` and `preset <name>` for each change. So a
+  run that turns one setting off and on reads back as before and after.
+  `perfmark <text>` writes `mark <text>` in it too.
+
+A log line reads, with means in milliseconds and the totals as mean/worst:
+
+```
+t=12.0 fps=243 frames=243 cpu=2.100/3.500 gpu=3.420/4.100 samples=81 | gpu: uploads=0.100 ... | cpu: pose+skin+upload=0.500 ...
+```
+
+`gpu:` lists the sections in frame order, `cpu:` the host phases heaviest first
+(the `frame_budget.rs` names, the `SJK_FRAME_BUDGET` report's). The CPU total is the
+frame's host work with its blocking calls: `acquire-wait` and `present-call` are the
+processor waiting for the graphics card or the display, so a frame heavy there is
+held by the GPU or vertical sync, not by the processor's own phases. A graphics
+reload (`vid_restart`) builds the renderer again: the log carries on in the same file
+under a new header and a full `settings` line. While either runs, the
+profiler ([gpu_phases.rs](../crates/sjk-viewer/src/gpu_phases.rs)) samples every frame
+whose previous readback has landed (about one in two or three; `samples` counts them)
+instead of one in 32; the `gpu-phases` report and the low-FPS help keep their one in
+32. The host phases are every frame's. Nothing is allocated per frame: the panel's
+text has fixed storage, and a log line is formatted once a second.
+
+Each section ends at its mark, so it holds what was encoded since the one before:
+
+| Section | Holds (where it is marked) |
+| --- | --- |
+| `uploads` | the frame's start: instance packing and uploads (`main.rs`) |
+| `dlight-shadows` | dynamic lights' wall shadow tiles (`world_material_draw.rs`) |
+| `views` | the portal view and the sky portal's view (`scene_view_render.rs`) |
+| `door-tiles`, `cascades`, `probes`, `lamp-shadows`, `projector-shadows` | the sun's shadow casters in parts: door tiles, cascades, the reflection probes' refresh, lamp and projector shadows (`sun_shadows.rs`) |
+| `actor-casters` | the rest of the sun's casters (`main_scene_pass.rs`) |
+| `light-prepass`, `light-occlusion`, `light-cache`, `light-receivers`, `light-shade`, `light-pass` | SJK's real-time lighting: the main view's light pass in parts, `light-pass` the direct-lamp list (`light_buffer.rs`, `light_receivers.rs`) |
+| `world-opaque`, `rain-wet` | under rain only: the opaque world, then its wet surfaces |
+| `opaque` | the opaque pass (world, models, sky faces, clouds); marked with ambient occlusion, sun shadows or floor reflections on |
+| `ambient-correction` | ambient occlusion (`r_ssao`) and the sun's shadows on the world |
+| `floor-save`, `floor-planes`, `floor-reflections` | floor reflections (`r_floorReflections`); the first two are marked empty when they are off |
+| `water` | the water surfaces |
+| `scene-world`, `effect-encode` | effects merged into the scene pass (`particle_draw.rs`) |
+| `scene-pass` | the rest of the scene pass: decals, fog, blended surfaces and models, effects |
+| `glow` | the dynamic glow (`r_DynamicGlow`) |
+| `volumetrics` | light shafts (with sun shadows on) and dust motes |
+| `overlays+post+hud` | the resolve and post-processing (FXAA, bloom, eye adaptation, the display pass), then the HUD, menus and text |
+| `capture` | the WHEEL OF DOOM's mirror and console screenshots |
+
+A section's name shows only on the frames that mark it, so with a feature off its
+time goes to the next section that is marked (without rain, the opaque world is in
+`opaque`). Verified by unit tests (the windows' means and worsts, the log lines, the
+settings' changes, the panel's storage) and the world shot `frame_timings_panel`
+(`world_shot_frame_timings.rs`); not yet run in the client.
+
 #### Gameplay hitch lines
 
 Without any variable, the client logs stutters during play

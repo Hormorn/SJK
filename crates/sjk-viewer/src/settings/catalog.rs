@@ -878,6 +878,16 @@ pub(super) const HUD: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Frame timings",
+        cvar: crate::frame_timings::DRAW_CVAR,
+        kind: ValueKind::Choice(&["0", "1", "2"]),
+    },
+    Setting {
+        label: "Log frame timings",
+        cvar: crate::frame_timings::LOG_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Match timer",
         cvar: "cg_drawTimer",
         kind: ValueKind::Bool,

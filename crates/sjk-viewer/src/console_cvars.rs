@@ -458,6 +458,20 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
         ),
         CvarDefinition::new("cg_drawFPS", false, archive, "Display FPS and frame time"),
         CvarDefinition::new(
+            crate::frame_timings::DRAW_CVAR,
+            0_i64,
+            archive,
+            "Frame timings panel on the left: 0 off, 1 the graphics card's milliseconds on each \
+             part of the frame, 2 the processor's phases too",
+        ),
+        CvarDefinition::new(
+            crate::frame_timings::LOG_CVAR,
+            false,
+            archive,
+            "Write the frame timings, the graphics settings and each change to them to \
+             logs/timings.log beside the configuration, one line a second",
+        ),
+        CvarDefinition::new(
             "cg_classicHudFont",
             false,
             archive,

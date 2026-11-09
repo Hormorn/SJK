@@ -163,6 +163,7 @@ impl ViewerConsole {
                 {
                     let text = tokens[1..].join(" ");
                     crate::log::progress(format_args!("perf-mark {text}"));
+                    crate::frame_timings::note(format_args!("mark {text}"));
                     return Some(Ok(vec![format!("perf-mark {text}")]));
                 }
                 // `mark <note>`: `viewpos`, kept with the note for whoever reads the marks.

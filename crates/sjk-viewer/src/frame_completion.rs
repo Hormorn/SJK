@@ -64,6 +64,7 @@ impl GpuState {
         if status == FrameStatus::Rendered {
             self.frame_pacer.record(timer.finish());
             self.observe_hitch(now);
+            self.observe_frame_timings();
             self.finish_frame();
         } else {
             self.frame_pacer.schedule(self.maximum_fps());

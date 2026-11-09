@@ -151,6 +151,7 @@ mod file_dialog;
 mod finishers;
 mod fps_help;
 mod frame_target;
+mod frame_timings;
 mod free_camera;
 mod fs_restart;
 mod game_font;
@@ -838,6 +839,8 @@ struct GpuState {
     hitches: hitch_log::Recorder,
     /// Optional per-pass GPU timing printed with the frame-budget report.
     gpu_phases: Option<gpu_phases::Profiler>,
+    /// The frame timings readout and log (`r_drawTimings`, `r_logTimings`).
+    frame_timings: frame_timings::State,
     third_person_camera: camera::State,
     /// Where a fall to death began, while it lasts ([`fall_camera`]).
     fall_camera: fall_camera::FallCamera,
@@ -1804,6 +1807,7 @@ impl GpuState {
             upper_right_rate: String::with_capacity(16),
             hitches: hitch_log::Recorder::default(),
             gpu_phases,
+            frame_timings: frame_timings::State::default(),
             third_person_camera: camera::State::default(),
             fall_camera: fall_camera::FallCamera::default(),
             far_plane,
@@ -2748,6 +2752,9 @@ impl GpuState {
         // An achievement unlocked, or a medal or holocron in a match: its card over play or
         // the menus, never input-taking.
         let unlock_toast = self.append_unlock_toast(viewport, console_covers_frame || medal_popup);
+        // The frame timings over everything but the full-frame console, so they can be
+        // watched while settings change in the menus.
+        let timings_shown = self.append_frame_timings(viewport, console_covers_frame);
         self.world_notes.draw_highlight(viewport);
         self.map_edit_gizmo_draw();
         // The menu camera tour's fades, over the menu world only.
@@ -2820,6 +2827,7 @@ impl GpuState {
             trade_toast.then(|| self.trades.toast.draw_list()),
             alpha_shown.then(|| self.alpha_card.draw_list()),
             unlock_toast.then(|| self.unlock_toast.draw_list()),
+            timings_shown.then(|| self.frame_timings.draw_list()),
         ];
         self.ui_shapes
             .prepare_layers(&self.queue, layers.into_iter().flatten(), viewport);
