@@ -30,7 +30,16 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1109.3 (Alpha) | 09/11/2026
+
+3D sound rebuilt, the Jedi Knight II HUD, voices in other languages, a surer grapple, the strafe helper on jaPRO, and a handful of fixes.
+
+> 3D sound: `s_spatial` brings sounds from all round your head, and walls and shut doors muffle them by what they are made of.
+> Jedi Knight II HUD: Pick Jedi Knight II in Settings > HUD, or type `cg_hudFiles 2`.
+> Voices: `s_language` picks the French, German and Spanish voices, as in retail.
+> JA+ and jaPRO: `+grapple` lets go of the hook every time on JA+ servers, and the strafe helper draws on jaPRO servers.
+> Profile: Turn the model in the main menu too, and zoom it by dragging with the right button.
+> Fixes: A held key repeats in the console, and the click that brings the window back no longer attacks.
 
 - Emote music no longer goes missing for a whole dance: music still loading when the emote starts now joins in as soon as it is ready, as a boombox track does _(Sol, hub report #270)_
 - `+grapple` lets go of the hook every time on JA+ servers: the release's `+use` now lasts two commands, as in EternalJK, instead of one a server could miss _(Sol, hub report #238)_
