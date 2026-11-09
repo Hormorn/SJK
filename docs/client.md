@@ -2983,7 +2983,8 @@ icons remain unimplemented. See
 
 ### Status balloons
 
-**Status bubbles** (`cg_statusBalloons`, Settings > Chat, off by default as stock;
+**Status bubbles** (`cg_statusBalloons`, Settings > Chat, on by default since 2026.1109.2, Sol's call,
+saved values reset once by its what's-new card;
 Sol's idea, 08/11/2026) draws the balloon over an SJK player as why it is up, in the
 stock balloon's shape and glow: the three dots lit one after the other while they type
 in the chat, a pause sign while a menu or the console is open (one picture for both:

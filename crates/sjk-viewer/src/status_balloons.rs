@@ -16,7 +16,8 @@ use std::time::{Duration, Instant};
 
 /// The relay's toy id. The hub knows no toys: any id of `a` to `z` and `_` goes.
 pub(crate) const TOY: &str = "status_balloon";
-/// The setting: draw the reasons (off by default: stock's balloon).
+/// The setting: draw the reasons (on by default since 2026.1109.2, Sol's call; off: stock's
+/// balloon).
 pub(crate) const CVAR: &str = "cg_statusBalloons";
 /// Client slots.
 pub(crate) const SLOTS: usize = crate::looks::SLOTS;

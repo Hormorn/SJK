@@ -752,7 +752,7 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
         ),
         CvarDefinition::new(
             crate::status_balloons::CVAR,
-            false,
+            true,
             archive,
             "The talk balloon over SJK players shows why it is up: typing, a menu or the console, or away (SJK)",
         ),

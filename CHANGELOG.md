@@ -30,8 +30,21 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1109.2 (Alpha) | 09/11/2026
 
+JA+ servers grow (emotes, the grappling hook, admins by SJK key), lights in map edits, smoother doors under real-time light, frame timings, and a tidier Toys list.
+
+> JA+ mode: SJK's own server in JA+ mode has JA+'s emotes, player commands, grappling hook and admins, who log in with their SJK key.
+> Map lights: Map edits add, move and recolour lights everyone sees, and turn the map's own lamps off or move them.
+> Smoother: Doors and lifts under real-time lighting no longer make the frame stutter when they move.
+> Frame timings: See what each graphics setting costs with `r_drawTimings`, and log it with `r_logTimings`.
+> Toys: Collection > Toys stands in three sections, and every toy is signed by who made it.
+> Status bubbles: The chat bubble over SJK players now shows why it is up by default: dots while typing, a pause sign in a menu, a moon while away.
+
+= cg_statusBalloons reset: Status bubbles are now on by default: the chat bubble over SJK players shows dots while typing, a pause sign in a menu, a moon while alt-tabbed.
+
+- Status bubbles are now on by default: the chat bubble over an SJK player shows the dots while they type, a pause sign in a menu or the console and a moon while alt-tabbed; switch them off in Settings > Chat > Status bubbles (`cg_statusBalloons`) _(Sol)_
+- Collection > Toys stands in three sections (Around you, With others, Earn and win) with a By column naming who made each toy, and each toy's card says "Made by ..." under its name, with whose idea it was _(Sol)_
 - SJK's server in JA+ mode (`g_mod japlus`) has JA+'s emotes and player commands: the 27 emotes (`amsit`, `sleep`, `amkneel`...) held until a button, `amhug`, `amflip`, `amknockmedown`, `amdropsaber`, `jetpack`, `amcolor`, `sabercolor`, `saber`, `ammove`, `amDMGs`, `duelWhois` and `refuseTele`, with `jp_emotDisallow`, `jp_fixEmot` and the `jp_allow*` settings; SJK players now predict JA+'s held emotes on every JA+ server _(Sol, after VisionJK by Blackwolf)_
 - SJK's server in JA+ mode (`g_mod japlus`) has JA+'s grappling hook: `+button12` fires it (`jp_allowHook`, `jp_hookSpeed`, `jp_hookFloodProtect`), it pulls you to where it holds, plugin users hang on the rope when they let go, it burns jetpack fuel, and blades and shots cut the rope; on every JA+ server SJK now predicts a pull with use held, as the server lets go only after the move _(Sol, after VisionJK by Blackwolf)_
 - SJK's server in JA+ mode (`g_mod japlus`) has JA+'s admins: council, knight and instructor with their command rights, and the admin commands most used (kick, ban, teleports, slap, sleep, protect, silence, admin chat, map, rename, team locks, votes, message of the day). SJK players log in as admins with their SJK key, no password: the owner lists it in admin_keys.txt (`identity adminkey` copies yours); JA+'s rank passwords work only if the owner turns them on (`japlus.adminPasswords`), and `amcode` makes one-time codes for other clients _(Sol, after VisionJK by Blackwolf)_

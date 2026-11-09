@@ -3015,7 +3015,7 @@ bubble. See [talk balloons](client.md#talk-balloons).
 
 ![One away bubble switch in SJK Settings](images/away-chat-settings.png)
 
-Under it, **Status bubbles** (`cg_statusBalloons`, off by default) draws the bubble over
+Under it, **Status bubbles** (`cg_statusBalloons`, on by default since 2026.1109.2) draws the bubble over
 SJK players as why it is up: typing, a menu or the console, or away. See
 [status balloons](client.md#status-balloons).
 ## Game chat logs
