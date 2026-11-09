@@ -24,6 +24,15 @@
 
 # ---- Console & chat ----
 
+[rgb-model-colour]
+area: Rendering & effects
+title: RGB models (char_color) show the colour as in retail, not pale
+change: A player's char_color colour is decoded to linear light before it tints the model,
+change: so 128 is half brightness again and dark colours stay dark (female Twi'lek rgb...).
+test: Character page: pick an RGB model, set a dark colour (60 30 30): stage shows dark red.
+test: Online, look at a player on an RGB model: colour matches what they see in EJK.
+test: Force shells (protect, absorb) and pickups look as before.
+
 [lamp-cache-budget]
 area: Rendering & effects
 title: Door and lift shadows on lamp light no longer cost a frame-time spike
