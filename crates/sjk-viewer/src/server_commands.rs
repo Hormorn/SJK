@@ -26,6 +26,8 @@ pub(super) fn consume(
         session.drain_events().for_each(drop);
     }
 
+    // SJK's admin key login, asked once per level where a server offers it.
+    crate::admin_key_login::update(session);
     while let Some(event) = session.pop_base_command_event() {
         match event {
             BaseServerCommandEvent::UnhandledCommand {
@@ -34,6 +36,18 @@ pub(super) fn consume(
             } => {
                 #[allow(unused_mut)]
                 let mut handled = false;
+                if arguments
+                    .first()
+                    .is_some_and(|name| name == sjk_protocol::key_login::COMMAND.as_bytes())
+                {
+                    handled = true;
+                    if let Some(console) = &mut console {
+                        let folder = console.config_directory().to_path_buf();
+                        for line in crate::admin_key_login::answer(session, &arguments, &folder) {
+                            console.push_log(line);
+                        }
+                    }
+                }
                 #[cfg(feature = "mod-jof")]
                 if let Some(console) = &mut console
                     && console.mods.loaded(sjk_mod_jof::ID)

@@ -46,6 +46,7 @@ impl NativeGame {
             self.update_mod_movement();
             self.mod_combat = crate::server_mods::combat(self.server_mod, &self.cvars);
             self.mod_force = crate::server_mods::force(self.server_mod, &self.cvars);
+            self.mod_hook = crate::server_mods::hook(self.server_mod, &self.cvars);
         }
         for name in changed {
             let Some(var) = self.cvars.var(&name) else {
@@ -456,14 +457,18 @@ mod tests {
         game.set_cvar("jp_gripSpeedScale", "1");
         assert_eq!(info(&game, "jp_gripSpeedScale").as_deref(), Some("1"));
         assert_eq!(game.movement_config().ja_plus.grip_speed, 1.0);
-        // What a client reads from that info is what the server moves by.
+        // What a client reads from that info is what the server moves by (but the held
+        // emotes' freeze, the server's own for the clients that do not predict them).
         let mut state = sjk_protocol::GameState::empty_local(0);
         state
             .replace_config_string(0, game.status_info.clone())
             .unwrap();
         assert_eq!(
             sjk_game_jka::pmove_japlus::JaPlusRules::from_game_state(&state),
-            game.movement_config().ja_plus
+            sjk_game_jka::pmove_japlus::JaPlusRules {
+                emote_freeze: sjk_game_jka::pmove_japlus_emotes::EmoteFreeze::Off,
+                ..game.movement_config().ja_plus
+            }
         );
     }
 

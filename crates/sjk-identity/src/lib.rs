@@ -20,6 +20,7 @@ pub mod feed;
 pub mod history;
 pub mod hub;
 pub mod junk;
+pub mod key_login;
 mod keys;
 pub mod logs;
 pub mod map_edits;

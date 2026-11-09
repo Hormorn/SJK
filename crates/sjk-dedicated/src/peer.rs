@@ -89,6 +89,12 @@ pub struct Peer {
     /// No JA+ challenge before this time (`fd.privateDuelTime`); never set on the base
     /// game.
     pub(crate) duel_rest_until: i32,
+    /// A mod's `refuseTele` is on: admins may not teleport the player
+    /// (`pers.jp.refuseTele`), which `amtele` reads (`bridge_admin_effects`); never set on
+    /// the base game.
+    pub(crate) refuse_teleport: bool,
+    /// No mod saber change before this time (JA+'s `/saber`, `pers.jp.saberSwitchTime`).
+    pub(crate) saber_switch_time: i32,
     /// What the other clients are shown of the player, and whether they are: a
     /// spectator's entity is not linked into the world, so no snapshot lists it.
     pub(crate) entity: PlayerEntity,
@@ -170,6 +176,9 @@ pub struct Peer {
     pub(crate) loser: bool,
     /// `pers.netnameTime`: before this level time a new name is refused.
     pub(crate) netname_time: i32,
+    /// What the running mod's admin system keeps of the player: its rank above all
+    /// (`bridge_admin`); never set on the base game.
+    pub(crate) admin: crate::bridge::AdminState,
     /// `ps.ping`, as the endpoint last measured it; the scoreboard and `getstatus`
     /// report it. A player never measured holds 0.
     pub(crate) ping: i32,
@@ -191,6 +200,8 @@ pub struct Peer {
     /// ([`sjk_game_jka::client_commands`]). A spawn clears them with `ent->flags`.
     pub(crate) god: bool,
     pub(crate) notarget: bool,
+    /// Its JA+ grappling hook (`bridge_hook`); never out on the base game.
+    pub(crate) hook: sjk_game_jka::japlus_hook::Hook,
     /// The player's movement, simulated with the rules the client predicts with.
     /// Spectating is the only state with the evidence a server needs so far.
     pub(crate) movement: Predictor,
@@ -252,6 +263,8 @@ impl Peer {
             state,
             invulnerable_until: 0,
             full_force_duel: false,
+            refuse_teleport: false,
+            saber_switch_time: 0,
             duel_rest_until: 0,
             entity: PlayerEntity::new(client as u16),
             link: ClusterLink::default(),
@@ -291,6 +304,7 @@ impl Peer {
             loser: false,
             ping: 0,
             netname_time: 0,
+            admin: Default::default(),
             switch_duel_team_time: 0,
             npc_enemy: None,
             in_space: 0,
@@ -299,6 +313,7 @@ impl Peer {
             noclip: false,
             god: false,
             notarget: false,
+            hook: Default::default(),
             last_command_time: 0,
             movement,
         }

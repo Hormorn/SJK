@@ -321,7 +321,8 @@ Master too. Stock and unknown servers keep duellers solid.
 
 On JA+ servers the client predicts the grapple hook (`+button12`) with the rules
 in [pmove_grapple.rs](../crates/sjk-game-jka/src/pmove_grapple.rs); other
-servers, SJK's dedicated server included, get no hook movement. The JA+ game fires the hook,
+servers get no hook movement. SJK's dedicated server in JA+ mode moves its players with
+the same code and sets the same fields ([server.md](server.md#ja-mode)). The JA+ game fires the hook,
 stores its anchor in `lastHitLoc` and flags the pulled player with `PMF_GRAPPLE`
 (pm_flags bit 15). Each move then aims 16 units short of the anchor along the
 view and replaces the velocity with a pull of 800 units/s (10 units/s per unit
@@ -330,8 +331,10 @@ by an air move whatever the ground or water below. A client-plugin user
 who lets go of the key stays on the rope: the game clears the flag and
 sets entity flag bit 16, and each move runs an air move and then swings the
 player on a rope as long as the distance from the anchor to where the move began.
-Use lets go of the hook in the game before the move, so a pull or hang with use
-held is predicted as neither. Where EternalJK and the JA+ module differ (the pose
+Use lets go of the hook only after the move: the JA+ game's hook think follows `Pmove`
+(VisionJK `g_active.c:3403-3405`) and its movement pulls on the flag alone, so a pull or
+hang with use held is still predicted (EternalJK predicts neither; SJK did too before
+06/11/2026). Where EternalJK and the JA+ module differ (the pose
 sets the legs only; a crouched player is pulled too; the pull always ends in an
 air move), prediction follows the module. The game-side edges, the hook firing,
 taking hold and letting go, arrive with the next snapshot and cannot be predicted.
@@ -353,7 +356,7 @@ Stock and other servers, SJK's dedicated server included, keep the stock rules.
 | Wall run from flips | Every JA+ server | A run up a wall may start from the Force jump's forward, left and right flips, not only from a plain jump |
 | Grip speed | Every JA+ server | Gripping keeps the server's `jp_gripSpeedScale` of the run speed, read from `CS_SERVERINFO` as VisionJK's cgame reads it (`atof`, held within 0.4 and 1.01; 0.8, JA+'s default, if the key is missing); stock 0.4 |
 | Melee buttons | Every JA+ server | With melee, an attack pressed with the holdable button is not cancelled |
-| Taunts | Every JA+ server | Meditation keeps the player in place but the view free; other taunts leave movement and view free |
+| Taunts and emotes | Every JA+ server | JA+'s emote poses count as full-body taunts (VisionJK `bg_panimate.c:1649-1662`). Meditation and the held emotes (`amsit`, `sleep`, `amkneel`...) keep the player in place, the view and buttons free, their timers topped up to a second, until an attack, a Force button, `+button12` or a jump plays the pose's own get-up (`bg_pmove.c:10789-10823,11125-11196`); other taunts leave movement and view free. A server that freezes an emote (`PM_FREEZE`, `jp_fixEmot`) is followed from the snapshot ([pmove_japlus_emotes.rs](../crates/sjk-game-jka/src/pmove_japlus_emotes.rs)) |
 | Staff kick | Every JA+ server | A staff's alternate attack standing still is a front kick |
 | Melee kicks | Every JA+ server | JA+ plays its own kicks server-side (melee's spin and back kicks in place of the stock W+A and W+D kicks, the jumping back kick, the backflip kick and the flip stab); the kicker is held still with the view free. A kiss, a ledge, a get-up, a stab or a backflip kick taken holds the player and the view (JoF EternalJK `bg_pmove.c:12470-12498`, `SVMOD_JAPLUS`, at bd5e202). The client predicts the stock kick until the server's kick arrives, as JoF EternalJK does |
 | Dual jump hull | Every JA+ server (`dmflags` 256: every window) | The dual sabers' forward jump attack raises the feet to 0 in its stock windows only when another player stands within 70 units ahead along the view, so the attacker is not sunk into the floor when nobody is there |
@@ -1026,7 +1029,7 @@ The links pin both revision and starting line.
 | #254 `9cc782db` trigger hull | [CP:815][prediction-e-trigger] traces `cg_pmove.mins/maxs` | [CP:797][prediction-t-trigger] does the same | Share the final movement hull; this does not add mod-specific trigger effects |
 | #260 `f353bc91` respawn latch | [PM:2121][prediction-e-respawn] blocks jumping; PM:12606 clears the latch after attack/use release | [PM:3391][prediction-t-respawn] blocks jumping; PM:14579 uses the same release condition | Shared latch; no JA+ or jaPRO exception found |
 | #261 `96fa5790` held-player input | [PM:12258][prediction-e-held] stiffens a player with `heldByClient` | [PM:14277][prediction-t-held] has the same branch | Shared input freeze; retain the separate JA+ kick/throw/view policies |
-| #262 `d731c470` command gesture | [PM:9424][prediction-e-gesture] starts `BOTH_ENGAGETAUNT` with a 1000 ms hand-extend and `EV_TAUNT` | [PM:11353][prediction-t-gesture] has the same start conditions and result | Share `PM_Animate`; keep JA+ full-body taunt controls in `JaPlusRules::free_taunts` |
+| #262 `d731c470` command gesture | [PM:9424][prediction-e-gesture] starts `BOTH_ENGAGETAUNT` with a 1000 ms hand-extend and `EV_TAUNT` | [PM:11353][prediction-t-gesture] has the same start conditions and result | Share `PM_Animate`; keep JA+ full-body taunt controls in `pmove_input_freeze::filter_japlus_taunt` |
 | #263 `961418e1` rider weapon ID | [PM:11698][prediction-e-rider] allows melee, saber and blaster | [PM:13648][prediction-t-rider] has the same whitelist | Shared protocol-26 weapon IDs; blaster is 5, not pistol 4 |
 | #264 `e7c4c087` rider weapon execution | [PM:13354][prediction-e-rider-weapon] runs exposed riders' legal weapons in cgame too | [PM:15654][prediction-t-rider-weapon] does the same | Shared execution gate; keep hidden riders excluded |
 | #265 `9aae3e8b` rocket trace mask | [PM:7528][prediction-e-rocket] uses `MASK_PLAYERSOLID` | [PM:9201][prediction-t-rocket] uses that mask too | Shared contents mask; no replacement of dialect collision filtering |

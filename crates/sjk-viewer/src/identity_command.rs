@@ -9,9 +9,10 @@ use sjk_identity::{Snapshot, Status};
 /// Console command name.
 pub(crate) const COMMAND: &str = "identity";
 /// Help text for completion and `cmdlist`.
-pub(crate) const HELP: &str = "Your SJK identity: open its page; bio, key and who subcommands";
+pub(crate) const HELP: &str =
+    "Your SJK identity: open its page; bio, key, adminkey and who subcommands";
 
-const USAGE: &str = "identity [bio <text> | key | who [slot]]";
+const USAGE: &str = "identity [bio <text> | key | adminkey | who [slot]]";
 /// The answer to `identity name`, which no longer exists.
 const NAME_FROM_GAME: &str =
     "Your SJK name is the name you play under: change it with /name <text>.";
@@ -24,6 +25,9 @@ pub(crate) enum Action {
     /// Copy the key id to the clipboard (key ids never show in the game) and say where
     /// the key file is.
     Key,
+    /// Copy the public key to the clipboard, never on screen, for a server owner's
+    /// `admin_keys.txt` (`docs/identity.md`, "Admin key login").
+    AdminKey,
     /// List the players the hub knows on this server, or one of them.
     Who(Option<u8>),
     /// Set the bio at the hub.
@@ -38,6 +42,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Action, String> {
     let text = || args[1..].join(" ");
     match word.to_ascii_lowercase().as_str() {
         "key" => Ok(Action::Key),
+        "adminkey" => Ok(Action::AdminKey),
         "who" => match args.get(1) {
             None => Ok(Action::Who(None)),
             Some(slot) => slot
@@ -71,6 +76,22 @@ pub(crate) fn key_lines(
                 file.display()
             ),
         ],
+        None => vec!["No identity key yet: turn cl_identity on.".to_owned()],
+    }
+}
+
+/// The lines `identity adminkey` prints, `copied` when the public key went to the
+/// clipboard (`None` without an identity key); the key itself never prints.
+pub(crate) fn admin_key_lines(copied: Option<bool>) -> Vec<String> {
+    match copied {
+        Some(true) => vec![
+            "Admin key copied to the clipboard (it is never shown in the game).".to_owned(),
+            "A server owner puts it in admin_keys.txt after a rank: council <key> <your name>."
+                .to_owned(),
+        ],
+        Some(false) => {
+            vec!["Admin key hidden (it is never shown in the game); copying it failed.".to_owned()]
+        }
         None => vec!["No identity key yet: turn cl_identity on.".to_owned()],
     }
 }
@@ -145,6 +166,9 @@ impl crate::GpuState {
                 });
                 Ok(key_lines(snapshot.as_ref(), &file, copied))
             }
+            Action::AdminKey => Ok(admin_key_lines(player_identity::with_service(|service| {
+                crate::console::clipboard::copy(&service.admin_key_text())
+            }))),
             Action::Who(slot) => match &snapshot {
                 Some(snapshot) => Ok(who_lines(snapshot, slot)),
                 None => Err("Identity is off: turn cl_identity on.".to_owned()),
@@ -287,6 +311,12 @@ mod tests {
     fn words_become_actions() {
         assert_eq!(parse(&words("")), Ok(Action::Toggle));
         assert_eq!(parse(&words("key")), Ok(Action::Key));
+        assert_eq!(parse(&words("ADMINKEY")), Ok(Action::AdminKey));
+        assert!(
+            admin_key_lines(Some(true))
+                .concat()
+                .contains("admin_keys.txt")
+        );
         assert_eq!(parse(&words("WHO")), Ok(Action::Who(None)));
         assert_eq!(parse(&words("who 3")), Ok(Action::Who(Some(3))));
         assert_eq!(

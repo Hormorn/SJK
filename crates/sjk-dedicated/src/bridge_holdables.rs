@@ -275,7 +275,7 @@ impl NativeGame {
     }
 
     /// `Jedi_Cloak`/`Jedi_Decloak` on a player: `PW_CLOAKED` and the sound.
-    fn cloak_toggled(&mut self, client: usize, toggled: Toggled, level_time: i32) {
+    pub(super) fn cloak_toggled(&mut self, client: usize, toggled: Toggled, level_time: i32) {
         let (cloak, sound): (i32, &[u8]) = match toggled {
             Toggled::Cloaked => (Q3_INFINITE, b"sound/chars/shadowtrooper/cloak.wav"),
             Toggled::Decloaked => (0, b"sound/chars/shadowtrooper/decloak.wav"),
@@ -304,7 +304,13 @@ impl NativeGame {
     }
 
     /// `G_Sound`/`G_SoundAtLoc`: a sound event at `origin` on `channel`.
-    fn holdable_sound(&mut self, name: &[u8], origin: [f32; 3], channel: u32, level_time: i32) {
+    pub(super) fn holdable_sound(
+        &mut self,
+        name: &[u8],
+        origin: [f32; 3],
+        channel: u32,
+        level_time: i32,
+    ) {
         let told = &mut self.told;
         let index = self.sounds.index(name, &mut |index, value| {
             told.push(Told::ConfigString {
@@ -329,6 +335,8 @@ impl NativeGame {
     /// drained while on, recharged while off, the cloak dropped when it runs dry.
     pub(super) fn battery_frame(&mut self, client: usize, level_time: i32) {
         let cloak_drains = self.mod_force.cloak_drains;
+        // JA+'s hook draws on the jetpack's fuel (`bridge_hook`); never on the base game.
+        let mut hook = self.hook_fuel(client);
         let Some(peer) = self.peer_mut(client) else {
             return;
         };
@@ -346,6 +354,7 @@ impl NativeGame {
             thrusting,
             level_time,
             cloak_drains,
+            hook.as_mut(),
         );
         if (jet, cloak)
             != (
@@ -359,6 +368,9 @@ impl NativeGame {
         }
         if off == Toggled::Decloaked {
             self.cloak_toggled(client, off, level_time);
+        }
+        if hook.is_some_and(|hook| hook.ran_dry) {
+            self.free_hook(client, level_time);
         }
     }
 

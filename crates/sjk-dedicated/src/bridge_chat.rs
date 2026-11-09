@@ -19,6 +19,11 @@ impl NativeGame {
         {
             return false;
         }
+        // An admin's silence swallows the three chat commands, not `gc` (VisionJK
+        // `g_cmds.c:1743-1794`).
+        if self.admin_silences(client, command) {
+            return true;
+        }
         // `gc` is `CMD_NOINTERMISSION` (`g_cmds.c:3406`); the three chat commands are not.
         if command.eq_ignore_ascii_case(b"gc") && self.refused_at_intermission(client, command) {
             return true;

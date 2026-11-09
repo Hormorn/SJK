@@ -102,6 +102,8 @@ impl NativeGame {
         }
         // `SV_Map_f`'s `Cvar_Get("g_gametype")`: a game type waiting for this map.
         self.take_latched_cvars();
+        // `G_AuthInit`, with every level: the admins' keys read again.
+        self.load_admin_keys(false);
         println!(
             "map change to {mapname} at {server_time} (world {} -> {})",
             self.map_generation,
@@ -134,6 +136,7 @@ impl NativeGame {
         // `G_InitGame` reads `g_banIPs` into it.
         self.ip_filter = Default::default();
         self.process_ip_bans();
+        self.process_admin_bans();
         self.spawn_level_entities();
         self.start_level(server_time);
         // `G_InitGame` for the new one.

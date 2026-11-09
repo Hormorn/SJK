@@ -295,6 +295,15 @@ pub struct NativeGame {
     mod_force: sjk_game_jka::force_rules::ForceRules,
     /// The private-duel rules it selects from its settings (`bridge_duel`).
     duel_rules: sjk_game_jka::duel::DuelRules,
+    /// The grappling hook it selects from its settings (`bridge_hook`); none on the base
+    /// game.
+    mod_hook: sjk_game_jka::japlus_hook::HookRules,
+    /// Hooks freed while the missiles run, which the run leaves out (`bridge_hook`).
+    hooks_freed: Vec<EntityId>,
+    /// The frame's shots that may cut a hook's rope: shooter, from, to (`bridge_hook`).
+    rope_cutters: Vec<(u16, [f32; 3], [f32; 3])>,
+    /// Its admin system's own state beside the players' (`bridge_admin`).
+    admin: bridge_admin::AdminServer,
 }
 
 /// The serverId a world starts on. `SV_SpawnServer` uses `com_frameTime`, which is only
@@ -382,6 +391,7 @@ impl NativeGame {
         let mod_combat = crate::server_mods::combat(server_mod, &cvars);
         let mod_force = crate::server_mods::force(server_mod, &cvars);
         let duel_rules = crate::server_mods::duels(server_mod, &cvars);
+        let mod_hook = crate::server_mods::hook(server_mod, &cvars);
         let (config_strings, sounds) = world_config_strings(
             &status_info,
             map.as_ref(),
@@ -496,6 +506,10 @@ impl NativeGame {
             mod_combat,
             mod_force,
             duel_rules,
+            mod_hook,
+            hooks_freed: Vec::new(),
+            rope_cutters: Vec::new(),
+            admin: Default::default(),
         };
         game.pool = EntityPool::with_budget(0, game.entity_budget());
         game.spawn_items();
@@ -534,6 +548,7 @@ impl NativeGame {
         }
         game.apply_cvars();
         game.process_ip_bans();
+        game.process_admin_bans();
         Ok(game)
     }
 
@@ -1451,6 +1466,8 @@ impl NativeGame {
         if self.power_duel_begin(client, server_time) {
             return;
         }
+        // `JP_ClientBegin`: the JA+ plugin's own login, where the mod has admins.
+        self.admin_userinfo_login(client);
         if !std::mem::replace(&mut self.begun_once, true) {
             let (sounds, told) = (&mut self.sounds, &mut self.told);
             first_begin_sounds(sounds, &mut |index, value| {
@@ -1708,6 +1725,8 @@ impl NativeGame {
     /// (a suicide: `DeathRequest::suicide`).
     fn die(&mut self, client: usize, mut request: DeathRequest) {
         let server_time = request.level_time;
+        // JA+'s `player_die` lets go of the hook first (VisionJK `g_combat.c:2111`).
+        self.free_hook(client, server_time);
         // Nobody dies at the intermission (a respawn's telefrag there decides nothing).
         if self.match_end.intermission_time != 0 {
             return;
@@ -2495,8 +2514,10 @@ impl NativeGame {
         request: DamageRequest,
         location: Option<HitLocation>,
     ) -> Damaged {
-        // A siege player waiting for its wave cannot be hurt (`takedamage = qfalse`).
+        // A siege player waiting for its wave cannot be hurt (`takedamage = qfalse`), nor
+        // a player an admin protects by another (`bridge_admin_effects`).
         if self.duel_refuses(target, &request)
+            || self.admin_protects(target, &request)
             || self
                 .peer(target)
                 .is_some_and(|peer| peer.temp_spectate != 0)
@@ -2529,7 +2550,11 @@ impl NativeGame {
             std::array::from_fn(|axis| origin[axis] + bottom[axis] - 1.0),
             std::array::from_fn(|axis| origin[axis] + top[axis] + 1.0),
         );
-        let (team, god) = (victim.session.team, victim.god);
+        // `FL_GODMODE`: the cheat's, or an admin's sleep.
+        let (team, god) = (
+            victim.session.team,
+            victim.god || victim.admin.effects.sleeping,
+        );
         let mut target_view = Target {
             client: target as u16,
             state: &mut victim.state,
@@ -2618,6 +2643,8 @@ impl NativeGame {
         // `SV_BotFrame` before the frame: the queued bots whose time has come begin, and
         // every bot thinks.
         self.check_bot_spawn(self.last_frame_time);
+        // Which held emotes the moves of this frame freeze, from who plays now.
+        self.update_emote_freeze();
         self.bot_frame(server_time);
         self.previous_frame_time = self.last_frame_time;
         self.last_frame_time = server_time;
@@ -2639,6 +2666,7 @@ impl NativeGame {
             self.look_around(client, server_time);
             self.run_bot_client(client, server_time);
             self.siege_ex_data(client, server_time);
+            self.admin_second_actions(client, server_time);
         }
         self.run_siege_hacks();
         self.update_saber_entities(server_time);
@@ -2646,6 +2674,7 @@ impl NativeGame {
         self.run_emplaced(server_time);
         self.run_ewebs(server_time);
         self.run_missiles(server_time);
+        self.run_hooks(server_time);
         self.run_spheres(server_time);
         self.run_charges(server_time);
         self.run_items(server_time);
@@ -2817,9 +2846,29 @@ impl NativeGame {
     fn run_missiles(&mut self, server_time: i32) {
         let previous_time = self.previous_frame_time;
         self.gather_homing_targets();
+        // JA+'s hooks (`bridge_hook`): only while one is out are the missiles looked at for
+        // them, and for the shots that cut their ropes.
+        let hooks_out = self.any_hook_out();
+        let ropes = hooks_out && self.mod_hook.ropes_cut();
         let mut missiles = std::mem::take(&mut self.missiles);
         missiles.retain_mut(|(number, missile)| {
+            // A hook let go while the missiles ran (its owner killed by one) flies no more.
+            if self.hooks_freed.contains(number) {
+                return false;
+            }
+            let hook = hooks_out.then(|| self.hook_missile(*number)).flatten();
+            let before = hook.map(|_| missile.state.clone());
+            let from = missile.current;
             let run = self.run_one_missile(missile, server_time, previous_time);
+            if ropes && hook.is_none() {
+                self.rope_cutters
+                    .push((missile.owner, from, missile.current));
+            }
+            if let (Some(hook), Some(before)) = (hook, before)
+                && let Some(keep) = self.hook_run(*number, missile, hook, &run, before, server_time)
+            {
+                return keep;
+            }
             match run {
                 MissileRun::Blown { effect } => {
                     self.pool.set_state(*number, &missile.state);
@@ -2941,9 +2990,16 @@ impl NativeGame {
                 }
             }
         });
+        if !self.hooks_freed.is_empty() {
+            let freed = std::mem::take(&mut self.hooks_freed);
+            missiles.retain(|(number, _)| !freed.contains(number));
+            self.hooks_freed = freed;
+            self.hooks_freed.clear();
+        }
         self.missiles = missiles;
         let waiting = std::mem::take(&mut self.dead_sabers_waiting);
         self.missiles.extend(waiting);
+        self.cut_ropes_with_shots(server_time);
     }
 
     /// `g_gravity` as worldspawn set it, read the way a cvar's value is; 800 without a map.
@@ -3403,6 +3459,8 @@ mod bridge_force;
 mod bridge_generic;
 #[path = "bridge_holocron.rs"]
 mod bridge_holocron;
+#[path = "bridge_hook.rs"]
+mod bridge_hook;
 #[path = "bridge_icarus.rs"]
 mod bridge_icarus;
 #[path = "bridge_jedimaster.rs"]
@@ -3413,6 +3471,8 @@ mod bridge_lock;
 mod bridge_maps;
 #[path = "bridge_missile_models.rs"]
 mod bridge_missile_models;
+#[path = "bridge_mod_commands.rs"]
+mod bridge_mod_commands;
 #[path = "bridge_multiples.rs"]
 mod bridge_multiples;
 #[path = "bridge_power_duel.rs"]
@@ -3454,6 +3514,10 @@ mod bridge_intermission;
 use bridge_cvars::{SERVERINFO_DEFAULTS, server_info_with};
 use bridge_spawn::spawn_place;
 
+#[path = "bridge_admin.rs"]
+mod bridge_admin;
+#[path = "bridge_admin_effects.rs"]
+mod bridge_admin_effects;
 #[path = "bridge_bots.rs"]
 mod bridge_bots;
 #[path = "bridge_commands.rs"]
@@ -3506,6 +3570,8 @@ mod bridge_teleport;
 mod bridge_use;
 #[path = "bridge_world_effects.rs"]
 mod bridge_world_effects;
+pub(crate) use bridge_admin::AdminState;
+pub(crate) use bridge_admin_effects::AdminEffects;
 pub(crate) use bridge_saber::PlayerSkeleton;
 pub(crate) use bridge_saber_damage::SaberCut;
 pub use bridge_votes::SUPPORTED_VOTES;

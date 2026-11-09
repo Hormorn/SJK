@@ -123,7 +123,38 @@ impl NativeGame {
             peer.entity.event_raised(level_time);
         }
         peer.movement = peer.movement.reseeded(&peer.state);
-        // Each saber's own sounds (`saber[n].soundOn`, `soundOff`).
+        self.saber_sounds(client, sounds, origin, channel, level_time);
+    }
+
+    /// `Cmd_ToggleSaber_f` for `client` (`g_cmds.c:2677-2750`), as a command calls it: its
+    /// sabers' sounds where it stands, a saber in flight knocked down.
+    pub(super) fn toggle_saber_command(&mut self, client: usize, level_time: i32) {
+        let Some(peer) = self.peer_mut(client) else {
+            return;
+        };
+        let mut sounds = Vec::new();
+        if toggle_saber(&mut peer.state, level_time, &mut sounds) {
+            self.knock_down_in_flight(client, level_time);
+            return;
+        }
+        peer.movement = peer.movement.reseeded(&peer.state);
+        let origin = peer.state.origin();
+        self.saber_sounds(client, sounds, origin, CHAN_AUTO, level_time);
+    }
+
+    /// Each saber's own sounds (`saber[n].soundOn`, `soundOff`) of `sounds`, played at
+    /// `origin` on `channel` (`G_Sound`).
+    pub(super) fn saber_sounds(
+        &mut self,
+        client: usize,
+        sounds: Vec<SaberSound>,
+        origin: [f32; 3],
+        channel: u32,
+        level_time: i32,
+    ) {
+        if sounds.is_empty() {
+            return;
+        }
         let Some(hands) = self.peer(client).map(|peer| {
             peer.sabers
                 .hands

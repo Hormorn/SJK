@@ -17,6 +17,7 @@ mod gamestate_write;
 mod huffman_codes;
 mod info_bytes;
 mod info_string;
+pub mod key_login;
 mod legacy_client_numbers;
 mod legacy_entity_numbers;
 mod legacy_text;

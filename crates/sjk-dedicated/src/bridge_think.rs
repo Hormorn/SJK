@@ -17,6 +17,8 @@ impl NativeGame {
     ) {
         // `ClientThink_real`'s duel: a duel begun, ended or held still (`g_active.c:2405`).
         self.duel_think(client, &mut command, self.last_frame_time);
+        // A mod's held emote froze the last move only.
+        self.thaw_frozen_emote(client);
         // The fall to death a pit's brush began ends here, three seconds on; then who
         // gets the credit for one is kept or forgotten (`g_active.c:2789-2803`).
         let level_time = self.last_frame_time;
@@ -86,7 +88,9 @@ impl NativeGame {
             peer.push_effect_until = 0;
             peer.state.set_raw_field(EFLAGS, flags & !EF_BODYPUSH);
         }
-        if peer.invulnerable_until <= server_time {
+        // An admin's protection holds until the player attacks (VisionJK
+        // `g_active.c:2097`).
+        if peer.invulnerable_until <= server_time && !peer.admin.effects.protected {
             let flags = peer.state.raw_field(EFLAGS).unwrap_or(0);
             peer.state.set_raw_field(EFLAGS, flags & !EF_INVULNERABLE);
         }
@@ -228,11 +232,7 @@ impl NativeGame {
             map,
             pool,
             last_frame_time,
-            missiles,
             deaths,
-            fired,
-            sounds: self_sounds,
-            told: self_told,
             ..
         } = self;
         let peer = players
@@ -247,9 +247,30 @@ impl NativeGame {
             server_time,
             &mut deaths.rng,
         );
+        let level_time = *last_frame_time;
+        // JA+'s hook thinks after the entity is converted, before `ClientEvents`
+        // (VisionJK `g_active.c:3403-3405`); nothing on the base game.
+        if ran {
+            self.hook_think(client, level_time);
+        }
+        let Self {
+            server,
+            world,
+            players,
+            pool,
+            missiles,
+            deaths,
+            fired,
+            sounds: self_sounds,
+            told: self_told,
+            ..
+        } = self;
+        let peer = players
+            .at(client)
+            .and_then(|handle| server.world_mut(*world)?.entity_mut(handle));
+        let Some(peer) = peer else { return };
         // `ClientEvents`: the fire events of this think fire the weapon from the entity
         // as it was just converted, and end the spawn's protection.
-        let level_time = *last_frame_time;
         // A think raises a fire event at most for each of its slices; no allocation.
         let mut fires = [None; 16];
         if ran {
@@ -262,6 +283,8 @@ impl NativeGame {
                 peer.state.set_raw_field(EFLAGS, flags & !EF_INVULNERABLE);
                 peer.invulnerable_until = 0;
                 peer.force.danger_time = level_time;
+                // Attacking ends an admin's protection (`amprotect`).
+                peer.admin.effects.protected = false;
             }
         }
         // `ClientEvents`' landings and item uses.
@@ -287,6 +310,7 @@ impl NativeGame {
             peer.state.set_raw_field(EFLAGS, flags & !EF_INVULNERABLE);
             peer.invulnerable_until = 0;
             peer.force.danger_time = level_time;
+            peer.admin.effects.protected = false;
             if matches!(
                 peer.state.weapon(),
                 WP_DISRUPTOR

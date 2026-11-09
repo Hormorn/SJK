@@ -16,6 +16,14 @@ impl NativeGame {
         let Some(&name) = words.first() else {
             return false;
         };
+        // The running mod's own (JA+'s `JP_ConsoleCommand`: `serverTime`, `modVersion`).
+        if let Some(text) = self
+            .server_mod
+            .and_then(|server_mod| server_mod.console_command(name, self.last_frame_time))
+        {
+            print(text.as_bytes());
+            return true;
+        }
         let is = |command: &[u8]| name.eq_ignore_ascii_case(command);
         if is(b"addip") {
             match words.get(1) {

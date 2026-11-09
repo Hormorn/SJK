@@ -4947,7 +4947,7 @@ test: Wall run-up right after a Force-jump flip: no snap back.
 [japlus-grapple]
 area: Gameplay
 title: JA+ grapple hook predicted and its rope drawn
-change: +grapple pull and the rope hang after release no longer snap back; use cancels.
+change: +grapple pull and the rope hang after release no longer snap back; use lets go.
 change: A thin dark rope is drawn from the player's right hand to the hook.
 test: JA+: /amAltDim first if the hook does nothing (default alt dimension disables it).
 test: Hold +grapple onto a wall, release, hang, then press use to drop: smooth, rope visible.
@@ -9238,6 +9238,19 @@ test: Back to Create game: JA+ is still chosen, also after a restart; Base game:
 test: ui_menuStyle classic, Play > Create Server: the same Server mod row is there.
 note: The rows moved: Start sits a little lower to make room for the row.
 
+[japlus-emotes]
+area: Gameplay
+title: JA+ server mode: the 27 emotes, amhug, amflip, jetpack, /saber and the info commands
+change: g_mod japlus: amsit, sleep, amkneel... play and hold until you attack, jump or use Force.
+change: amhug, amflip, amknockmedown, amdropsaber, jetpack, amcolor, sabercolor, saber, ammove.
+change: SJK predicts JA+'s held emotes on every JA+ server: no more sliding back while sitting.
+test: Local sjk-server +set g_mod japlus with a bot: amsit3, try to walk: you stay; jump: you stand.
+test: amhug facing the bot up close: both put sabers away and hug. amkiss: JA+'s GLA refusal text.
+test: amflip turns your saber on and off; amknockmedown drops you; jetpack: not allowed (default).
+test: rcon jp_allowJetpack 1, next map: jetpack gives it. saber dual_1 dual_1: duals at once.
+test: On a real JA+ server: amsit, amkneel, sleep: no pulling back while held, none on get-up.
+note: Base servers (no g_mod) answer Unknown command to all of them, as before.
+
 [japlus-force]
 area: Gameplay
 title: JA+ server mode: JA+'s Force rules (push, absorb, grip, cloak, items)
@@ -9250,6 +9263,19 @@ test: rcon jp_gripSpeedScale 1: grip and run, no pulling back; same on a real JA
 test: rcon jp_gripOpenSaber 2, get gripped with little Force: your saber drops from the hand.
 test: rcon jp_cloakFuel 0: the cloak stays on, its bar does not drain.
 note: Not run with a client yet. Base servers (no g_mod) must play as before.
+
+[japlus-hook]
+area: Gameplay
+title: JA+ server mode: the grappling hook (+grapple, jp_allowHook, fuel, cut ropes)
+change: g_mod japlus: +grapple fires the hook; it pulls you to where it holds, rope drawn.
+change: Let go: you hang on the rope; +grapple pulls again, use drops it. Uses jetpack fuel.
+change: A swinging blade, a shot or a thrown saber cuts the rope (no hook for 10 s).
+test: Local sjk-server +set g_mod japlus, FFA map, a bot: hold +grapple at a wall.
+test: Pulled to the wall without snapping back; release: hang and swing; use: you drop.
+test: Hook the bot: it holds the bot's middle, the bot loses 1 health.
+test: Hold +grapple a while: the fuel bar drains, at 0 the hook lets go; it refills after.
+test: rcon jp_allowHook 0 then map mp/ffa3: +grapple does nothing; base server: nothing.
+note: Not run with a client yet; bots do not cut ropes on purpose (shoot one across yours).
 
 [japlus-duels]
 area: Gameplay
@@ -9486,3 +9512,17 @@ test: Collection > Toys lists 14 rows with the keys clear of the last one.
 test: Three players with toy_quests on a box server, hub on staff: a quest, card and arrows.
 test: Hug both targets (/amhug): each marks done, an Echo drops, the chime plays.
 note: Needs hub shared #15 deployed and --quests on; off by default.
+
+[japlus-admin]
+area: Gameplay
+title: JA+ admins on SJK's server (g_mod japlus): ranks, key login, admin commands
+change: Council/knight/instructor/rcon with JA+'s masks; passwords only with japlus.adminPasswords 1.
+change: SJK clients log in with their key (admin_keys.txt); amcode makes one-time codes.
+change: amkick, amban, amtele, amslap, amsleep, amprotect, amsilence, amsay, ammap, amlockteam...
+test: identity adminkey: copies your public key (nothing shown). Make a folder for --home.
+test: Put "council <key> Sol" in <home>/base/admin_keys.txt; start sjk-server as for japlus-mode
+test: ... with --home <folder>. Connect: "Sol is logged as an admin council" without typing.
+test: aminfo lists the council's commands; amtele <bot>; amslap needs admToggle 5 council first.
+test: Server console: amcode knight, then amlogin <code> on a second client: logged as knight.
+test: amsilence <bot>, amsleep <bot>, amprotect, amlockteam s then team spectator: refused.
+note: Not run with a client yet. Ghost, empower, merc, mindtrick, npc, polls: not built.

@@ -760,6 +760,19 @@ pub(crate) fn closest_point_on_segment(start: [f32; 3], end: [f32; 3], from: [f3
     along(end, along_end, end_to_start)
 }
 
+/// `ShortestLineSegBewteen2LineSegs` (`g_utils.c:2107-2283`) for two separate segments:
+/// the distance between them and the closest point on each.
+pub(crate) fn shortest_between_segments(
+    start1: [f32; 3],
+    end1: [f32; 3],
+    start2: [f32; 3],
+    end2: [f32; 3],
+) -> (f32, [f32; 3], [f32; 3]) {
+    let mut segments = Segments::new(start1, end1, start2, end2, false);
+    let distance = segments.shortest();
+    (distance, segments.close1, segments.close2)
+}
+
 /// `ShortestLineSegBewteen2LineSegs`' arguments: two segments and the closest point on
 /// each. `end1_is_close2` is the reference's aliased call (`close_pnt2` the same array as
 /// `end1`): each write of the second closest point then moves the first segment's end.

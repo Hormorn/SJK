@@ -848,6 +848,10 @@ pub struct Predictor {
     /// What a vehicle's move may bump into, as the game describes it
     /// ([`vehicle::VehicleGame::impact_bodies`]): filled for the move, empty otherwise.
     impact_bodies: Vec<vehicle_impact::ImpactBody>,
+    /// The buttons of the command as the last slice left them (`pm->cmd.buttons` after
+    /// `Pmove`: walking cleared while running, the chat's own...), which the game reads
+    /// after the move (JA+'s hook, [`crate::japlus_hook`]).
+    moved_buttons: u16,
 }
 
 impl Predictor {
@@ -884,6 +888,7 @@ impl Predictor {
             impacts: Default::default(),
             impact_count: 0,
             impact_bodies: Vec::new(),
+            moved_buttons: 0,
         }
     }
 
@@ -918,6 +923,7 @@ impl Predictor {
             impacts: Default::default(),
             impact_count: 0,
             impact_bodies: Vec::new(),
+            moved_buttons: 0,
         }
     }
 
@@ -1023,6 +1029,7 @@ impl Predictor {
         fresh.state.rocket_last_valid_time = self.state.rocket_last_valid_time;
         fresh.state.footstep_time = self.state.footstep_time;
         fresh.state.saber_anim_level_base = self.state.saber_anim_level_base;
+        fresh.moved_buttons = self.moved_buttons;
         fresh.copied_to_entity();
         fresh
     }
@@ -1053,6 +1060,12 @@ impl Predictor {
     /// while it looks through the world. It is a fixed array, so this allocates nothing.
     pub fn touched(&self) -> TouchedEntities {
         self.touched
+    }
+
+    /// The buttons of the last command run, as the move left them (`pm->cmd.buttons`
+    /// after `Pmove`), for what the game does after the move.
+    pub fn moved_buttons(&self) -> u16 {
+        self.moved_buttons
     }
 
     /// `ClientEndFrame`'s `ps.stats[STAT_HEALTH] = ent->health`: the game owns a player's
@@ -1523,6 +1536,7 @@ impl Predictor {
         // `codemp/game/bg_pmove.c:10701-10703` (PmoveSingle) returns here for
         // PM_INTERMISSION after commandTime and PM_UpdateViewAngles have been
         // applied, but before timers, ducking, traces, or movement.
+        self.moved_buttons = command.buttons;
         if super::intermission::suppresses_movement(self.state.movement_type) {
             return;
         }
@@ -1627,7 +1641,7 @@ impl Predictor {
             self.fly_vehicle_move(seconds, bounds, &ground, collision);
         } else if self.state.movement_flags & PMF_TIME_WATERJUMP != 0 {
             self.water_jump_move(seconds, bounds, &ground, collision);
-        } else if let Some(hook) = self.hook_move(&command) {
+        } else if let Some(hook) = self.hook_move() {
             // JA+'s hook (see [`grapple`]): a pull or a hang on the rope, both carried
             // by an air move, whatever the water or ground below.
             if hook == grapple::HookMove::Pull {
@@ -1784,6 +1798,7 @@ impl Predictor {
         }
         // A rider's pose (`bg_pmove.c:11157-11161`).
         self.vehicle_weapon_animate(&command);
+        self.moved_buttons = command.buttons;
     }
 
     /// Mirrors `PM_UpdateViewAngles`; movement only consumes yaw but preserving

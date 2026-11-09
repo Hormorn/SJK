@@ -243,6 +243,83 @@ the frame saves, Escape and a press elsewhere closing the menus), the chat tests
 world shots of the three states, fmt, clippy, the startup stack check. Not verified:
 in a game.
 
+## SJK's server as a JA+ server, step 3: emotes and player commands
+
+06/11/2026, `personal/japlus-emotes` from `main` `403b06e0`. Under `g_mod japlus` the
+server runs JA+ 2.4 B7's emotes and player commands, after VisionJK's rebuild of its
+module (`japlus/g_japlus_cmds.c`, `g_japlus_info.c`, `g_japlus_tele.c`, `bg_pmove.c`):
+the 27 emotes with `jp_emotDisallow`, `amhug`, `amflip`, `amknockmedown`, `amdropsaber`,
+`jetpack`, `amcolor`, `sabercolor`, `saber`, `ammove`, `amDMGs`, `duelWhois`,
+`refuseTele`, and the console's `serverTime` and `modVersion`, each answering with JA+'s
+texts ([server.md](server.md#ja-mode) lists them). The held emotes are shared movement
+(`sjk_game_jka::pmove_japlus_emotes`): SJK's client now predicts them on every JA+ server,
+and the server freezes them (`PM_FREEZE`) for clients without the plugin as `jp_fixEmot`
+says ([networking.md](networking.md)). The `ServerMod` trait gains default hooks
+(`player_commands`, `command_prints`, `client_has_plugin`, `console_command`) and
+`ModCommand` its variants. Verified on Windows 11 by unit tests: the hold, its end
+animation, the hook's button and the freeze at 8/7/4/3 ms commands
+(`a_ja_plus_emote_holds_the_body_until_a_button`, `only_the_server_holds_and_freezes_at_ease`),
+the table of 27 retail poses, the settings and texts, the plugin version read, and on a
+mapless server the commands themselves (`bridge_mod_commands::tests`: poses, refusals,
+hug, flip, knock-down, jetpack, colours, lists, the freeze's choice, the intermission),
+the base game answering Unknown command to every one; and a headless `sjk-server` on
+loopback (`g_mod japlus`, `mp/ffa3`, four bots) for 52 seconds, its console answering
+`modVersion` and `serverTime`, no panic. Not verified: in a game with a
+client (no emote was played on screen), against a JA+ or VisionJK server, the hold on a
+real map (the tests filter one command), `/saber` with real saber files. Left out:
+`amkiss` (JA+'s own animations, answered as JA+ answers without them), JA+'s own
+animations for `amflip`, `amAltDim`, `immortal`, `toggleFlame`, the hook.
+
+## SJK's server as a JA+ server: the grappling hook
+
+06/11/2026, `personal/japlus-hook` from `main` `403b06e0`. Under `g_mod japlus` with
+`jp_allowHook` the server runs JA+ 2.4 B7's grappling hook after VisionJK's rebuild
+(`japlus/g_japlus_hook.c`): the hook missile on `+button12` (`jp_hookSpeed`,
+`jp_hookFloodProtect`, the fire rules), holding the world or a body, the pull and the
+plugin user's hang through the shared `pmove_grapple` (now on in the server's moves by
+`ModMovement::grapple`), the fuel shared with the jetpack (`dmflags` 512 frees it),
+letting go, and the ropes cut by blades, shots and thrown sabers
+([server.md](server.md#ja-mode)). The shared prediction changed for every JA+ server: a
+move with use held is pulled or hung, as the JA+ game lets go after the move
+([networking.md](networking.md#ja-grapple-hook)). New `ServerMod::hook` hook (none by
+default). Verified on Windows 11: unit tests of the fire rules, the think (fire, hang,
+walk, pull again, use, the plugin), the missiles fired, the fuel, the snap, the rope cut,
+the prediction with use held at 8/7/4/3 ms; a mapless server firing at a player (it
+holds the body's middle, one point of damage, the pull, hang, use), without the plugin,
+the flood protection, a shot's cut, and the base game and `jp_allowHook 0` with no hook.
+Not verified: with a game client or against a JA+ or VisionJK server (no flight, hold or
+fuel numbers compared in a game), a hook on a map's walls (only a mapless server ran),
+the blade and thrown saber cuts in a game. Left out: see server.md (the alternate
+dimension, model scale, the server-only flip kick rule).
+
+## SJK's server as a JA+ server, step 3: admins, logged in with SJK keys
+
+06/11/2026, `personal/japlus-admin` from `main` `403b06e0`. Under `g_mod japlus` the
+server runs JA+ 2.4 B7's admin system, after VisionJK's rebuild of its module
+(`g_japlus_admin.c`, `g_japlus_admin2.c`, `g_japlus_fx.c`, `g_japlus_tele.c`): the
+council, knight, instructor and rcon ranks with JA+'s allowed-command masks, the "usable
+on" rule, the abuse counter, the admin-ban list, the command log, the server console's
+`admGrant`/`admToggle`/`admBan`/`admAddIP`/`admRemoveIP`/`admListIP`, and the commands
+most used (kick, ban, the teleports with the star-trek beam, slap, sleep, protect,
+silence, the admins' chat and centre prints, status, whois, map, rename, team locks and
+moves, votes, the message of the day). Sol's decision: an admin logs in with the SJK
+identity key (`admin_keys.txt`, a nonce, hints so that a non-admin's key never leaves
+the client, a signature over a domain-separated message with the host key, the address
+and the client number; the client keeps each address's host key); JA+'s rank passwords
+count only with `japlus.adminPasswords 1`; one-time codes (`amcode`) for other clients
+([server.md](server.md#ja-admins), [identity.md](identity.md#admin-key-login)). The
+generic part is `sjk_server_mod::admin` and a new `ServerMod::admin` hook (none on the
+base game), JA+'s table and texts are the mod's. Verified on Windows 11: unit tests of
+the rights, masks, usable-on rule, abuse counter, team lock, key file, hints, signature
+(right, replayed, late, for another slot, host key, address or key), host-key pinning,
+codes, and of each command on a mapless server with players (`bridge_admin.rs`,
+`bridge_admin_effects.rs`), the base game's tests that none of it exists there. Not
+verified: in a game with a client (the key login end to end, what JA+ plugin and
+EternalJK players see), against a running JA+ or VisionJK server, the lava and trigger
+checks of `amtele` on a real map. Left out (documented): ghost, empower, merc,
+mindtrick, the alternate dimension, npc, weather, polls, `amvstr`, the admin guns, the
+login effect, the join message of the day.
+
 ## SJK's server as a JA+ server, step 2: saber damage and the `/kill` frag
 
 06/11/2026, `personal/japlus-saber-damage` from `main` `d473a66b`. Under `g_mod japlus`

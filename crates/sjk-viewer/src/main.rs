@@ -9,6 +9,7 @@ mod actor_mesh;
 mod actor_pose;
 mod actor_tint;
 mod actor_world_submission;
+mod admin_key_login;
 mod alpha_notice_card;
 mod am_color;
 mod animation_timing;

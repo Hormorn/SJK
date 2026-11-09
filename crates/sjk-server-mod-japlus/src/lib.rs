@@ -16,17 +16,27 @@
 //! - [`JaPlus::force`]: JA+'s Force rules (`sjk_game_jka::force_rules`).
 //! - [`JaPlus::duels`]: JA+'s private duels (`sjk_game_jka::duel::DuelRules`), and its
 //!   `engage_FullForceDuel` ([`JaPlus::command`]).
+//! - [`commands`]: its emotes and player commands, and the server console's own.
+//! - [`JaPlus::hook`]: JA+'s grappling hook (`sjk_game_jka::japlus_hook`), whose pull every
+//!   JA+ client predicts ([`ModMovement::grapple`]).
+//! - [`admin`]: JA+'s admin system, its ranks' commands and texts, which the server runs
+//!   (`sjk_server_mod::admin`).
 
+pub mod admin;
 pub mod cinfo;
 pub mod combat;
+pub mod commands;
 pub mod cvars;
 
 use sjk_game_jka::RollRules;
 use sjk_game_jka::duel::{DuelRules, WinnerReport};
 use sjk_game_jka::force_rules::{ForceRules, GripOpenSaber};
+use sjk_game_jka::japlus_hook::{DF_NO_HOOK_FUEL, HookRules};
+use sjk_game_jka::pmove::grapple::GrappleRules;
 use sjk_game_jka::pmove_japlus::JaPlusRules;
+use sjk_game_jka::pmove_japlus_emotes::EmoteFreeze;
 use sjk_protocol::{JaPlusCapabilities, ServerDialect};
-use sjk_server_mod::{ModCombat, ModCommand, ModMovement, ServerMod, Settings};
+use sjk_server_mod::{ModCombat, ModCommand, ModMovement, PlayerCommandRules, ServerMod, Settings};
 
 /// `gamename` of JA+ 2.4 B7 (VisionJK `g_japlus.h` `JP_GAMENAME`): clients and server
 /// browsers tell a JA+ server by it (`sjk_protocol::is_ja_plus_game_name`).
@@ -81,6 +91,14 @@ impl ServerMod for JaPlus {
                 // A serverinfo setting (`CVAR_SERVERINFO`), which the clients read from
                 // there (`JaPlusRules::from_game_state`).
                 grip_speed: settings.value("jp_gripSpeedScale"),
+                // VisionJK `bg_pmove.c:11186-11193`: `jp_fixEmot` freezes the held
+                // emotes only while a player has no plugin (the server then freezes them
+                // all, [`ServerMod::client_has_plugin`]); `amatease` always.
+                emote_freeze: if settings.integer("jp_fixEmot") != 0 {
+                    EmoteFreeze::AtEase
+                } else {
+                    EmoteFreeze::Held
+                },
                 ..JaPlusRules::from_dialect(&dialect)
             },
             fix_roll: RollRules::from_dialect(&dialect).fix_roll,
@@ -88,6 +106,21 @@ impl ServerMod for JaPlus {
             // fixes (VisionJK `docs/japlus/differences.md`: `g_fixRunWalkAnims`,
             // `g_fixWeaponAttackAnim` and `g_fixSaberMoveData` are 0 there).
             legacy_fixes: 0,
+            // The hook's pull, as every JA+ client predicts it on any JA+ server
+            // (`GrappleRules::from_dialect`); without `jp_allowHook` no player is ever
+            // flagged for it.
+            grapple: GrappleRules::from_dialect(&dialect),
+        }
+    }
+
+    fn hook(&self, settings: &dyn Settings) -> HookRules {
+        // VisionJK `japlus/g_japlus_hook.c`: `jp_allowHook` (latched), `jp_hookSpeed`,
+        // `jp_hookFloodProtect`, and `dmflags` 512 for a hook without fuel.
+        HookRules {
+            allow: settings.integer("jp_allowHook"),
+            speed: settings.integer("jp_hookSpeed"),
+            flood_protect: settings.integer("jp_hookFloodProtect"),
+            fuel_free: settings.integer("dmflags") & DF_NO_HOOK_FUEL != 0,
         }
     }
 
@@ -141,9 +174,34 @@ impl ServerMod for JaPlus {
     }
 
     fn command(&self, name: &[u8]) -> Option<ModCommand> {
-        // VisionJK `g_cmds.c:3455-3462,3756`.
-        name.eq_ignore_ascii_case(b"engage_FullForceDuel")
-            .then_some(ModCommand::FullForceDuel)
+        // JA+'s own commands (`engage_FullForceDuel` among them), then the admin system's
+        // a player types (`JP_ClientCommand`); those not carried out yet stay unknown.
+        commands::command(name).or_else(|| {
+            admin::SYSTEM
+                .entry(name, false)
+                .and_then(|entry| entry.command)
+                .map(ModCommand::Admin)
+        })
+    }
+
+    fn player_commands(&self, settings: &dyn Settings) -> PlayerCommandRules {
+        commands::rules(settings)
+    }
+
+    fn command_prints(&self, command: ModCommand, settings: &dyn Settings) -> Vec<String> {
+        commands::prints(command, settings)
+    }
+
+    fn client_has_plugin(&self, userinfo: &[u8]) -> bool {
+        commands::has_plugin(userinfo)
+    }
+
+    fn console_command(&self, name: &[u8], level_time: i32) -> Option<String> {
+        commands::console(name, level_time)
+    }
+
+    fn admin(&self) -> Option<&'static sjk_server_mod::admin::AdminSystem> {
+        Some(&admin::SYSTEM)
     }
 }
 
@@ -197,8 +255,12 @@ mod tests {
         );
         let profile = ServerProfile::from_server_info(&InfoString::parse(&info).unwrap());
         let movement = JaPlus.movement(&settings);
+        // The emotes' freeze is the server's own, for the clients that do not predict.
         assert_eq!(
-            movement.ja_plus,
+            JaPlusRules {
+                emote_freeze: EmoteFreeze::Off,
+                ..movement.ja_plus
+            },
             JaPlusRules::from_dialect(&profile.dialect)
         );
         assert_eq!(
@@ -209,6 +271,20 @@ mod tests {
         assert!(movement.ja_plus.yellow_dfa && !movement.ja_plus.head_slide);
         assert_eq!(movement.fix_roll, 1);
         assert_eq!(movement.legacy_fixes, 0);
+    }
+
+    #[test]
+    fn jp_fix_emot_picks_what_the_server_freezes() {
+        let mut settings = Table(HashMap::new());
+        assert_eq!(
+            JaPlus.movement(&settings).ja_plus.emote_freeze,
+            EmoteFreeze::AtEase
+        );
+        settings.0.insert("jp_fixEmot", 0);
+        assert_eq!(
+            JaPlus.movement(&settings).ja_plus.emote_freeze,
+            EmoteFreeze::Held
+        );
     }
 
     #[test]
@@ -247,12 +323,49 @@ mod tests {
     }
 
     #[test]
+    fn the_hook_follows_its_settings_and_is_predicted() {
+        let mut settings = Table(HashMap::new());
+        let hook = JaPlus.hook(&settings);
+        assert_eq!(
+            hook,
+            HookRules {
+                allow: 1,
+                speed: 800,
+                flood_protect: 750,
+                fuel_free: false
+            }
+        );
+        assert_eq!(
+            JaPlus.movement(&settings).grapple,
+            Some(GrappleRules { pull_speed: 800.0 })
+        );
+        settings.0.insert("jp_allowHook", 0);
+        settings.0.insert("dmflags", 512);
+        settings.0.insert("jp_hookSpeed", 1_600);
+        let hook = JaPlus.hook(&settings);
+        assert!(!hook.enabled() && hook.fuel_free);
+        assert_eq!(hook.speed, 1_600);
+    }
+
+    #[test]
     fn the_full_force_duel_is_a_command() {
         assert_eq!(
             JaPlus.command(b"engage_fullforceduel"),
             Some(ModCommand::FullForceDuel)
         );
         assert_eq!(JaPlus.command(b"engage_duel"), None);
+    }
+
+    #[test]
+    fn admin_commands_are_commands_and_the_unbuilt_ones_are_not() {
+        use sjk_server_mod::admin::AdminCommand;
+        assert_eq!(
+            JaPlus.command(b"AMLOGIN"),
+            Some(ModCommand::Admin(AdminCommand::Login))
+        );
+        assert_eq!(JaPlus.command(b"amghost"), None);
+        assert_eq!(JaPlus.command(b"admGrant"), None);
+        assert!(JaPlus.admin().is_some());
     }
 
     #[test]
