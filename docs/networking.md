@@ -704,8 +704,11 @@ and after a hitch commands trail the frame's reading by at most 50 ms (a frame a
 slowest gameplay FPS) where a stock client's carry the time from before it. SJK's own
 servers (`sjk 1` in the serverinfo, `server_caps::FRESH_STAMPS`) run no such check, so
 there commands still carry the frame's own reading (Sol, 07/11/2026), and
-`cl_freshStamps 1` (archived, 0) keeps the frame's own reading on every server (Sol,
-07/11/2026), at the risk of Heimdall's kick on JoF. The delta
+`cl_freshStamps 1` (archived, 0; Settings > Display > Fresh command stamps since
+09/11/2026) keeps the frame's own reading on every server (Sol, 07/11/2026), at the
+risk of Heimdall's kick on JoF. With Ignore server caps on too, JoF gets the command
+timing of 2026.1028.1; Kushina's PR #385 asked for one restart-only switch doing
+both, and Sol kept the two live rows instead (09/11/2026). The delta
 is adjusted once a frame, on the newest snapshot, and only once the frame has read
 every queued snapshot (a frame reads at most 8, `SNAPSHOTS_PER_FRAME` in
 [live_session.rs](../crates/sjk-viewer/src/live_session.rs)): stock reads the whole

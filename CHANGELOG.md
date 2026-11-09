@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
+
 ## 2026.1109.2 (Alpha) | 09/11/2026
 
 JA+ servers grow (emotes, the grappling hook, admins by SJK key), lights in map edits, smoother doors under real-time light, frame timings, and a tidier Toys list.
