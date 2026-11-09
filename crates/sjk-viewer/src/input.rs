@@ -261,6 +261,13 @@ impl GameplayInput {
         self.held[button.slot()].pressed = true;
     }
 
+    /// Set `button` in the next two user commands: a press the server must not miss.
+    pub(crate) fn tap_twice(&mut self, button: GameButton) {
+        let state = &mut self.held[button.slot()];
+        state.pressed = true;
+        state.pressed_again = true;
+    }
+
     /// `lowjump` (JoF EJK's `CG_Lowjump_f`, `+moveup` then `-moveup` a frame later):
     /// jump held in the next user command only, so the jump is as short as a tap can
     /// make it. The server sees one command with jump pressed, which a quick finger
@@ -753,7 +760,10 @@ impl super::GpuState {
                         sjk_client::CompatProfile::JaPlus { .. }
                     )
                 }) {
-                    self.gameplay_input.tap(GameButton::Button(5));
+                    // EternalJK's `CG_GrappleUp_f`: `+use` now, `-use` a frame or more
+                    // later. Sent in one command only, one the server skipped left the
+                    // player hanging (hub report #238, since commands went one a frame).
+                    self.gameplay_input.tap_twice(GameButton::Button(5));
                 }
             }
             Some(InputAction::Inspect) => self.hud.card.inspect(),
@@ -1256,6 +1266,17 @@ mod tests {
     fn tap_sets_a_button_for_one_command() {
         let mut input = GameplayInput::default();
         input.tap(GameButton::Button(5));
+        assert_ne!(buttons(&input) & (1 << 5), 0);
+        input.finish_command();
+        assert_eq!(buttons(&input) & (1 << 5), 0);
+    }
+
+    #[test]
+    fn tap_twice_sets_a_button_for_two_commands() {
+        let mut input = GameplayInput::default();
+        input.tap_twice(GameButton::Button(5));
+        assert_ne!(buttons(&input) & (1 << 5), 0);
+        input.finish_command();
         assert_ne!(buttons(&input) & (1 << 5), 0);
         input.finish_command();
         assert_eq!(buttons(&input) & (1 << 5), 0);

@@ -9,6 +9,8 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 09/11/2026 | - | +grapple's release lasts two commands; an emote's music waits for its decoder
+- a90b7df |  | +grapple's release lasts two commands; an emote's music waits for its decoder
 + 09/11/2026 | - | s_language voices; the strafe helper on jaPRO servers
 - 75bb655 |  | s_language voices; the strafe helper on jaPRO servers
 + 09/11/2026 | - | 3D sound rebuilt as SJK's own acoustics engine (s_spatial)

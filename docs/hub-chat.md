@@ -1232,7 +1232,8 @@ The second gap is `s_muteSounds` ([client.md](client.md#muted-sounds)).
   on the player (`emotes::Cue`, channel 13,
   following another player, in both ears for the player's own, at `s_emoteVolume`
   apart from `s_volume`, live while it plays, silent in a duel with
-  `s_muteEmotesInDuel`)
+  `s_muteEmotesInDuel`, waiting for its decoder as a boombox track does and starting as
+  far in as the song is by then)
   and stops when the emote is cut short; the `torso` and `legs` animations are not
   played yet, and a received emote is written to the console (`* Sol: Wave`). Demos
   keep the emotes started on them.

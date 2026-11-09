@@ -13,6 +13,8 @@ pub(super) struct KeyState {
     pub command_elapsed: u64,
     pub active: bool,
     pub pressed: bool,
+    /// `pressed` again in the command after this one ([`super::GameplayInput::tap_twice`]).
+    pub pressed_again: bool,
     pub fraction: f32,
 }
 

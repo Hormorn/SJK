@@ -7946,7 +7946,8 @@ A key pressed with the console open still types: the console keeps the keyboard,
 command starting with w, a, s or d types as it should, and changing direction needs the
 console closed. See [console_move.rs](../crates/sjk-viewer/src/console_move.rs). `+grapple` is
 EternalJK's name for `+button12`, the JA+/JaPRO grapple hook; on a JA+ server
-releasing it also taps `+use`, as EternalJK does. See
+releasing it also presses `+use` for two user commands (EternalJK's `-use` comes a
+frame or more later), so one command the server skips does not leave the hook held. See
 [input.rs](../crates/sjk-viewer/src/input.rs).
 
 `flipkick` is JoF EJK's flip-kick bind: one press starts a run of jump taps, jump

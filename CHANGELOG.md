@@ -32,6 +32,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Emote music no longer goes missing for a whole dance: music still loading when the emote starts now joins in as soon as it is ready, as a boombox track does _(Sol, hub report #270)_
+- `+grapple` lets go of the hook every time on JA+ servers: the release's `+use` now lasts two commands, as in EternalJK, instead of one a server could miss _(Sol, hub report #238)_
 - `s_language` picks the voices as in retail: `s_language francais` (or `deutsch`, `espanol`), then `snd_restart`; a voice the language lacks stays English _(Sol, after retail)_
 - The strafe helper (`cg_strafeHelper`) draws on jaPRO servers too, worked out with your movement style's physics; nothing in Siege style, as in JoF EJK _(Sol, after JoF EJK)_
 - 3D sound (`s_spatial`, Settings > Sound) rebuilt as SJK's own acoustics engine: sounds come from all round your head through a measured dummy head (in front, behind, above, below), walls and shut doors muffle them by what they are made of, they come round corners and through doorways, and each room rings with the echo its own walls make; "3D sound for headphones" (off pans for speakers) and "3D sound room echo" set it to taste _(Sol, after VisionJK's v_spatial by Blackwolf)_
