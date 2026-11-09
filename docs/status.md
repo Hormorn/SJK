@@ -893,6 +893,15 @@ trace from the installed game (`retail_levels`). Not verified: heard in a game, 
 therefore every strength (walls, corners, how loud and long rooms ring); macOS and Linux
 builds.
 
+09/11/2026, `personal/acoustics`: Sol heard it: loud and unreadable. Measured with
+`retail_levels`: the rooms of mp/ffa3 and mp/ffa5 rang with 1 to 4 times the energy of a
+sound 128 units away (which reaches each ear at about 0.3), for 2 to 3 s, on every sound
+including the player's own saber hum, and the mix clipped. Now every wall takes a fifth
+more and the response is turned down (0.01 to 0.03 of that sound on those maps, 10 to
+15 dB under it, ringing about 1 s). A new test holds a sound through the head to the
+loudness of the panned one (0.5 to 1.05 of its energy over six directions). Not
+verified: heard in a game.
+
 ## Heimdall's time nudge kicks at low frame rates
 
 02/11/2026, `personal/heimdall-catchup`, based on `main` `3d9e8fe2`, Krieger's and

@@ -1830,7 +1830,12 @@ install.
 - **The room** ([room.rs](../crates/sjk-acoustics/src/room.rs)). On its own thread, every
   0.12 s or after resting as long as the last pass took: 2048 rays from the head (a
   Fibonacci sphere turned anew each pass) followed for 24 walls. At each wall its
-  material swallows its share per band and the air a little of the highs; the share it
+  material swallows its share per band, a fifth more whatever it is (`FURNISHED`: the
+  game's rooms are bare boxes, which rang 2 to 3 s) and the air a little of the highs.
+  The finished response is turned down to 0.015 of its traced energy and to at most 0.04
+  (`WET`, `LOUDEST`; 1 is a sound 128 units away in the open): traced as physics has it,
+  the rooms of mp/ffa3 and mp/ffa5 rang 8 to 11 dB louder than the sounds themselves and
+  the mix clipped. The share the wall
   scatters reaches the head straight from there when nothing is between (diffuse rain),
   the rest mirrors on, and a mirrored ray passing within 48 units of the head is heard
   too. What arrives is kept in 5 ms bins per band and per ear, each ear getting what the

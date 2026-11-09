@@ -439,3 +439,29 @@ fn a_long_render_with_the_3d_sound_is_mixed_in_parts() {
     mixer.render(&mut out);
     assert!(out[spatial_fx::SEND_FRAMES * 2 + 10] != 0.0);
 }
+
+#[test]
+fn through_the_head_a_sound_is_about_as_loud_as_panned() {
+    for origin in [
+        [200.0, 0.0, 0.0],
+        [0.0, -200.0, 0.0],
+        [0.0, 200.0, 0.0],
+        [-200.0, 0.0, 0.0],
+        [0.0, 0.0, 200.0],
+        [140.0, 140.0, -60.0],
+    ] {
+        let head = ears(origin, None);
+        let mut plain = mixer(4, 0);
+        let sound = plain.sound_bank_mut().register_pcm(&noise(8_000), RATE);
+        plain.play(sound, placed(1, origin));
+        let mut out = vec![0.0; BLOCK];
+        let mut panned = 0.0_f32;
+        for _ in 0..40 {
+            plain.render(&mut out);
+            panned += out.iter().map(|s| s * s).sum::<f32>();
+        }
+        let ratio = (head[0] + head[1]) / panned;
+        println!("{origin:?}: {ratio}");
+        assert!((0.4..2.0).contains(&ratio), "{origin:?}: {ratio}");
+    }
+}

@@ -79,7 +79,7 @@ fn retail_levels_build_and_trace() {
                 let (response, stats) = tracer.trace(&scene, listener, axes, settings);
                 println!(
                     "  {place:?} room {} rays x {} bounces, {} threads: {:.1} ms, enclosed {:.2}, \
-                     decay {:.2} s, {:.2} s long ({} parts)",
+                     decay {:.2} s, {:.2} s long ({} parts), energy {:.2}",
                     settings.rays,
                     settings.bounces,
                     settings.threads,
@@ -87,7 +87,8 @@ fn retail_levels_build_and_trace() {
                     stats.enclosed,
                     stats.decay_seconds,
                     stats.length_seconds,
-                    response.partitions()
+                    response.partitions(),
+                    stats.energy
                 );
             }
             let started = Instant::now();
