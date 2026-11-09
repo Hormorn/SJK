@@ -519,6 +519,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
         CvarDefinition::new("s_volume", 0.5_f64, archive, "Effects volume"),
         CvarDefinition::new("s_musicVolume", 0.25_f64, archive, "Music volume"),
         CvarDefinition::new(
+            "s_language",
+            "english",
+            archive,
+            "Voice language: english, deutsch, francais or espanol (then snd_restart)",
+        ),
+        CvarDefinition::new(
             crate::audio::VOICE_VOLUME_CVAR,
             1.0_f64,
             archive,

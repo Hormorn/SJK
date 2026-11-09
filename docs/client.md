@@ -1970,6 +1970,12 @@ filters, the fade and falloff, the arc's place and scale.
 
 ## Voice volume
 
+`s_language` (console only, default `english`) picks the voices as retail does:
+`deutsch`, `francais` or `espanol` (and `german`, `french`, `spanish`) reads a path's
+`chars` as `chr_d`, `chr_f` or `chr_e`, the folders in `assets0.pk3`, and a voice the
+language lacks stays English (`snd_mem.cpp`). Sounds already loaded change at the next
+`snd_restart`.
+
 `s_volumeVoice` (Settings > Sound, Voice volume; 0 to 1, default 1) is the loudness of
 voices: every sound on the voice channels (`CHAN_VOICE`, `CHAN_VOICE_ATTEN`,
 `CHAN_VOICE_GLOBAL`): pain, death, taunts, jump and land grunts, gasps and a voice
@@ -3613,8 +3619,7 @@ crouch over left, back and right, each lit while it is held.
   a floor line, crouch an arrow down from a ceiling), dim while released and bright
   while held.
 
-Not covered: jaPRO's race mode moving the keys as no score line does (SJK draws no
-strafe guides on jaPRO servers either), and the guess's floor trace sees only the
+Not covered: jaPRO's race mode moving the keys as no score line does, and the guess's floor trace sees only the
 map, not movers or players under the followed player. Riding a vehicle hides them,
 where JoF keeps them when the vehicle has no HUD menu of its own.
 
@@ -3676,8 +3681,10 @@ ranges, so a larger graph does not show a longer history.
 
 ## Strafe helper
 
-`cg_strafeHelper` draws guides for strafe-jumping with JKA's movement physics, as
-JAPRO-derived clients do; its options are bits, listed and toggled by the
+`cg_strafeHelper` draws guides for strafe-jumping, as JAPRO-derived clients do, with
+JKA's movement physics or, on a jaPRO server, those of the player's movement style
+(`CG_StrafeHelper`'s table, `sjk_mod_japro::movement_styles::guide_physics`; nothing in
+Siege style); its options are bits, listed and toggled by the
 `strafehelper` command (`strafehelper 1` switches the lines style on). Two styles
 are drawn, one at a time (the command switches between them as JoF EJK's does):
 

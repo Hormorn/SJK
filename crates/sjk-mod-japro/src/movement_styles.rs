@@ -101,9 +101,64 @@ pub fn unpredicted(player: &PlayerState, predict_anyway: bool) -> Option<&'stati
     }
 }
 
+/// What the strafe helper takes from a style's physics (JoF EternalJK
+/// `CG_StrafeHelper`, `cg_draw.c:12105-12160`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GuidePhysics {
+    /// `pm_accelerate` on the ground.
+    pub ground_acceleration: f32,
+    /// `pm_friction` on the ground.
+    pub friction: f32,
+    /// `pm_airaccelerate` in the air.
+    pub air_acceleration: f32,
+}
+
+/// The physics the strafe helper works with for the style `player` moves with; `None`
+/// where it draws nothing: Siege (`if (moveStyle == 0) return`) and an unknown number.
+/// Only for a jaPRO server, as [`unpredicted`].
+pub fn guide_physics(player: &PlayerState) -> Option<GuidePhysics> {
+    let (ground_acceleration, friction, air_acceleration) = match server_style(player)?.id {
+        0 => return None,
+        // WSW.
+        6 => (12.0, 8.0, 1.0),
+        // CPM, RJCPM and BotCPM.
+        3 | 8 | 14 => (15.0, 8.0, 1.0),
+        // SP.
+        12 => (12.0, 6.0, 4.0),
+        // Slick.
+        13 => (30.0, 0.0, 1.0),
+        _ => (10.0, 6.0, 1.0),
+    };
+    Some(GuidePhysics {
+        ground_acceleration,
+        friction,
+        air_acceleration,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_strafe_helper_follows_each_styles_physics() {
+        let physics = |style| guide_physics(&player(style, 0));
+        assert_eq!(physics(0), None);
+        assert_eq!(physics(99), None);
+        let stock = GuidePhysics {
+            ground_acceleration: 10.0,
+            friction: 6.0,
+            air_acceleration: 1.0,
+        };
+        assert_eq!(physics(1), Some(stock));
+        assert_eq!(physics(2), Some(stock));
+        let cpm = physics(3).unwrap();
+        assert_eq!((cpm.ground_acceleration, cpm.friction), (15.0, 8.0));
+        assert_eq!(physics(12).unwrap().air_acceleration, 4.0);
+        assert_eq!(physics(13).unwrap().friction, 0.0);
+        // A co-op style is its base style's.
+        assert_eq!(physics(17), Some(cpm));
+    }
 
     fn player(style: u32, vehicle: u32) -> PlayerState {
         let mut player = PlayerState::default();

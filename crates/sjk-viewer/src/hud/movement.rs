@@ -21,9 +21,30 @@ pub(crate) const AURA_COMMANDS: usize = 2;
 /// in degrees left of the view: W, WA, A, SA, S, SD, D, WD.
 const WISH: [f32; 8] = [0.0, 45.0, 90.0, 135.0, 180.0, -135.0, -90.0, -45.0];
 
+/// The movement physics the guides are worked out with.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct StrafePhysics {
+    /// Ground acceleration.
+    pub(crate) ground_acceleration: f32,
+    /// Ground friction.
+    pub(crate) friction: f32,
+    /// Air acceleration.
+    pub(crate) air_acceleration: f32,
+}
+
+impl StrafePhysics {
+    /// Stock JKA's (`bg_pmove.c`).
+    pub(crate) const STOCK: Self = Self {
+        ground_acceleration: 10.0,
+        friction: 6.0,
+        air_acceleration: 1.0,
+    };
+}
+
 /// Retained guide input and settings, populated from the existing prediction/snapshot projection.
 pub(super) struct Guides {
     settings: settings::Settings,
+    physics: StrafePhysics,
     velocity: [f32; 3],
     angles: [f32; 3],
     speed: f32,
@@ -53,6 +74,7 @@ impl Default for Guides {
     fn default() -> Self {
         Self {
             settings: settings::Settings::read(None),
+            physics: StrafePhysics::STOCK,
             velocity: [0.0; 3],
             angles: [0.0; 3],
             speed: 250.0,
@@ -103,9 +125,12 @@ impl Guides {
             && player.zoom_mode() == 0;
     }
 
-    /// Disable guides when the server's movement physics are not JKA's.
-    pub(super) fn restrict(&mut self, supported: bool) {
-        self.allowed &= supported;
+    /// Work the guides out with `physics`, the server's; disable them without any.
+    pub(super) fn restrict(&mut self, physics: Option<StrafePhysics>) {
+        match physics {
+            Some(physics) => self.physics = physics,
+            None => self.allowed = false,
+        }
     }
 
     /// Emit fixed-capacity rects; CGAZ markers and snap zones are informational, not backplates.
@@ -129,7 +154,8 @@ impl Guides {
         }
         if s.helper & 4 != 0 && self.airborne {
             let speed = self.velocity[0].hypot(self.velocity[1]);
-            let delta = math::optimal(speed, self.speed / s.helper_fps, self.speed) + s.offset;
+            let acceleration = self.physics.air_acceleration * self.speed / s.helper_fps;
+            let delta = math::optimal(speed, acceleration, self.speed) + s.offset;
             let velocity_yaw = self.velocity[1].atan2(self.velocity[0]).to_degrees();
             const BITS: [i64; 8] = [32, 64, 256, 65536, 32768, 131072, 512, 128];
             for (key, bit) in BITS.into_iter().enumerate() {
@@ -227,10 +253,15 @@ impl Guides {
             return;
         }
         let frame = 1.0 / s.helper_fps;
+        let physics = self.physics;
         let optimal = if self.airborne {
-            math::optimal(speed, base * frame, base)
+            math::optimal(speed, physics.air_acceleration * base * frame, base)
         } else {
-            math::optimal(speed * (1.0 - 6.0 * frame), 10.0 * base * frame, base)
+            math::optimal(
+                speed * (1.0 - physics.friction * frame),
+                physics.ground_acceleration * base * frame,
+                base,
+            )
         };
         let delta = optimal + s.offset;
         let velocity_yaw = self.velocity[1].atan2(self.velocity[0]).to_degrees();
@@ -293,10 +324,14 @@ impl Guides {
             return;
         }
         let frame = 1.0 / s.helper_fps;
+        let physics = self.physics;
         let (vf, acceleration) = if self.airborne {
-            (speed, base * frame)
+            (speed, physics.air_acceleration * base * frame)
         } else {
-            (speed * (1.0 - 6.0 * frame), 10.0 * base * frame)
+            (
+                speed * (1.0 - physics.friction * frame),
+                physics.ground_acceleration * base * frame,
+            )
         };
         let best = math::peak(vf, acceleration, base);
         let top = math::gain(vf, acceleration, base, best);
@@ -344,8 +379,12 @@ impl Guides {
 
 impl HudOverlay {
     /// Apply the camera/physics safety gate and real keyboard direction after projection.
-    pub(crate) fn restrict_guides(&mut self, supported: bool, keys: Option<[i8; 2]>) {
-        self.guides.restrict(supported);
+    pub(crate) fn restrict_guides(
+        &mut self,
+        physics: Option<StrafePhysics>,
+        keys: Option<[i8; 2]>,
+    ) {
+        self.guides.restrict(physics);
         if let Some([f, r]) = keys {
             self.guides.full_input = [f, r].into_iter().all(|v| v == 0 || v == 127 || v == -127);
             self.guides.direction = match (f.signum(), r.signum()) {

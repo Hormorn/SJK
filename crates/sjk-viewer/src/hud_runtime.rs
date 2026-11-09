@@ -714,7 +714,12 @@ pub(crate) fn update(
         .live_session
         .as_ref()
         .and_then(|_| gpu.local_prediction.guide_input());
-    gpu.hud.restrict_guides(!japro, keys);
+    let guide_physics = if japro {
+        japro_guide_physics(gpu)
+    } else {
+        Some(hud::movement::StrafePhysics::STOCK)
+    };
+    gpu.hud.restrict_guides(guide_physics, keys);
     // The movement keys: the own command while playing, a guess while following or in
     // a demo, with the map's floor under the player for a guessed jump.
     let viewed = gpu
@@ -966,4 +971,34 @@ mod tests {
             [Some("saber_tidal"), None]
         );
     }
+}
+
+/// The jaPRO tools mod's bridge: what the strafe helper works with for the style the
+/// viewed player moves with; none without the mod (a style's physics stay unknown).
+#[cfg(feature = "mod-japro")]
+fn japro_guide_physics(gpu: &GpuState) -> Option<hud::movement::StrafePhysics> {
+    gpu.console
+        .as_ref()
+        .filter(|console| console.mods.loaded(sjk_mod_japro::ID))?;
+    let player = gpu
+        .live_session
+        .as_ref()
+        .map(|session| &session.latest_snapshot().player)
+        .or_else(|| {
+            gpu.demo_session
+                .as_ref()
+                .map(|session| &session.latest_snapshot().player)
+        })?;
+    let physics = sjk_mod_japro::movement_styles::guide_physics(player)?;
+    Some(hud::movement::StrafePhysics {
+        ground_acceleration: physics.ground_acceleration,
+        friction: physics.friction,
+        air_acceleration: physics.air_acceleration,
+    })
+}
+
+/// Without jaPRO tools a jaPRO server's physics are unknown: no guides.
+#[cfg(not(feature = "mod-japro"))]
+fn japro_guide_physics(_gpu: &GpuState) -> Option<hud::movement::StrafePhysics> {
+    None
 }

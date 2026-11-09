@@ -24,6 +24,24 @@
 
 # ---- Console & chat ----
 
+[voice-language]
+area: Audio
+title: s_language: French, German and Spanish voices (hub report #289)
+change: s_language francais, deutsch or espanol (or french, german, spanish) picks the voices.
+change: A voice the language lacks stays English, as in retail.
+test: s_language francais, snd_restart: Kyle's and players' voices are French.
+test: s_language english, snd_restart: English voices again.
+test: Weapons, sabers and menu sounds stay the same in every language.
+
+[strafe-helper-japro]
+area: HUD
+title: Strafe helper on jaPRO servers, by movement style (hub report #283)
+change: cg_strafeHelper was off on every jaPRO server; it now uses your style's physics.
+change: Nothing is drawn in Siege style, as in JoF EJK.
+test: On a jaPRO server: strafehelper 1, strafe-jump in JKA style: the lines show.
+test: /move cpm: the lines still show and sit at CPM's angles; /move siege: none.
+test: On a JoF or stock server the helper looks as before.
+
 [rgb-model-colour]
 area: Rendering & effects
 title: RGB models (char_color) show the colour as in retail, not pale
