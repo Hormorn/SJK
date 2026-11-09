@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- A double click on the search field of the commands and cvars list, Settings or the server list selects its text, and Ctrl+C in the commands and cvars list copies the selected search _(Slash, akr's idea)_
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
 
 ## 2026.1109.2 (Alpha) | 09/11/2026
