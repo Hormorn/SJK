@@ -87,7 +87,7 @@ migrated, except where the table says so. Where each is documented:
 | `cl_maxpackets` | 125 | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `gameplay_fps` | 0, Auto: movement at the FPS cap, a `pmove_fixed` server's step wins | [Gameplay FPS](client.md#gameplay-fps) |
 | `gameplay_fps_nocap` | 0: the known server caps (JoF's 125) hold | [User commands and move packets](networking.md#user-commands-and-move-packets) |
-| `cl_freshStamps` | 0: commands carry the previous frame's server time as stock's, but on SJK's servers; 1 the frame's own everywhere | [User commands and move packets](networking.md#user-commands-and-move-packets) |
+| `cl_freshStamps` | 0: commands carry the previous frame's server time as stock's, but on SJK's servers; 1 the frame's own everywhere (Settings > Display > Fresh command stamps) | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | `cjp_client` | empty: `1.4 SJK` on JA+, `1.4JAPRO` on jaPRO (its client-support switch); only a staff key's value is sent | [Networking](networking.md) |
 | `rate` | 90000 (stock 25000), saved 25000 moved to 90000 once | [User commands and move packets](networking.md#user-commands-and-move-packets) |
 | rendering profile | noon, bloom, dust, material maps | [Default visual profile](rendering.md#default-visual-profile) |
@@ -218,7 +218,9 @@ and a profile card for Sol with Sol's GitHub picture (the initial shows if it do
 load), over shots of the client's tour of Yavin Training Grounds that cross-fade every
 15 seconds. The home page wraps to one column on narrow screens. What SJK brings is
 laid out as the client's Settings (a rail of categories, rows, a detail column with a
-screenshot); Why SJK, the gallery, What's new, Install and Credits follow.
+screenshot); the SJK Launcher, Why SJK, the gallery, What's new, Install and Credits
+follow. The home page's download has an SJK Launcher button under it that leads to the
+launcher's section, and Install opens with the launcher as the easiest way.
 
 The script fills what changes from GitHub, and the page keeps working links without
 it:
@@ -227,6 +229,12 @@ it:
   the visitor's platform (Windows, Linux, or Mac from the browser's description;
   phones and tablets get Windows) and names it, and the line under it links the other
   platforms' ZIPs and the release's files and checksums.
+- **Launcher:** the latest release of
+  [Sol-Vulpes/sjk-launcher](https://github.com/Sol-Vulpes/sjk-launcher) (its own
+  releases API), picked for the visitor's platform as above from its archives
+  (`sjk-launcher-<platform>.zip` or `.tar.gz`), the other platforms linked under it.
+  The section's cards show their screenshot in its big picture instead of opening the
+  file.
 - **Recap and What's new:** `CHANGELOG.md` read from `main` on
   raw.githubusercontent.com: the home page shows the latest release's recap lines
   (`> Heading: sentence`, at most six), What's new the last five releases GitHub has

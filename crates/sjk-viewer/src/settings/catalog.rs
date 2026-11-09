@@ -177,6 +177,11 @@ pub(super) const VIDEO: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Fresh command stamps",
+        cvar: crate::server_caps::FRESH_STAMPS_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Detect refresh rate",
         cvar: crate::runtime_settings::MONITOR_CAP_CVAR,
         kind: ValueKind::Bool,

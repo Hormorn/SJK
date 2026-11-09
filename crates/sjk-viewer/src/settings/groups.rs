@@ -618,6 +618,7 @@ impl Group {
                 crate::runtime_settings::MENU_CAP_CVAR,
                 crate::gameplay_fps::CVAR,
                 crate::server_caps::OVERRIDE_CVAR,
+                crate::server_caps::FRESH_STAMPS_CVAR,
                 crate::runtime_settings::MONITOR_CAP_CVAR,
                 "cg_fov",
                 "r_gamma",
