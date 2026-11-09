@@ -411,18 +411,32 @@ loads it again from the new files, without a restart or a map load.
 - **The reload** ([rig_reload.rs](../crates/sjk-viewer/src/rig_reload.rs)): mounts the
   map's own selection again on a worker (as a map load does, `session_content`), makes
   it the world's file system, forgets the clip lenders `rig_model::SOURCES` keeps and
-  the actor material lists matched by name (`ClientInfoWatch::appended`, so a changed
-  texture is read again), and sends each player wearing a rig model (in the new files
-  or the old) through the mid-match model change path again (`ClientInfoWatch::reload`
-  lets an unchanged appearance load anyway).
-- **Not read again:** the map, its sounds and the shader scripts (a new shader needs
-  the next map); the menus' character grid follows (the catalogue refresh `fs_restart`
+  the actor material lists matched by name (`ClientInfoWatch::appended`), drops the
+  uploaded GPU textures made from the rig models' files (below), and sends each player
+  wearing a rig model (in the new files or the old) through the mid-match model change
+  path again (`ClientInfoWatch::reload` lets an unchanged appearance load anyway).
+- **Textures.** The world's forge keeps each uploaded texture under the names of the
+  files it is made from (`Forge::texture_cache`, `load_stage_images`), never their
+  content, so until 08/11/2026 a texture re-exported under the same name (solfox5's
+  `cloth.png`) drew its old pixels on the new geometry until a restart. Now
+  `rig_reload::stale_texture` picks every uploaded texture one of whose files lies in a
+  reloaded rig folder, or is served by the pack holding that folder's `sjk_rig.cfg` (in
+  the new files or the old), and `Runtime::forget_textures` drops it; the reload then
+  decodes it from the new pack (the decoded image cache keys by mount, so it reads the
+  new bytes) and uploads it again. That covers glTF images, shader stages mapping
+  them (`models/players/solfox5/cloth` in `shaders/solfox5.shader`) and their normal
+  maps. Materials already built keep their own copy; nothing else reloads.
+- **Not read again:** the map, its sounds and the shader scripts (a new or changed
+  shader script needs the next map; the images an unchanged script maps are read
+  again); the menus' character grid follows (the catalogue refresh `fs_restart`
   does), the menu stage still shows the driver. Body copies already in the corpse pool
   keep the old model until the next map.
 - **Check:** the world shot `rig_reload_reads_a_replaced_pack_without_a_map_load`
   (`SJK_TEST_DEMO`, `SJK_TEST_RIG`, `JKA_GAME_DATA`) dresses a demo's players in the rig
   model, swaps its pack for a copy at half the scale in a GameData of hard links and
-  checks the players wear the new copy after `rig_reload`.
+  checks the players wear the new copy after `rig_reload`. The unit test
+  `rig_reload::tests::textures_of_the_reloaded_packs_are_read_again` checks which
+  texture keys are dropped.
 
 ## Limits
 

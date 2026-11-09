@@ -4,9 +4,11 @@
 //! selection, as a map load does, on a worker), forgets the rig models' cached clip
 //! lenders and loads every rig model a player wears anew from the new files.
 //!
-//! The map, its sounds and the shader scripts stay as they were: a changed shader
-//! script still needs the next map.
-use sjk_vfs::VirtualFileSystem;
+//! The GPU textures the forge keeps by file name ([`stale_texture`]) are dropped for
+//! every file the rig models' packs serve, so a texture re-exported under the same name
+//! is read again too. The map, its sounds and the shader scripts stay as they were: a
+//! changed shader script still needs the next map.
+use sjk_vfs::{AssetCacheIdentity, VirtualFileSystem};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -30,6 +32,54 @@ pub(crate) fn rig_folders<'a>(
         .into_iter()
         .filter(|model| is_rig(vfs, model) || old.is_some_and(|old| is_rig(old, model)))
         .map(str::to_owned)
+        .collect()
+}
+
+/// Whether the forge texture under `key` may show an old copy of a rig model's file:
+/// one of the files it is made from lies in a reloaded rig folder, or is served by the
+/// pack holding a rig folder's manifest, in the new file system (`vfs`, `packs`) or the
+/// old one (`old`). The forge keys a texture by its files' names alone
+/// (`load_stage_images`), so a re-exported `cloth.png` would otherwise draw the old
+/// pixels on the new geometry.
+pub(crate) fn stale_texture(
+    key: &str,
+    folders: &BTreeSet<String>,
+    vfs: &VirtualFileSystem,
+    packs: &[AssetCacheIdentity],
+    old: Option<(&VirtualFileSystem, &[AssetCacheIdentity])>,
+) -> bool {
+    let key = key
+        .strip_prefix(crate::world_materials::material_maps::models::KEY_PREFIX)
+        .unwrap_or(key);
+    let served_by = |vfs: &VirtualFileSystem, packs: &[AssetCacheIdentity], path: &str| {
+        !packs.is_empty()
+            && vfs
+                .asset_cache_identity(path)
+                .ok()
+                .flatten()
+                .is_some_and(|id| packs.contains(&id))
+    };
+    key.split(';')
+        .filter(|path| !path.is_empty() && !path.starts_with('$'))
+        .any(|path| {
+            folders.iter().any(|folder| {
+                let (path, folder) = (path.as_bytes(), folder.as_bytes());
+                path.len() > folder.len()
+                    && path[folder.len()] == b'/'
+                    && path[..folder.len()].eq_ignore_ascii_case(folder)
+            }) || served_by(vfs, packs, path)
+                || old.is_some_and(|(old, packs)| served_by(old, packs, path))
+        })
+}
+
+/// The packs holding the manifests of `folders` in `vfs` (loose folders have none).
+fn rig_packs(folders: &BTreeSet<String>, vfs: &VirtualFileSystem) -> Vec<AssetCacheIdentity> {
+    folders
+        .iter()
+        .filter_map(|folder| {
+            let manifest = format!("{folder}/{}", crate::rig_model::MANIFEST);
+            vfs.asset_cache_identity(&manifest).ok().flatten()
+        })
         .collect()
 }
 
@@ -79,6 +129,22 @@ impl crate::GpuState {
             .map(|mesh| mesh.appearance.model.clone())
             .collect();
         let folders = rig_folders(worn.iter().map(String::as_str), &vfs, self.vfs.as_deref());
+        // The forge keys textures by file name: a texture re-exported under the same
+        // name must be uploaded again from the new pack.
+        let packs = rig_packs(&folders, &vfs);
+        let old = self
+            .vfs
+            .as_deref()
+            .map(|old| (old, rig_packs(&folders, old)));
+        let forgotten = self.world_materials.forget_textures(|key| {
+            stale_texture(
+                key,
+                &folders,
+                &vfs,
+                &packs,
+                old.as_ref().map(|(old, packs)| (*old, packs.as_slice())),
+            )
+        });
         if let Some(menu) = &mut self.client_menu {
             menu.refresh_catalogue(Arc::clone(&vfs), console);
         }
@@ -114,7 +180,7 @@ impl crate::GpuState {
             .map(|folder| folder.rsplit('/').next().unwrap_or(folder))
             .collect();
         crate::log::progress(format_args!(
-            "rig_reload: {} rig models ({}) on {players} players",
+            "rig_reload: {} rig models ({}) on {players} players, {forgotten} textures read again",
             folders.len(),
             names.join(", ")
         ));
@@ -163,5 +229,51 @@ mod tests {
             folders.into_iter().collect::<Vec<_>>(),
             ["models/players/fox", "models/players/wolf"]
         );
+    }
+
+    #[test]
+    fn textures_of_the_reloaded_packs_are_read_again() {
+        let manifest: &[u8] = b"model model.gltf
+preset mannequin
+scale auto
+";
+        let mut vfs = vfs_with(&[("textures/kyle/body.png", b"kyle")]);
+        vfs.mount_memory(
+            "rig_fox.pk3",
+            [
+                ("models/players/fox/sjk_rig.cfg", manifest.to_vec()),
+                ("models/players/fox/cloth.png", b"new".to_vec()),
+                ("textures/shared/fur.png", b"fur".to_vec()),
+            ],
+        )
+        .unwrap();
+        let old = vfs_with(&[
+            ("models/players/fox/sjk_rig.cfg", manifest),
+            ("textures/gone/old.png", b"old"),
+        ]);
+        let folders = BTreeSet::from(["models/players/fox".to_owned()]);
+        let packs = rig_packs(&folders, &vfs);
+        let old_packs = rig_packs(&folders, &old);
+        assert_eq!(packs.len(), 1);
+        let stale = |key: &str| {
+            stale_texture(
+                key,
+                &folders,
+                &vfs,
+                &packs,
+                Some((&old, old_packs.as_slice())),
+            )
+        };
+        // The same file name, new content: the reported case (solfox5's cloth.png).
+        assert!(stale("models/players/fox/cloth.png;"));
+        assert!(stale("$normal:models/players/fox/cloth_n.png;"));
+        assert!(stale("$white;models/players/fox/cloth.png;$nopicmip;"));
+        // Outside the folder, from the rig's pack now or before.
+        assert!(stale("textures/shared/fur.png;"));
+        assert!(stale("textures/gone/old.png;"));
+        // The map's and other models' textures stay uploaded.
+        assert!(!stale("textures/kyle/body.png;"));
+        assert!(!stale("models/players/foxy/head.png;"));
+        assert!(!stale("$lightmap-placeholder"));
     }
 }
