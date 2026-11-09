@@ -9579,3 +9579,11 @@ change: A row under Ignore server caps; both rows say Heimdall may kick you.
 test: Settings > Display: Fresh command stamps under Ignore server caps, help in two lines.
 test: Turn both on, join JoF at 142 FPS: help_tickrate says 7 ms steps, no restart asked.
 note: Both on = the timing of 2026.1028.1 that #385 asked for (closed as a duplicate).
+
+[camera-damp-ejk]
+area: Rendering & effects
+title: cg_thirdPersonCameraDamp and TargetDamp work in the ejk camera style
+change: Each damping cvar moved off its default (0.3 camera, 0.5 target) now applies in ejk too.
+test: cg_cameraStyle ejk, defaults: the camera stays locked to the player as before.
+test: cg_thirdPersonCameraDamp 0: the camera holds still and looks at the player, as in EternalJK.
+test: cg_cameraStyle sjk: unchanged.

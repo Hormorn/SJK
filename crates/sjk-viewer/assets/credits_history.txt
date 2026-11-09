@@ -9,6 +9,8 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 09/11/2026 | - | Credits history: the map editor panel round
+- 990b58d |  | Credits history: the map editor panel round
 + 09/11/2026 | - | Map editor panel: shader pictures, tiles, Fill candidates, Lights page, things, brushes, copy and paste
 - 2a6e203 |  | Map editor panel: shader pictures, tiles, Fill candidates, Lights page, things, brushes, copy and paste
 + 09/11/2026 | - | Map editor panel: world shot, docs, test list and changelog for the pictures and new pages
@@ -3501,6 +3503,8 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #390 | MP camera: honour a changed camera damping (hub report #277)
+- b9520f1 |  | Honour a changed camera damping on the MP camera (hub report #277)
 + 09/11/2026 | SJK #369 | Collection > Banners: break a banner down for kyber shards (needs hub #18)
 - a0a6dfd |  | Collection > Banners: break a banner down for kyber shards
 - 11aa879 |  | Debug panel: name hub shared #18 for banner break down
