@@ -24,6 +24,15 @@
 
 # ---- Console & chat ----
 
+[wheel-off]
+area: Gameplay
+title: WHEEL OF DOOM out of order for now (bugged)
+change: Hub switch --wheel-of-doom off by default; its GET says open false, spins get wheel_off.
+change: Every press says "out of order" in the centre: no price card, nothing paid.
+test: Join a server, toy_wheelofdoom: "The WHEEL OF DOOM is out of order for now."
+test: Collection > Toys > WHEEL OF DOOM > Spin: the same words; credits unchanged.
+note: Needs the hub's wheel-off change deployed. Bring back: SJK_HUB_WHEEL_OF_DOOM=everyone.
+
 [banners-off]
 area: Menus & settings
 title: Profile banners out of the game for now (unfinished)

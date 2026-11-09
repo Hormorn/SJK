@@ -23,7 +23,8 @@ pub struct Outcome {
     pub per_mille: u32,
 }
 
-/// `GET /v1/wheel-of-doom`: the price, the cooldown and the segments in order.
+/// `GET /v1/wheel-of-doom`: the price, the cooldown, the segments in order and whether
+/// this player may spin it now.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 pub struct Wheel {
     /// What a spin costs, in credits.
@@ -34,6 +35,14 @@ pub struct Wheel {
     /// The segments, in the wheel's order (segment 0 first).
     #[serde(default)]
     pub outcomes: Vec<Outcome>,
+    /// Whether the hub lets this player spin now (since 09/11/2026; false while the
+    /// operator has the wheel off). A hub before it sends none: open.
+    #[serde(default = "open")]
+    pub open: bool,
+}
+
+fn open() -> bool {
+    true
 }
 
 impl Wheel {
@@ -72,6 +81,9 @@ pub fn parse_event(event: &str) -> Option<&str> {
         .filter(|outcome| !outcome.is_empty())
 }
 
+/// What a player reads while the hub has the wheel off (`wheel_off`, or `open` false).
+pub const OUT_OF_ORDER: &str = "The WHEEL OF DOOM is out of order for now.";
+
 /// A refused spin: why, in the player's words, and for the cooldown, the whole seconds
 /// left before the next spin (the hub's `left`, read from its message, which says it as
 /// "spins again in N s").
@@ -101,6 +113,7 @@ pub fn refusal(error: &HubError) -> Refused {
         }
         (HubError::Rejected { code, message, .. }, None) => match code.as_str() {
             "not_enough_credits" => "Not enough credits to spin the WHEEL OF DOOM.",
+            "wheel_off" => OUT_OF_ORDER,
             "wheel_cooldown" => "The WHEEL OF DOOM needs a rest: spin again later.",
             "not_on_server" => "The hub does not see you on this server yet.",
             "client_update_required" => "Update SJK to spin the WHEEL OF DOOM.",
@@ -149,6 +162,10 @@ mod tests {
         assert_eq!((wheel.price, wheel.cooldown), (100, 300));
         assert_eq!(wheel.segment_of("mirror"), Some(2));
         assert_eq!(wheel.segment_of("bunny"), None);
+        assert!(wheel.open, "a hub without `open` lets the wheel spin");
+        let off: Wheel =
+            serde_json::from_str(r#"{"price":100,"cooldown":300,"open":false}"#).unwrap();
+        assert!(!off.open);
     }
 
     #[test]
@@ -190,6 +207,7 @@ mod tests {
                 .contains("credits")
         );
         assert_eq!(refusal(&rejected("opening_staff_only")).words, "raw");
+        assert_eq!(refusal(&rejected("wheel_off")).words, OUT_OF_ORDER);
         let cooling = HubError::Rejected {
             status: 429,
             code: "wheel_cooldown".to_owned(),

@@ -56,6 +56,14 @@ alike). Not verified: the Toggles group on screen in either menu style.
 
 ## WHEEL OF DOOM (client side)
 
+**Out of order since 09/11/2026** (Sol: bugged), `personal/wheel-off`: the hub's new
+`--wheel-of-doom off|staff|everyone` switch is off by default and its `GET` answers
+`open`; the client then says "The WHEEL OF DOOM is out of order for now." on every press
+(the toy stays listed) and reads the switch again every 5 s while off
+([wheel-of-doom.md](wheel-of-doom.md)). Verified on Windows 11: unit tests (the `open`
+field, a hub without it, the `wheel_off` refusal, the out-of-order refusal first). Not
+verified: in a game against the hub.
+
 07/11/2026, `personal/wheel-of-doom` (Sol's design of the day). A toy any SJK player spins
 for credits, `toy_wheelofdoom` (Collection > Toys, the quick wheel, a bind): a first press
 shows the price, a second spins; the hub (its `wheel-of-doom` branch, `GET /v1/wheel-of-doom`,

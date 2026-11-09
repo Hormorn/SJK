@@ -357,6 +357,8 @@ fn seed() -> u32 {
 /// What the player knows before asking for a spin.
 #[derive(Clone, Copy, Debug, Default)]
 struct Check {
+    /// The hub has the wheel off (its `open` false): out of order, whatever else.
+    closed: bool,
     /// On a game server of the internet (not a local game).
     online: bool,
     /// The Ragdoll could strike them: alive, playing, not in a duel or with the flag.
@@ -372,6 +374,9 @@ struct Check {
 /// Why a spin is refused before the hub is asked, in the player's words; `None` when it
 /// may go.
 fn refusal(check: Check) -> Option<String> {
+    if check.closed {
+        return Some(sjk_identity::wheel_of_doom::OUT_OF_ORDER.to_owned());
+    }
     if !check.online {
         return Some("Join a game server to spin the WHEEL OF DOOM".to_owned());
     }
@@ -631,10 +636,13 @@ impl GpuState {
             snapshot
                 .wheel_of_doom
                 .as_ref()
-                .map(|wheel| (wheel.price, wheel.cooldown))
+                .map(|wheel| (wheel.price, wheel.cooldown, wheel.open))
         })
         .flatten();
-        if wheel.is_none() {
+        let closed = wheel.is_some_and(|(_, _, open)| !open);
+        // Unread, or off: ask again (at most every 5 s), so a wheel the hub opens again
+        // spins without a restart.
+        if wheel.is_none() || closed {
             self.read_wheel_of_doom(now);
         }
         let credits = crate::player_identity::with_snapshot(|snapshot| {
@@ -648,13 +656,14 @@ impl GpuState {
             .map(|session| session.server().to_string());
         let toy = &self.wheel_of_doom;
         let check = Check {
+            closed,
             online: server.is_some(),
             strikable: self.ragdoll.strikable(),
             cooldown: toy.cooldown_left(now),
             asked: toy
                 .asked
                 .is_some_and(|asked| now.saturating_duration_since(asked) < ASK_TIMEOUT),
-            price: wheel.map(|(price, _)| price),
+            price: wheel.map(|(price, _, _)| price),
             credits,
         };
         if let Some(why) = refusal(check) {
@@ -680,7 +689,7 @@ impl GpuState {
                 .client_menu
                 .as_ref()
                 .is_some_and(crate::menu::ClientMenu::is_visible)
-                && let Some((price, _)) = wheel
+                && let Some((price, _, _)) = wheel
             {
                 self.wheel_of_doom_centre(format!(
                     "WHEEL OF DOOM: {price} credits. Press it again within 5 s to spin"
@@ -1276,6 +1285,14 @@ mod tests {
         };
         assert!(refusal(poor).is_some_and(|why| why.contains("not enough")));
         assert!(refusal(Check::default()).is_some_and(|why| why.contains("game server")));
+        let closed = Check {
+            closed: true,
+            ..ready
+        };
+        assert_eq!(
+            refusal(closed).as_deref(),
+            Some(sjk_identity::wheel_of_doom::OUT_OF_ORDER)
+        );
         let mut toy = WheelOfDoom::default();
         let now = Instant::now();
         toy.cooldown_until = Some(now + Duration::from_millis(41_200));
