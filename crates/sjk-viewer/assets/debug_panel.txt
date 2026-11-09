@@ -9607,3 +9607,10 @@ title: Profile: turn the model in the main menu, right drag zooms (akr's idea, #
 change: Over the menu map the first drag moves the model into the live preview, which can turn.
 test: Main menu, SJK UI, Character and Force: drag turns the model, right drag zooms it.
 test: In game, Profile: the same. Reopen the screen: turn and zoom are reset.
+
+[console-held-key]
+area: Console & chat
+title: Console: a held key types again (report #282)
+change: The console's typing branch dropped every key repeat.
+test: Open the console, hold a letter: it repeats.
+test: Hold a dead key: the accent arms only once. History keys repeat as before.

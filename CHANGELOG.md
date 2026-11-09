@@ -38,6 +38,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
 - Profile: drag the model to turn it in the main menu too, and drag with the right button to zoom _(Slash, after akr's idea)_
 - Chat: with nothing typed, the Left and Right arrows change the chat button (All, Team, SJK...), in Tab's order; with a draft they still move the caret _(Slash, akr's idea)_
+- Console: holding a key types it again and again _(Slash)_
 
 ## 2026.1109.2 (Alpha) | 09/11/2026
 
