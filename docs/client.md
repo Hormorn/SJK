@@ -1413,7 +1413,7 @@ their choice.
 
 | Value | Camera |
 | --- | --- |
-| `ejk` (default, MP camera) | Sits at its ideal place every frame: no camera or target damping, whatever the damping cvars say. |
+| `ejk` (default, MP camera) | Sits at its ideal place every frame, unless `cg_thirdPersonCameraDamp` or `cg_thirdPersonTargetDamp` is moved off its default (0.3, 0.5): the changed one then applies, so `cg_thirdPersonCameraDamp 0` holds the camera still. |
 | `sjk` (SP camera) | Eases towards its ideal place with `cg_thirdPersonCameraDamp` and `cg_thirdPersonTargetDamp`, as described above, so it trails a moving or turning player a little. |
 
 An unknown value selects `ejk`. `ejk` became the default on 08/10/2026 (Sol's

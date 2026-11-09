@@ -73,11 +73,11 @@ pub(crate) fn damped_third_person(
 ) -> (Vec3, Vec3) {
     let cvar = |name: &str, fallback: f32| float_cvar(state.console.as_ref(), name, fallback);
     let mut horizontal = cvar("cg_thirdPersonHorzOffset", 0.0);
-    // `cg_cameraStyle ejk`, the default, locks the camera behind the player (no
-    // damping); `sjk` eases it with the damping cvars.
+    // `cg_cameraStyle ejk`, the default, locks the camera behind the player
+    // unless a damping cvar was changed; `sjk` eases it with the damping cvars.
     let (camera_damp, target_damp) = Style::from_console(state.console.as_ref()).damping(
-        cvar("cg_thirdPersonCameraDamp", 0.3),
-        cvar("cg_thirdPersonTargetDamp", 0.5),
+        cvar("cg_thirdPersonCameraDamp", style::DEFAULT_CAMERA_DAMP),
+        cvar("cg_thirdPersonTargetDamp", style::DEFAULT_TARGET_DAMP),
     );
     let camera_fps = camera_fps(state.console.as_ref());
     let fallback = [
