@@ -685,7 +685,7 @@ fn submit_actor(
         let rotation = weapon_view::actor_world_rotation(transform.rotation);
         let mut body =
             ActorInstance::new(transform.translation, rotation.to_array(), transform.scale)
-                .with_entity_color(entity.color());
+                .with_model_color(entity.color());
         body.view_flags = sinks.entity_view_flags | u32::from(!draw_actor);
         let mut frame = crate::body_fade::Frame {
             overrides: sinks.overrides,
@@ -1117,7 +1117,7 @@ fn submit_actor(
             weapon_view::actor_world_rotation(transform.rotation).to_array(),
             transform.scale,
         )
-        .with_entity_color(entity.color());
+        .with_model_color(entity.color());
         let duel = snapshot.map_or_else(DuelBody::default, |snapshot| {
             duel_body(snapshot, state, local, entity.color(), sinks.duel_ghosts)
         });
@@ -1645,7 +1645,7 @@ fn submit_disintegration(
     }
     let rotation = weapon_view::actor_world_rotation(transform.rotation);
     let mut body = ActorInstance::new(transform.translation, rotation.to_array(), transform.scale)
-        .with_entity_color(entity.color());
+        .with_model_color(entity.color());
     body.view_flags = sinks.entity_view_flags | u32::from(!draw_actor);
     let mut burn = body;
     state.mark(&mut burn, RF_DISINTEGRATE2, now);
@@ -1819,7 +1819,7 @@ fn submit_limb(
     let (position, rotation) = crate::dismember::limb_instance(limb, transform);
     let mut instance =
         ActorInstance::new(position.to_array(), rotation.to_array(), transform.scale)
-            .with_entity_color(entity.color());
+            .with_model_color(entity.color());
     instance.view_flags = sinks.entity_view_flags;
     sinks.actor_groups[index].push(instance);
     meshes[index]

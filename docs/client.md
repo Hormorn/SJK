@@ -3269,6 +3269,15 @@ at once (the shader stages that read the entity colour, as `CG_Player` hands the
 `customRGBA`), the grid's pictures keep their own, and Apply wears it with the model
 (`char_color_*`). Other models show no sliders.
 
+The colour is drawn as retail shows it (09/11/2026, Sol's report of pale RGB models such
+as the female Twi'lek): retail multiplies the texel by `customRGBA` in display values,
+while SJK lights the world in linear light from sRGB-decoded textures, so the colour of a
+player, corpse, cut-off limb or Character page model is decoded to linear light as well
+(`ActorInstance::with_model_color`, [actor_tint.rs](../crates/sjk-viewer/src/actor_tint.rs)).
+Before, a channel of 128 showed at about 73 % instead of half, and dark colours came out
+pale and grey. Force shells, pickups and other effects that set an entity colour keep the
+raw value.
+
 `amcolor <red> <green> <blue>` (EternalJK's `amColor`) sets the player tint, the archived
 `char_color_red`, `_green` and `_blue` userinfo cvars, each 0 to 255, so the server gets
 it at once and it is kept for the next connect; bare, it prints the current tint
