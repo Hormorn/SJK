@@ -9587,3 +9587,10 @@ change: Each damping cvar moved off its default (0.3 camera, 0.5 target) now app
 test: cg_cameraStyle ejk, defaults: the camera stays locked to the player as before.
 test: cg_thirdPersonCameraDamp 0: the camera holds still and looks at the player, as in EternalJK.
 test: cg_cameraStyle sjk: unchanged.
+
+[search-double-click]
+area: Menus & settings
+title: A double click selects a search field's text (akr's idea, #391)
+change: Commands and cvars list, Settings, server list. Ctrl+C in the list copies a selected search.
+test: Type in each search, double click: the text is selected; a single click drops it.
+test: Commands and cvars list: double click, Ctrl+C, paste elsewhere: the search text.

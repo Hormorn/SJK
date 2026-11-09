@@ -793,7 +793,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 129 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 130 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1022,6 +1022,7 @@ main had its own lazy card pictures) brought two pieces ported onto main: a pict
 decoder panics on fails alone instead of stopping every later card picture, and card and
 medal pictures carry their own labels in `vram` and crash reports.
 - #390 MP camera: third person damping is honoured in the ejk style.
+- #391 A double click selects the search text in the cvar list, Settings and the server list.
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

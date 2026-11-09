@@ -6,7 +6,9 @@
 //! 12/10/2026, `AGENTS.md`). The menu lets key repeats through for a field that is open
 //! ([`crate::menu::ClientMenu::handle_key`]); this module is what such a field calls.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 use winit::event::KeyEvent;
 use winit::keyboard::{Key, KeyCode, SmolStr};
 
@@ -22,6 +24,34 @@ const CONTROL_A: &str = "\u{1}";
 static SELECTED: AtomicBool = AtomicBool::new(false);
 static SELECTED_AT: AtomicUsize = AtomicUsize::new(0);
 static SELECTED_LEN: AtomicUsize = AtomicUsize::new(0);
+
+/// A second click on a field this soon after the first is a double click.
+const DOUBLE_CLICK: Duration = Duration::from_millis(500);
+
+/// The last single click on a field: the field's address and when.
+static LAST_CLICK: Mutex<Option<(usize, Instant)>> = Mutex::new(None);
+
+/// Whether a click on the field at `field` at `now` is the second of a double click.
+fn is_second_click(last: Option<(usize, Instant)>, field: usize, now: Instant) -> bool {
+    last.is_some_and(|(at, when)| at == field && now.duration_since(when) <= DOUBLE_CLICK)
+}
+
+/// The pointer clicked `field`: a double click selects all of its text, a single click
+/// drops the selection. A third click starts over.
+pub(crate) fn clicked(field: &str) {
+    let at = field.as_ptr() as usize;
+    let now = Instant::now();
+    let mut last = LAST_CLICK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if is_second_click(*last, at, now) {
+        *last = None;
+        select_all(field);
+    } else {
+        *last = Some((at, now));
+        deselect();
+    }
+}
 
 /// Whether a pressed `key` that typed `text` selects all: Ctrl+A. Like
 /// [`crate::sjk_chat_field::is_paste`], Windows may hand the letter without Ctrl, or the
@@ -168,6 +198,17 @@ fn paste_into(field: &mut String, text: &str, max: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_double_click_is_two_quick_clicks_on_one_field() {
+        let first = Instant::now();
+        let soon = first + Duration::from_millis(200);
+        let late = first + DOUBLE_CLICK + Duration::from_millis(1);
+        assert!(is_second_click(Some((1, first)), 1, soon));
+        assert!(!is_second_click(Some((1, first)), 1, late));
+        assert!(!is_second_click(Some((1, first)), 2, soon));
+        assert!(!is_second_click(None, 1, soon));
+    }
 
     fn typed(field: &str, text: &str, max: usize) -> String {
         let mut field = field.to_owned();

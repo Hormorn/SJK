@@ -83,6 +83,7 @@ impl SettingsMenu {
                 self.settle_numeric(console);
                 self.editing = None;
                 self.searching = true;
+                crate::text_entry::clicked(&self.search);
             }
             return SettingsResult::None;
         }

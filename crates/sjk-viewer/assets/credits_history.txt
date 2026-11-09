@@ -3503,6 +3503,8 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 09/11/2026 | SJK #391 | Search fields: a double click selects the text (akr's idea)
+- bd1405d |  | Search fields: a double click selects the text (akr's idea)
 + 09/11/2026 | SJK #390 | MP camera: honour a changed camera damping (hub report #277)
 - b9520f1 |  | Honour a changed camera damping on the MP camera (hub report #277)
 + 09/11/2026 | SJK #369 | Collection > Banners: break a banner down for kyber shards (needs hub #18)
