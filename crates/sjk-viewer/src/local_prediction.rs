@@ -269,6 +269,25 @@ impl LocalPrediction {
         }
     }
 
+    /// Put a fake noclip's flight with its eye at `eye`, still: the map editor's fly-to
+    /// glides the free camera there (`map_edits::fly`). Only the client's own predicted
+    /// flight moves; the server is still sent the still body ([`Self::command_for_server`]).
+    /// Whether there was a flight to move.
+    pub(crate) fn place_flight(&mut self, eye: Vec3) -> bool {
+        if !self.fake_noclip {
+            return false;
+        }
+        let Some(predictor) = self.predictor.as_mut() else {
+            return false;
+        };
+        let state = predictor.state_mut();
+        state.origin = (eye - Vec3::Z * self.view_height).to_array();
+        state.velocity = [0.0; 3];
+        self.preview = None;
+        self.presented = None;
+        true
+    }
+
     /// Free camera additionally suppresses gameplay actions and weapon changes.
     pub(crate) fn set_free_camera(&mut self, on: bool, weapon: u8) {
         if on && !self.free_camera {
@@ -814,6 +833,31 @@ mod fake_noclip_tests {
         prediction.set_fake_noclip(false);
         assert!(prediction.snap_back);
         assert_eq!(prediction.command_for_server(command()), command());
+    }
+
+    /// The map editor's fly-to moves the client's own flight only, never a walking body,
+    /// and leaves it still with its eye where it was put.
+    #[test]
+    fn a_flight_is_put_where_the_editor_says_and_a_walk_is_not() {
+        let mut prediction = prediction();
+        let mut state = MovementState::default();
+        state.velocity = [300.0, 0.0, 0.0];
+        prediction.predictor = Some(Predictor::from_state(state, MovementConfig::default()));
+        prediction.view_height = 36.0;
+        let eye = Vec3::new(100.0, -50.0, 200.0);
+        assert!(!prediction.place_flight(eye), "walking: not moved");
+        prediction.set_fake_noclip(true);
+        assert!(prediction.place_flight(eye));
+        let state = prediction.committed_state().unwrap();
+        assert_eq!(state.origin, [100.0, -50.0, 164.0]);
+        assert_eq!(state.velocity, [0.0; 3]);
+        assert!(prediction.preview.is_none());
+        // The server still sees the still body.
+        assert_eq!(
+            prediction.command_for_server(command()).forward_move,
+            0,
+            "the server is sent no move"
+        );
     }
 }
 

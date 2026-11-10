@@ -425,7 +425,26 @@ pub(crate) enum Action {
     /// Lights: the chosen lamp off or on, and back as the map has it.
     LampToggle,
     LampReset,
+    /// F: glide the camera to frame the selection (`mapedit_frame`).
+    Frame,
+    /// A double click on a row: glide the camera to what it names.
+    FlyTo(FlyTarget),
 }
+
+/// What a double click on a row flies to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FlyTarget {
+    /// The chosen edit of the Edits list.
+    Edit,
+    /// The chosen thing of Place's things.
+    Thing,
+    /// The chosen added light, or lamp, of Lights.
+    Light,
+    Lamp,
+}
+
+/// A second click on the same row this soon after the first is a double click.
+const DOUBLE_CLICK: std::time::Duration = std::time::Duration::from_millis(450);
 
 /// What the selection is, as the panel names it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -642,6 +661,9 @@ pub(crate) struct Panel {
     pub(crate) scene: super::select::ScenePointer,
     /// The remap previewed from the shader list ([`super::preview`]).
     pub(crate) preview: super::preview::Preview,
+    /// The last click on a list's row (its token) and when: a second soon after is a
+    /// double click ([`DOUBLE_CLICK`]).
+    last_click: Option<(u16, std::time::Instant)>,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -1365,7 +1387,38 @@ impl Panel {
             return None;
         }
         self.focus = token;
-        self.activate(token)
+        let double = self.double_click(token, std::time::Instant::now());
+        let action = self.activate(token);
+        match double {
+            Some(target) => Some(Action::FlyTo(target)),
+            None => action,
+        }
+    }
+
+    /// A click on `token` at `now`: what it flies to when it is the second click of a
+    /// double click on a row of the edits, things, lights or lamps.
+    pub(crate) fn double_click(
+        &mut self,
+        token: u16,
+        now: std::time::Instant,
+    ) -> Option<FlyTarget> {
+        let target = if self.is_edit_row(token) {
+            FlyTarget::Edit
+        } else if self.is_thing_row(token) {
+            FlyTarget::Thing
+        } else if self.is_light_row(token) {
+            FlyTarget::Light
+        } else if self.is_lamp_row(token) {
+            FlyTarget::Lamp
+        } else {
+            self.last_click = None;
+            return None;
+        };
+        let second = self
+            .last_click
+            .is_some_and(|(last, when)| last == token && now.duration_since(when) <= DOUBLE_CLICK);
+        self.last_click = (!second).then_some((token, now));
+        second.then_some(target)
     }
 
     /// Enter, Space or a click on `token`.
@@ -1618,6 +1671,11 @@ impl Panel {
                 if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
             {
                 return Some(Action::Brushes(None));
+            }
+            KeyCode::KeyF
+                if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(Action::Frame);
             }
             KeyCode::Delete if self.is_edit_row(self.focus) && !event.repeat => {
                 return Some(Action::Delete);
@@ -2124,6 +2182,16 @@ impl GpuState {
                     return;
                 }
             },
+            Action::Frame => ("mapedit_frame", vec![]),
+            Action::FlyTo(target) => match self.map_edit_fly_target(target) {
+                Ok((centre, radius)) => {
+                    ("mapedit_frame", super::fly_to::frame_words(centre, radius))
+                }
+                Err(why) => {
+                    self.map_edits.panel.answer(Err(why));
+                    return;
+                }
+            },
             Action::Undo => ("mapedit_undo", vec![]),
             Action::Redo => ("mapedit_redo", vec![]),
             Action::Scope(Scope::AllServers) => ("mapedit_scope", text(&["all"])),
@@ -2165,6 +2233,38 @@ impl GpuState {
             }
             Action::Link(_) | Action::SelectShader if ok => panel.show(Tab::Selected),
             _ => {}
+        }
+    }
+
+    /// Where a double-clicked row's thing stands, and how big it is.
+    fn map_edit_fly_target(&self, target: FlyTarget) -> Result<(glam::Vec3, f32), String> {
+        use super::fly_to::POINT_RADIUS;
+        let panel = &self.map_edits.panel;
+        match target {
+            FlyTarget::Edit => {
+                let id = panel
+                    .chosen_edit()
+                    .ok_or("Choose an edit in the list first")?;
+                self.map_edit_edit_sphere(id)
+            }
+            FlyTarget::Thing => panel
+                .chosen_thing()
+                .map(|thing| (thing.origin, POINT_RADIUS))
+                .ok_or_else(|| "Choose a thing in the list first".to_owned()),
+            FlyTarget::Light => {
+                let row = panel
+                    .facts
+                    .lights
+                    .get(panel.light_row)
+                    .ok_or("Choose a light in the list first")?;
+                Ok((glam::Vec3::from_array(row.origin), POINT_RADIUS))
+            }
+            FlyTarget::Lamp => panel
+                .facts
+                .lamps
+                .get(panel.lamp_row)
+                .map(|lamp| (lamp.at(), POINT_RADIUS))
+                .ok_or_else(|| "Choose a lamp in the list first".to_owned()),
         }
     }
 
@@ -2972,5 +3072,31 @@ mod tests {
         assert_eq!(panel.activate(MODEL_ROW + 1), None);
         assert_eq!(panel.chosen_model(), Some("models/b.md3"));
         assert_eq!(panel.activate(MODEL_ROW + 1), Some(Action::Place));
+    }
+
+    /// Two quick clicks on one row of the edits, things, lights or lamps fly to it; a
+    /// slow second click, another row or a button does not.
+    #[test]
+    fn a_double_click_on_a_row_flies_to_it() {
+        let mut panel = Panel::default();
+        let now = std::time::Instant::now();
+        let soon = now + DOUBLE_CLICK / 2;
+        assert_eq!(panel.double_click(EDIT_ROW + 2, now), None);
+        assert_eq!(
+            panel.double_click(EDIT_ROW + 2, soon),
+            Some(FlyTarget::Edit)
+        );
+        // a third click starts over
+        assert_eq!(panel.double_click(EDIT_ROW + 2, soon), None);
+        assert_eq!(panel.double_click(LIGHT_ROW, now), None);
+        assert_eq!(panel.double_click(LIGHT_ROW + 1, soon), None, "another row");
+        let late = soon + DOUBLE_CLICK * 2;
+        assert_eq!(panel.double_click(LIGHT_ROW + 1, late), None, "too slow");
+        assert_eq!(panel.double_click(THING_ROW, now), None);
+        assert_eq!(panel.double_click(THING_ROW, soon), Some(FlyTarget::Thing));
+        assert_eq!(panel.double_click(LAMP_ROW, now), None);
+        assert_eq!(panel.double_click(LAMP_ROW, soon), Some(FlyTarget::Lamp));
+        assert_eq!(panel.double_click(HIDE, now), None);
+        assert_eq!(panel.double_click(HIDE, soon), None, "a button is no row");
     }
 }

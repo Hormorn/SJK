@@ -18,6 +18,17 @@
 
 use crate::GpuState;
 use crate::ingame_menu::Page;
+use glam::Vec3;
+use std::time::{Duration, Instant};
+
+/// How long a fly-to glides from the view to where it frames its target.
+pub(crate) const GLIDE: Duration = Duration::from_millis(450);
+/// The nearest and farthest a framed view stands from its target's middle (units).
+const FRAME_NEAREST: f32 = 64.0;
+const FRAME_FARTHEST: f32 = 6_000.0;
+/// A framed target's radius fills this much of the half view: the distance is its
+/// radius over `tan(FRAME_HALF_ANGLE)`, about a 70 degree view with a margin.
+const FRAME_HALF_ANGLE: f32 = 0.52;
 
 /// The wheel's speed factor steps by this, between [`SLOWEST`] and [`FASTEST`].
 const SPEED_STEP: f32 = 1.25;
@@ -57,6 +68,8 @@ pub(crate) struct Fly {
     pub(crate) refused: Option<String>,
     /// The boost last handed to the predictor.
     boost: Option<f32>,
+    /// A fly-to under way ([`GpuState::map_edit_fly_to`]).
+    pub(crate) glide: Option<Glide>,
 }
 
 impl Default for Fly {
@@ -68,8 +81,97 @@ impl Default for Fly {
             started: false,
             refused: None,
             boost: None,
+            glide: None,
         }
     }
+}
+
+/// A view: where the eye is and where it looks, as the camera keeps them (pitch up
+/// positive and yaw, radians: `camera_pitch`, `camera_yaw`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ViewPose {
+    pub(crate) eye: Vec3,
+    pub(crate) pitch: f32,
+    pub(crate) yaw: f32,
+}
+
+/// A fly-to: from one view to another over [`GLIDE`], eased in and out.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Glide {
+    from: ViewPose,
+    to: ViewPose,
+    started: Instant,
+}
+
+impl Glide {
+    pub(crate) fn new(from: ViewPose, to: ViewPose, now: Instant) -> Self {
+        Self {
+            from,
+            to,
+            started: now,
+        }
+    }
+
+    /// The view at `now`, and whether the glide is over.
+    pub(crate) fn at(&self, now: Instant) -> (ViewPose, bool) {
+        let t = (now.duration_since(self.started).as_secs_f32() / GLIDE.as_secs_f32()).min(1.0);
+        (between(self.from, self.to, t), t >= 1.0)
+    }
+}
+
+/// The view `t` (0 to 1) of the way from `from` to `to`, eased (smoothstep), the yaw the
+/// short way round.
+pub(crate) fn between(from: ViewPose, to: ViewPose, t: f32) -> ViewPose {
+    let t = t.clamp(0.0, 1.0);
+    let eased = t * t * (3.0 - 2.0 * t);
+    let turn = crate::input::view_authority::wrap_yaw(to.yaw - from.yaw);
+    ViewPose {
+        eye: from.eye.lerp(to.eye, eased),
+        pitch: from.pitch + (to.pitch - from.pitch) * eased,
+        yaw: crate::input::view_authority::wrap_yaw(from.yaw + turn * eased),
+    }
+}
+
+/// The camera's angles looking along `forward` (any length), the pitch within the
+/// view's limit.
+pub(crate) fn angles_of(forward: Vec3) -> (f32, f32) {
+    let forward = forward.normalize_or(Vec3::X);
+    let limit = crate::input::view_authority::PITCH_LIMIT;
+    (
+        forward.z.clamp(-1.0, 1.0).asin().clamp(-limit, limit),
+        forward.y.atan2(forward.x),
+    )
+}
+
+/// The view that frames a target of `radius` about `centre`, as Blender's View Selected
+/// does: looking along `forward` (the view's own direction, kept), stepped back until
+/// the target fills the view with a margin, between [`FRAME_NEAREST`] and
+/// [`FRAME_FARTHEST`] from its middle.
+pub(crate) fn frame(centre: Vec3, radius: f32, forward: Vec3) -> ViewPose {
+    let forward = forward.normalize_or(Vec3::X);
+    let distance = (radius.max(0.0) / FRAME_HALF_ANGLE.tan()).clamp(FRAME_NEAREST, FRAME_FARTHEST);
+    let (pitch, yaw) = angles_of(forward);
+    // The kept direction, as the clamped angles give it.
+    let along = Vec3::new(
+        pitch.cos() * yaw.cos(),
+        pitch.cos() * yaw.sin(),
+        pitch.sin(),
+    );
+    ViewPose {
+        eye: centre - along * distance,
+        pitch,
+        yaw,
+    }
+}
+
+/// The middle and the radius of the box of `points` (none: `None`).
+pub(crate) fn sphere_of(points: impl IntoIterator<Item = Vec3>) -> Option<(Vec3, f32)> {
+    let mut points = points.into_iter();
+    let first = points.next()?;
+    let (low, high) = points.fold((first, first), |(low, high), point| {
+        (low.min(point), high.max(point))
+    });
+    Some(((low + high) * 0.5, (high - low).length() * 0.5))
 }
 
 /// The speed factor after a notch of the wheel (`up`: faster).
@@ -205,9 +307,81 @@ impl GpuState {
             .is_some_and(flies)
     }
 
+    /// The editor's view now.
+    pub(crate) fn map_edit_view_pose(&self) -> ViewPose {
+        ViewPose {
+            eye: self.camera_position,
+            pitch: self.camera_pitch,
+            yaw: self.camera_yaw,
+        }
+    }
+
+    /// Whether the editor's camera can be put somewhere: the free camera's flight in a
+    /// live game, or the inspection camera of a map seen without a server; not a walk
+    /// (exploring) nor the player's own view, which move by the game's rules.
+    fn map_edit_camera_movable(&self) -> bool {
+        if self.live_session.is_some() {
+            return self.free_camera_active() && self.local_prediction.fake_noclip();
+        }
+        !self.resident.exploring() && self.demo_session.is_none() && !self.is_menu_world
+    }
+
+    /// Glide the editor's camera to frame a target of `radius` about `centre` ([`frame`]),
+    /// over [`GLIDE`]: the client's own view only (the body stays at its server position).
+    pub(crate) fn map_edit_fly_to(&mut self, centre: Vec3, radius: f32) -> Result<String, String> {
+        if !centre.is_finite() || !radius.is_finite() {
+            return Err("Nowhere to fly to".into());
+        }
+        if !self.map_edit_camera_movable() {
+            return Err(self.map_edits.fly.refused.clone().map_or_else(
+                || "Fly-to moves the free camera only: not while walking".to_owned(),
+                |why| format!("{why}: no fly-to"),
+            ));
+        }
+        let from = self.map_edit_view_pose();
+        let forward = Vec3::new(
+            from.pitch.cos() * from.yaw.cos(),
+            from.pitch.cos() * from.yaw.sin(),
+            from.pitch.sin(),
+        );
+        let to = frame(centre, radius, forward);
+        self.map_edits.fly.glide = Some(Glide::new(from, to, Instant::now()));
+        Ok(format!(
+            "Flying to {:.0} {:.0} {:.0} ({:.0} units away)",
+            centre.x,
+            centre.y,
+            centre.z,
+            to.eye.distance(centre)
+        ))
+    }
+
+    /// Once a frame while a fly-to glides: the view along it; the flight (the right
+    /// button) or the editor leaving ends it where it is.
+    fn map_edit_glide_frame(&mut self) {
+        let Some(glide) = self.map_edits.fly.glide else {
+            return;
+        };
+        if self.map_edits.fly.held || !self.map_edits.editor.active {
+            self.map_edits.fly.glide = None;
+            return;
+        }
+        let (pose, done) = glide.at(Instant::now());
+        if self.live_session.is_some() && !self.local_prediction.place_flight(pose.eye) {
+            self.map_edits.fly.glide = None;
+            return;
+        }
+        self.camera_position = pose.eye;
+        self.camera_pitch = pose.pitch;
+        self.camera_yaw = pose.yaw;
+        if done {
+            self.map_edits.fly.glide = None;
+        }
+    }
+
     /// Once a frame: the flight's speed to the predictor while the editor is on (Shift
-    /// read as it is held).
+    /// read as it is held), and a fly-to's glide.
     pub(super) fn map_edit_fly_frame(&mut self) {
+        self.map_edit_glide_frame();
         let shift = self
             .console
             .as_ref()
@@ -259,6 +433,75 @@ mod tests {
         ] {
             assert!(!flies(script), "{script}");
         }
+    }
+
+    /// Framing keeps the view's direction and steps back as far as the target's size
+    /// needs, within the nearest and farthest; the target lies straight ahead.
+    #[test]
+    fn framing_keeps_the_direction_and_steps_back_by_the_size() {
+        let centre = Vec3::new(100.0, 200.0, 50.0);
+        let forward = Vec3::new(1.0, 1.0, -0.5);
+        let small = frame(centre, 8.0, forward);
+        assert!((small.eye.distance(centre) - FRAME_NEAREST).abs() < 1e-3);
+        let big = frame(centre, 512.0, forward);
+        let distance = big.eye.distance(centre);
+        assert!(
+            (distance - 512.0 / FRAME_HALF_ANGLE.tan()).abs() < 0.1,
+            "{distance}"
+        );
+        let ahead = (centre - big.eye).normalize();
+        assert!(ahead.dot(forward.normalize()) > 0.9999);
+        // looking along the kept direction
+        let (pitch, yaw) = angles_of(forward);
+        assert_eq!((big.pitch, big.yaw), (pitch, yaw));
+        assert!(pitch < 0.0, "looking down");
+        assert!((yaw - std::f32::consts::FRAC_PI_4).abs() < 1e-5);
+        assert!(frame(centre, 1e9, forward).eye.distance(centre) <= FRAME_FARTHEST + 0.1);
+        // straight down is held to the view's pitch limit
+        let down = frame(centre, 64.0, Vec3::NEG_Z);
+        assert!(down.pitch >= -crate::input::view_authority::PITCH_LIMIT - 1e-6);
+    }
+
+    /// A glide eases from one view to the other, turns the short way, and ends on time.
+    #[test]
+    fn a_glide_eases_and_turns_the_short_way() {
+        let from = ViewPose {
+            eye: Vec3::ZERO,
+            pitch: 0.0,
+            yaw: 3.0,
+        };
+        let to = ViewPose {
+            eye: Vec3::new(100.0, 0.0, 0.0),
+            pitch: 0.5,
+            yaw: -3.0,
+        };
+        assert_eq!(between(from, to, 0.0), from);
+        let end = between(from, to, 1.0);
+        assert!(end.eye.distance(to.eye) < 1e-3 && (end.pitch - 0.5).abs() < 1e-6);
+        // from 3 to -3 radians the short way is through pi, not through 0
+        let middle = between(from, to, 0.5);
+        assert!(middle.yaw.abs() > 3.0, "{}", middle.yaw);
+        assert!((middle.eye.x - 50.0).abs() < 1e-3);
+        // eased: slow at the start
+        assert!(between(from, to, 0.1).eye.x < 10.0);
+        let now = Instant::now();
+        let glide = Glide::new(from, to, now);
+        assert!(!glide.at(now).1);
+        let (pose, done) = glide.at(now + GLIDE);
+        assert!(done && pose.eye.distance(to.eye) < 1e-3);
+    }
+
+    #[test]
+    fn a_target_is_the_box_of_its_points() {
+        assert!(sphere_of(std::iter::empty()).is_none());
+        let (centre, radius) = sphere_of([
+            Vec3::new(-10.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 30.0),
+        ])
+        .unwrap();
+        assert_eq!(centre, Vec3::new(0.0, 0.0, 15.0));
+        assert!((radius - (20.0f32 * 20.0 + 30.0 * 30.0).sqrt() * 0.5).abs() < 1e-4);
     }
 
     #[test]

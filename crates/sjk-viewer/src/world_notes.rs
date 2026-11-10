@@ -354,6 +354,19 @@ impl Selection {
             })
     }
 
+    /// The corners of what is selected (its outline and shade, and the point aimed at):
+    /// what the map editor frames (`mapedit_frame`).
+    pub(crate) fn extent_points(&self) -> impl Iterator<Item = Vec3> + '_ {
+        let (edges, triangles) = self.outline();
+        let (hit, _, _) = self.target();
+        edges
+            .iter()
+            .flatten()
+            .chain(triangles.iter().flatten())
+            .copied()
+            .chain(std::iter::once(hit))
+    }
+
     /// The outline and the shade drawn while selected: the model's when there is one.
     fn outline(&self) -> (&[[Vec3; 2]], &[[Vec3; 3]]) {
         self.model.as_ref().map_or(

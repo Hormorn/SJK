@@ -2081,7 +2081,11 @@ fn key_lines<'a>(panel: &'a Panel, exit: &'a [&'a str]) -> Vec<Vec<Hint<'a>>> {
             (&["Esc"], "back"),
         ]
     };
-    vec![first, second, vec![(&["Ctrl", "Z"], "undo"), leave]]
+    vec![
+        first,
+        second,
+        vec![(&["Ctrl", "Z"], "undo"), (&["F"], "frame"), leave],
+    ]
 }
 
 /// The cap of the key that leaves: the one bound to `mapedit`.

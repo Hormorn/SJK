@@ -29,6 +29,7 @@ pub(crate) mod document;
 pub(crate) mod editor;
 pub(crate) mod faces;
 pub(crate) mod fly;
+pub(crate) mod fly_to;
 pub(crate) mod gizmo;
 pub(crate) mod lights;
 pub(crate) mod linked;

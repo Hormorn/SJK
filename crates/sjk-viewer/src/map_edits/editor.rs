@@ -277,6 +277,10 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: copy the selected placed models, offset (dx dy dz; 16 units to your right by default), in one step to undo; the copies are selected",
     ),
     (
+        "mapedit_frame",
+        "Map editor: glide the camera to frame the selection (F), or the point x y z [radius] given; the body stays where it is",
+    ),
+    (
         "mapedit_weather",
         "Map editor: keep this map's weather: what you see now, or the weather commands given (heavyrain, gustingwind, mist; '-' gives the map its own back)",
     ),
@@ -459,6 +463,7 @@ impl GpuState {
             "mapedit_fill" => self.map_edit_fill(args),
             "mapedit_select" => self.map_edit_select_command(args),
             "mapedit_duplicate" => self.map_edit_duplicate(args),
+            "mapedit_frame" => self.map_edit_frame_command(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_weather" => self.map_edit_weather(args),
             "mapedit_light" => self.map_edit_light(args),
