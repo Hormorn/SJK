@@ -2683,7 +2683,14 @@ test: Have a JoF EternalJK player say the same: SJK shows the % and the quotes t
 test: Type 60 percent signs: the box stops at 15, and the sent line is never cut mid-escape.
 note: The console copy of a chat line keeps the escapes, as in EternalJK.
 
-[browser-select-all]\narea: Console & chat\ntitle: Ctrl+A and double click select in the F3 list (Slash, PR #411, hub #308)\nchange: The menu drops a text selection only when its own field closes, not every frame.\ntest: Open the console, F3, type a search, Ctrl+A: it is highlighted; typing replaces it.\ntest: Double click the search: it is selected. Enter on a cvar, Ctrl+A selects its value.\ntest: Settings search: Ctrl+A and a double click still select, Esc still leaves.\n
+[browser-select-all]
+area: Console & chat
+title: Ctrl+A and double click select in the F3 list (Slash, PR #411, hub #308)
+change: The menu drops a text selection only when its own field closes, not every frame.
+test: Open the console, F3, type a search, Ctrl+A: it is highlighted; typing replaces it.
+test: Double click the search: it is selected. Enter on a cvar, Ctrl+A selects its value.
+test: Settings search: Ctrl+A and a double click still select, Esc still leaves.
+
 
 # ---- Input ----
 
@@ -2771,7 +2778,13 @@ test: Hold SPACE, press C: the jump is let go and you crouch; release C: you sta
 test: With cl_idrive 2: hold C, then SPACE: you jump; let go of SPACE: you crouch again.
 note: A roll on landing while crouched (PM_CrashLand) is not prevented, in EJK either.
 
-[held-weapnext-repeats]\narea: Input\ntitle: A held weapnext key keeps cycling (Slash, PR #412, hub #309)\nchange: A held key repeats its bind's down-only commands (weapnext); +commands stay held.\ntest: With several weapons, hold the key bound to weapnext: the weapons keep cycling.\ntest: Hold +attack: it fires as before. Hold a chord bound to weapnext: it cycles too.\n
+[held-weapnext-repeats]
+area: Input
+title: A held weapnext key keeps cycling (Slash, PR #412, hub #309)
+change: A held key repeats its bind's down-only commands (weapnext); +commands stay held.
+test: With several weapons, hold the key bound to weapnext: the weapons keep cycling.
+test: Hold +attack: it fires as before. Hold a chord bound to weapnext: it cycles too.
+
 
 # ---- Menus & settings ----
 [classic-collection-camera]
@@ -3953,7 +3966,13 @@ test: Compact SJK scoreboard off, 30 players: two lists side by side as before.
 note: Not tried in a running client: the HUD hiding and the compact board over a real match.
 note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab is pressed again.
 
-[icon-atlas-inset]\narea: HUD\ntitle: No line above weapon icons (Slash, PR #413, hub #311)\nchange: Icons sample half a texel inside their atlas cell, not the neighbouring picture.\ntest: Pick up several weapons and open the weapon bar: no thin line above any icon.\ntest: Menu and Force icons look as before, edges not cut.\n
+[icon-atlas-inset]
+area: HUD
+title: No line above weapon icons (Slash, PR #413, hub #311)
+change: Icons sample half a texel inside their atlas cell, not the neighbouring picture.
+test: Pick up several weapons and open the weapon bar: no thin line above any icon.
+test: Menu and Force icons look as before, edges not cut.
+
 
 # ---- Rendering & effects ----
 
