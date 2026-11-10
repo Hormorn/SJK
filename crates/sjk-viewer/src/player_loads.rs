@@ -244,11 +244,15 @@ fn prepare(request: Request, sources: Sources) -> Prepared {
     let (preview, failed) = match (!request.known_failed).then(|| load(&request.appearance)) {
         Some(Ok(preview)) => (preview, None),
         outcome => {
-            let preview = match load(&request.stand_in) {
-                Err(_) if request.stand_in != kyle => load(&kyle)?,
-                loaded => loaded?,
+            let (preview, drawn) = match load(&request.stand_in) {
+                Err(_) if request.stand_in != kyle => (load(&kyle)?, &kyle),
+                loaded => (loaded?, &request.stand_in),
             };
-            (preview, outcome.and_then(Result::err))
+            // Name what is drawn, so the log shows which stand-in it took.
+            let failed = outcome
+                .and_then(Result::err)
+                .map(|error| format!("{error}; using {}/{}", drawn.model, drawn.variant));
+            (preview, failed)
         }
     };
     // As the world load pairs each player with one (`actor_load.rs`).
@@ -368,7 +372,7 @@ impl GpuState {
             .absorb(std::mem::take(&mut loaded.cache));
         if let Some(error) = &loaded.failed {
             log::progress(format_args!(
-                "could not load {}/{}: {error}; using Kyle",
+                "could not load {}/{}: {error}",
                 appearance.model, appearance.variant
             ));
             self.clientinfo_watch.failed.insert(appearance.clone());

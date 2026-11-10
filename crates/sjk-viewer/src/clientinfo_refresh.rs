@@ -177,7 +177,24 @@ impl GpuState {
         // appearance they asked for, which an unchanged clientinfo would keep.
         if random_changed {
             let failed = self.clientinfo_watch.failed.iter();
-            let folders = failed.map(|appearance| appearance.model.clone()).collect();
+            // Players drawn with a stand-in since the world loaded (`actor_load`) are
+            // not in `failed`: a model whose `model.glm` is missing stands in too.
+            let vfs = self.vfs.as_ref();
+            let missing = self
+                .actor_meshes
+                .iter()
+                .filter(|mesh| !mesh.corpse_pool && mesh.entity_id.is_some())
+                .map(|mesh| &mesh.appearance)
+                .filter(|appearance| {
+                    vfs.is_some_and(|vfs| {
+                        !vfs.contains(&format!("{}/model.glm", appearance.model))
+                            .unwrap_or(true)
+                    })
+                });
+            let folders = failed
+                .chain(missing)
+                .map(|appearance| appearance.model.clone())
+                .collect();
             self.clientinfo_watch.reload = folders;
         }
         for client in 0..32 {
