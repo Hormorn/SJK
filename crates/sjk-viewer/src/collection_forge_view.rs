@@ -1066,8 +1066,20 @@ impl Panel {
         let total = all.len();
         let shards = self.forge.data.shards.unwrap_or(0);
         let affordable = all.iter().filter(|item| item.cost <= shards).count();
+        let held = if total == 0 {
+            Vec::new()
+        } else {
+            held_matches(
+                &inputs.holdings,
+                &self.forge.craft_filter.shaders,
+                &self.marks,
+            )
+        };
         let line = if total == 0 {
             crate::terms::say("Every shader holocrons drop is yours already.").into_owned()
+        } else if !held.is_empty() && !self.forge.craft_list.is_empty() {
+            // Hub report #305: the search also names held shaders Craft leaves out.
+            held_note(&held)
         } else {
             format!(
                 "{total} saber shaders you lack, made with kyber shards: {affordable} within reach."
@@ -1077,23 +1089,37 @@ impl Panel {
         self.forge_filter(frame, "Affordable", false);
         let list = self.forge.craft_list.clone();
         if list.is_empty() {
-            let (title, words) = if total == 0 {
-                (
-                    "Nothing left to craft",
-                    "You hold every saber shader holocrons drop. New ones join the Forge as \
-                     they come.",
+            let words: std::borrow::Cow<'_, str> = if total == 0 {
+                "You hold every saber shader holocrons drop. New ones join the Forge as they                  come."
+                    .into()
+            } else if let [skin] = held.as_slice() {
+                // Hub report #305: crafting refuses a held shader, so say why it is missing.
+                format!(
+                    "You hold the {} already. The Forge crafts only shaders you lack; another                      copy comes from holocrons.",
+                    skin.name
                 )
+                .into()
+            } else if !held.is_empty() {
+                format!(
+                    "You hold the {} shaders that match already. The Forge crafts only shaders                      you lack; other copies come from holocrons.",
+                    held.len()
+                )
+                .into()
             } else {
-                (
-                    "No shader matches",
-                    "T steps the tier, A shows only those within reach, / searches.",
-                )
+                "T steps the tier, A shows only those within reach, / searches.".into()
+            };
+            let title = if total == 0 {
+                "Nothing left to craft"
+            } else if held.is_empty() {
+                "No shader matches"
+            } else {
+                "Yours already"
             };
             self.forge_empty(
                 frame,
                 [LIST_LEFT, LIST_TOP, LIST_RIGHT - LIST_LEFT, 560.0],
                 title,
-                &crate::terms::say(words),
+                &crate::terms::say(&words),
             );
         }
         let first = self.forge.craft_first;

@@ -9698,6 +9698,13 @@ test: Confirm: shards rise, counts fall, a worn last copy comes off the saber.
 test: Escape stops picking. A locked shader cannot be picked.
 note: Needs hub shared #16 deployed; without it the Select chip does not show.
 
+[forge-craft-held-search]
+area: Menus & settings
+title: Forge Craft search names a held shader (Slash, hub #305)
+change: Craft lists only shaders you lack; a search for a held one now says it is yours already.
+test: Forge > Craft, / and a held shader's full name: the empty list says Yours already.
+test: Search a word that also finds shaders you lack: the intro names the held ones.
+
 [malachor-rose-300]
 area: Rendering & effects
 title: Malachor Rose blade 300 (Creyon, #378, after Foshin's idea)
