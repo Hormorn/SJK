@@ -1,3 +1,20 @@
+## Map editor: texture guesses and better selections
+
+10/11/2026, `personal/mapedit-ingame-3`, based on `main` `e8f685997` (Sol: "further improve
+the in game editor with textures guesses, better selections and just whatever you can think
+of"). Every selection's shader list starts with Suggested rows: the nearby vote (Fill's on
+faces, asked by the surfaces' own triangles on drawn surfaces), the same name family in the
+folder, and the map's most used textures, each with why
+([map-edits.md](map-edits.md#texture-guesses-and-selections)); resting on a row previews the
+remap on the selected surfaces without writing anything. The hover outlines what is under
+the pointer with a tip; a drag draws a box selecting surfaces, seen caulk faces and placed
+models (Shift adds, Ctrl takes out); Ctrl+click takes one out; `mapedit_select shader|placed`
+and `mapedit_duplicate` (Ctrl+D) are new. Fixed: the face pick took a physics clip for a
+hidden face (now told by the `trans` flag, read at its real bit 0x80000000, which the cover
+test and the vote also had wrong), and a pick tests only the surfaces whose bounds the ray
+meets. Not built: grow and shrink, invert, normal-aligned placing, measuring, fly-to; the
+browser editor has none of these yet. Verification: below in map-edits.md's Limits.
+
 ## Holocron seasons: the Beta tables
 
 10/11/2026, client `personal/holocron-seasons` and hub branch `beta-season` (Sol: "build what

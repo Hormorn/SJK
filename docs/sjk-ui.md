@@ -2168,13 +2168,15 @@ the column stays drawn, its keys lines turned to the flight's.
   count) and a Tiles switch (92 wide) at its right, a list of five rows as Place's, each
   with the shader's picture (28 square on a dark ground) before its name (names without
   `textures/` or `models/`, the selection's own shader in quiet print unless chosen; on a
-  face Fill's candidates first with their share in gold at their right, "62 % nearby",
-  then the Recent rows with a quiet "Recent", a line under the last of each group), or as
+  Suggested rows first, why at their right in Exo 2 13: a nearby share in gold, "62 %
+  nearby" (on a face Fill's candidates), "same family" and "140 on map" in holo; then the
+  Recent rows with a quiet "Recent", a line under the last of each group), or as
   tiles (Rows to go back): seven 52-square pictures a line, three lines, the chosen one
-  framed gold, the hovered one holo, the selection's own quiet, a candidate's share on a
-  dark band at its foot, a Recent one a holo dot at its corner; then Remap and Remove
-  remap. Left of the column, over the scene's edge from the heading down (x 1164, 224
-  wide, 372 high), the preview card: the navy glass of the lists, "Under the pointer" or
+  framed gold, the hovered one holo, the selection's own quiet, a suggestion's reason on a
+  dark band at its foot ("62 %", "family", "140x"), a Recent one a holo dot at its
+  corner; then Remap, Remove remap and Same shader (Draw, Draw nothing and Same shader on
+  a face; three across). Left of the column, over the scene's edge from the heading down
+  (x 1164, 224 wide, 372 high), the preview card: the navy glass of the lists, "Under the pointer" or
   "Chosen" (Exo 2 13, quiet), the picture 200 square at its own shape on a darker ground,
   its name (two lines) and size, and "Drawn there now" with the selection's own shader at
   40 square and its name. With
@@ -2184,7 +2186,8 @@ the column stays drawn, its keys lines turned to the flight's.
   back.
 - **Place:** the kit's search pill with a Things switch at its right, a list of six rows
   (34 each, the chosen one gold with a gold tick at its left, paths without `models/`, the
-  Recent rows first), Place where you aimed across the column, then Placed model: its line
+  Recent rows first), Place where you aimed (200 wide) with Duplicate and Select all (100
+  each) at its right, then Placed model: its line
   and three rows of four buttons (turn and lift, the nudges, scale with Grab, Put down
   while grabbing, and Remove). Things (09/11/2026): "On this map" with Models at its
   right, six rows of the things standing there (another player's boombox quiet), two rows
@@ -2210,19 +2213,25 @@ the column stays drawn, its keys lines turned to the flight's.
 - **Foot:** New edits for and the kit's segments (All servers, This server) at y 800, the
   last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold) and
   Editor off at 898, and three lines of keys from 954, 30 apart (RMB fly, Click select,
-  Shift+Click add; G R T gizmo, Esc back, with Shift's fine steps on Place; Ctrl+Z undo
-  and the cap of the key bound to `mapedit`, "leave"; while flying W A S D, Space C, Shift,
+  Shift+Click add; G R T gizmo, Drag box, Esc back, with Shift's fine steps instead of the
+  box on Place; Ctrl+Z undo and the cap of the key bound to
+  `mapedit`, "leave"; while flying W A S D, Space C, Shift,
   Wheel; while grabbing Click, Wheel, Esc; while transforming the gizmo's), then, when the
   free camera was refused, why, in ember Exo 2 15 at 1044. A page's controls end above it
   (a test checks every page at four window shapes, and that every key line fits the
   column). The Aim button and the strip over play (while the panel was hidden to aim) went
   on 04/11/2026: the panel no longer hides while the editor is on.
+- **Over the scene** (10/11/2026): the hover, what is under the pointer outlined in faint
+  white dots (1.5 to 3 pixels, 55 %), with its tip 18 right and 22 under the pointer (kept
+  left of the column): one line of Exo 2 14 on navy glass (86 %) with a holo hairline,
+  8 round; a box being drawn as a holo frame (80 %) over a faint holo fill (8 %), the tip
+  gone meanwhile.
 
 It is a page of the in-game menu (`Page::MapEdit`), drawn by `InGameMenu::append_own_page`
 from the panel's state, which lives with the map's edits; its keys come before the game
 menu's (`GpuState::map_edit_key`), its pointer through `map_edit_pointer`. World shots:
-`duel6_map_editor_panel` and `duel6_map_editor_pictures_and_lights`
-(`world_shot_map_edits.rs`).
+`duel6_map_editor_panel`, `duel6_map_editor_pictures_and_lights` and
+`duel6_map_editor_suggestions_hover_and_box` (`world_shot_map_edits.rs`).
 
 ## Ghost editor
 

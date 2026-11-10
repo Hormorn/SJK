@@ -280,6 +280,152 @@ fn duel6_map_editor_pictures_and_lights() {
     });
 }
 
+/// The editor's texture guesses and selections over duel6 (10/11/2026): the path
+/// clicked, its Suggested rows (nearby, same family, on this map) at the head of its
+/// shader list; the hover's faint outline and tip over a wall; a box drawn over the scene
+/// and what it selected; and the remap preview of a Suggested row the pointer rests on,
+/// gone again once the pointer leaves the list.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_map_editor_suggestions_hover_and_box() {
+    use sjk_ui::{InputEvent, PointerButton, Vec2};
+    on_big_stack(|| {
+        let Some((mut gpu, _profile)) = open("maps/mp/duel6.bsp", [1920, 1080], None, &[]) else {
+            return;
+        };
+        let (spawn, _) = assets::initial_camera(&gpu.bsp).expect("a spawn point");
+        let spawn = Vec3::from_array(spawn);
+        let (_, prop) = crate::static_models::spawns(&gpu.bsp)
+            .into_iter()
+            .min_by(|(_, a), (_, b)| {
+                let distance =
+                    |s: &crate::static_models::Spawn| Vec3::from_array(s.origin).distance(spawn);
+                distance(a).total_cmp(&distance(b))
+            })
+            .expect("duel6 places props");
+        let origin = Vec3::from_array(prop.origin);
+        let camera = origin + Vec3::new(-220.0, -160.0, 120.0);
+        let (yaw, pitch) = look(camera.to_array(), (origin + Vec3::Z * 24.0).to_array());
+        aim(&mut gpu, camera.to_array(), yaw, pitch);
+        if let Some(console) = gpu.console.as_mut() {
+            console.close_for_connection();
+        }
+        let _ = frame(&mut gpu, 40);
+        let mut document = Document::new("mp/duel6", 1);
+        document.add(
+            Kind::Place {
+                model: prop.model.clone(),
+                origin: (origin + Vec3::new(0.0, 96.0, 0.0)).to_array(),
+                angles: [0.0, 90.0, 0.0],
+                scale: [1.0; 3],
+            },
+            None,
+        );
+        gpu.shot_map_edits(Some(document));
+        let _ = frame(&mut gpu, 10);
+        // The path at the bottom: Suggested rows lead its list.
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 1010.0]));
+        let _ = frame(&mut gpu, 4);
+        let panel = &gpu.map_edits.panel;
+        let suggested: Vec<String> = (0..panel.candidate_rows)
+            .map(|index| {
+                format!(
+                    "{} ({})",
+                    panel.shown_shader(index).unwrap_or("?"),
+                    panel
+                        .suggestion(index)
+                        .map(|r| r.mark())
+                        .unwrap_or_default()
+                )
+            })
+            .collect();
+        println!(
+            "selected {:?}",
+            panel.facts.selection.as_ref().map(|s| &s.name)
+        );
+        println!("suggested: {suggested:?}");
+        assert!(!suggested.is_empty(), "the path gets suggestions");
+        assert!(
+            suggested.iter().all(|row| !row.contains("system/")),
+            "no tool shader is suggested: {suggested:?}"
+        );
+        println!("{}", shoot(&mut gpu, 16, "map-editor-suggested").display());
+        // The hover over the tower's stones.
+        let over = Vec2::new(812.0, 330.0);
+        gpu.map_edit_pointer(InputEvent::PointerMove(over));
+        let _ = frame(&mut gpu, 3);
+        let tip = gpu.map_edits.panel.scene.tip.clone();
+        println!("hover: {tip:?}");
+        assert!(
+            gpu.world_notes.hover().is_some(),
+            "something is under the pointer"
+        );
+        println!("{}", shoot(&mut gpu, 4, "map-editor-hover").display());
+        // A box over the floor ahead.
+        let (from, to) = (Vec2::new(380.0, 640.0), Vec2::new(1150.0, 1040.0));
+        gpu.map_edit_pointer(InputEvent::PointerPress {
+            position: from,
+            button: PointerButton::Primary,
+        });
+        for step in 1..=6 {
+            let t = step as f32 / 6.0;
+            gpu.map_edit_pointer(InputEvent::PointerMove(Vec2::new(
+                from.x + (to.x - from.x) * t,
+                from.y + (to.y - from.y) * t,
+            )));
+        }
+        assert!(
+            gpu.map_edits.panel.scene.marquee.is_some(),
+            "a box is drawn"
+        );
+        println!("{}", shoot(&mut gpu, 3, "map-editor-box-drawing").display());
+        let started = std::time::Instant::now();
+        gpu.map_edit_pointer(InputEvent::PointerRelease {
+            position: to,
+            button: PointerButton::Primary,
+        });
+        let took = started.elapsed();
+        let count = gpu.world_notes.edit_selection_len();
+        println!(
+            "box: {} ({count} selected in {took:?})",
+            gpu.map_edits.panel.status
+        );
+        assert!(count > 1, "the box selects several things");
+        println!("{}", shoot(&mut gpu, 6, "map-editor-box").display());
+        // The path again, and the pointer resting on its first suggested row.
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 1010.0]));
+        let _ = frame(&mut gpu, 4);
+        let row = gpu
+            .map_edits
+            .panel
+            .shader_list
+            .expect("the shader list is drawn");
+        let at = Vec2::new(row.x + row.width * 0.5, row.y + 8.0 + 17.0);
+        gpu.map_edit_pointer(InputEvent::PointerMove(at));
+        let _ = frame(&mut gpu, 2);
+        std::thread::sleep(crate::map_edits::preview::SETTLE * 2);
+        let _ = frame(&mut gpu, 4);
+        let shown = gpu.map_edits.panel.preview.shown.clone();
+        println!("preview: {shown:?}");
+        assert!(shown.is_some(), "the row under the pointer is previewed");
+        assert!(
+            gpu.map_edits.panel.facts.edit_count == 1,
+            "a preview writes no edit"
+        );
+        println!("{}", shoot(&mut gpu, 6, "map-editor-preview").display());
+        gpu.map_edit_pointer(InputEvent::PointerMove(Vec2::new(520.0, 360.0)));
+        let _ = frame(&mut gpu, 3);
+        assert!(
+            gpu.map_edits.panel.preview.shown.is_none(),
+            "leaving the list puts the map's back"
+        );
+        println!(
+            "{}",
+            shoot(&mut gpu, 6, "map-editor-preview-gone").display()
+        );
+    });
+}
+
 /// The map editor's gizmo over duel6 ([`crate::map_edits::gizmo`]): a placed model
 /// current on Place with its move, rotate and scale handles, then a drag on its X arrow
 /// half-way (the model previewed 40 units along X), and the release (refused here: a shot
