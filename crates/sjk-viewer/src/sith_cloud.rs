@@ -2,9 +2,11 @@
 //! server of maps, skins and extras, chosen and downloaded on the same card as JoF
 //! content ([`crate::jof_content::card`]) with its own settings.
 //!
-//! Unlike JoF content its files go straight in the game's `base`, as the SJK
-//! Launcher's Sith cloud tab puts them, so the game, EternalJK and SJK all load
-//! them and both keep one record of what they fetched (`GameData/sjk-jof-content.json`).
+//! Unlike JoF content its files go straight in the game's `base`, so the game,
+//! EternalJK and SJK all load them, or in `GameData/assets/S/base` once the SJK
+//! Launcher has made that folder (its default): SJK then follows it, and takes a
+//! file already in `base` as it is. Each place keeps one record of what was fetched
+//! (`sjk-jof-content.json` beside its `base`), shared with the launcher.
 //! Off by default: nothing is fetched until the player turns `sith.cloud` on and
 //! presses Download.
 //!
@@ -46,10 +48,10 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[(COMMAND, HELP)];
 
 pub(crate) const WORDS: Words = Words {
     title: "Sith cloud",
-    about: "The S community's maps, skins and extras, from the Sith cloud server, into your game's base folder.",
+    about: "The S community's maps, skins and extras, from the Sith cloud server, into your game folder.",
     notice: "The Sith cloud's hosts choose and publish these files and are responsible for them; SJK only downloads what you pick and is not responsible for their content.",
     switch: "Use the Sith cloud",
-    on: "On: what you pick downloads into the game's base folder, where SJK and EternalJK load it from the next map.",
+    on: "On: what you pick downloads into the game folder, where SJK loads it from the next map.",
     off: "Off by default. Turn it on to download the Sith cloud's files; nothing is fetched until you press Download.",
     folder_note: "shared with the SJK Launcher's Sith cloud tab",
     repository: "the Sith cloud",
@@ -62,7 +64,7 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         SWITCH,
         false,
         archive,
-        "Allow downloads from the Sith cloud (the S community's maps, skins and extras) into the game's base folder; off by default; sith.downloads chooses and fetches them",
+        "Allow downloads from the Sith cloud (the S community's maps, skins and extras) into the game folder; off by default; sith.downloads chooses and fetches them",
     ))?;
     cvars.register(CvarDefinition::new(
         GROUPS,
@@ -97,13 +99,28 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
     Ok(())
 }
 
-/// The game's `base`, where the files go: shown on the card.
-pub(crate) fn folder(game_data: &Path) -> std::path::PathBuf {
-    game_data.join("base")
+/// The Sith cloud's root in the assets folder; its files are in that root's `base`.
+fn assets_root(game_data: &Path) -> std::path::PathBuf {
+    game_data.join(sjk_vfs::ASSETS_DIRECTORY).join("S")
 }
 
-/// What a refresh or sync works with, from the settings. The root is GameData
-/// itself, so its `base` is the game's.
+/// Whether the launcher has put the Sith cloud in the assets folder.
+fn in_assets(game_data: &Path) -> bool {
+    assets_root(game_data).join("base").is_dir()
+}
+
+/// Where the files go: shown on the card.
+pub(crate) fn folder(game_data: &Path) -> std::path::PathBuf {
+    if in_assets(game_data) {
+        assets_root(game_data).join("base")
+    } else {
+        game_data.join("base")
+    }
+}
+
+/// What a refresh or sync works with, from the settings. The root's `base` is where
+/// files go: the game's own, with GameData as the root, or the assets folder's, which
+/// then also looks in the game's `base`, so nothing is fetched twice.
 pub(crate) fn job_settings(
     console: &ViewerConsole,
     game_data: &Path,
@@ -119,9 +136,14 @@ pub(crate) fn job_settings(
     } else {
         (vec![source(url)], None)
     };
+    let (root, game_base) = if in_assets(game_data) {
+        (assets_root(game_data), Some(game_data.join("base")))
+    } else {
+        (game_data.to_owned(), None)
+    };
     sjk_jof_content::job::Settings {
-        root: game_data.to_owned(),
-        game_base: None,
+        root,
+        game_base,
         sources,
         directory,
         version: crate::build_info::VERSION.to_owned(),
@@ -159,6 +181,22 @@ mod tests {
         let found = source("http://example.test:8080/ ");
         assert_eq!(found.manifest, "http://example.test:8080/manifest.json");
         assert_eq!(found.files, "http://example.test:8080/repository");
+    }
+
+    #[test]
+    fn the_cloud_follows_the_folder_the_launcher_made() {
+        let directory = tempfile::tempdir().unwrap();
+        let console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        let game_data = directory.path();
+        let settings = job_settings(&console, game_data);
+        assert_eq!((settings.root, settings.game_base), (game_data.to_owned(), None));
+        assert_eq!(folder(game_data), game_data.join("base"));
+        let tidied = game_data.join("assets").join("S");
+        std::fs::create_dir_all(tidied.join("base")).unwrap();
+        let settings = job_settings(&console, game_data);
+        assert_eq!(settings.root, tidied);
+        assert_eq!(settings.game_base, Some(game_data.join("base")));
+        assert_eq!(folder(game_data), tidied.join("base"));
     }
 
     #[test]
