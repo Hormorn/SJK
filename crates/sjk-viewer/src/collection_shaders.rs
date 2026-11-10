@@ -2659,7 +2659,14 @@ impl Panel {
         let parts: Vec<(&'static str, String, bool, String)> = look
             .options()
             .iter()
-            .map(|option| (skin, option.id.clone(), is_on(&option.id), option.name.clone()))
+            .map(|option| {
+                (
+                    skin,
+                    option.id.clone(),
+                    is_on(&option.id),
+                    option.name.clone(),
+                )
+            })
             .collect();
         if parts.is_empty() && extras.is_none() {
             return;
@@ -2714,9 +2721,11 @@ impl Panel {
         let mut options = parts;
         if let Some(extras) = extras {
             if unlocked {
-                options.extend(extras.list.iter().map(|extra| {
-                    (skin, extra.id.clone(), is_on(&extra.id), extra.name.clone())
-                }));
+                options.extend(
+                    extras.list.iter().map(|extra| {
+                        (skin, extra.id.clone(), is_on(&extra.id), extra.name.clone())
+                    }),
+                );
                 self.extras_rows = options[first..]
                     .iter()
                     .enumerate()
@@ -2861,7 +2870,12 @@ impl Panel {
                 &mut self.ui,
                 TextFamily::Body,
                 format_args!("{name}"),
-                frame.rect(after + 10.0, middle - 11.0, inner - kit::TICK_BOX - 10.0, 22.0),
+                frame.rect(
+                    after + 10.0,
+                    middle - 11.0,
+                    inner - kit::TICK_BOX - 10.0,
+                    22.0,
+                ),
                 16.0 * s,
                 if *on { color::TEXT } else { color::MUTED },
                 FontWeight::Semibold,
@@ -2870,7 +2884,12 @@ impl Panel {
             if *index < OPTION_TOKENS {
                 self.ui.hit_region(
                     token,
-                    frame.rect(left - 6.0, middle - EXTRAS_ROW * 0.5, inner + 12.0, EXTRAS_ROW),
+                    frame.rect(
+                        left - 6.0,
+                        middle - EXTRAS_ROW * 0.5,
+                        inner + 12.0,
+                        EXTRAS_ROW,
+                    ),
                 );
             }
         }
@@ -2919,7 +2938,11 @@ fn padlock(
         });
     };
     leg(list, x - radius, body_top + 0.5);
-    leg(list, x + radius, if open { bend + 2.0 } else { body_top + 0.5 });
+    leg(
+        list,
+        x + radius,
+        if open { bend + 2.0 } else { body_top + 0.5 },
+    );
 }
 
 /// Whether the player holds the card that unlocks blade skin `skin`'s extras
