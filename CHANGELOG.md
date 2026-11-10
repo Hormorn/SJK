@@ -35,6 +35,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
 
+- Chat translation on request: `/tr` in the chat (or `tr` in the console) puts the newest foreign line into English, `/tr <text>` the text you give, and the SJK chat page has Translate on a chosen message. Only the lines you choose go to the SJK hub, which asks Microsoft's translator; `cl_chatTranslateSkip` lists languages never offered. Needs the updated hub _(Slash, after Creo's idea)_
 - The Forge's Craft search tells you when the shader you looked for is yours already (it crafts only shaders you lack; another copy comes from holocrons), instead of finding nothing _(Slash, hub report #305, after SimpleSmokie's report)_
 - Change name on your SJK profile now sets your SJK name (shown in the SJK chat, on cards and on the hub) instead of sending you to the in-game name _(Sol)_
 - Only verified players' GIFs play in the SJK chat; anyone else's link stays a link. Only verified players can upload a profile picture _(Sol)_

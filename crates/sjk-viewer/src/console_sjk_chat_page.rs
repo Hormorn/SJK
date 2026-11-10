@@ -175,6 +175,12 @@ impl ViewerConsole {
                 self.set_cvars([(crate::chat_gifs::search::KEY_CVAR, key.as_str())]);
             }
             PanelAction::Ban(key_id) => crate::chat_ban::press(&key_id),
+            PanelAction::Translate { message, text } => {
+                match crate::player_identity::translate(text) {
+                    Some(serial) => self.sjk_chat_panel.translation_sent(message, serial),
+                    None => self.push_log("^3Translate: the SJK identity is off (cl_identity 1)"),
+                }
+            }
             PanelAction::Trade(key_id) => {
                 match crate::player_trades::ask_by_key(&key_id) {
                     Ok(()) => {
@@ -253,6 +259,12 @@ impl ViewerConsole {
             .text_cvar(crate::chat_gifs::search::KEY_CVAR)
             .map(str::to_owned)
             .unwrap_or_default();
+        let translate = (self.bool_cvar(crate::chat::translate::CVAR) != Some(false)).then(|| {
+            crate::chat::translate::Skip::parse(
+                self.text_cvar(crate::chat::translate::SKIP_CVAR)
+                    .unwrap_or(crate::chat::translate::SKIP_DEFAULT),
+            )
+        });
         let inputs = Inputs {
             chat: chat.as_ref(),
             muted: &muted,
@@ -263,6 +275,7 @@ impl ViewerConsole {
             staff_state: staff_shown,
             giphy_key: &giphy_key,
             said_in_all: crate::chat::server_copy::said_in_all(),
+            translate: translate.as_ref(),
         };
         self.sjk_chat_panel.append_sjk(&inputs, target, viewport);
     }

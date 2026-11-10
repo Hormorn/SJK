@@ -3841,6 +3841,7 @@ like this one.",
             person
         };
         let mut listed = sjk_identity::ChatState {
+            translations: Default::default(),
             clan: Default::default(),
             channels: Vec::new(),
             reaction: None,

@@ -3348,6 +3348,47 @@ A whisper to another SJK player goes through the SJK hub end-to-end encrypted wh
 pink, marked ENCRYPTED, with its own sound, and a card asks before sending one the hub
 could not take through the game server. See [hub-chat.md](hub-chat.md#encrypted-whispers).
 
+### Chat translation
+
+A foreign chat line is put into English on request only (Creo's idea, 10/11/2026;
+[chat/translate.rs](../crates/sjk-viewer/src/chat/translate.rs)). Nothing is
+translated on its own and nothing goes to the game server:
+
+- `/tr` typed in the chat field, on any channel, translates the newest line in the
+  feed that looks foreign; `/tr <text>` translates the text given. The field closes
+  and nothing is said.
+- The console's `tr` and `tr <text>` do the same.
+- The SJK chat page offers **Translate** at the right of the chosen message's sender,
+  for another player's message that is not surely in English or a skipped language
+  (a short line the guess cannot tell is offered all the same). The translation shows
+  under the message in the list.
+
+The translation shows under its line in the feed, dim, as `» (fr) Hi, are you coming
+to the duel?`, and in the console. Why there is none shows as a short local notice:
+the hub needs an update (a hub before translations), the hub has no translator, the
+day's 50 translations are used (until the time the hub gives), the hub's monthly
+budget is spent, or the translator failed.
+
+Which line is foreign is guessed on this PC, offline (`whatlang`, MIT): colour codes and
+emoji are left out, and a line counts when the guess is sure enough and its language is
+neither English nor one of `cl_chatTranslateSkip`'s. A line of fewer than three words
+counts only when its script alone says so (Cyrillic, Greek, Han...): "gg" or "salut"
+are not taken by a bare `/tr`, though `/tr salut` and the page's button still
+translate them.
+
+- `cl_chatTranslate` (archived, default 1; Settings > Chat > Translate chat): 0 turns
+  `/tr`, `tr` and Translate off; a typed `/tr` then says so and is still not said.
+- `cl_chatTranslateSkip` (archived, default `en`; Settings > Chat > Never translate):
+  ISO 639-1 codes separated by spaces or commas (`en sk cs`), never offered; English
+  never is, whatever the list says.
+
+**Privacy**: only the lines you choose to translate leave this PC. They go, signed by
+your SJK identity, to the SJK hub (`POST /v1/translate`, `PROTOCOL.md` in SJK-hub),
+which asks Microsoft's translator (Azure Translator) for them; the client never
+holds a translator key. The last 32 translations are kept in memory for the session,
+so the same line asked again does not go out again. Needs the updated hub; an older
+one answers "Translation needs an updated SJK hub".
+
 ### Chat sounds
 
 Each kind of chat message has its own sound switch and sound (Sol, after Turin's and

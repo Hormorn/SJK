@@ -96,6 +96,7 @@ migrated, except where the table says so. Where each is documented:
 | `con_drawNotify` | off (no console feed at the top left; chat keeps its box) | [Classic console](client.md#classic-console) |
 | `cg_drawClock` | off (no local time clock on the HUD) | [Local time clock](client.md#local-time-clock) |
 | `con_chatOnly` | off (the open console shows every line) | [Classic console](client.md#classic-console) |
+| `cl_chatTranslate` | on: `/tr`, `tr` and the SJK chat page's Translate put a chosen line into English through the hub; nothing is translated unasked | [Chat translation](client.md#chat-translation) |
 | `cl_experimentalShowcase` | off (the experimental `ghost` and `mimic` commands, staff keys only) | [Ghost replay](client.md#ghost-replay) |
 | `ui_sliderPeek` | on: over a match, a Settings slider held a moment fades the rest of the screen away | [Settings](sjk-ui.md#settings) |
 | `cl_sjkChatJof`, `cl_sjkChatS` | -1, Auto: a verified JoF or S player reads their own clan's chat, staff both (Sol's spec, 03/11/2026); the other only when chosen | [Clan chats](hub-chat.md#clan-chats) |

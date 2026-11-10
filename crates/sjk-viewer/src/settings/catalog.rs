@@ -1891,6 +1891,16 @@ pub(super) const NETWORK: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Translate chat",
+        cvar: crate::chat::translate::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Never translate",
+        cvar: crate::chat::translate::SKIP_CVAR,
+        kind: ValueKind::Text,
+    },
+    Setting {
         label: "JoF clan chat",
         cvar: crate::chat::tabs::JOF_JOIN_CVAR,
         kind: ValueKind::Choice(&["-1", "0", "1"]),

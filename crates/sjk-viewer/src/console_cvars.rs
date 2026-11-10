@@ -1521,6 +1521,18 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Play silent MP4 clips from trusted SJK chat sources with Windows' built-in decoder (off by default: Windows code, not SJK's Rust, reads these internet files)",
         ),
         CvarDefinition::new(
+            crate::chat::translate::CVAR,
+            true,
+            archive,
+            "Offer to translate foreign chat lines into English through the SJK hub, only the line you choose (/tr, tr, the SJK chat page's Translate)",
+        ),
+        CvarDefinition::new(
+            crate::chat::translate::SKIP_CVAR,
+            crate::chat::translate::SKIP_DEFAULT,
+            archive,
+            "Languages never offered for translation, ISO 639-1 codes separated by spaces or commas (en sk cs); English never is",
+        ),
+        CvarDefinition::new(
             crate::e2e_whispers::CVAR,
             true,
             archive,

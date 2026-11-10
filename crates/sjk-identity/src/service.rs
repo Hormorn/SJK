@@ -911,6 +911,8 @@ enum Command {
         emoji: String,
         active: bool,
     },
+    /// Translate this text into English for the request of this serial.
+    Translate(u64, String),
     /// Ban the player of this key from the SJK chat for 24 hours.
     ChatBan(String),
     /// An emote, for the slot the player claims, in step with another slot's or not.
@@ -1105,6 +1107,8 @@ struct Worker {
     /// When the hub last took a chat message from the player, for the wait of a key
     /// that is neither verified nor staff ([`UNVERIFIED_CHAT_GAP`]).
     chat_sent: Option<Instant>,
+    /// The translations of the last lines asked for, so a line asked twice asks once.
+    translations: crate::translate::Cache,
     /// The in-game name the player wears, and the one the hub was last told.
     name: Option<String>,
     name_sent: Option<String>,
@@ -1514,6 +1518,7 @@ impl Worker {
             claimed: None,
             registered: false,
             chat_sent: None,
+            translations: crate::translate::Cache::default(),
             name: None,
             name_sent: None,
             snapshot,
@@ -1724,6 +1729,37 @@ impl Worker {
         let mut chat = lock_chat(&self.chat);
         let serial = chat.reaction.as_ref().map_or(1, |last| last.serial + 1);
         chat.reaction = Some(outcome_of(serial, outcome));
+    }
+
+    /// Translate `text` into English from the cache or the hub, and put what became of
+    /// it in [`ChatState::translations`] under `serial`.
+    fn send_translation(&mut self, serial: u64, text: &str) {
+        use crate::translate::{TranslateError, check};
+        let result = match check(text) {
+            None => Err(TranslateError::BadText),
+            Some(text) => match self.translations.get(text) {
+                Some(kept) => Ok(kept),
+                None => match (self.hub.as_mut(), self.registered) {
+                    (Some(hub), true) => {
+                        let result = hub.translate(&self.identity, text);
+                        if let Ok(translation) = &result {
+                            self.translations.put(text, translation.clone());
+                        }
+                        result
+                    }
+                    _ => Err(TranslateError::Hub(self.not_connected())),
+                },
+            },
+        };
+        let mut chat = lock_chat(&self.chat);
+        if chat.translations.len() >= crate::translate::OUTCOMES_KEPT {
+            chat.translations.pop_front();
+        }
+        chat.translations.push_back(crate::TranslateOutcome {
+            serial,
+            text: text.trim().to_owned(),
+            result,
+        });
     }
 
     fn send_chat(&mut self, text: &str, channel: crate::HubChannel, now: Instant) {
@@ -1981,6 +2017,7 @@ impl Worker {
                 emoji,
                 active,
             } => self.send_reaction(message, &emoji, active),
+            Command::Translate(serial, text) => self.send_translation(serial, &text),
             Command::ChatBan(key_id) => self.send_chat_ban(key_id),
             Command::Emote(emote, sync, quiet) => self.send_emote(&emote, sync, quiet),
             Command::Ping(pos, scope) => self.send_ping(pos, &scope),
@@ -4488,6 +4525,8 @@ pub struct Service {
     finished: Mutex<Receiver<()>>,
     /// The last tag given to a note ([`Service::note`]).
     note_tags: std::sync::atomic::AtomicU64,
+    /// The last serial given to a translation ([`Service::translate`]).
+    translate_serials: std::sync::atomic::AtomicU64,
     /// The key itself, for the admin key login's signature, which never waits for the
     /// worker (`crate::key_login`).
     key: Identity,
@@ -4664,6 +4703,7 @@ impl Service {
             relay,
             finished: Mutex::new(finished),
             note_tags: std::sync::atomic::AtomicU64::new(0),
+            translate_serials: std::sync::atomic::AtomicU64::new(0),
             key,
         }
     }
@@ -5246,6 +5286,18 @@ impl Service {
             emoji,
             active,
         });
+    }
+
+    /// Ask for `text` in English; what became of it arrives in
+    /// [`ChatState::translations`] under the serial answered. A line asked for before
+    /// comes from the worker's cache without asking the hub again.
+    pub fn translate(&self, text: String) -> u64 {
+        let serial = self
+            .translate_serials
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1;
+        let _ = self.commands.send(Command::Translate(serial, text));
+        serial
     }
 
     /// Send a checked SJK chat message through the identity worker.
@@ -6234,6 +6286,20 @@ mod tests {
             active: bool,
         ) -> Result<(), HubError> {
             Fake::record(self, format!("react {message} {emoji} {active}"))
+        }
+        fn translate(
+            &mut self,
+            _: &Identity,
+            text: &str,
+        ) -> Result<crate::Translation, crate::TranslateError> {
+            Fake::record(self, format!("translate {text}"))
+                .map(|()| crate::Translation {
+                    text: format!("en: {text}"),
+                    from: "fr".into(),
+                    cached: false,
+                    left: Some(49),
+                })
+                .map_err(|error| crate::TranslateError::from_hub(error, None))
         }
         fn chat_ban(&mut self, _: &Identity, key_id: &str) -> Result<ChatBan, HubError> {
             Fake::record(self, format!("ban {key_id}")).map(|()| ChatBan {
@@ -7712,6 +7778,48 @@ mod tests {
         );
         assert_eq!(fake.log().len(), before);
         assert!(!lock_chat(&worker.chat).reaction.as_ref().unwrap().sent);
+    }
+
+    #[test]
+    fn translations_come_by_serial_and_a_line_asked_twice_asks_once() {
+        let fake = Fake::default();
+        let t0 = Instant::now();
+        let (mut worker, _) = worker(&fake, t0);
+        worker.handle(Command::Translate(1, "salut".into()), t0);
+        let first = lock_chat(&worker.chat)
+            .translations
+            .back()
+            .cloned()
+            .unwrap();
+        assert_eq!(first.serial, 1);
+        assert!(matches!(
+            first.result,
+            Err(crate::TranslateError::Hub(HubError::NotConnected(_)))
+        ));
+        worker.handle(Command::Configure(on("https://hub")), t0);
+        worker.tick(t0);
+        let before = fake.log().len();
+        worker.handle(Command::Translate(2, "  tu viens ?  ".into()), t0);
+        worker.handle(Command::Translate(3, "tu viens ?".into()), t0);
+        let asked: Vec<_> = fake.log()[before..]
+            .iter()
+            .filter(|line| line.starts_with("translate"))
+            .cloned()
+            .collect();
+        assert_eq!(asked, ["translate tu viens ?"]);
+        let chat = lock_chat(&worker.chat);
+        let outcomes: Vec<_> = chat.translations.iter().map(|o| o.serial).collect();
+        assert_eq!(outcomes, [1, 2, 3]);
+        assert_eq!(
+            chat.translations[2].result.as_ref().unwrap().text,
+            "en: tu viens ?"
+        );
+        drop(chat);
+        worker.handle(Command::Translate(4, "   ".into()), t0);
+        assert_eq!(
+            lock_chat(&worker.chat).translations.back().unwrap().result,
+            Err(crate::TranslateError::BadText)
+        );
     }
 
     #[test]

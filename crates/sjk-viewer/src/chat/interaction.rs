@@ -147,6 +147,14 @@ impl ChatOverlay {
 
     pub(super) fn submit(&mut self) -> ChatInputResult {
         let input = self.input.as_ref().expect("active input");
+        // `/tr` on any channel stays here (`chat/translate.rs`).
+        if let Some(text) = super::translate::typed(&input.text) {
+            let text = text.map(str::to_owned);
+            self.input = None;
+            self.scroll = 0;
+            self.unread = 0;
+            return ChatInputResult::Translate(text);
+        }
         // The hub's chats: the SJK chat and the clan chats.
         if input.channel.is_hub() {
             let channel = input.channel;
@@ -427,6 +435,11 @@ impl crate::GpuState {
                 self.send_sjk_chat(text, only);
             }
             ChatInputResult::Clan(text, channel) => self.send_clan_chat(text, channel),
+            ChatInputResult::Translate(text) => {
+                if let Err(why) = self.translate_chat(text.as_deref()) {
+                    self.chat.translation_notice(&why, Instant::now());
+                }
+            }
             ChatInputResult::None => {}
         }
         self.sync_cursor_policy();
@@ -787,6 +800,33 @@ mod dead_key_tests {
         assert_eq!(draft(&chat), "a");
         typed(&mut chat, KeyCode::Digit1, "1");
         assert_eq!(draft(&chat), "a1");
+    }
+
+    #[test]
+    fn slash_tr_is_translated_here_and_never_said() {
+        for (draft, asked) in [("/tr", None), ("/tr hola amigo", Some("hola amigo"))] {
+            let mut chat = composer();
+            for character in draft.chars() {
+                let text = character.to_string();
+                typed(&mut chat, KeyCode::KeyA, &text);
+            }
+            let result = chat.edit_key(KeyCode::Enter, &Key::Named(NamedKey::Enter), Some("\r"));
+            assert!(
+                matches!(&result, ChatInputResult::Translate(text) if text.as_deref() == asked),
+                "{draft}"
+            );
+            assert!(!chat.is_typing(), "the field closes");
+        }
+        // On the team channel too, and `/trade` is said as typed.
+        let mut chat = composer();
+        chat.input.as_mut().unwrap().channel = Channel::Team;
+        typed(&mut chat, KeyCode::KeyA, "/tr");
+        let result = chat.edit_key(KeyCode::Enter, &Key::Named(NamedKey::Enter), Some("\r"));
+        assert!(matches!(result, ChatInputResult::Translate(None)));
+        let mut chat = composer();
+        typed(&mut chat, KeyCode::KeyA, "/trade");
+        let result = chat.edit_key(KeyCode::Enter, &Key::Named(NamedKey::Enter), Some("\r"));
+        assert!(matches!(result, ChatInputResult::Submit(command) if command == "say \"/trade\""));
     }
 
     #[test]

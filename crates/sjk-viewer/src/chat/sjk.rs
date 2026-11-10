@@ -87,6 +87,7 @@ impl ChatOverlay {
             verified: false,
             recipient: None,
             loud,
+            translated: false,
         });
         if self.is_typing() && self.scroll > 0 && (loud || !self.options.quiet) {
             self.scroll = (self.scroll + 1).min(self.lines.len().saturating_sub(1));

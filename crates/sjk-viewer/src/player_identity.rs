@@ -1128,6 +1128,16 @@ pub(crate) fn react(message: u64, emoji: String, active: bool) -> bool {
         .is_some()
 }
 
+/// Ask the hub for `text` in English (`chat/translate.rs`); the serial its outcome
+/// will carry in [`sjk_identity::ChatState::translations`], `None` while the identity
+/// is not running.
+pub(crate) fn translate(text: String) -> Option<u64> {
+    lock()
+        .service
+        .as_ref()
+        .map(|service| service.translate(text))
+}
+
 /// Request a chat ban for another key.
 pub(crate) fn chat_ban(key_id: String) -> bool {
     lock()

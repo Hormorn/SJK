@@ -37,6 +37,7 @@ pub mod site;
 pub mod staff;
 pub mod toy_master;
 pub mod trades;
+pub mod translate;
 pub mod usage;
 pub mod vitals;
 pub mod wheel_of_doom;
@@ -74,6 +75,7 @@ pub use trades::{
     PlayerTrade, TradeAnswer, TradeEvent, TradeItem, TradePartner, TradeRules, TradeSide,
     TradeStep, TradeToday, TradesAnswer,
 };
+pub use translate::{TranslateError, TranslateOutcome, Translation};
 pub use vitals::{Sharing, VitalsTable};
 pub use wire::{
     Achievement, ActivityState, BANNER_SHATTER_ABILITY, BannerTables, Bought, BuyAnswer,

@@ -115,6 +115,8 @@ const CHAT_ROWS: &[&str] = &[
     crate::chat::tabs::SITH_JOIN_CVAR,
     crate::chat_gifs::CVAR,
     crate::chat_gifs::VIDEO_CVAR,
+    crate::chat::translate::CVAR,
+    crate::chat::translate::SKIP_CVAR,
     crate::chat::client_icons::CVAR,
     crate::chat_gifs::search::KEY_CVAR,
     crate::e2e_whispers::CVAR,

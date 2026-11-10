@@ -86,6 +86,7 @@ fn duel6_sjk_chat_gifs_page() {
         )
         .collect();
     let state = sjk_identity::ChatState {
+        translations: Default::default(),
         clan: Default::default(),
         channels: Vec::new(),
         reaction: None,
@@ -333,6 +334,7 @@ fn duel6_sjk_chat_gif_picker() {
         })
         .collect();
     let state = sjk_identity::ChatState {
+        translations: Default::default(),
         clan: Default::default(),
         channels: Vec::new(),
         reaction: None,

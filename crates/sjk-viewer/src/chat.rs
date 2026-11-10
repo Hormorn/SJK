@@ -24,6 +24,7 @@ pub(crate) mod sjk;
 mod substitutions;
 pub(crate) mod tabs;
 pub(crate) mod text_sizes;
+pub(crate) mod translate;
 
 mod view;
 
@@ -119,6 +120,9 @@ struct ChatLine {
     recipient: Option<u16>,
     /// The line passes quiet mode (`chat/quiet.rs`), decided when it arrived.
     loud: bool,
+    /// The line is a translation the player asked for, or why there is none
+    /// (`chat/translate.rs`): local, never another line's to translate.
+    translated: bool,
 }
 
 /// An SJK chat line's id at the hub and its sender.
@@ -278,6 +282,8 @@ pub(crate) struct ChatOverlay {
     duel_partner: sjk_client::DuelPartner,
     /// The player's own SJK identity key, for quiet mode's SJK lines.
     sjk_own_key: Option<String>,
+    /// Translations waiting for the hub (`chat/translate.rs`).
+    translations: translate::Asks,
     /// The feed draws during a world shot, which has no session.
     #[cfg(test)]
     pub(crate) for_shot: bool,
@@ -381,6 +387,7 @@ impl ChatOverlay {
             trade_request: None,
             duel_partner: sjk_client::DuelPartner::default(),
             sjk_own_key: None,
+            translations: translate::Asks::default(),
             #[cfg(test)]
             for_shot: false,
         }
@@ -628,6 +635,7 @@ impl ChatOverlay {
                 self.own_slot,
                 self.duel_partner.target(),
             ),
+            translated: false,
         };
         self.push_line(line, server_private);
     }
@@ -702,6 +710,7 @@ impl ChatOverlay {
             verified,
             recipient,
             loud: true,
+            translated: false,
         };
         self.push_line(line, true);
         true
@@ -909,6 +918,9 @@ pub(crate) enum ChatInputResult {
     Sjk(String),
     /// A message for a clan chat, to send through the hub.
     Clan(String, sjk_identity::HubChannel),
+    /// `/tr`: translate the text, or the newest foreign line when `None`
+    /// (`chat/translate.rs`); nothing goes to the server.
+    Translate(Option<String>),
 }
 
 #[cfg(test)]
