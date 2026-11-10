@@ -162,6 +162,7 @@ impl GpuState {
                 crate::kyber::follow_rewards(&me.achievements);
             }
         });
+        self.follow_wishlist();
         self.update_achievements();
         self.update_holocron_activity();
         self.follow_crash_reports();

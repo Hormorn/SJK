@@ -1971,6 +1971,31 @@ for the run.
     economy ("The Forge comes with the hub's shop") show a quiet place with the reason in
     place of the section; while the hub keeps opening to staff or this build is older than
     its minimum client, the lists still show and their buttons are dimmed with the reason.
+  - **Fuse, the deal of the day and the wishlist** (10/11/2026, Sol: "make crafting and the
+    shop more relevant, people barely use it"; [cards.md](cards.md#fusion-deal-of-the-day-wishlist)).
+    On a hub whose economy says `fuse` a fourth chip, **Fuse** (4), shows: a chip a tier the
+    hub fuses ("Common to Uncommon", T steps them), the tier's duplicates as cards or rows
+    (the most duplicated first, a locked shader left out, "2 spare" under each), the copies
+    the Forge proposes marked on them (one at a time from the biggest pile, never a last
+    copy, `forge_fuse.rs`); a click or Space picks a copy or lets it go, + and - (or the
+    stepper) change the chosen one's, P (or Propose) proposes again. The card on the right
+    reads "Common to Uncommon", "Fuse duplicates", "3 duplicates of Common -> 1 Uncommon
+    shader you do not own yet" and the copies picked; over the buttons why it cannot go
+    yet ("1 of 3 Common duplicates: 2 more needed.", "Pick 3 duplicates: 2 picked.", "You
+    hold every Uncommon shader already") or "Ready"; **Fuse 3 / 3** asks twice like Craft.
+    The hub's answer reveals the shader gained on the card: its tier, its blade, its name
+    in gold, "Fused: it is yours". The Shop marks the deal of the day with a gold "Deal of
+    the day -50 %" ribbon over its blade and its table price struck ("Was 600 kyber
+    shards") over the halved one, a wished offer "On your wishlist", and a Beta offer the
+    edition stamp ("Beta Edition") over its blade's other corner. On a hub that keeps a
+    wishlist the line under the chips lists it ("Your wishlist (2 of 3): ...") and every
+    offer, Craft's chosen shader (W) and the Shaders tab's card carry a wishlist toggle
+    (the gift mark), a hover card saying what it does or that the list is full. Shop and
+    Fuse carry a gold dot when an offer is wished, the deal is within reach or a fusion is
+    possible, as do the Collection's Forge tab and the Holocrons tab's Shop button
+    (`forge_alert.rs`), and once a shop day a card says "ON YOUR WISHLIST" with the
+    shader's name when one is on offer (`wishlist.rs`). A hub without these sends none of
+    them, and nothing of them shows.
   - The Holocrons tab's Shop (or S) shows the Forge on its Shop, and the Shaders tab's card
     leads to it: "Craft in the Forge" for a shader of the trade not held, "Break down in the
     Forge" for one of the player's own copies, the shader chosen there. A held blade card's

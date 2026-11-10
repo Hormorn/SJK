@@ -10,6 +10,25 @@ the SJK Profile tab's Change name opens a name panel that sends `PUT /v1/profile
 (the old route to the Character tab's Name field is gone). Existing pictures of unverified
 players stay up. Untested in game.
 
+## Forge fusion, deal of the day, wishlist (10/11/2026)
+
+10/11/2026, client `personal/forge-shop` based on `main` `c10f6aab7`, against the hub branch
+`forge-shop` built at the same time (Sol: "make crafting and the shop more relevant, people
+barely use it"; live then: 7 shop purchases ever, 38 crafts, a median of 148 kyber shards
+against a Legendary's 600). The Forge gains **Fuse** (duplicates of one tier for a shader of
+the next the player lacks, proposed from the biggest piles, never a last copy), the Shop
+marks the **deal of the day** (its struck table price), wished offers and Beta offers, and a
+**wishlist** of three shaders is kept from the Shaders tab, Craft and the offers, with a
+card once a shop day when a wished shader is on offer and a gold dot on the Forge tab, the
+Shop and Fuse chips and the Holocrons tab's Shop button while something waits there
+([cards.md](cards.md#fusion-deal-of-the-day-wishlist), [sjk-ui.md](sjk-ui.md#collection)).
+Each part hides against a hub that does not send it. Verified: `cargo test -p sjk-identity
+-p sjk-viewer` (wire parsing with and without the new fields, the fake hub's fuse and
+wishlist requests, the proposal and checks, the wishlist's limit, the dot's conditions, the
+card once a day, layout fits at 1920x1080, 3840x2160, 1440x1080 and 2560x1080), clippy on
+both crates, and the startup stack check. Not verified: nothing was tried in a running
+client nor against a deployed hub; the wire is the agreed contract, not a captured answer.
+
 ## Map editor: texture guesses and better selections
 
 10/11/2026, `personal/mapedit-ingame-3`, based on `main` `e8f685997` (Sol: "further improve

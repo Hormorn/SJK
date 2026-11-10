@@ -617,6 +617,31 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Fuse duplicates into a shader of the next tier the person lacks (`POST
+    /// /v1/unlocks/fuse`, 10/11/2026, hubs whose economy says `fuse`): `ids` names each
+    /// shader once per copy given, all of one tier.
+    fn fuse_unlocks(
+        &mut self,
+        _identity: &Identity,
+        _ids: &[String],
+    ) -> Result<crate::wire::FuseAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not fuse shaders".to_owned(),
+        ))
+    }
+
+    /// Replace the person's wishlist with `ids`, up to three saber shaders (`PUT
+    /// /v1/shop/wishlist`, 10/11/2026, hubs whose economy sends `wishlist`).
+    fn set_wishlist(
+        &mut self,
+        _identity: &Identity,
+        _ids: &[String],
+    ) -> Result<crate::wire::WishlistAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not keep wishlists".to_owned(),
+        ))
+    }
+
     /// Break one copy of a tag down into kyber shards (`POST /v1/tags/shatter`,
     /// 03/11/2026, hubs whose economy says `tag_copies`).
     fn shatter_tag(
@@ -2093,6 +2118,34 @@ impl Hub for HttpHub {
             "/v1/unlocks/craft",
             Some(json!({ "id": id })),
         )?)
+    }
+
+    fn fuse_unlocks(
+        &mut self,
+        identity: &Identity,
+        ids: &[String],
+    ) -> Result<crate::wire::FuseAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/unlocks/fuse",
+            Some(json!({ "ids": ids })),
+        )?)
+    }
+
+    fn set_wishlist(
+        &mut self,
+        identity: &Identity,
+        ids: &[String],
+    ) -> Result<crate::wire::WishlistAnswer, HubError> {
+        let answer = self.send(
+            Some(identity),
+            "PUT",
+            "/v1/shop/wishlist",
+            Some(json!({ "ids": ids })),
+        )?;
+        // An answer without the list (or none at all) keeps the list sent.
+        Ok(serde_json::from_value(answer).unwrap_or_default())
     }
 
     fn shatter_tag(

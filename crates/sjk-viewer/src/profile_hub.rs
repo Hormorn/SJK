@@ -416,11 +416,14 @@ pub(crate) fn tabs(
     current: usize,
     token_base: u16,
 ) {
-    counted_tabs(canvas, frame, labels, &[], current, token_base, 1.0);
+    counted_tabs(canvas, frame, labels, &[], current, token_base, 1.0, None);
 }
 
 /// [`tabs`] with a count after each name (`counts`, empty for none), quieter and
 /// smaller: the Collection's "2/4".
+/// `alert` is the tab that carries a gold dot before its name, if any (the Forge's,
+/// 10/11/2026, [`crate::forge_alert`]).
+#[allow(clippy::too_many_arguments)]
 fn counted_tabs(
     canvas: &mut MenuCanvas,
     frame: &Frame,
@@ -429,6 +432,7 @@ fn counted_tabs(
     current: usize,
     token_base: u16,
     widen: f32,
+    alert: Option<usize>,
 ) {
     // Shrunk to fit, the names and counts are measured and drawn smaller alike.
     let fit = row_fit(labels, counts, widen);
@@ -464,6 +468,9 @@ fn counted_tabs(
                 FontWeight::Regular,
                 TextAlign::Start,
             );
+        }
+        if alert == Some(index) {
+            crate::menu::sjk::kit::attention_dot(canvas, frame, [x - 9.0 * fit, ROW_Y + 18.0]);
         }
         if lit {
             let _ = canvas.draw_list_mut().push(DrawCommand::RoundedRect {
@@ -556,6 +563,8 @@ pub(crate) fn collection_header(
         .iter()
         .map(|label| crate::terms::say(label))
         .collect();
+    // The Forge's dot while something waits there (10/11/2026).
+    let alert = crate::forge_alert::shown().then(|| Tab::Forge.index());
     counted_tabs(
         canvas,
         frame,
@@ -564,6 +573,7 @@ pub(crate) fn collection_header(
         current.index(),
         TOKEN,
         widen,
+        alert,
     );
 }
 

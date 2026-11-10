@@ -141,6 +141,14 @@ impl ViewerConsole {
             PanelAction::Craft(id) => {
                 let _ = crate::economy::craft(id);
             }
+            PanelAction::Fuse(ids) => {
+                let _ = crate::economy::fuse(&ids);
+            }
+            PanelAction::Wish(id, on) => {
+                if let Some(words) = crate::wishlist::set(id, on) {
+                    self.push_log(format!("^3Collection: {words}"));
+                }
+            }
             PanelAction::Buy(id) => {
                 let _ = crate::player_identity::buy(&id);
             }
@@ -761,6 +769,11 @@ impl ViewerConsole {
         // A star or a padlock the hub refused (29/10/2026): said once; the hub's marks
         // come back with its next answer.
         if let Some(words) = self.collection_panel.take_mark_refusal(snapshot) {
+            self.push_log(format!("^3Collection: {words}"));
+        }
+        // A wishlist change the hub refused (10/11/2026): said once; the hub's list comes
+        // back with its next answer.
+        if let Some(words) = self.collection_panel.take_wishlist_refusal(snapshot) {
             self.push_log(format!("^3Collection: {words}"));
         }
         if let Some(id) = self.collection_panel.take_forge_unequip() {
