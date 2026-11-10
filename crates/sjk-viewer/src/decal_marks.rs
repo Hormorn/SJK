@@ -69,6 +69,10 @@ pub(crate) struct DecalSurfaces {
     /// Surfaces a tag is not put on ([`tag_unfit`]): moving, see-through, cut out or
     /// laid over another surface.
     no_tags: Vec<bool>,
+    /// Each surface's bounds (low, high): a ray tests the triangles of the surfaces whose
+    /// box it meets nearer than its nearest hit only (the map editor's hover and box
+    /// cast many rays).
+    bounds: Vec<(Vec3, Vec3)>,
 }
 
 /// Whether a tag stays off a surface drawn with `shader`: the tag is a flat picture fixed
@@ -127,6 +131,18 @@ impl DecalSurfaces {
                     .is_some_and(tag_unfit);
             }
         }
+        let bounds = ranges
+            .iter()
+            .map(|range| {
+                scene.indices[range.start as usize..range.end as usize]
+                    .iter()
+                    .filter_map(|&index| scene.vertices.get(index as usize))
+                    .map(|vertex| Vec3::from_array(vertex.position))
+                    .fold((Vec3::MAX, Vec3::MIN), |(low, high), p| {
+                        (low.min(p), high.max(p))
+                    })
+            })
+            .collect();
         Self {
             positions: scene
                 .vertices
@@ -138,7 +154,17 @@ impl DecalSurfaces {
             hidden: vec![false; ranges.len()],
             no_tags,
             ranges,
+            bounds,
         }
+    }
+
+    /// Whether a map edit hides `surface` (or the renderer skipped it): it draws nothing.
+    pub(crate) fn is_hidden(&self, surface: usize) -> bool {
+        self.hidden.get(surface).copied().unwrap_or(true)
+            || self
+                .ranges
+                .get(surface)
+                .is_none_or(|range| range.is_empty())
     }
 
     /// Hide `surface` from marks and picks, or show it again; true when that changed.
@@ -224,7 +250,22 @@ impl DecalSurfaces {
     /// within `reach`, either side (`world_notes`).
     pub(crate) fn ray_hit(&self, origin: Vec3, direction: Vec3, reach: f32) -> Option<RayHit> {
         let mut nearest: Option<RayHit> = None;
+        let inverse = direction.recip();
         for surface in 0..self.ranges.len() {
+            // The surface's box first: missed, or entered beyond the nearest hit, skip it.
+            if let Some(&(low, high)) = self.bounds.get(surface) {
+                let pad = Vec3::splat(0.01);
+                let a = (low - pad - origin) * inverse;
+                let b = (high + pad - origin) * inverse;
+                let near = a.min(b).max_element().max(0.0);
+                let far = a.max(b).min_element();
+                if far < near
+                    || near > reach
+                    || nearest.as_ref().is_some_and(|hit| hit.distance < near)
+                {
+                    continue;
+                }
+            }
             for triangle in self.triangles(surface) {
                 let [a, b, c] = triangle.map(|index| Vec3::from_array(self.positions[index]));
                 // Moeller-Trumbore.

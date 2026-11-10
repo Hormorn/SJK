@@ -26,6 +26,9 @@ pub(crate) const CANDIDATES: usize = 6;
 
 /// One drawn surface of the world: its shader and its triangles.
 pub(crate) struct DrawnSurface {
+    /// Its BSP surface number (`usize::MAX` when made up): a surface asking does not
+    /// vote for itself.
+    pub(crate) index: usize,
     pub(crate) shader: String,
     pub(crate) triangles: Vec<[Vec3; 3]>,
     low: Vec3,
@@ -37,6 +40,7 @@ impl DrawnSurface {
         let corners: Vec<Vec3> = triangles.iter().flatten().copied().collect();
         let (low, high) = bounds(&corners);
         Self {
+            index: usize::MAX,
             shader: shader.to_owned(),
             triangles,
             low,
@@ -49,6 +53,9 @@ impl DrawnSurface {
 pub(crate) struct DrawnSurfaces {
     surfaces: Vec<DrawnSurface>,
     grid: Grid,
+    /// Each shader with how many surfaces draw it, the most used first: the textures the
+    /// map itself uses ([`super::suggest`]).
+    usage: Vec<(String, u32)>,
 }
 
 /// A shader the vote names, with its weight and its share of all the weight.
@@ -74,7 +81,6 @@ impl DrawnSurfaces {
         let Some(world) = render.models().first() else {
             return Self::new(Vec::new());
         };
-        let vertices = render.vertices();
         let mut surfaces = Vec::new();
         for index in world.surfaces.clone() {
             let Some(surface) = render.surfaces().get(index) else {
@@ -86,44 +92,11 @@ impl DrawnSurfaces {
             if skip(shader) {
                 continue;
             }
-            let at = |i: usize| {
-                vertices
-                    .get(surface.vertices.start + i)
-                    .map(|v| Vec3::from_array(v.position))
-            };
-            let mut triangles = Vec::new();
-            match surface.kind {
-                SurfaceKind::Planar | SurfaceKind::TriangleSoup => {
-                    for corner in render.indices()[surface.indices.clone()].chunks_exact(3) {
-                        if let (Some(a), Some(b), Some(c)) = (
-                            at(corner[0] as usize),
-                            at(corner[1] as usize),
-                            at(corner[2] as usize),
-                        ) {
-                            triangles.push([a, b, c]);
-                        }
-                    }
-                }
-                SurfaceKind::Patch => {
-                    let Some([width, height]) = surface.patch_dimensions else {
-                        continue;
-                    };
-                    for row in 0..height - 1 {
-                        for column in 0..width - 1 {
-                            let i = row * width + column;
-                            if let (Some(a), Some(b), Some(c), Some(d)) =
-                                (at(i), at(i + 1), at(i + width), at(i + width + 1))
-                            {
-                                triangles.push([a, c, b]);
-                                triangles.push([b, c, d]);
-                            }
-                        }
-                    }
-                }
-                SurfaceKind::Flare => continue,
-            }
+            let triangles = surface_triangles(bsp, index);
             if !triangles.is_empty() {
-                surfaces.push(DrawnSurface::new(&shader.name_lossy(), triangles));
+                let mut drawn = DrawnSurface::new(&shader.name_lossy(), triangles);
+                drawn.index = index;
+                surfaces.push(drawn);
             }
         }
         Self::new(surfaces)
@@ -131,14 +104,36 @@ impl DrawnSurfaces {
 
     pub(crate) fn new(surfaces: Vec<DrawnSurface>) -> Self {
         let mut grid = Grid::default();
+        let mut counts: HashMap<String, u32> = HashMap::new();
         for (index, surface) in surfaces.iter().enumerate() {
             grid.insert(surface.low, surface.high, index);
+            *counts
+                .entry(surface.shader.to_ascii_lowercase())
+                .or_default() += 1;
         }
-        Self { surfaces, grid }
+        let mut usage: Vec<(String, u32)> = counts.into_iter().collect();
+        usage.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        Self {
+            surfaces,
+            grid,
+            usage,
+        }
+    }
+
+    /// Each shader (lower case) with how many of the voting surfaces draw it, the most
+    /// used first.
+    pub(crate) fn usage(&self) -> &[(String, u32)] {
+        &self.usage
     }
 
     /// The shaders round `faces`, the most weighty first, [`CANDIDATES`] at most.
     pub(crate) fn vote(&self, faces: &[Asking<'_>]) -> Vec<Candidate> {
+        self.vote_except(faces, &[])
+    }
+
+    /// [`Self::vote`] without the votes of surfaces `skip` (BSP numbers): the surfaces that
+    /// ask, so a surface does not vote for itself.
+    pub(crate) fn vote_except(&self, faces: &[Asking<'_>], skip: &[usize]) -> Vec<Candidate> {
         let mut weights: HashMap<&str, f32> = HashMap::new();
         for face in faces {
             if face.polygon.len() < 3 {
@@ -149,6 +144,9 @@ impl DrawnSurfaces {
             let middle = centre(face.polygon);
             for index in self.grid.near(low - reach, high + reach) {
                 let surface = &self.surfaces[index];
+                if skip.contains(&surface.index) {
+                    continue;
+                }
                 if !overlaps(surface.low, surface.high, low - reach, high + reach) {
                     continue;
                 }
@@ -202,6 +200,71 @@ impl DrawnSurfaces {
     }
 }
 
+/// The triangles of surface `index` of `bsp` as drawn (planar surfaces and triangle soups
+/// by their indices, patches by their control grid, flares none), wound as q3map2 winds
+/// them (clockwise seen from the front).
+pub(crate) fn surface_triangles(bsp: &Bsp, index: usize) -> Vec<[Vec3; 3]> {
+    let render = bsp.render();
+    let Some(surface) = render.surfaces().get(index) else {
+        return Vec::new();
+    };
+    let vertices = render.vertices();
+    let at = |i: usize| {
+        vertices
+            .get(surface.vertices.start + i)
+            .map(|v| Vec3::from_array(v.position))
+    };
+    let mut triangles = Vec::new();
+    match surface.kind {
+        SurfaceKind::Planar | SurfaceKind::TriangleSoup => {
+            for corner in render.indices()[surface.indices.clone()].chunks_exact(3) {
+                if let (Some(a), Some(b), Some(c)) = (
+                    at(corner[0] as usize),
+                    at(corner[1] as usize),
+                    at(corner[2] as usize),
+                ) {
+                    triangles.push([a, b, c]);
+                }
+            }
+        }
+        SurfaceKind::Patch => {
+            let Some([width, height]) = surface.patch_dimensions else {
+                return Vec::new();
+            };
+            for row in 0..height - 1 {
+                for column in 0..width - 1 {
+                    let i = row * width + column;
+                    if let (Some(a), Some(b), Some(c), Some(d)) =
+                        (at(i), at(i + 1), at(i + width), at(i + width + 1))
+                    {
+                        triangles.push([a, c, b]);
+                        triangles.push([b, c, d]);
+                    }
+                }
+            }
+        }
+        SurfaceKind::Flare => {}
+    }
+    triangles
+}
+
+/// The planes a drawn surface's `triangles` ask a vote with ([`Asking`]): each triangle
+/// (its corners, its front's normal and its plane's distance), at most `most`, taken
+/// evenly from the list.
+pub(crate) fn surface_asking(triangles: &[[Vec3; 3]], most: usize) -> Vec<([Vec3; 3], Vec3, f32)> {
+    let step = triangles.len().div_ceil(most.max(1)).max(1);
+    triangles
+        .iter()
+        .step_by(step)
+        .filter_map(|triangle| {
+            let normal = -(triangle[1] - triangle[0])
+                .cross(triangle[2] - triangle[0])
+                .try_normalize()?;
+            Some((*triangle, normal, normal.dot(triangle[0])))
+        })
+        .collect()
+}
+
 /// Roughly how far triangle `triangle` lies from polygon `polygon` (whose middle is
 /// `middle`): 0 when a corner of one is within the other's reach.
 fn gap_to(polygon: &[Vec3], middle: Vec3, triangle: &[Vec3; 3]) -> f32 {
@@ -222,7 +285,7 @@ pub(crate) fn skipped_by_flags(name: &str, surface_flags: u32, content_flags: u3
     const SURF_SKY: u32 = 0x0000_2000;
     const SURF_NODRAW: u32 = 0x0020_0000;
     // lava, water, fog, trigger, slime, translucent
-    const CONTENTS_SKIPPED: u32 = 0x2 | 0x4 | 0x8 | 0x400 | 0x0002_0000 | 0x2000_0000;
+    const CONTENTS_SKIPPED: u32 = 0x2 | 0x4 | 0x8 | 0x400 | 0x0002_0000 | 0x8000_0000;
     surface_flags & (SURF_SKY | SURF_NODRAW) != 0
         || content_flags & CONTENTS_SKIPPED != 0
         || name.to_ascii_lowercase().contains("caulk")
@@ -345,7 +408,13 @@ mod tests {
         assert!(skipped_by_flags("textures/x/caulk_wall", 0, 1));
         assert!(skipped_by_flags("textures/system/trigger", 0, 0x400));
         assert!(skipped_by_flags("textures/x/water", 0, 0x4));
-        assert!(skipped_by_flags("textures/x/glass", 0, 0x2000_0001));
+        assert!(skipped_by_flags("textures/x/glass", 0, 0x8000_0001));
+        // retail physics_clip, a trigger and duel6's ground plants are `trans`
+        assert!(skipped_by_flags(
+            "textures/yavin/ground_plants",
+            0,
+            0x8000_8001
+        ));
         assert!(!skipped_by_flags("textures/x/stone", 0, 1));
     }
 }

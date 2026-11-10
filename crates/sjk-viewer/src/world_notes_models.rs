@@ -184,6 +184,83 @@ pub(super) fn pick_model(
         }
     }
     let (distance, number, spawn, mesh, surface_index, triangle_index) = best?;
+    Some(model_met(
+        entities,
+        Met {
+            number,
+            spawn,
+            mesh,
+            surface_index,
+            triangle_index,
+            distance,
+        },
+        eye,
+        direction,
+    ))
+}
+
+/// The model of entity `number` of `entities` as if the ray from `eye` met the middle of
+/// its first triangle: the map editor's selections made without a click (Select all
+/// placed models, a box drawn over the scene). `None` when it draws no MD3 read here.
+pub(super) fn model_of(
+    entities: &[sjk_entity::Entity],
+    cache: &mut ModelCache,
+    vfs: &VirtualFileSystem,
+    map: &str,
+    number: usize,
+    eye: Vec3,
+) -> Option<Model> {
+    let entity = entities.get(number)?;
+    let spawn = crate::static_models::Spawn::placement(entity)?;
+    if !spawn.model.to_ascii_lowercase().ends_with(".md3") {
+        return None;
+    }
+    let mesh = cache.mesh(vfs, map, &spawn.model)?;
+    let (surface_index, triangle) = mesh
+        .surfaces
+        .iter()
+        .enumerate()
+        .find_map(|(index, surface)| surface.triangles.first().map(|t| (index, *t)))?;
+    let rotation = Quat::from_array(sjk_client::legacy_angles_to_quaternion(spawn.angles));
+    let scale = Vec3::from_array(spawn.scale);
+    let middle = (triangle[0] + triangle[1] + triangle[2]) / 3.0;
+    let point = Vec3::from_array(spawn.origin) + rotation * (middle * scale);
+    let direction = (point - eye).normalize_or(Vec3::X);
+    Some(model_met(
+        entities,
+        Met {
+            number,
+            spawn,
+            mesh,
+            surface_index,
+            triangle_index: 0,
+            distance: point.distance(eye),
+        },
+        eye,
+        direction,
+    ))
+}
+
+/// Where a ray met a model: its entity, placement, mesh, the triangle and how far.
+struct Met {
+    number: usize,
+    spawn: crate::static_models::Spawn,
+    mesh: Arc<Mesh>,
+    surface_index: usize,
+    triangle_index: usize,
+    distance: f32,
+}
+
+/// The selected model for `met`, the ray from `eye` along `direction`.
+fn model_met(entities: &[sjk_entity::Entity], met: Met, eye: Vec3, direction: Vec3) -> Model {
+    let Met {
+        number,
+        spawn,
+        mesh,
+        surface_index,
+        triangle_index,
+        distance,
+    } = met;
     let rotation = Quat::from_array(sjk_client::legacy_angles_to_quaternion(spawn.angles));
     let scale = Vec3::from_array(spawn.scale);
     let place = |point: Vec3| Vec3::from_array(spawn.origin) + rotation * (point * scale);
@@ -227,7 +304,7 @@ pub(super) fn pick_model(
         (edges, faces)
     };
     let (edges, triangles) = model_outline(&triangles, boxed, (mesh.low, mesh.high));
-    Some(Model {
+    Model {
         entity: Entity {
             number,
             classname: text("classname"),
@@ -250,7 +327,7 @@ pub(super) fn pick_model(
         distance,
         edges,
         triangles,
-    })
+    }
 }
 
 /// An edge's two ends and the normals of the faces sharing it.

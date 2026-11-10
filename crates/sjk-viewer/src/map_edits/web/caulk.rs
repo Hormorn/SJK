@@ -135,7 +135,7 @@ pub(crate) fn brushes_json(bsp: &Bsp) -> Value {
                 "label": kind.label().join(" "),
                 "colour": kind.colour(),
                 "mode": if Kind::GAMEPLAY.contains(kind) { 1 } else { 2 },
-                "selects": matches!(kind, Kind::Caulk | Kind::Solid | Kind::Nodraw),
+                "selects": matches!(kind, Kind::Caulk | Kind::Solid),
                 "count": counts[kind.index()],
             })
         })

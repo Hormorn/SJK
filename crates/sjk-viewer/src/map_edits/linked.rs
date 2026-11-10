@@ -35,6 +35,8 @@ const MIN_VISIBLE_AREA: f32 = 1.0;
 const OPEN_OFFSET: f32 = 1.0;
 /// A side smaller than this (square units) is a bevel or a sliver (as [`super::faces`]).
 const MIN_AREA: f32 = 0.5;
+/// Most pieces a side's cover test keeps while it cuts (the largest).
+const MAX_PIECES: usize = 64;
 /// How many faces a link takes at most.
 pub(crate) const LINK_LIMIT: usize = 512;
 
@@ -275,9 +277,17 @@ impl Sides {
             pieces = pieces
                 .into_iter()
                 .flat_map(|piece| outside(piece, &solid.planes))
+                // slivers are dropped at the end anyway: cut no further
+                .filter(|piece| area(piece) >= MIN_AREA)
                 .collect();
             if pieces.is_empty() {
                 return pieces;
+            }
+            // A huge face under many brushes (ffa5's floor under the map: 300 s before
+            // 10/11/2026) is cut into ever more pieces: keep the largest.
+            if pieces.len() > MAX_PIECES {
+                pieces.sort_by(|a, b| area(b).total_cmp(&area(a)));
+                pieces.truncate(MAX_PIECES);
             }
         }
         pieces.retain(|piece| {
