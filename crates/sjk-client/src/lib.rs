@@ -131,6 +131,7 @@ mod userinfo_update;
 mod view_bob;
 mod view_weapon;
 mod visual_effect_events;
+pub mod voice_language;
 mod vote_state;
 use sjk_game_jka::weapon_data;
 mod weapon_selection;

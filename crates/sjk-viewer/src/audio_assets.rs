@@ -50,51 +50,19 @@ pub(super) fn default_music_extension(path: &str) -> String {
     }
 }
 
-/// `s_language`, the language of the voices (retail's, read as it reads it:
-/// `snd_mem.cpp` `S_LoadSound_Actual`, separate from the text's `se_language`).
-pub(crate) const LANGUAGE_CVAR: &str = "s_language";
-/// The folders standing in for `chars`, by [`VOICE_LANGUAGE`] less one.
-const VOICE_FOLDERS: [&str; 3] = ["chr_d", "chr_f", "chr_e"];
-/// The voices' language: 0 the English `chars`, else one more than its folder's index.
-static VOICE_LANGUAGE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
-
-/// The number `s_language` stands for: retail's three names, and the English ones
-/// players type; anything else is English, as in retail.
-fn voice_language(language: &str) -> u8 {
-    [
-        ("deutsch", 1),
-        ("german", 1),
-        ("francais", 2),
-        ("french", 2),
-        ("espanol", 3),
-        ("spanish", 3),
-    ]
-    .into_iter()
-    .find(|(name, _)| language.eq_ignore_ascii_case(name))
-    .map_or(0, |(_, number)| number)
-}
+/// `s_language` ([`sjk_client::voice_language`]), shared with the game's sound tables.
+pub(crate) const LANGUAGE_CVAR: &str = sjk_client::voice_language::CVAR;
 
 /// Follow `s_language`. Sounds already loaded stay until `snd_restart`, as in retail.
 pub(super) fn set_voice_language(language: &str) {
-    VOICE_LANGUAGE.store(
-        voice_language(language),
-        std::sync::atomic::Ordering::Relaxed,
-    );
-}
-
-/// `path` in the voices' language: its `chars` swapped for the language's folder.
-fn foreign_voice(path: &str, language: u8) -> Option<String> {
-    let folder = VOICE_FOLDERS.get(usize::from(language).checked_sub(1)?)?;
-    let at = path.to_ascii_lowercase().find("chars")?;
-    Some(format!("{}{folder}{}", &path[..at], &path[at + 5..]))
+    sjk_client::voice_language::set(language);
 }
 
 /// Look `path` up in the VFS in the voices' language, then as it is (a voice the
 /// language lacks stays English, as in retail); returns the path that answered with
 /// its bytes.
 pub(super) fn resolve_sound(vfs: &VirtualFileSystem, path: &str) -> Option<(String, Asset)> {
-    let language = VOICE_LANGUAGE.load(std::sync::atomic::Ordering::Relaxed);
-    foreign_voice(path, language)
+    sjk_client::voice_language::foreign(path)
         .and_then(|foreign| resolve_sound_file(vfs, &foreign))
         .or_else(|| resolve_sound_file(vfs, path))
 }
@@ -682,35 +650,5 @@ mod music_memory_tests {
         mix_until(&audio, &mut source, 176_400, 0);
         audio.start_music(&vfs, &spec("music/b.wav"));
         mix_until(&audio, &mut source, 88_200, 176_400);
-    }
-}
-
-#[cfg(test)]
-mod voice_language_tests {
-    use super::*;
-
-    #[test]
-    fn a_voice_moves_to_its_languages_folder() {
-        let path = "sound/chars/kyle/misc/pain25.mp3";
-        assert_eq!(
-            foreign_voice(path, voice_language("FRANCAIS")).as_deref(),
-            Some("sound/chr_f/kyle/misc/pain25.mp3")
-        );
-        assert_eq!(
-            foreign_voice(path, voice_language("german")).as_deref(),
-            Some("sound/chr_d/kyle/misc/pain25.mp3")
-        );
-        assert_eq!(
-            foreign_voice(path, voice_language("Espanol")).as_deref(),
-            Some("sound/chr_e/kyle/misc/pain25.mp3")
-        );
-    }
-
-    #[test]
-    fn english_and_other_sounds_stay_where_they_are() {
-        assert_eq!(voice_language("english"), 0);
-        assert_eq!(voice_language("klingon"), 0);
-        assert_eq!(foreign_voice("sound/chars/kyle/a.mp3", 0), None);
-        assert_eq!(foreign_voice("sound/weapons/saber/on.mp3", 2), None);
     }
 }

@@ -2170,6 +2170,27 @@ pub(crate) fn sound_present(vfs: &VirtualFileSystem, requested: &str) -> bool {
     }
 }
 
+/// `path`, or the same sound with `.wav` and `.mp3` swapped, and the path that held it.
+fn find_sound(vfs: &VirtualFileSystem, path: &str) -> Option<(String, sjk_vfs::Asset)> {
+    if let Some(asset) = vfs.read(path).ok().flatten() {
+        return Some((path.to_owned(), asset));
+    }
+    let candidates = if let Some(base) = path.strip_suffix(".wav") {
+        [format!("{base}.mp3"), String::new()]
+    } else if let Some(base) = path.strip_suffix(".mp3") {
+        [format!("{base}.wav"), String::new()]
+    } else {
+        [format!("{path}.wav"), format!("{path}.mp3")]
+    };
+    candidates
+        .into_iter()
+        .filter(|candidate| !candidate.is_empty())
+        .find_map(|candidate| {
+            let asset = vfs.read(&candidate).ok().flatten()?;
+            Some((candidate, asset))
+        })
+}
+
 pub(crate) fn intern_sound(
     sounds: &mut Vec<RegisteredLegacySound>,
     vfs: &VirtualFileSystem,
@@ -2182,27 +2203,14 @@ pub(crate) fn intern_sound(
     }) {
         return index as u16;
     }
-    let mut resolved = requested.to_owned();
-    let mut asset = vfs.read(requested).ok().flatten();
-    if asset.is_none() {
-        let candidates = if let Some(base) = requested.strip_suffix(".wav") {
-            [format!("{base}.mp3"), String::new()]
-        } else if let Some(base) = requested.strip_suffix(".mp3") {
-            [format!("{base}.wav"), String::new()]
-        } else {
-            [format!("{requested}.wav"), format!("{requested}.mp3")]
-        };
-        for candidate in candidates {
-            if candidate.is_empty() {
-                continue;
-            }
-            if let Some(found) = vfs.read(&candidate).ok().flatten() {
-                resolved = candidate;
-                asset = Some(found);
-                break;
-            }
-        }
-    }
+    // A voice in `s_language`'s folder first (hub report #298), else as asked.
+    let found = crate::voice_language::foreign(requested)
+        .and_then(|foreign| find_sound(vfs, &foreign))
+        .or_else(|| find_sound(vfs, requested));
+    let (resolved, asset) = match found {
+        Some((path, asset)) => (path, Some(asset)),
+        None => (requested.to_owned(), None),
+    };
     let handle = asset
         .as_ref()
         .and_then(|asset| register(&resolved, &asset.bytes));
