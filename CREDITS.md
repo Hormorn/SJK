@@ -156,6 +156,8 @@ includes:
 - status bubbles (08/11/2026, Sol's idea): `cg_statusBalloons`, the chat bubble over an
   SJK player showing why it is up (dots lit in turn while typing, a pause sign in a menu
   or the console, a moon while alt-tabbed), its reason sent through the toy relay;
+- GIF tags (10/11/2026, Sol's idea): a Blank tag spent once by a verified player on a
+  GIPHY GIF, a tag that plays it on walls for good, opt-in (`cg_toyGifTags`);
 - tag collections (08/11/2026, Sol's decision): Alpha for SJK's own tags, Community for
   the ones players drew (Blep's EZ, Gonk and Geyon), each under its own heading in
   Collection > Tags;

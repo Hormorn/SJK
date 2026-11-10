@@ -4848,6 +4848,19 @@ test: Fire at a wall on your left: the impact plays mostly in the left ear.
 
 # ---- Gameplay ----
 
+[gif-tags]
+area: Gameplay
+title: GIF tags: a blank tag spent once on a GIPHY GIF that plays on walls
+change: Blank tag (Rare, drops as other tags): its card pastes a GIPHY link, Make twice.
+change: GIF tags are opt-in: cg_toyGifTags 0 by default (card switch, Settings).
+change: Needs the hub's gif-tags branch (not deployed yet): test against a local hub.
+test: Local hub, your key verified and holding tag_blank; cl_hubUrl http://127.0.0.1:8787
+test: Collection > Tags > Blank: GIF tags on, copy a giphy.com link, Paste link: it plays.
+test: Make, Make again: the blank goes, the GIF tag shows under GIF tags; Choose it.
+test: toy_tag on a wall: the GIF plays there; cg_toyGifTags 0: it goes, sticking refused.
+test: A second client with GIF tags on sees it; with them off it does not, nor hears it.
+note: Unverified key or old hub: the card says why Make waits.
+
 [wall-grab-lock]
 area: Gameplay
 title: Wall grabs: stock camera holds, cg_wallGrabLock option (Lumaya, PR #195)
