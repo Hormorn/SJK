@@ -16,10 +16,9 @@ use crate::symbols;
 use crate::unlockables::Unlockable;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign};
 
-/// The section chips, and the line under them (the search field's).
+/// The section chips' line (the search field stands at its right).
 const SECTION_Y: f32 = 206.0;
 const SECTION_HEIGHT: f32 = 48.0;
-const INTRO_Y: f32 = 268.0;
 /// The balances at the right of the chips.
 const BALANCE_Y: f32 = 194.0;
 /// The Shop: the day's heading, the offers' cards and the holocrons for credits.
@@ -41,8 +40,12 @@ const TILE: [f32; 2] = [164.0, 196.0];
 const TILE_GAP: [f32; 2] = [10.0, 14.0];
 const ROW_STEP: f32 = 100.0;
 const ROW_HEIGHT: f32 = 90.0;
-/// The search field, at the right of the line under the chips.
+/// The search field, at the right of the section chips' line: its width (narrower
+/// when the chips reach it, never under the least), height and gap to the chips.
 const SEARCH_WIDTH: f32 = 320.0;
+const SEARCH_MIN: f32 = 200.0;
+const SEARCH_HEIGHT: f32 = 38.0;
+const SEARCH_GAP: f32 = 16.0;
 /// The view switches' side.
 const SWITCH: f32 = 30.0;
 /// The chosen shader up close on the right.
@@ -91,6 +94,7 @@ impl Panel {
             return;
         }
         let info_x = self.forge_sections(frame);
+        self.forge.chips_end = info_x + SECTION_HEIGHT;
         self.forge_balances(frame);
         let reason = match (self.forge.data.closed.clone(), inputs.holdings.reason()) {
             (Closed::IdentityOff, _) => Some((
@@ -1143,10 +1147,18 @@ impl Panel {
             self.ui.hit_region(token, rect);
         }
         let found = (!filter.shaders.query.trim().is_empty()).then(|| self.forge.listed());
+        // On the section chips' line, at the list's right edge, short of the chips
+        // (10/11/2026: on the line under them, it stood apart from them).
+        let search_left = (LIST_RIGHT - SEARCH_WIDTH).max(self.forge.chips_end + SEARCH_GAP);
         kit::search(
             &mut self.ui,
             frame,
-            [LIST_RIGHT - SEARCH_WIDTH, INTRO_Y - 8.0, SEARCH_WIDTH, 38.0],
+            [
+                search_left,
+                SECTION_Y + (SECTION_HEIGHT - SEARCH_HEIGHT) * 0.5,
+                (LIST_RIGHT - search_left).max(SEARCH_MIN),
+                SEARCH_HEIGHT,
+            ],
             &filter.shaders.query,
             self.forge.search_focus,
             "Search shaders",

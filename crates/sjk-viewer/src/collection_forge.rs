@@ -541,6 +541,9 @@ pub(super) struct Forge {
     /// What the section on show is, said by the "i" chip's hover card (10/11/2026; it
     /// was a line under the chips, which ran into the search field).
     pub(super) intro: String,
+    /// Where the section chips' line ends this frame, the "i" chip's room taken (frame
+    /// pixels): the search field stands on that line at its right (10/11/2026).
+    pub(super) chips_end: f32,
     /// A button pressed once, waiting for its second press, and since when.
     pub(super) armed: Option<(Press, Instant)>,
     /// The last trade sent from the Forge: the outcome's serial before it, and what.
