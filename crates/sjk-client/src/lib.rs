@@ -33,6 +33,7 @@ pub mod command_history;
 pub mod command_rate;
 mod compat_profile;
 mod crosshair_target;
+pub mod default_model_random;
 mod demo_playback;
 mod demo_recorder;
 pub mod download;

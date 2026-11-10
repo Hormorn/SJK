@@ -373,6 +373,7 @@ impl Group {
                 "cg_simpleItems",
                 "cg_forceModel",
                 sjk_client::player_model_eligibility::METADATA_CVAR,
+                sjk_client::default_model_random::CVAR,
                 sjk_client::player_model_eligibility::BLACKLIST_CVAR,
                 "cg_saberTrail",
                 crate::effect_flash::REDUCE_CVAR,

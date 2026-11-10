@@ -40,6 +40,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Your SJK page: `identity site` opens SJK's web page in the browser, signed in with your SJK key (no password), where you join your other keys (`identity link <code>` in the other game) and send videos for the SJK team's video bounties, paid in holocrons and a new Videographer medal _(Sol)_
 - Rain looks richer (Settings > Graphics > WEATHER): wet streets shine in patches and gather water at the foot of walls, rivulets start under a wall's lip and widen as they run down, a downpour raises a spray over the ground and comes in waves with the wind; at Ultra every wet surface mirrors the lit city round it, softly on a street, sharply in a puddle (`r_weatherReflections` picks sky, puddles or everything). New sliders: Puddles, Rain visibility, Rain haze and spray, Ground fog thickness _(Sol)_
 - The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
+- `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, after mg.perso's report, hub report #302; after JoF EJK)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
 
