@@ -538,7 +538,10 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 
 | Cvar | Behavior |
 | --- | --- |
-| `r_dayNight` | Map-relative sun/sky atmosphere; default 1, applies after a [graphics reload](#graphics-reload) |
+| `r_dayNight` | Real-time lighting, the Solar Renderer's core (Settings "Real-time lighting", "Sun and sky" until 10/11/2026): a live sun, sky and lamps in place of the baked light, with the lamp cache, GI voxels, light buffer and model sun it installs; implies world sun shadows (the GI probes need the far cascade); default 1, applies after a [graphics reload](#graphics-reload) |
+| `r_bouncedLight` | With real-time lighting, light bounces through the GI probes (`gi_probes.rs`); 0 leaves the probes out (the voxel scene stays: lamp visibility needs it); default 1, applies after a graphics reload (10/11/2026) |
+| `r_lampShadows` | With real-time lighting, the nearest lamps' shadow maps (`lamp_shadows`); 0 leaves them out; default 1, applies after a graphics reload (10/11/2026) |
+| `r_daySky` | Without real-time lighting, the sky still shows `r_dayHour` turning with `r_dayMinutes` (the sky's day tint, as `r_dayClock` does for the PC's hour), and its night darkens the exposure (`day_live::night_tint` of the set hour); default 0, applies after a graphics reload (10/11/2026). World shot `solar_day_sky_without_live_light`: ground brightness 100, 79 and 64 of 255 at 12:00, 19:30 and 23:00 on ffa3 |
 | `r_liveLighting` | Lighting tier; default 0. Tier 1 retains world shadow casters between frames; tier 0 also uses available baked indirect light. Applies at map load |
 | `r_dayHour` | Solar hour; default 12 (noon, SJK); updated live when day/night resources are installed |
 | `r_dayMinutes` | Minutes per simulated day; 0 holds the hour |
@@ -5265,7 +5268,10 @@ HUD pack) or a list naming other menus changes the HUD with no SJK-specific
 format. A nonzero integer selects the stock text-only HUD; as in EternalJK, `0`
 is the default list, `2` is the Jedi Knight II HUD (`menu_hud/frame/jk2.rs`,
 EternalJK's pictures built into the client, drawn in place of the status menus,
-without its scrolling static) and `3`/`4` name `ui/elegance_hud.txt`/`ui/jof_hud.txt`. A
+without its scrolling static; while a weapon, Force or inventory selector shows,
+its bar opens behind the icons from retail's `gfx/hud/background`, `_f` or `_i`
+between lit prongs and closes when it goes, as EternalJK's `CG_DrawIconBackground`,
+hub report 301) and `3`/`4` name `ui/elegance_hud.txt`/`ui/jof_hud.txt`. A
 missing list falls back to the default one, as `CG_LoadMenus` does; files
 without a `lefthud` or `righthud` menu leave the engine-drawn HUD in place.
 The text HUD's strings start where retail puts them, but SJK's vector font is

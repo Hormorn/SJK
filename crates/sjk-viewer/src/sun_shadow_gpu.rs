@@ -42,9 +42,7 @@ pub(super) fn new(
         occluders,
         cache_pages,
     );
-    let lamp_shadows = settings
-        .day
-        .enabled
+    let lamp_shadows = (settings.day.enabled && settings.lamp_shadows)
         .then(|| super::lamp_shadows::Runtime::new(device, &forge.camera_layout, lamp_set));
     settings.resolution = settings
         .resolution
@@ -105,7 +103,7 @@ pub(super) fn new(
         ]
     });
     let probes = match (gi, &far) {
-        (Some(voxels), Some(far)) if settings.day.enabled => {
+        (Some(voxels), Some(far)) if settings.day.enabled && settings.bounce => {
             Some(super::super::gi_probes::Runtime::new(
                 device,
                 voxels,

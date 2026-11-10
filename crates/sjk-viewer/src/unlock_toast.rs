@@ -228,6 +228,11 @@ pub(crate) enum Unlock {
         bytes: u64,
         removed: u32,
     },
+    /// A saber shader on the player's wishlist is among the shop's offers today
+    /// (`wishlist.rs`, 10/11/2026), told once a shop day.
+    Wished {
+        skin: &'static crate::unlockables::Unlockable,
+    },
 }
 
 impl Unlock {
@@ -250,6 +255,7 @@ impl Unlock {
             (Self::Holocron { id, .. }, Self::Holocron { id: other, .. }) => id == other,
             (Self::Update { version, .. }, Self::Update { version: other, .. }) => version == other,
             (Self::Reward { id }, Self::Reward { id: other }) => id == other,
+            (Self::Wished { skin }, Self::Wished { skin: other }) => skin.id == other.id,
             (
                 Self::Content {
                     title,
@@ -284,13 +290,17 @@ impl Unlock {
             Self::Update { .. } => "UPDATE AVAILABLE",
             Self::Reward { .. } => "CONTRIBUTOR REWARD",
             Self::Content { .. } => "CONTENT UPDATED",
+            Self::Wished { .. } => "ON YOUR WISHLIST",
         }
     }
 
     /// Whether the card plays the chime: everything but an update or a content
     /// update, which are news, not rewards.
     pub(crate) const fn chimes(self) -> bool {
-        !matches!(self, Self::Update { .. } | Self::Content { .. })
+        !matches!(
+            self,
+            Self::Update { .. } | Self::Content { .. } | Self::Wished { .. }
+        )
     }
 
     /// The words at the kicker's line's end: the kyber crystal an achievement brings when
@@ -309,6 +319,7 @@ impl Unlock {
             Self::Update { manual: true, .. } => UPDATE_MANUAL_HINT,
             Self::Reward { .. } => "From the SJK team",
             Self::Content { .. } => "Automatic update",
+            Self::Wished { .. } => "Collection, Forge, Shop",
         }
     }
 
@@ -318,6 +329,7 @@ impl Unlock {
             Self::Achievement { kind, .. } => tint(kind.category),
             Self::Medal { .. } | Self::Reward { .. } => color::GOLD,
             Self::Holocron { tier, .. } => tier.colour,
+            Self::Wished { skin } => skin.tier.colour(),
             Self::Update { .. } | Self::Content { .. } => color::HOLO,
         }
     }
@@ -372,6 +384,7 @@ impl fmt::Display for Name {
             Unlock::Update { version, .. } => write!(formatter, "SJK {}", version.as_str()),
             Unlock::Reward { .. } => formatter.write_str("Contributor reward waiting"),
             Unlock::Content { title, .. } => write!(formatter, "{title} updated"),
+            Unlock::Wished { skin } => formatter.write_str(skin.name),
         }
     }
 }
@@ -412,6 +425,9 @@ impl fmt::Display for Description {
                 formatter.write_str("This folder cannot update itself: see its page")
             }
             Unlock::Reward { .. } => formatter.write_str("Open the game menu to claim it"),
+            Unlock::Wished { .. } => {
+                formatter.write_str("A shader on your wishlist is in the shop today")
+            }
             Unlock::Content {
                 files,
                 bytes,
@@ -995,9 +1011,10 @@ fn emblem(canvas: &mut MenuCanvas, unlock: Unlock, centre: [f32; 2], radius: f32
                 (None, Some(tier.colour))
             }
         }
-        Unlock::Update { .. } | Unlock::Reward { .. } | Unlock::Content { .. } => {
-            (Some((crate::ui_renderer::LOGO_TEXTURE, 0.86)), None)
-        }
+        Unlock::Update { .. }
+        | Unlock::Reward { .. }
+        | Unlock::Content { .. }
+        | Unlock::Wished { .. } => (Some((crate::ui_renderer::LOGO_TEXTURE, 0.86)), None),
     };
     // The medallion's line widths at this size.
     let k = radius / MEDAL_RADIUS;
@@ -1388,6 +1405,11 @@ mod tests {
                 manual,
             });
         }
+        // The longest name of a saber shader on the wishlist's card.
+        let longest = crate::unlockables::blade_skins()
+            .max_by_key(|skin| skin.name.len())
+            .unwrap();
+        unlocks.push(Unlock::Wished { skin: longest });
         unlocks
     }
 

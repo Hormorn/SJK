@@ -35,12 +35,14 @@ const MIN_VISIBLE_AREA: f32 = 1.0;
 const OPEN_OFFSET: f32 = 1.0;
 /// A side smaller than this (square units) is a bevel or a sliver (as [`super::faces`]).
 const MIN_AREA: f32 = 0.5;
+/// Most pieces a side's cover test keeps while it cuts (the largest).
+const MAX_PIECES: usize = 64;
 /// How many faces a link takes at most.
 pub(crate) const LINK_LIMIT: usize = 512;
 
 /// `CONTENTS_SOLID` and `CONTENTS_TRANSLUCENT` (`codemp/game/surfaceflags.h`).
 const CONTENTS_SOLID: u32 = 0x0000_0001;
-const CONTENTS_TRANSLUCENT: u32 = 0x2000_0000;
+const CONTENTS_TRANSLUCENT: u32 = super::faces::CONTENTS_TRANSLUCENT;
 
 /// How a link grows from its first face.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
@@ -137,19 +139,13 @@ impl Sides {
                         let shader = bsp.shaders().get(side.shader)?;
                         let sky =
                             super::faces::is_sky_side(brush.content_flags, shader.surface_flags);
-                        let showable = sky
-                            || matches!(
-                                crate::brush_view::kinds::Kind::of_face(
-                                    brush.content_flags,
-                                    shader.surface_flags,
-                                    shader.name()
-                                ),
-                                Some(
-                                    crate::brush_view::kinds::Kind::Caulk
-                                        | crate::brush_view::kinds::Kind::Solid
-                                        | crate::brush_view::kinds::Kind::Nodraw
-                                )
-                            );
+                        let offered = super::faces::offered(
+                            brush.content_flags,
+                            shader.content_flags,
+                            shader.surface_flags,
+                            shader.name(),
+                        );
+                        let showable = offered.is_some();
                         Some(SideIn {
                             side: side_index as u32,
                             normal: Vec3::from_array(plane.normal),
@@ -241,7 +237,6 @@ impl Sides {
     }
 
     /// How many sides there are.
-    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.sides.len()
     }
@@ -282,9 +277,17 @@ impl Sides {
             pieces = pieces
                 .into_iter()
                 .flat_map(|piece| outside(piece, &solid.planes))
+                // slivers are dropped at the end anyway: cut no further
+                .filter(|piece| area(piece) >= MIN_AREA)
                 .collect();
             if pieces.is_empty() {
                 return pieces;
+            }
+            // A huge face under many brushes (ffa5's floor under the map: 300 s before
+            // 10/11/2026) is cut into ever more pieces: keep the largest.
+            if pieces.len() > MAX_PIECES {
+                pieces.sort_by(|a, b| area(b).total_cmp(&area(a)));
+                pieces.truncate(MAX_PIECES);
             }
         }
         pieces.retain(|piece| {
@@ -298,9 +301,57 @@ impl Sides {
     }
 
     /// Whether a player can see some of side `index` ([`Self::seen_pieces`]).
-    #[cfg(test)]
     pub(crate) fn visible(&self, index: usize, open: &dyn Fn(Vec3) -> bool) -> bool {
         !self.seen_pieces(index, open).is_empty()
+    }
+
+    /// For each face of `members` (indices of [`Self::find`]), the faces players see that
+    /// are joined to it at any angle (as Connected surface joins them, sky with sky): one
+    /// ring of the map editor's grow, and what tells a shrink's edge (`mapedit_select`).
+    pub(crate) fn joined(&self, members: &[usize], open: &dyn Fn(Vec3) -> bool) -> Vec<Vec<usize>> {
+        let mut pieces: HashMap<usize, Vec<Vec<Vec3>>> = HashMap::new();
+        let mut seen_of = |index: usize| -> Vec<Vec<Vec3>> {
+            pieces
+                .entry(index)
+                .or_insert_with(|| self.seen_pieces(index, open))
+                .clone()
+        };
+        let reach = Vec3::splat(EDGE_EPSILON);
+        members
+            .iter()
+            .map(|&member| {
+                let face = &self.sides[member];
+                let mut own = seen_of(member);
+                if own.is_empty() {
+                    // Selected, so seen somewhere: joined by the whole of it.
+                    own = vec![face.polygon.clone()];
+                }
+                let mut found = Vec::new();
+                for other in self.side_grid.near(face.low - reach, face.high + reach) {
+                    let candidate = &self.sides[other];
+                    if other == member
+                        || found.contains(&other)
+                        || !candidate.showable
+                        || candidate.sky != face.sky
+                        || !overlaps(
+                            candidate.low,
+                            candidate.high,
+                            face.low - reach,
+                            face.high + reach,
+                        )
+                        || !facing(face, candidate, Grow::Surface)
+                        || shared(&own, std::slice::from_ref(&candidate.polygon)) < MIN_SHARED
+                    {
+                        continue;
+                    }
+                    let theirs = seen_of(other);
+                    if !theirs.is_empty() && shared(&own, &theirs) >= MIN_SHARED {
+                        found.push(other);
+                    }
+                }
+                found
+            })
+            .collect()
     }
 
     /// The faces joined to face `start` (an index of [`Self::find`]) that players see,
@@ -650,6 +701,19 @@ pub(crate) mod tests {
         // the middle top keeps its area round the crate's foot
         assert!(sides.visible(top(&sides, 1), OPEN));
         assert!(!sides.visible(top(&sides, 5), OPEN));
+    }
+
+    /// One ring at a time: the middle top's ring is the tops beside it (and the faces it
+    /// meets at an angle), never the covered top; the first top's ring holds the middle.
+    #[test]
+    fn a_ring_is_the_seen_faces_joined_to_each_member() {
+        let sides = floor();
+        let rings = sides.joined(&[top(&sides, 1), top(&sides, 0)], OPEN);
+        assert!(rings[0].contains(&top(&sides, 0)) && rings[0].contains(&top(&sides, 2)));
+        assert!(!rings[0].contains(&top(&sides, 1)), "not itself");
+        assert!(rings[1].contains(&top(&sides, 1)));
+        assert!(!rings[1].contains(&top(&sides, 2)), "two tops away");
+        assert!(rings.iter().flatten().all(|&face| face != top(&sides, 5)));
     }
 
     #[test]

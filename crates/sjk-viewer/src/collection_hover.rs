@@ -120,6 +120,11 @@ impl Panel {
             if let Some(which) = which {
                 return mark_card(which, &self.marks, chosen);
             }
+            if token == SHADER_WISH_TOKEN {
+                return self
+                    .shader_wish
+                    .map(|(_, on, full)| wish_card(on, full, true));
+            }
         }
         if token == TOY_TOKEN {
             return Some(Card {
@@ -475,6 +480,32 @@ pub(super) fn shader_card(
         .into_iter()
         .chain(marked)
         .collect(),
+    }
+}
+
+/// The hover card of a wishlist toggle (10/11/2026): what the wishlist is, and what a click
+/// does now: the shader is on it (`on`), the list is `full`, or the shader `may` go on it
+/// (one of the trade the player lacks).
+pub(super) fn wish_card(on: bool, full: bool, may: bool) -> Card {
+    Card {
+        title: format!("{}  Wishlist", crate::symbols::GIFT),
+        colour: color::GOLD_BRIGHT,
+        lines: vec![
+            Line::how(format!(
+                "Up to {} saber shaders you lack, kept on the SJK hub. A wished shader in your \
+                 shop's offers is marked, and a card tells you once a day.",
+                crate::wishlist::MAX
+            )),
+            if on {
+                Line::held("On your wishlist: a click takes it off.")
+            } else if full {
+                Line::status(crate::wishlist::full_words())
+            } else if may {
+                Line::held("A click adds it.")
+            } else {
+                Line::status("Only a shader of the trade you lack can be wished for.")
+            },
+        ],
     }
 }
 

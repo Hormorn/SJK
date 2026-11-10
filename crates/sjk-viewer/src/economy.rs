@@ -41,6 +41,9 @@ pub(crate) struct Tables {
     /// per cent of the craft cost, by the best copy's finish ([`crate::cards::FINISHES`]'
     /// order); 100 is no discount, as hubs before 21/10/2026 take.
     pub(crate) blade_card_craft: [u64; 3],
+    /// The duplicates one fusion takes by the input shaders' tier, 0 for a tier that does
+    /// not fuse (10/11/2026; all 0 on a hub that does not say `fuse`).
+    pub(crate) fuse: [u32; TIERS],
 }
 
 /// This client's copy of the hub's tables (`src/economy.rs` there, provisional
@@ -52,6 +55,8 @@ pub(crate) const BUILT_IN: Tables = Tables {
     shop_in_shards: true,
     holocrons: [150, 400],
     blade_card_craft: [75, 50, 50],
+    // No fusion until the hub says it fuses.
+    fuse: [0; TIERS],
 };
 
 /// The holocron tiers credits may buy, by the hub's ids, in [`Tables::holocrons`]' order.
@@ -94,6 +99,7 @@ fn of_hub(economy: &sjk_identity::EconomyTables) -> Option<Tables> {
                 .filter(|share| (1..=100).contains(share))
                 .unwrap_or(100)
         }),
+        fuse: std::array::from_fn(|tier| economy.fuse_count(tier).unwrap_or(0)),
     })
 }
 
@@ -133,6 +139,18 @@ pub(crate) fn shatter_yield(tier: Rarity) -> u64 {
 /// The kyber shards crafting a shader of tier `tier` costs.
 pub(crate) fn craft_cost(tier: Rarity) -> u64 {
     of_tier(current().craft, tier)
+}
+
+/// The duplicates of tier `tier` one fusion takes, when the hub fuses that tier into the
+/// next (10/11/2026); `None` otherwise (Mythical and Unique never fuse).
+pub(crate) fn fuse_need(tier: Rarity) -> Option<u32> {
+    let need = current().fuse.get(tier as usize).copied().unwrap_or(0);
+    (need > 0 && crate::forge_fuse::next_tier(tier).is_some()).then_some(need)
+}
+
+/// The shop's table price of a shader of tier `tier`, what a deal of the day halves.
+pub(crate) fn table_price(tier: Rarity) -> u64 {
+    of_tier(current().shop, tier)
 }
 
 /// What a shader of tier `tier` costs in the shop (the shop itself shows the prices the
@@ -265,6 +283,15 @@ pub(crate) fn craft(id: &str) -> bool {
     crate::player_identity::with_service(|service| service.craft(id)).is_some()
 }
 
+/// Fuse the duplicates `ids` names (each shader once per copy, all of one tier) into a
+/// shader of the next tier the player lacks (a hub whose economy says `fuse`, 10/11/2026);
+/// false when the identity has not started. What came of it arrives in the snapshot's
+/// `trade`.
+pub(crate) fn fuse(ids: &[&'static str]) -> bool {
+    let ids: Vec<String> = ids.iter().map(|id| (*id).to_owned()).collect();
+    crate::player_identity::with_service(|service| service.fuse(ids)).is_some()
+}
+
 /// Buy a holocron of tier `tier` with credits; false when the identity has not started.
 /// What came of it arrives in the snapshot's `trade`, the holocron in the player's list.
 pub(crate) fn buy_holocron(tier: &str) -> bool {
@@ -309,6 +336,17 @@ pub(crate) fn outcome_words(outcome: &sjk_identity::TradeOutcome, name: &str) ->
             }
         ),
         Trade::Craft => format!("{name} crafted for {amount} kyber shards. It is yours."),
+        // The shader gained is the outcome's: the catalogue names it.
+        Trade::Fuse => format!(
+            "{} {} fused into {}. It is yours.",
+            outcome.copies,
+            if outcome.copies == 1 {
+                "duplicate"
+            } else {
+                "duplicates"
+            },
+            crate::unlockables::find(&outcome.id).map_or(name, |skin| skin.name)
+        ),
         Trade::Buy if shop_in_shards() => {
             format!("{name} bought for {amount} kyber shards. It is yours.")
         }

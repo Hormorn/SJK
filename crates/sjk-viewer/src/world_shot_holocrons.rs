@@ -459,6 +459,8 @@ fn duel6_sjk_kyber_crystals() {
                 count: 1,
             }),
             shards: 0,
+            extra: Vec::new(),
+            pity: None,
         };
         let prize = || {
             crate::console::holocrons_panel::opening::Prize::of(&opened(

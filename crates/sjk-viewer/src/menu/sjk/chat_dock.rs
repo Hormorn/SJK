@@ -399,10 +399,12 @@ struct Line {
 
 impl Line {
     /// The message with its text `text` (as a line shows it), which may link to a GIF:
-    /// the link worded "GIF" and the GIF kept, unless GIFs are off.
+    /// the link worded "GIF" and the GIF kept, unless GIFs are off or the sender is not
+    /// verified ([`crate::chat_gifs::plays_from`]).
     fn with_gif(mut self, text: &str) -> Self {
         if self.tier.is_none() && self.official.is_none() {
-            (self.text, self.gif) = crate::chat_gifs::for_message(text, false);
+            let silent = !crate::chat_gifs::plays_from(self.verified, self.staff, self.creator);
+            (self.text, self.gif) = crate::chat_gifs::for_message(text, silent);
         } else {
             text.clone_into(&mut self.text);
         }

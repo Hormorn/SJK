@@ -24,6 +24,51 @@
 
 # ---- Console & chat ----
 
+[verified-gifs-pictures]
+area: Console & chat
+title: Only verified players' GIFs play; only they upload pictures
+change: An unverified sender's GIPHY link stays a link (chat box, docks, SJK chat page).
+change: The hub refuses a picture from a key that is not verified or staff.
+test: From an unverified key, post a GIPHY link: it shows as text on every client.
+test: From a verified key, the same link plays.
+test: Unverified, Profile > change picture > Use this picture: "Not sent: only players...".
+note: Needs the hub branch verified-pictures deployed for the picture rule.
+
+[change-sjk-name]
+area: Menus & settings
+title: Change name sets the SJK name
+change: SJK Profile tab > Change name opens "Your SJK name" in the bio's place.
+change: Save sends it to the hub as the custom name, shown instead of the worn one.
+test: Profile > SJK Profile > Change name: the field holds your hub name.
+test: Type a new name, Save: "Saved..."; the SJK chat and your card show it.
+test: Try another player's name: "Not saved: ..." with the hub's reason.
+
+[forge-shop]
+area: Menus & settings
+title: Forge fusion, deal of the day, wishlist
+change: Forge > Fuse (4): duplicates of one tier make a shader of the next you lack.
+change: Shop: the deal of the day (old price struck), wished and Beta offers marked.
+change: Wishlist of 3 (gift toggle); a card once a day when one is on offer; gold dots.
+test: Collection > Forge > Fuse: the proposal never takes a last copy; P proposes again.
+test: Click a card, + and -: the count stays at the fusion's; Fuse twice reveals the gain.
+test: T steps the tier; a tier without enough duplicates says how many more are needed.
+test: Shop: the deal shows its ribbon, "Was ..." struck and the halved price; buy it.
+test: Shaders card, Craft (W) and an offer: the gift toggle adds and takes off; 3 is full.
+test: Shop lists the wishlist; a dot on the Forge tab and Holocrons' Shop when one waits.
+test: Restart the same day: the wishlist card does not come back; it does the next day.
+note: Needs the hub branch forge-shop deployed; an older hub shows none of it.
+
+[holocron-seasons]
+area: Menus & settings
+title: Holocron seasons: Beta holocrons, guaranteed prizes, bonus rolls, pity
+change: A Beta holocron of Rare+ gives a floored card, a floored shader, and bonuses.
+change: Its prizes reveal one by one, the best last. Loot table: B shows the Beta page.
+test: debug_open mythical beta: card, shader, shards, second card, best last.
+test: debug_open rare beta: the Rare gives an Uncommon or better shader too.
+test: Holocrons tab > Loot table > B: the Beta page fits; B again, Esc back.
+test: Kyber crystal row > Loot table > B: the Beta crystal odds (Mythical 50/50).
+note: Live only once the hub branch beta-season is deployed and Beta opened (hub switch).
+
 [sjk-page]
 area: Menus & settings
 title: Your SJK page: identity site, identity link, video bounties
@@ -79,6 +124,40 @@ change: so 128 is half brightness again and dark colours stay dark (female Twi'l
 test: Character page: pick an RGB model, set a dark colour (60 30 30): stage shows dark red.
 test: Online, look at a player on an RGB model: colour matches what they see in EJK.
 test: Force shells (protect, absorb) and pickups look as before.
+
+[mapedit-ingame-fly-align-measure]
+area: Menus & settings
+title: Map editor: fly-to, F frame, texture alignment, caulk preview, measure, grow
+change: Double click an edit, thing, light or lamp (or F on the selection): the camera glides there.
+change: Align on a drawn caulk face shifts, turns, scales, flips, fits its texture; caulk previews.
+change: Place > Surface stands models along walls and slopes; M measures; Ctrl + - I grow/shrink.
+test: mapedit, Edits: double click a placed model's row: the view glides to it, body stays put.
+test: Click a wall, fly away, F: the view comes back to frame it, same direction.
+test: Draw a texture on a caulk face, Align: Left, Turn left, Bigger, Fit move it; Ctrl+Z undoes.
+test: An older client (main before this) loads that map's edits and shows the face unaligned.
+test: Click another caulk face, rest the pointer on a list row: the face shows it; move off: gone.
+test: Place > Surface on, aim at a wall, Place: the model sticks out of the wall; on a slope leans.
+test: Grab it with Surface on: it follows walls and floors, turning to each.
+test: M, click two points: a gold line and "N u dx dy dz"; a third click starts again; Esc stops.
+test: Click a floor surface, Ctrl and +: its neighbours join; Ctrl and -: the edge leaves.
+test: Select placed models, Ctrl+I: the other placed models are selected instead.
+
+[mapedit-ingame-guesses-selections]
+area: Menus & settings
+title: Map editor: texture guesses, live preview, hover, box select, Same shader, Ctrl+D
+change: Every shader list starts with Suggested rows (nearby, same family, on map); resting on one
+change: previews it on the map. Hover outline and tip, box select (drag), Same shader, Ctrl+D copies.
+change: A click on a physics clip or trigger now selects what is behind it.
+test: mapedit, click a wall: the list starts with rows marked "% nearby", "same family", "on map".
+test: Rest the pointer on one: the wall (and every wall of its shader) shows it; move off: back.
+test: Remap after a preview: one Ctrl+Z takes it back; the preview alone saves nothing.
+test: Move over the scene: faint white dots and a tip ("Surface: ...") follow the pointer.
+test: Drag on the scene: a box selects what it covers; Shift+drag adds, Ctrl+drag removes.
+test: Ctrl+click a selected surface: it leaves the selection.
+test: Same shader: every surface of that shader is selected (the answer says how many).
+test: Select a placed model, Ctrl+D: a copy 16 units to the right, selected; G moves it.
+test: Place > Select all: every placed model is selected.
+test: duel6: click a physics clip wall: the wall or caulk behind is selected, not "Hidden face".
 
 [mapedit-ingame-pictures-lights]
 area: Menus & settings
@@ -4789,6 +4868,13 @@ test: With no skin, retail and RGB blades look exactly as before.
 note: Needs the hub's unlocks and asset packs (SJK-hub #2 and #3), not deployed when merged.
 note: Not run in a game against the deployed hub; the sounds have not been heard yet.
 
+[disruptor-beam-tip]
+area: Rendering & effects
+title: Disruptor beams leave the gun's tip (Slash, PR #405, hub #294)
+change: Another player's beam, yours in third person and a zoomed shot start at the gun's flash.
+test: Watch another player fire the disruptor: the beam leaves their barrel, not their chest.
+test: Fire in third person, then zoomed in: the beam starts at the gun, not where it was before.
+
 # ---- Audio ----
 
 [saber-toggle-spam]
@@ -4845,6 +4931,13 @@ change: The listener's right axis pointed left, so every positioned sound came f
 test: In a game, stand with a wall or player on one side: their sounds (steps, sabers) come from it.
 test: Turn round with a sound running: it moves to the other ear.
 test: Fire at a wall on your left: the impact plays mostly in the left ear.
+
+[saber-swing-variants]
+area: Audio
+title: Saber swings play every swing sound again (Slash, PR #404, hub #303)
+change: Another player's swings, saber hits, blocks and footsteps pick their sound at random.
+test: Watch another player or a bot swing: the swings sound different, not one sound each.
+test: Their saber hits and blocks vary too, and their footsteps alternate.
 
 # ---- Gameplay ----
 
@@ -5059,6 +5152,13 @@ area: Gameplay
 title: JA+ duellers pass through other players in prediction
 change: Walking through players in a private duel (or out of yours) no longer snaps back.
 test: JA+: two players duel, walk through them; while duelling, walk through a bystander.
+
+[default-model-random]
+area: Gameplay
+title: cg_defaultModelRandom: a stock model for a missing one (Slash, PR #406, hub #302)
+change: Off by default (Kyle). On: a player whose model you lack gets a stock model from its name.
+test: On a server with a model you lack (shown as Kyle): cg_defaultModelRandom 1 swaps it at once.
+test: The same model always gets the same stand-in; cg_defaultModelRandom 0 brings Kyle back.
 
 # ---- More changes ----
 
@@ -9301,6 +9401,18 @@ test: Switch presets: Volumetric clouds stays as you set it; a new profile has i
 test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
 test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
 
+[solar-renderer]
+area: Menus & settings
+title: Graphics presets: Vanilla / Vanilla Plus / Solar Renderer Low-Ultra, rated for your PC
+change: Six presets; marks green to red by the card's VRAM; Recommended row picks the best green.
+change: Sun and sky is Real-time lighting; Bounced light, Lamp shadows, Time-of-day sky split off.
+change: Named dropdowns: shadow softness/resolution/distance, texture detail, day length, weather.
+test: Settings > Graphics: preset list shows six with coloured dots; yours green up to Ultra.
+test: Recommended for this PC: sets the green pick; old SJK profile reads Vanilla Plus.
+test: Solar Low and Medium on a big map: loads and looks right without bounce/lamp shadows.
+test: Vanilla Plus + Time-of-day sky + hour 20: sky turns to dusk after vid_restart.
+test: Classic+ menus: GRAPHICS panels show the new rows and the preset list.
+
 [weather-looks]
 area: Rendering & effects
 title: Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
@@ -9600,6 +9712,13 @@ test: Confirm: shards rise, counts fall, a worn last copy comes off the saber.
 test: Escape stops picking. A locked shader cannot be picked.
 note: Needs hub shared #16 deployed; without it the Select chip does not show.
 
+[forge-craft-held-search]
+area: Menus & settings
+title: Forge Craft search names a held shader (Slash, hub #305)
+change: Craft lists only shaders you lack; a search for a held one now says it is yours already.
+test: Forge > Craft, / and a held shader's full name: the empty list says Yours already.
+test: Search a word that also finds shaders you lack: the intro names the held ones.
+
 [malachor-rose-300]
 area: Rendering & effects
 title: Malachor Rose blade 300 (Creyon, #378, after Foshin's idea)
@@ -9760,6 +9879,13 @@ change: Settings > HUD lists Jedi Knight II, with a preview. cg_hudFiles 1 is st
 test: Settings > HUD: pick Jedi Knight II. Health, armor, Force and ammo draw and drain.
 test: Low health blinks. On a wide screen the corners keep to their edges.
 
+[jk2-hud-selector]
+area: HUD
+title: JK2 HUD: selector bar opens behind the icons (Slash, PR #407, hub #301)
+change: cg_hudFiles 2: the weapon, Force and item bars open a background between lit prongs.
+test: cg_hudFiles 2, change weapon: the bar opens, the prongs glow yellow and move in.
+test: Cycle Force (blue) and items (light blue); the bar closes after 1.4 s, grey prongs stay.
+
 [assets-folder]
 area: Menus & settings
 title: GameData/assets folder for PK3s, subfolders included
@@ -9768,6 +9894,12 @@ test: Move a custom model's PK3 to assets/personal: it is still in the Profile a
 test: Move a map PK3 to assets/jof: Create game lists it and the local server starts on it.
 test: assetbrowser lists assets/personal/name.pk3, and disabling it takes effect.
 test: With GameData/assets/S/base there, sith.downloads names that folder, a base copy is kept.
+
+[jof-check-assets]
+area: Menus & settings
+title: JoF content finds files tidied into GameData/assets
+change: A JoF or Sith file anywhere under GameData/assets counts as already in the game folder.
+test: With JoF PK3s moved to assets/jof, jof.downloads lists them as in the game folder.
 
 [credits-pr-count]
 area: Menus & settings

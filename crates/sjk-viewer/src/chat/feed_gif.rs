@@ -6,7 +6,9 @@
 //!
 //! Only SJK chat lines: a game server's chat lines never have a GIF. A muted sender's
 //! GIF is never asked for (the line shows "Messages hidden on this client" and only
-//! [`crate::chat_gifs::show`] fetches), with `cl_sjkChatGifs 0` the lines show their
+//! [`crate::chat_gifs::show`] fetches), nor an unverified sender's (only verified
+//! players, staff and the creator play GIFs: [`crate::chat_gifs::plays_from`]; the link
+//! stays as typed), with `cl_sjkChatGifs 0` the lines show their
 //! links as text, and a GIF the player hid reads "GIF hidden": each line keeps its text
 //! as typed, so a change takes effect on the lines already in the box.
 
@@ -74,9 +76,14 @@ impl ChatOverlay {
 
     /// An SJK message's `text` as its line shows it, the emojis its marks stand for and
     /// its GIF: the first GIF link worded "GIF" while GIFs show, "GIF hidden" for one the
-    /// player hid, else as typed.
-    pub(super) fn with_gif(&self, text: String) -> (String, Vec<u16>, Option<Box<LineGif>>) {
-        let Some((id, _)) = chat_gifs::link::find(&text) else {
+    /// player hid, else as typed. A sender whose GIFs do not play (`plays` false,
+    /// [`chat_gifs::plays_from`]) keeps the link as typed, its GIF never asked for.
+    pub(super) fn with_gif(
+        &self,
+        text: String,
+        plays: bool,
+    ) -> (String, Vec<u16>, Option<Box<LineGif>>) {
+        let Some((id, _)) = chat_gifs::link::find(&text).filter(|_| plays) else {
             let (body, emojis) = Self::marked(&self.emojis, self.options.emojis, text);
             return (body, emojis, None);
         };
@@ -154,7 +161,8 @@ mod tests {
             at: 0,
             key_id: format!("{id:016x}"),
             name: name.to_owned(),
-            verified: false,
+            // Only a verified sender's GIF plays (`chat_gifs::plays_from`).
+            verified: true,
             tick: sjk_identity::Tick::None,
             staff: false,
             creator: false,
@@ -217,6 +225,34 @@ mod tests {
                 DrawCommand::RoundedRect { rect, color, .. } => Some((*rect, *color)),
                 _ => None,
             })
+    }
+
+    /// An unverified sender's GIF link stays as typed and its GIF is never asked for;
+    /// staff's plays (Sol, 10/11/2026).
+    #[test]
+    fn only_verified_senders_gifs_play() {
+        let now = Instant::now();
+        let unverified = ChatMessage {
+            verified: false,
+            ..message(1, "Fox", "see https://giphy.com/gifs/FeedGif09Unverified")
+        };
+        let staff = ChatMessage {
+            verified: false,
+            staff: true,
+            ..message(2, "Sol", "and https://giphy.com/gifs/FeedGif10Staff")
+        };
+        let mut chat = chat_with(vec![unverified, staff], "", now);
+        chat.build(true, &crate::text::test_font(), [1920.0, 1080.0], 1_000);
+        let texts = texts(&chat);
+        let words: String = texts.iter().map(|(text, ..)| text.as_str()).collect();
+        assert!(
+            words.contains("giphy.com/gifs/FeedGif09Unverified"),
+            "{words}"
+        );
+        assert!(!chat_gifs::asked_for(
+            &GifId::new("FeedGif09Unverified").unwrap()
+        ));
+        assert!(find(&texts, "and GIF").is_some(), "{words}");
     }
 
     /// At 1080p and 4K, a GIF line shows "GIF" and its block under the text, three rows

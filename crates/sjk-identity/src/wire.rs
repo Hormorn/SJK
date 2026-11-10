@@ -426,6 +426,31 @@ pub struct Opened {
     /// (the hub leaves the field out then).
     #[serde(default)]
     pub shards: u64,
+    /// A Beta holocron's other prizes (the hub's `PROTOCOL.md`, "Seasons", 10/11/2026):
+    /// its guaranteed shader first, then its bonus rolls; empty for an Alpha holocron and
+    /// from hubs before.
+    #[serde(default)]
+    pub extra: Vec<OpenedExtra>,
+    /// The tier the person's holocron pity raised this opening to (`legendary` or
+    /// `mythical`); `None` when it did not, and from hubs before.
+    #[serde(default)]
+    pub pity: Option<String>,
+}
+
+/// One more prize of a Beta holocron ([`Opened::extra`]).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct OpenedExtra {
+    /// `shader`, `tag`, `shards`, `banner` or `card`.
+    pub kind: String,
+    /// The shader, tag or banner.
+    #[serde(default)]
+    pub unlock: Option<OpenedUnlock>,
+    /// A bonus card (without credits).
+    #[serde(default)]
+    pub card: Option<OpenedCard>,
+    /// A pile of kyber shards.
+    #[serde(default)]
+    pub shards: u64,
 }
 
 /// A shader an opening brought.
@@ -526,6 +551,10 @@ pub struct HolocronState {
     /// `PROTOCOL.md`, "Kyber crystals"); `None` from hubs before.
     #[serde(default)]
     pub kyber: Option<KyberTables>,
+    /// The Beta season's tables and the person's holocron pity (10/11/2026; the hub's
+    /// `PROTOCOL.md`, "Seasons"); `None` from hubs before.
+    #[serde(default)]
+    pub seasons: Option<SeasonTables>,
     /// The person's collection marks (29/10/2026; the hub's `PROTOCOL.md`, "Collection
     /// marks"): their favourite and locked saber shaders. `None` from hubs before, which
     /// keep none (their economy does not say [`MARKS_ABILITY`]).
@@ -839,6 +868,98 @@ pub struct MarksAnswer {
     pub marks: UnlockMarks,
 }
 
+/// The holocron seasons' tables as the hub sends them with the progress (`PROTOCOL.md`,
+/// "Seasons", 10/11/2026): how a Beta holocron of Rare or better opens, and the person's
+/// pity.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonTables {
+    /// One per Beta tier, Rare to Mythical.
+    #[serde(default)]
+    pub beta: Vec<SeasonTier>,
+    /// The person's holocron pity.
+    #[serde(default)]
+    pub pity: SeasonPity,
+}
+
+/// How a Beta holocron of one tier opens ([`SeasonTables::beta`]).
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonTier {
+    /// The holocron tier's wire id (`rare`).
+    pub tier: String,
+    /// Its guaranteed card's rarity odds, Common to Mythical, per mille.
+    #[serde(default)]
+    pub rarity: Vec<u32>,
+    /// Its card's finish odds, Normal, Holo, Solar, per mille.
+    #[serde(default)]
+    pub finish: Vec<u32>,
+    /// Its credits, an inclusive range.
+    #[serde(default)]
+    pub credits: [u64; 2],
+    /// Its guaranteed shader's lowest tier (`rare`); `None` for no guaranteed shader.
+    #[serde(default)]
+    pub shader_floor: Option<String>,
+    /// The shader odds the floor renormalises, Common to Mythical, per mille.
+    #[serde(default)]
+    pub shader_tier: Option<Vec<u32>>,
+    /// One per bonus roll.
+    #[serde(default)]
+    pub bonus: Vec<SeasonBonus>,
+    /// Whether its cards prefer faces the person does not hold yet.
+    #[serde(default)]
+    pub fresh_faces: bool,
+}
+
+/// One bonus roll's shares, per mille out of [`SeasonBonus::scale`]; the rest is nothing.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonBonus {
+    /// A shader.
+    #[serde(default)]
+    pub shader: u32,
+    /// A tag.
+    #[serde(default)]
+    pub tag: u32,
+    /// A pile of kyber shards.
+    #[serde(default)]
+    pub shards: u32,
+    /// A profile banner.
+    #[serde(default)]
+    pub banner: u32,
+    /// A second card.
+    #[serde(default)]
+    pub card: u32,
+    /// The whole the shares are out of (less than 1000 while banners do not drop).
+    #[serde(default = "thousand")]
+    pub scale: u32,
+}
+
+/// 1000, a bonus roll's whole.
+fn thousand() -> u32 {
+    1_000
+}
+
+/// The person's holocron pity ([`SeasonTables::pity`]).
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonPity {
+    /// Toward a prize of Legendary or better.
+    #[serde(default)]
+    pub grand: PityCount,
+    /// Toward a Mythical prize.
+    #[serde(default)]
+    pub mythical: PityCount,
+}
+
+/// One pity count: a prize at the latest every `every` Beta holocrons, `since` opened
+/// since the last one.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct PityCount {
+    /// The run's length.
+    #[serde(default)]
+    pub every: u32,
+    /// Beta holocrons opened since the last such prize.
+    #[serde(default)]
+    pub since: u32,
+}
+
 /// The kyber crystals' tables as the hub sends them with the progress (`PROTOCOL.md`,
 /// "Kyber crystals", 21/10/2026). A crystal is a holocron row of tier `kyber_uncommon` to
 /// `kyber_mythical`, earned from achievements; opening one always gives a saber shader.
@@ -860,6 +981,9 @@ pub struct KyberTier {
     /// The shader's tier per mille, common to mythical (summing to 1000).
     #[serde(default)]
     pub shader_tier: Vec<u32>,
+    /// The same for a Beta crystal (hubs since 10/11/2026; empty before).
+    #[serde(default)]
+    pub beta_tier: Vec<u32>,
 }
 
 /// The person's pity counter: the `every`-th crystal in a row without a Legendary or
@@ -914,6 +1038,16 @@ pub struct EconomyTables {
     /// `None` from hubs before.
     #[serde(default)]
     pub banners: Option<BannerTables>,
+    /// The duplicates one fusion takes, by the input shaders' tier, common to mythical, 0
+    /// for a tier that cannot fuse (10/11/2026, with [`FUSE_ABILITY`]): that many
+    /// duplicates of one tier make one shader of the next the person lacks. Empty from
+    /// hubs before.
+    #[serde(default)]
+    pub fuse: Vec<u32>,
+    /// The person's wishlist of saber shaders, up to [`WISHLIST_MAX`] ids (10/11/2026);
+    /// `None` from hubs before, which keep none.
+    #[serde(default)]
+    pub wishlist: Option<Vec<String>>,
 }
 
 impl EconomyTables {
@@ -930,6 +1064,55 @@ impl EconomyTables {
     pub fn can(&self, ability: &str) -> bool {
         self.abilities.iter().any(|known| known == ability)
     }
+
+    /// The duplicates a fusion of tier index `tier` takes, when the hub fuses that tier
+    /// (it says [`FUSE_ABILITY`] and a count above 0 for it); `None` otherwise.
+    pub fn fuse_count(&self, tier: usize) -> Option<u32> {
+        if !self.can(FUSE_ABILITY) {
+            return None;
+        }
+        self.fuse.get(tier).copied().filter(|count| *count > 0)
+    }
+}
+
+/// The economy's ability that says the hub fuses duplicates (`POST /v1/unlocks/fuse`,
+/// 10/11/2026): [`EconomyTables::fuse`] duplicates of one tier for one shader of the next
+/// tier the person lacks.
+pub const FUSE_ABILITY: &str = "fuse";
+
+/// The most shaders a wishlist holds ([`EconomyTables::wishlist`], `PUT /v1/shop/wishlist`).
+pub const WISHLIST_MAX: usize = 3;
+
+/// The copies of one shader a fusion took (`POST /v1/unlocks/fuse`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct FuseUsed {
+    /// The shader's id.
+    pub id: String,
+    /// The copies of it that went.
+    #[serde(default)]
+    pub copies: u32,
+}
+
+/// The hub's answer to `POST /v1/unlocks/fuse`: the shader gained, in the craft's shape,
+/// the copies that went and the person's profile after.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct FuseAnswer {
+    /// The shader the fusion gave (its `cost` 0: no shards are spent).
+    #[serde(alias = "fused")]
+    pub crafted: Crafted,
+    /// The copies that went, by shader.
+    #[serde(default)]
+    pub used: Vec<FuseUsed>,
+    /// The person's profile after.
+    pub profile: Profile,
+}
+
+/// The hub's answer to `PUT /v1/shop/wishlist`: the wishlist it keeps now, when it says.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct WishlistAnswer {
+    /// The shader ids, in order; `None` when the answer leaves them out.
+    #[serde(default)]
+    pub wishlist: Option<Vec<String>>,
 }
 
 /// A duplicate the hub shattered (`POST /v1/unlocks/shatter`).
@@ -1039,6 +1222,17 @@ pub struct Offer {
     /// Whether the person holds it already (then the hub will not sell it).
     #[serde(default)]
     pub owned: bool,
+    /// The deal of the day (10/11/2026): one offer a day at half price, its
+    /// [`Offer::price`] already halved. False from hubs before.
+    #[serde(default)]
+    pub deal: bool,
+    /// Whether it is on the person's wishlist (10/11/2026). False from hubs before.
+    #[serde(default)]
+    pub wished: bool,
+    /// The shader's edition id (`alpha`, `beta`, 10/11/2026); `None` from hubs before,
+    /// read as Alpha.
+    #[serde(default)]
+    pub edition: Option<String>,
 }
 
 /// The hub's answer to `GET /v1/shop` (`PROTOCOL.md`, "Shards and the shop"): the day's
@@ -1940,6 +2134,27 @@ pub fn authorization(
     )
 }
 
+/// The most characters a custom SJK name holds (the hub's rule, `PROTOCOL.md`,
+/// "Profile fields").
+pub const CUSTOM_NAME_MAX: usize = 24;
+
+/// A custom SJK name as the hub takes it: trimmed, 1 to [`CUSTOM_NAME_MAX`]
+/// characters, no control characters, and a letter or digit once colour codes are
+/// dropped ([`normal_form`]). The hub still refuses one another player holds.
+pub fn custom_name(raw: &str) -> Result<String, &'static str> {
+    let name = raw.trim();
+    if name.is_empty() {
+        return Err("Type a name first");
+    }
+    if name.chars().count() > CUSTOM_NAME_MAX {
+        return Err("A name holds at most 24 characters");
+    }
+    if name.chars().any(char::is_control) || normal_form(name).is_empty() {
+        return Err("A name needs a letter or digit");
+    }
+    Ok(name.to_owned())
+}
+
 /// The form two player names are compared in: lower case, Quake colour codes
 /// removed, only letters and digits kept (the hub uses the same rule for
 /// display names).
@@ -2056,6 +2271,52 @@ mod tests {
     }
 
     const KNOWN_ANSWER: &str = "SJK-Sig key=6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw, ts=1000000, nonce=AQEBAQEBAQEBAQEB, sig=IKLlpqaSWIXqXK7Q77SsGJiE4BIdUTjkSWv2zyr0951WKByhEShSL-Ow70Rgc3znokl0Sf4rQK2VjNkPEm9uCQ";
+
+    /// Fusion, the deal of the day and the wishlist (10/11/2026): each field parses when
+    /// sent, and a hub before them leaves every one out.
+    #[test]
+    fn fusion_deals_and_the_wishlist_parse_and_older_hubs_send_none() {
+        let economy: EconomyTables = serde_json::from_str(
+            r#"{"shatter":[5,10,25,60,150],"abilities":["fuse"],"fuse":[3,3,3,5,0],
+                "wishlist":["saber_aurora","saber_tidal"]}"#,
+        )
+        .unwrap();
+        assert_eq!(economy.fuse, [3, 3, 3, 5, 0]);
+        assert_eq!(economy.fuse_count(3), Some(5));
+        assert_eq!(economy.fuse_count(4), None, "0: Mythical does not fuse");
+        assert_eq!(economy.fuse_count(9), None);
+        assert_eq!(economy.wishlist.as_deref().map(<[String]>::len), Some(2));
+        // The counts without the ability are not a fusion.
+        let unsaid: EconomyTables = serde_json::from_str(r#"{"fuse":[3,3,3,5,0]}"#).unwrap();
+        assert_eq!(unsaid.fuse_count(0), None);
+        // An empty wishlist is a hub that keeps one.
+        let empty: EconomyTables = serde_json::from_str(r#"{"wishlist":[]}"#).unwrap();
+        assert_eq!(empty.wishlist, Some(Vec::new()));
+        let offer: Offer = serde_json::from_str(
+            r#"{"id":"saber_phoenix","name":"Phoenix blade","tier":"mythical","price":750,
+                "deal":true,"wished":true,"edition":"beta"}"#,
+        )
+        .unwrap();
+        assert!(offer.deal && offer.wished);
+        assert_eq!((offer.price, offer.edition.as_deref()), (750, Some("beta")));
+        let older: Offer =
+            serde_json::from_str(r#"{"id":"saber_aurora","tier":"common","price":30}"#).unwrap();
+        assert!(!older.deal && !older.wished && older.edition.is_none());
+        let fused: FuseAnswer = serde_json::from_str(
+            r#"{"crafted":{"id":"saber_sakura","name":"Sakura blade","count":1,"cost":0,
+                "balance":12},"used":[{"id":"saber_aurora","copies":2},{"id":"saber_tidal",
+                "copies":1}],"profile":{"key_id":"0123456789abcdef","key":"k","name":"Sol",
+                "bio":"","verified":false,"created":1}}"#,
+        )
+        .unwrap();
+        assert_eq!(fused.crafted.id, "saber_sakura");
+        assert_eq!(fused.used.iter().map(|used| used.copies).sum::<u32>(), 3);
+        let wished: WishlistAnswer =
+            serde_json::from_str(r#"{"wishlist":["saber_aurora"]}"#).unwrap();
+        assert_eq!(wished.wishlist, Some(vec!["saber_aurora".to_owned()]));
+        let bare: WishlistAnswer = serde_json::from_str("{}").unwrap();
+        assert_eq!(bare.wishlist, None);
+    }
 
     #[test]
     fn a_feed_answer_parses() {
@@ -2339,6 +2600,7 @@ mod tests {
                 loot: Vec::new(),
                 economy: None,
                 kyber: None,
+                seasons: None,
                 marks: None,
                 catchup: None,
                 activity: None,
@@ -2421,6 +2683,9 @@ mod tests {
         );
         // A hub before the shop sold for shards says neither its currency nor holocrons.
         assert!(tables.shop_currency.is_empty() && tables.holocrons.is_empty());
+        // ... nor fusion nor a wishlist (10/11/2026).
+        assert!(tables.fuse.is_empty() && tables.wishlist.is_none());
+        assert_eq!(tables.fuse_count(0), None);
         let shards: EconomyTables = serde_json::from_str(
             r#"{"shatter":[5,10,25,60,150],"craft":[40,100,300,800,2000],
                 "shop":[30,75,225,600,1500],"shop_currency":"shards",
@@ -2491,6 +2756,32 @@ mod tests {
         .unwrap();
         assert_eq!(gated.min_client.as_deref(), Some("2026.1022.1"));
         // Kyber crystals (21/10/2026): their odds and the person's pity, beside `loot`.
+        let seasons: HolocronState = serde_json::from_str(
+            r#"{"progress_secs":0,"every_secs":1800,"seasons":{"beta":[{"tier":"mythical",
+            "rarity":[0,0,500,380,120],"finish":[0,850,150],"credits":[250,350],
+            "shader_floor":"legendary","shader_tier":[50,150,350,330,120],
+            "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750}],
+            "fresh_faces":true}],"pity":{"grand":{"every":15,"since":3},
+            "mythical":{"every":80,"since":40}}}}"#,
+        )
+        .unwrap();
+        let tables = seasons.seasons.unwrap();
+        assert_eq!(tables.beta[0].shader_floor.as_deref(), Some("legendary"));
+        assert_eq!(tables.beta[0].bonus[0].scale, 750);
+        assert_eq!(
+            (tables.pity.grand.since, tables.pity.mythical.every),
+            (3, 80)
+        );
+        let opened: Opened = serde_json::from_str(
+            r#"{"holocron":7,"tier":"mythical","credits":300,
+            "card":{"id":1,"rarity":"rare","finish":"holo","edition":"beta"},
+            "extra":[{"kind":"shader","unlock":{"id":"saber_sun","name":"Sun","count":1}},
+            {"kind":"shards","shards":40}],"pity":"legendary"}"#,
+        )
+        .unwrap();
+        assert_eq!(opened.extra.len(), 2);
+        assert_eq!(opened.extra[1].shards, 40);
+        assert_eq!(opened.pity.as_deref(), Some("legendary"));
         let kyber: HolocronState = serde_json::from_str(
             r#"{"progress_secs":0,"every_secs":1800,"server_time":1,
                 "kyber":{"tiers":[{"tier":"kyber_uncommon","shader_tier":[450,400,120,25,5]},

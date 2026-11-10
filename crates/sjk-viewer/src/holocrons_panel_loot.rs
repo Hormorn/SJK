@@ -13,6 +13,9 @@
 //! instead: per crystal tier, the chance of each saber shader tier, how many droppable
 //! shaders each tier holds, and how the shader is picked and the pity counter works.
 //!
+//! B (10/11/2026, [`crate::seasons`]) switches a holocron's table to the Beta season's
+//! page: what a Beta holocron of each tier guarantees, its bonus rolls and the pity.
+//!
 //! Loot table or L shows it; Escape, L, Enter or Back go back to the page.
 
 use super::*;
@@ -66,6 +69,8 @@ const NOTES_CHARS: usize = 68;
 const KYBER_CELL: f32 = (RIGHT - DROP_X) / crate::kyber::SHADER_TIERS as f32;
 const KYBER_NOTES_Y: f32 = 640.0;
 const KYBER_NOTES_CHARS: usize = 150;
+/// The Beta season's page: where its tiers begin.
+const BETA_TOP: f32 = 170.0;
 /// Back, and the keys' line.
 const BACK_Y: f32 = 988.0;
 const BACK_WIDTH: f32 = 150.0;
@@ -190,10 +195,18 @@ impl Panel {
             ui_cues::post(if show { Cue::Click } else { Cue::Back });
         }
         self.loot = show;
+        if !show {
+            self.loot_beta = false;
+        }
     }
 
     /// A key while the loot table shows.
     pub(super) fn loot_key(&mut self, key: KeyCode) -> PanelAction {
+        if key == KeyCode::KeyB {
+            ui_cues::post(Cue::Click);
+            self.loot_beta = !self.loot_beta;
+            return PanelAction::None;
+        }
         if matches!(
             key,
             KeyCode::Escape | KeyCode::KeyL | KeyCode::Enter | KeyCode::NumpadEnter
@@ -228,6 +241,11 @@ impl Panel {
             self.loot_keys(frame);
             return;
         }
+        if self.loot_beta {
+            self.beta_loot(frame);
+            self.loot_keys(frame);
+            return;
+        }
         self.loot_head(frame);
         self.loot_table(frame);
         self.loot_grid(frame);
@@ -243,7 +261,10 @@ impl Panel {
         text(
             &mut self.ui,
             TextFamily::Display,
-            format_args!("Loot table: kyber crystals"),
+            format_args!(
+                "Loot table: kyber crystals{}",
+                if self.loot_beta { ", Beta season" } else { "" }
+            ),
             frame.rect(LEFT, TITLE_Y, WIDTH, 54.0),
             44.0 * s,
             color::TEXT,
@@ -349,7 +370,12 @@ impl Panel {
                 FontWeight::Semibold,
                 TextAlign::Start,
             );
-            for (at, share) in odds.shader_tier[index].iter().enumerate() {
+            let shares = if self.loot_beta {
+                &odds.beta_tier[index]
+            } else {
+                &odds.shader_tier[index]
+            };
+            for (at, share) in shares.iter().enumerate() {
                 chance_cell(
                     &mut self.ui,
                     frame,
@@ -433,6 +459,94 @@ impl Panel {
             }
             y += 10.0;
         }
+    }
+
+    /// The Beta season's page ([`crate::seasons`]): per Beta tier what it guarantees and its
+    /// bonus rolls, then the notes and the pity.
+    fn beta_loot(&mut self, frame: &Frame) {
+        let s = frame.s;
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("Loot table: Beta holocrons"),
+            frame.rect(LEFT, TITLE_Y, WIDTH, 54.0),
+            44.0 * s,
+            color::TEXT,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{}", crate::terms::say(crate::seasons::ABOUT)),
+            frame.rect(LEFT, LINE_Y, WIDTH, 26.0),
+            17.0 * s,
+            color::MUTED,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+        let tables = self.data.seasons.clone();
+        let mut y = BETA_TOP;
+        match tables.as_ref().filter(|tables| !tables.beta.is_empty()) {
+            None => {
+                text(
+                    &mut self.ui,
+                    TextFamily::Body,
+                    format_args!("The SJK hub has not sent the Beta tables yet."),
+                    frame.rect(LEFT, y, WIDTH, 24.0),
+                    17.0 * s,
+                    color::QUIET,
+                    FontWeight::Regular,
+                    TextAlign::Start,
+                );
+                y += 60.0;
+            }
+            Some(tables) => {
+                for beta in &tables.beta {
+                    let Some(tier) = holocrons::TIERS.iter().find(|tier| tier.id == beta.tier)
+                    else {
+                        continue;
+                    };
+                    kit::heading(&mut self.ui, frame, LEFT, y, WIDTH, &tier.title());
+                    y += 20.0;
+                    for line in crate::seasons::tier_lines(beta) {
+                        y = self.beta_note(frame, &crate::terms::say_owned(line), y, tier.colour);
+                    }
+                    y += 14.0;
+                }
+            }
+        }
+        kit::heading(&mut self.ui, frame, LEFT, y, WIDTH, "How it rolls");
+        y += 20.0;
+        for note in crate::seasons::notes(tables.as_ref()) {
+            y = self.beta_note(frame, &crate::terms::say_owned(note), y, color::HOLO);
+        }
+    }
+
+    /// One note of the Beta page at `y`, wrapped, its dot in `dot`; answers the next `y`.
+    fn beta_note(&mut self, frame: &Frame, note: &str, mut y: f32, dot: Color) -> f32 {
+        let s = frame.s;
+        for (line, part) in wrap(note, KYBER_NOTES_CHARS).enumerate() {
+            if line == 0 {
+                let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+                    rect: frame.rect(LEFT, y + 9.0, 5.0, 5.0),
+                    radius: 2.5 * s,
+                    color: color::alpha(dot, 0.8),
+                });
+            }
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{part}"),
+                frame.rect(LEFT + 16.0, y, WIDTH - 16.0, 22.0),
+                16.0 * s,
+                color::MUTED,
+                FontWeight::Regular,
+                TextAlign::Start,
+            );
+            y += 23.0;
+        }
+        y + 6.0
     }
 
     /// The title, what the page is, and how often holocrons drop.
@@ -901,7 +1015,13 @@ impl Panel {
         } else {
             "holocrons"
         });
-        let keys: [(&[&str], &str); 2] = [(&["L"], &back), (&["Esc"], "back")];
+        let season = if self.loot_beta {
+            "Alpha season"
+        } else {
+            "Beta season"
+        };
+        let keys: Vec<(&[&str], &str)> =
+            vec![(&["B"], season), (&["L"], &back), (&["Esc"], "back")];
         let gap = 30.0 * s;
         let width: f32 = keys
             .iter()
@@ -962,6 +1082,66 @@ mod tests {
         ] {
             let _ = panel.handle_pointer(event);
         }
+    }
+
+    /// The Beta season's tables as a hub sends them (its `seasons::wire`, banners off).
+    fn beta_tables() -> sjk_identity::SeasonTables {
+        serde_json::from_value(serde_json::json!({"beta":[
+            {"tier":"rare","rarity":[0,700,250,40,10],"finish":[880,120,0],"credits":[30,50],
+             "shader_floor":"uncommon","shader_tier":[0,650,280,60,10],
+             "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":0,"scale":1000}],
+             "fresh_faces":false},
+            {"tier":"legendary","rarity":[0,0,700,250,50],"finish":[650,330,20],"credits":[80,120],
+             "shader_floor":"rare","shader_tier":[0,0,550,350,100],
+             "bonus":[{"shader":0,"tag":333,"shards":333,"banner":0,"card":0,"scale":666}],
+             "fresh_faces":true},
+            {"tier":"mythical","rarity":[0,0,500,380,120],"finish":[0,850,150],"credits":[250,350],
+             "shader_floor":"legendary","shader_tier":[0,0,0,600,400],
+             "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750},
+                      {"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750}],
+             "fresh_faces":true}],
+            "pity":{"grand":{"every":15,"since":4},"mythical":{"every":80,"since":30}}}))
+        .unwrap()
+    }
+
+    /// B switches a holocron's table to the Beta season's page and back; going back to
+    /// the page forgets it. Its lines end above Back.
+    #[test]
+    fn b_shows_the_beta_season_and_it_fits() {
+        let mut panel = Panel::new();
+        panel.open(true);
+        panel.data = Data {
+            seasons: Some(beta_tables()),
+            ..Data::nothing(State::Known)
+        };
+        panel.show_loot(true);
+        let _ = panel.key(KeyCode::KeyB, false);
+        assert!(panel.loot_beta);
+        for viewport in [[1920.0, 1080.0], [1440.0, 1080.0], [3840.0, 2160.0]] {
+            panel.build(viewport);
+            assert!(panel.ui.rect_for(LOOT_BACK_TOKEN).is_some());
+        }
+        let tables = beta_tables();
+        let note = |text: &str| wrap(text, KYBER_NOTES_CHARS).count() as f32 * 23.0 + 6.0;
+        let mut end = BETA_TOP;
+        for tier in &tables.beta {
+            end += 20.0 + 14.0;
+            end += crate::seasons::tier_lines(tier)
+                .iter()
+                .map(|line| note(line))
+                .sum::<f32>();
+        }
+        end += 20.0;
+        end += crate::seasons::notes(Some(&tables))
+            .iter()
+            .map(|line| note(line))
+            .sum::<f32>();
+        assert!(end < BACK_Y - 10.0, "the Beta page reaches {end}");
+        let _ = panel.key(KeyCode::KeyB, false);
+        assert!(!panel.loot_beta);
+        let _ = panel.key(KeyCode::KeyB, false);
+        let _ = panel.key(KeyCode::Escape, false);
+        assert!(!panel.showing_loot() && !panel.loot_beta);
     }
 
     #[test]

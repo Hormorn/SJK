@@ -37,7 +37,9 @@ fn render_scale_shots() {
             Ok("vanilla") => {
                 crate::graphics_quality::preset_cvars(crate::graphics_quality::Level::Vanilla)
             }
-            Ok("sjk") => crate::graphics_quality::preset_cvars(crate::graphics_quality::Level::Sjk),
+            Ok("sjk") => {
+                crate::graphics_quality::preset_cvars(crate::graphics_quality::Level::VanillaPlus)
+            }
             _ => Vec::new(),
         };
         std::fs::create_dir_all(directory()).expect("the shot directory");

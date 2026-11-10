@@ -978,7 +978,10 @@ impl SettingsMenu {
     }
 
     fn refresh(&mut self, console: &ViewerConsole) {
-        self.alpha = !crate::graphics_quality::vanilla(console);
+        // The alpha warning is the Solar Renderer's: shown while its presets (or settings
+        // nearest them) are in use.
+        self.alpha = crate::graphics_quality::Level::nearest(console).family()
+            == crate::graphics_quality::Family::Solar;
         let display = DisplayMode::requested(console).effective(self.exclusive_available());
         self.hud.read(console);
         let hud = self.hud.label();
@@ -1001,6 +1004,9 @@ impl SettingsMenu {
                 ValueKind::AssetBrowser => "Browse packs".to_owned(),
                 ValueKind::ContentCard => "Choose and download".to_owned(),
                 ValueKind::HudEdit => "Edit".to_owned(),
+                ValueKind::Run if setting.cvar == crate::graphics_quality::RECOMMEND_COMMAND => {
+                    crate::graphics_quality::recommended().label().to_owned()
+                }
                 ValueKind::Run => "Now".to_owned(),
                 ValueKind::SoundPreview => PREVIEW_TEXT.to_owned(),
                 ValueKind::Quality => crate::graphics_quality::shown(console).to_owned(),

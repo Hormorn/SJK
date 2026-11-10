@@ -143,6 +143,14 @@ includes:
   Mythical, always a saber shader (the ones not held first), a guaranteed Legendary or
   better every tenth crystal; the old kyber prism became the crystal and the Mythical
   holocron a faceted gold engram whose plates breathe round a glowing core;
+- holocron seasons (05/11/2026 design, built 10/11/2026): Beta holocrons of Rare and up
+  give a card with a rarity floor, a shader with a tier floor (Uncommon, Rare, Legendary;
+  Beta's own odds, and better Beta kyber crystal odds, 10/11/2026) and bonus rolls on top, with a pity (Legendary or better every 15, Mythical every 80) and card
+  faces not held yet; shown prize by prize, best last;
+- Forge fusion, the deal of the day and a wishlist (10/11/2026, Sol's request to make
+  crafting and the shop more used): duplicates of one tier fused into a shader of the next
+  not held yet, one offer a day at half price, and up to three wished shaders marked in the
+  shop with a card the day one is on offer;
 - the Legendary holocron's Sith pyramid sculpted anew (05/11/2026, art by Sol,
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
   the high-poly model, and normal maps on models whose shader names one (`normalMap`);
@@ -471,6 +479,10 @@ includes:
 - storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
   the game's own thunder after it, single gusts of wind heard as they rise, and rain
   running down walls and slopes in rivulets with drops along each slope's fall;
+- graphics presets in two families (10/11/2026): Vanilla, Vanilla Plus and the Solar
+  Renderer's Low to Ultra, rated green to red for the player's card with a recommended
+  pick, real-time lighting split into bounced light, lamp shadows and a time-of-day sky,
+  and named choices in place of sliders;
 - richer rain (09/11/2026): uneven wet streets with water gathering at walls, rivulets that
   start under a wall's lip, spray and waves of rain in a downpour, the world mirrored in
   every wet surface (`r_weatherReflections`), settled snow (`r_weatherSnowCover`) and
@@ -802,7 +814,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 138 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 142 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1040,6 +1052,14 @@ medal pictures carry their own labels in `vram` and crash reports.
 - #398 SJK UI: a typed slider value opens a gold pill at the number's size.
 - #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK.
 - #403 The credits page counts the pull requests merged under older merge names.
+- #407 The Jedi Knight II HUD's selector bar opens behind the icons when the weapon, Force or
+  inventory selector shows, between lit prongs, as EternalJK draws it (hub report #301).
+- #405 Disruptor beams leave the gun's tip: another player's, yours in third person, and a
+  zoomed sniper shot, from the world gun's flash point as stock does (hub report #294).
+- #404 Saber swings play every swing sound again: each swing, saber hit, block and footstep
+  picks its sound at random as codemp's `Q_irand` does, not one fixed per player (hub report #303).
+- #406 `cg_defaultModelRandom` (off by default): a player whose model you lack shows as a stock
+  model picked from its name, as JoF EJK does, instead of Kyle (hub report #302).
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

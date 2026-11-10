@@ -1435,13 +1435,6 @@ impl ClientMenu {
         self.player.show_page(index);
     }
 
-    /// The Profile screen's Character tab with its Name field open for typing.
-    pub(crate) fn edit_player_hub_name(&mut self) {
-        if self.player_hub_shown() {
-            self.player.open_name_field();
-        }
-    }
-
     /// Whether a field of the Profile screen's player pages takes the keys, so Tab
     /// and the brackets stay with it.
     pub(crate) fn player_hub_typing(&self) -> bool {

@@ -90,6 +90,12 @@ impl State {
         self.walk.is_some()
     }
 
+    /// Stop walking the map: the world shots' inspection camera (the map editor's fly-to).
+    #[cfg(test)]
+    pub(crate) fn stop_walking(&mut self) {
+        self.walk = None;
+    }
+
     pub(crate) fn disconnect(&mut self) {
         if let Some(mut session) = self.session.take() {
             let _ = session.disconnect();

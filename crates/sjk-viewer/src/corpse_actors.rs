@@ -93,7 +93,8 @@ impl GpuState {
         let mut mesh = if let Some(preview) = preview {
             self.upload_actor(preview, &body.appearance, id, body.sabers.clone())?
         } else {
-            self.build_live_actor_or_kyle(&body.appearance, id, body.sabers.clone())?
+            let stand_in = self.stand_in(Some(u16::from(body.client_num)), &body.appearance);
+            self.build_live_actor_or_stand_in(&body.appearance, &stand_in, id, body.sabers.clone())?
         };
         mesh.corpse_pool = true;
         if let Some(animator) = self.body_queue_animator(

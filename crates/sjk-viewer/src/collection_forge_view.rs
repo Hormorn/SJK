@@ -4,7 +4,10 @@
 //! offers out as large cards over the whole width with the holocrons credits buy under
 //! them; Craft and Break down list their shaders on the left (a grid of cards or a list,
 //! as `ui_shaderList` says) and show the one chosen big on the right. A card over the
-//! page asks before the last copy, every duplicate or the shaders picked go.
+//! page asks before the last copy, every duplicate or the shaders picked go. Fuse
+//! (10/11/2026) lists a tier's duplicates like Break down, and its card on the right says
+//! what the fusion gives, reveals the shader gained, and holds Fuse, the stepper and
+//! Propose.
 
 use super::forge::*;
 use super::view::{LEFT_X, RIGHT_X, label_width, left_lines};
@@ -13,12 +16,14 @@ use crate::menu::sjk::{Frame, color, kit, text};
 use crate::menu_widgets::TextFamily;
 use crate::rarity_fx;
 use crate::symbols;
-use crate::unlockables::Unlockable;
+use crate::unlockables::{Rarity, Unlockable};
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign};
 
 /// The section chips' line (the search field stands at its right).
 const SECTION_Y: f32 = 206.0;
 const SECTION_HEIGHT: f32 = 48.0;
+/// The Shop's wishlist line under the chips.
+const WISHLIST_Y: f32 = 268.0;
 /// The balances at the right of the chips.
 const BALANCE_Y: f32 = 194.0;
 /// The Shop: the day's heading, the offers' cards and the holocrons for credits.
@@ -127,6 +132,7 @@ impl Panel {
             Section::Shop => self.forge_shop(frame, seconds),
             Section::Craft => self.forge_craft(frame, inputs, seconds),
             Section::Break => self.forge_break(frame, inputs, seconds),
+            Section::Fuse => self.forge_fuse(frame, inputs, seconds),
         }
         self.forge_info(frame, info_x);
     }
@@ -156,6 +162,7 @@ impl Panel {
             .filter(|item| breaks.shaders.passes(item.skin, true, item.favourite))
             .filter(|item| !breaks.only || item.count > 1)
             .collect();
+        self.forge_fuse_lists(inputs);
         if let Some(id) = self.forge.want.take() {
             let at = match self.forge.section {
                 Section::Craft => self
@@ -168,7 +175,7 @@ impl Panel {
                     .break_list
                     .iter()
                     .position(|item| item.skin.id == id),
-                Section::Shop => None,
+                Section::Shop | Section::Fuse => None,
             };
             if let Some(at) = at {
                 match self.forge.section {
@@ -200,24 +207,90 @@ impl Panel {
             forge.break_list.len().div_ceil(per),
             shown,
         );
+        forge.fuse = forge.fuse.min(forge.fuse_list.len().saturating_sub(1));
+        forge.fuse_first = shaders::window(
+            forge.fuse_first,
+            forge.fuse / per,
+            forge.fuse_list.len().div_ceil(per),
+            shown,
+        );
         // A New one chosen is seen once the choice leaves it.
         let chosen = self.forge.chosen_shader().map(|(id, _)| id);
         self.view(chosen);
     }
 
-    /// The section chips: Shop, Craft and Break down, the one on show gold; Break down
-    /// says how many duplicates wait. Each is as wide as its label drawn with the player's
-    /// text size and letter spacing. Answers where the next chip may start.
+    /// Fuse's list for this frame (10/11/2026): the tier's spare duplicates as the player
+    /// holds them, the shaders of the next tier left, whether any tier may fuse (Fuse's
+    /// dot); Fuse gives way to the Shop on a hub that stopped fusing.
+    fn forge_fuse_lists(&mut self, inputs: &Inputs<'_>) {
+        if !self.forge.data.fuses() {
+            if self.forge.section == Section::Fuse {
+                self.forge.section = Section::Shop;
+            }
+            self.forge.fuse_list.clear();
+            self.forge.fuse_picks.clear();
+            self.fuse_ready = false;
+            return;
+        }
+        // A tier the hub does not fuse gives way to the first it does.
+        if self.forge.data.fuse_need(self.forge.fuse_tier()).is_none()
+            && let Some(index) = crate::forge_fuse::TIERS
+                .iter()
+                .position(|tier| self.forge.data.fuse_need(*tier).is_some())
+        {
+            let _ = self.forge.set_fuse_tier(index);
+        }
+        let holdings = &inputs.holdings;
+        let held = |id: &str| {
+            holdings
+                .unlock(id)
+                .filter(|unlock| unlock.medal.is_none() && unlock.card.is_none())
+                .map_or(0, |unlock| unlock.count)
+        };
+        let owns = |id: &str| holdings.unlock(id).is_some();
+        let marks = &self.marks;
+        let locked = |id: &str| marks.locked(id);
+        let tier = self.forge.fuse_tier();
+        let list = crate::forge_fuse::spares(tier, held, locked);
+        let targets = crate::forge_fuse::targets(tier, owns);
+        let data = &self.forge.data;
+        self.fuse_ready =
+            crate::forge_fuse::any_possible(|tier| data.fuse_need(tier), held, owns, locked);
+        self.forge.follow_fuse(list, targets);
+    }
+
+    /// Whether something waits on the Shop: an offer on the wishlist, or the deal of the
+    /// day within reach, neither held nor bought (10/11/2026).
+    pub(super) fn forge_shop_waits(&self) -> bool {
+        let purse = self.forge.purse();
+        self.forge
+            .offers()
+            .iter()
+            .filter(|offer| !offer.owned && !offer.bought)
+            .any(|offer| offer.wished || (offer.deal && purse >= offer.price))
+    }
+
+    /// The section chips: Shop, Craft, Break down and Fuse (on a hub that fuses), the one
+    /// on show gold; Break down says how many duplicates wait, and Shop and Fuse carry a
+    /// gold dot when something waits there (10/11/2026). Each is as wide as its label
+    /// drawn with the player's text size and letter spacing. Answers where the next chip
+    /// may start.
     fn forge_sections(&mut self, frame: &Frame) -> f32 {
         let s = frame.s;
         let mut x = LEFT_X;
-        for (index, section) in Section::ALL.into_iter().enumerate() {
+        let shop_waits = self.forge_shop_waits();
+        for (index, section) in self.forge.sections().iter().copied().enumerate() {
             let token = SECTION_BASE + index as u16;
             let lit = section == self.forge.section;
             let hovered = self.ui.token_hovered(token);
             let badge = match section {
                 Section::Break if self.forge.spare.0 > 0 => Some(self.forge.spare.0.to_string()),
                 _ => None,
+            };
+            let dot = match section {
+                Section::Shop => shop_waits,
+                Section::Fuse => self.fuse_ready,
+                _ => false,
             };
             let label_room = label_width(section.label(), 24.0, self.widen);
             let badge_width = badge
@@ -284,6 +357,9 @@ impl Panel {
                     FontWeight::Semibold,
                     TextAlign::Center,
                 );
+            }
+            if dot {
+                kit::attention_dot(&mut self.ui, frame, [x + width - 8.0, SECTION_Y + 8.0]);
             }
             self.ui.hit_region(token, rect);
             x += width + 12.0;
@@ -469,6 +545,21 @@ impl Panel {
         } else {
             "Four saber shaders a day, the same for every player, for credits."
         });
+        // The wishlist under the chips, on a hub that keeps one (10/11/2026); the Shop's
+        // line stays behind the "i" chip.
+        if let Some(list) = self.forge.data.wishlist.clone() {
+            let words = wishlist_words(&list);
+            let _ = left_lines(
+                &mut self.ui,
+                frame,
+                &words,
+                [LEFT_X, WISHLIST_Y, 1_000.0],
+                (110, 2),
+                17.0,
+                color::MUTED,
+                TextAlign::Start,
+            );
+        }
         let (day, countdown) = match &self.forge.data.shop {
             Some(state) if state.message.is_empty() => (
                 format!("Your offers of {}", day_text(&state.day.day)),
@@ -618,16 +709,37 @@ impl Panel {
             FontWeight::Semibold,
             TextAlign::Center,
         );
+        // The deal of the day says what it cost before, struck through (10/11/2026).
+        let was = offer.deal.then(|| {
+            let table = crate::economy::table_price(tier);
+            priced(if table > offer.price {
+                table
+            } else {
+                offer.price * 2
+            })
+        });
+        let subtitle = was
+            .as_ref()
+            .map_or_else(|| "Saber shader".to_owned(), |was| format!("Was {was}"));
         text(
             &mut self.ui,
             TextFamily::Body,
-            format_args!("Saber shader"),
+            format_args!("{subtitle}"),
             frame.rect(x, y + 270.0, width, 22.0),
             15.0 * s,
             color::QUIET,
             FontWeight::Regular,
             TextAlign::Center,
         );
+        if was.is_some() {
+            let struck = body_width(&subtitle, 15.0) * self.widen;
+            let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+                rect: frame.rect(x + (width - struck) * 0.5, y + 281.0, struck, 1.6),
+                radius: 0.8 * s,
+                color: color::alpha(color::TEXT, 0.7),
+            });
+        }
+        self.forge_offer_marks(frame, &offer, [x, y, width]);
         if crate::economy::shop_in_shards() {
             crate::console::holocrons_panel::opening::shards_line(
                 &mut self.ui,
@@ -650,6 +762,10 @@ impl Panel {
             );
         }
         let (status, status_colour) = match state {
+            Can::Buy if offer.wished => (
+                format!("{}  On your wishlist", symbols::GIFT),
+                color::GOLD_BRIGHT,
+            ),
             Can::Buy => (String::new(), color::MUTED),
             Can::Bought => (
                 format!("{}  Bought today: it is yours", symbols::TICK),
@@ -715,6 +831,88 @@ impl Panel {
                 colour,
                 FontWeight::Semibold,
                 TextAlign::Center,
+            );
+        }
+    }
+
+    /// An offer's marks (10/11/2026): the deal of the day's ribbon and a Beta offer's
+    /// edition stamp over its blade's top corners, and its wishlist toggle at the card's top
+    /// right on a hub that keeps a wishlist.
+    fn forge_offer_marks(
+        &mut self,
+        frame: &Frame,
+        offer: &sjk_identity::Offer,
+        [x, y, width]: [f32; 3],
+    ) {
+        let s = frame.s;
+        let index = self
+            .forge
+            .offers()
+            .iter()
+            .position(|known| known.id == offer.id)
+            .unwrap_or(0);
+        if offer.deal {
+            let words = "Deal of the day  -50 %";
+            let pill = body_width(words, 14.0) * self.widen + 26.0;
+            let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+                rect: frame.rect(x + 30.0, y + 68.0, pill, 28.0),
+                radius: 14.0 * s,
+                color: color::GOLD,
+            });
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{words}"),
+                frame.rect(x + 30.0, y + 73.0, pill, 20.0),
+                14.0 * s,
+                Color::new(0.078, 0.063, 0.02, 1.0),
+                FontWeight::Semibold,
+                TextAlign::Center,
+            );
+        }
+        let edition = offer.edition.as_deref().unwrap_or(crate::editions::ALPHA);
+        if edition != crate::editions::ALPHA {
+            let words = format!("{}  {}", symbols::EDITION, crate::editions::name(edition));
+            let pill = body_width(&words, 14.0) * self.widen + 26.0;
+            let left = x + width - 30.0 - pill;
+            let rect = frame.rect(left, y + 68.0, pill, 28.0);
+            let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+                rect,
+                radius: 14.0 * s,
+                color: color::alpha(color::SPACE, 0.85),
+            });
+            let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+                rect,
+                radius: 14.0 * s,
+                width: 1.1 * s,
+                color: color::alpha(color::GOLD, 0.7),
+            });
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{words}"),
+                frame.rect(left, y + 73.0, pill, 20.0),
+                14.0 * s,
+                color::GOLD_BRIGHT,
+                FontWeight::Semibold,
+                TextAlign::Center,
+            );
+        }
+        if self.forge.data.wishlist.is_some()
+            && let Some(skin) = unlockables::find(&offer.id)
+        {
+            let on = self.forge.data.wished(skin.id);
+            let open = on
+                || (!self.forge.data.wishlist_full()
+                    && crate::wishlist::may_wish(skin, offer.owned || offer.bought));
+            marks_view::toggle(
+                &mut self.ui,
+                frame,
+                [x + width - marks_view::TOGGLE - 14.0, y + 12.0],
+                symbols::GIFT,
+                on,
+                open,
+                OFFER_WISH_BASE + index as u16,
             );
         }
     }
@@ -900,8 +1098,20 @@ impl Panel {
         let total = all.len();
         let shards = self.forge.data.shards.unwrap_or(0);
         let affordable = all.iter().filter(|item| item.cost <= shards).count();
+        let held = if total == 0 {
+            Vec::new()
+        } else {
+            held_matches(
+                &inputs.holdings,
+                &self.forge.craft_filter.shaders,
+                &self.marks,
+            )
+        };
         let line = if total == 0 {
             crate::terms::say("Every shader holocrons drop is yours already.").into_owned()
+        } else if !held.is_empty() && !self.forge.craft_list.is_empty() {
+            // Hub report #305: the search also names held shaders Craft leaves out.
+            held_note(&held)
         } else {
             format!(
                 "{total} saber shaders you lack, made with kyber shards: {affordable} within reach."
@@ -911,23 +1121,37 @@ impl Panel {
         self.forge_filter(frame, "Affordable", false);
         let list = self.forge.craft_list.clone();
         if list.is_empty() {
-            let (title, words) = if total == 0 {
-                (
-                    "Nothing left to craft",
-                    "You hold every saber shader holocrons drop. New ones join the Forge as \
-                     they come.",
+            let words: std::borrow::Cow<'_, str> = if total == 0 {
+                "You hold every saber shader holocrons drop. New ones join the Forge as they                  come."
+                    .into()
+            } else if let [skin] = held.as_slice() {
+                // Hub report #305: crafting refuses a held shader, so say why it is missing.
+                format!(
+                    "You hold the {} already. The Forge crafts only shaders you lack; another                      copy comes from holocrons.",
+                    skin.name
                 )
+                .into()
+            } else if !held.is_empty() {
+                format!(
+                    "You hold the {} shaders that match already. The Forge crafts only shaders                      you lack; other copies come from holocrons.",
+                    held.len()
+                )
+                .into()
             } else {
-                (
-                    "No shader matches",
-                    "T steps the tier, A shows only those within reach, / searches.",
-                )
+                "T steps the tier, A shows only those within reach, / searches.".into()
+            };
+            let title = if total == 0 {
+                "Nothing left to craft"
+            } else if held.is_empty() {
+                "No shader matches"
+            } else {
+                "Yours already"
             };
             self.forge_empty(
                 frame,
                 [LIST_LEFT, LIST_TOP, LIST_RIGHT - LIST_LEFT, 560.0],
                 title,
-                &crate::terms::say(words),
+                &crate::terms::say(&words),
             );
         }
         let first = self.forge.craft_first;
@@ -1617,8 +1841,10 @@ impl Panel {
     }
 
     /// The chosen shader's card on the right: its tier, its blade big, its name (the star
-    /// and the padlock at its right, on a hub that keeps them; the padlock while `owned`),
+    /// and the padlock at its right, on a hub that keeps them; the padlock while `owned`;
+    /// the wishlist's toggle before them while `wish` says it is on or not, 10/11/2026),
     /// its facts, what it is and its parts; returns where the words end (frame pixels).
+    #[allow(clippy::too_many_arguments)]
     fn forge_detail_head(
         &mut self,
         frame: &Frame,
@@ -1627,6 +1853,7 @@ impl Panel {
         inputs: &Inputs<'_>,
         seconds: f32,
         owned: bool,
+        wish: Option<bool>,
     ) -> f32 {
         let s = frame.s;
         let [x0, y0, width0, height0] = DETAIL;
@@ -1731,6 +1958,26 @@ impl Panel {
                 PADLOCK_TOKEN,
             );
             name_width = toggles_x - 16.0 - x;
+        }
+        if let Some(on) = wish {
+            let wish_x = x + name_width + 16.0
+                - marks_view::TOGGLE
+                - if self.marks.kept {
+                    marks_view::TOGGLE_GAP
+                } else {
+                    16.0
+                };
+            let open = on || !self.forge.data.wishlist_full();
+            marks_view::toggle(
+                &mut self.ui,
+                frame,
+                [wish_x, y + 6.0],
+                symbols::GIFT,
+                on,
+                open,
+                WISH_TOKEN,
+            );
+            name_width = wish_x - 16.0 - x;
         }
         text(
             &mut self.ui,
@@ -1897,7 +2144,14 @@ impl Panel {
             facts.push("Takes your colour".to_owned());
         }
         facts.push(format!("Smith: {}", skin.smith));
-        let _ = self.forge_detail_head(frame, skin, &facts, inputs, seconds, false);
+        // The wishlist's toggle, on a hub that keeps one (10/11/2026).
+        let wish = self
+            .forge
+            .data
+            .wishlist
+            .is_some()
+            .then(|| self.forge.data.wished(skin.id));
+        let _ = self.forge_detail_head(frame, skin, &facts, inputs, seconds, false, wish);
         let shards = self.forge.data.shards.unwrap_or(0);
         let reach = shards >= item.cost;
         let [x0, y0, width0, height0] = DETAIL;
@@ -2014,7 +2268,7 @@ impl Panel {
         if skin.chroma {
             facts.push("Takes your colour".to_owned());
         }
-        let _ = self.forge_detail_head(frame, skin, &facts, inputs, seconds, true);
+        let _ = self.forge_detail_head(frame, skin, &facts, inputs, seconds, true, None);
         let shards = self.forge.data.shards.unwrap_or(0);
         let [x0, y0, width0, height0] = DETAIL;
         let bottom = y0 + height0;
@@ -2226,6 +2480,373 @@ impl Panel {
                 frame,
                 press,
                 [x0 + PAD + 350.0, button_y, width0 - PAD * 2.0 - 350.0],
+            );
+        }
+    }
+
+    /// Fuse (10/11/2026): the tiers the hub fuses as chips, the chosen tier's duplicates
+    /// (the copies picked marked on them), and the fusion's card on the right.
+    fn forge_fuse(&mut self, frame: &Frame, inputs: &Inputs<'_>, seconds: f32) {
+        let s = frame.s;
+        let tier = self.forge.fuse_tier();
+        let need = self.forge.data.fuse_need(tier);
+        let line = match need {
+            Some(need) => crate::forge_fuse::summary(tier, need),
+            None => "Duplicates of one tier make a shader of the next you lack.".to_owned(),
+        };
+        self.forge_intro(&format!("{line}. You always keep a copy of each."));
+        // A chip a tier the hub fuses, in its colour: "Common to Uncommon".
+        let mut left = LEFT_X;
+        for (index, chip) in crate::forge_fuse::TIERS.into_iter().enumerate() {
+            let (Some(_), Some(next)) = (
+                self.forge.data.fuse_need(chip),
+                crate::forge_fuse::next_tier(chip),
+            ) else {
+                continue;
+            };
+            let token = FUSE_TIER_BASE + index as u16;
+            let label = format!("{} to {}", chip.label(), next.label());
+            let width = body_width(&label, 15.0) * self.widen + 30.0;
+            let rect = frame.rect(left, CHIPS_Y, width, CHIP_HEIGHT);
+            let lit = chip == tier;
+            let hovered = self.ui.token_hovered(token);
+            if lit || hovered {
+                let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+                    rect,
+                    radius: CHIP_HEIGHT * 0.5 * s,
+                    color: color::alpha(chip.colour(), if lit { 0.22 } else { 0.09 }),
+                });
+            }
+            let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+                rect,
+                radius: CHIP_HEIGHT * 0.5 * s,
+                width: 1.2 * s,
+                color: color::alpha(chip.colour(), if lit { 1.0 } else { 0.4 }),
+            });
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{label}"),
+                frame.rect(left, CHIPS_Y + 5.0, width, CHIP_HEIGHT - 10.0),
+                15.0 * s,
+                if lit { color::TEXT } else { color::MUTED },
+                FontWeight::Semibold,
+                TextAlign::Center,
+            );
+            self.ui.hit_region(token, rect);
+            left += width + 8.0;
+        }
+        let list = self.forge.fuse_list.clone();
+        if list.is_empty() {
+            let next = crate::forge_fuse::next_tier(tier).map_or("new", Rarity::label);
+            self.forge_empty(
+                frame,
+                [LIST_LEFT, LIST_TOP, LIST_RIGHT - LIST_LEFT, 560.0],
+                &format!("No {} duplicates yet", tier.label()),
+                &crate::terms::say_owned(format!(
+                    "A {} shader holocrons bring you again lands here: {} of them fuse into \
+                     a {next} shader you lack. T steps the tier.",
+                    tier.label(),
+                    need.unwrap_or(0)
+                )),
+            );
+        }
+        let first = self.forge.fuse_first;
+        let skins = std::sync::Arc::clone(&self.skins);
+        for (index, spare) in list.iter().enumerate() {
+            let shown = Item {
+                index,
+                skin: spare.skin,
+                price: format!("{} spare", spare.spare()),
+                reach: true,
+                count: spare.count,
+                look: skins.get(spare.skin.id),
+                favourite: self.marks.favourite(spare.skin.id),
+                locked: false,
+                new: self.marks.is_new(spare.skin.id),
+                worn: self.marks.worn(spare.skin.id),
+                picked: self.forge.fuse_copies(spare.skin.id),
+            };
+            self.forge_item(frame, &shown, first, self.forge.fuse, inputs, seconds);
+        }
+        self.forge_scroll(frame, first, list.len());
+        self.forge_detail_fuse(frame, tier, need, seconds);
+    }
+
+    /// Fuse's card on the right: from which tier to which, the copies picked, or the
+    /// shader the last fusion gave, revealed; then why it cannot go yet, the chosen card's
+    /// stepper, Propose and Fuse (pressed twice).
+    fn forge_detail_fuse(&mut self, frame: &Frame, tier: Rarity, need: Option<u32>, seconds: f32) {
+        let s = frame.s;
+        let now = Instant::now();
+        let next = crate::forge_fuse::next_tier(tier).unwrap_or(Rarity::Mythical);
+        let [x0, y0, width0, height0] = DETAIL;
+        let area = frame.rect(x0, y0, width0, height0);
+        let shown = self.forge.fused.map_or(next, |skin| skin.tier);
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect: area,
+            radius: RADIUS * s,
+            color: color::alpha(color::SPACE, 0.84),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::GradientRect {
+            rect: frame.rect(x0, y0, width0, 260.0),
+            radius: RADIUS * s,
+            gradient: sjk_ui::Gradient {
+                start: color::alpha(shown.colour(), 0.14),
+                end: color::alpha(shown.colour(), 0.0),
+                vertical: true,
+            },
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect: frame.rect(x0 + 24.0, y0, width0 - 48.0, 4.0),
+            radius: 2.0 * s,
+            color: shown.colour(),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect: area,
+            radius: RADIUS * s,
+            width: 1.4 * s,
+            color: color::alpha(shown.colour(), 0.8),
+        });
+        let x = x0 + PAD;
+        let width = width0 - PAD * 2.0;
+        let mut y = y0 + 22.0;
+        if let Some(skin) = self.forge.fused {
+            // The shader gained, revealed as a craft's: its tier, its blade, its name.
+            rarity_fx::draw(
+                self.ui.draw_list_mut(),
+                rarity_fx::Item::of(skin.tier, true, rarity_fx::Size::Full),
+                area,
+                RADIUS * s,
+                s,
+                seconds,
+            );
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!(
+                    "{}  {}  ·  Fused: it is yours",
+                    skin.tier.symbol(),
+                    skin.tier.label()
+                ),
+                frame.rect(x, y, width, 28.0),
+                21.0 * s,
+                skin.tier.colour(),
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            y += 40.0;
+            crate::blade_pictures::focus(skin.id);
+            let look = self.skins.get(skin.id);
+            let _ = swatch::small_swatch(
+                self.ui.draw_list_mut(),
+                frame,
+                [x, y, width, 150.0],
+                look,
+                true,
+                seconds,
+                0.0,
+            );
+            y += 168.0;
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!("{}", skin.name),
+                frame.rect(x, y, width, 58.0),
+                46.0 * s,
+                color::GOLD_BRIGHT,
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            y += 66.0;
+            let _ = left_lines(
+                &mut self.ui,
+                frame,
+                skin.description,
+                [x, y, width],
+                (80, 2),
+                17.0,
+                color::TEXT,
+                TextAlign::Start,
+            );
+        } else {
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!(
+                    "{}  {}   to   {}  {}",
+                    tier.symbol(),
+                    tier.label(),
+                    next.symbol(),
+                    next.label()
+                ),
+                frame.rect(x, y, width, 28.0),
+                21.0 * s,
+                next.colour(),
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            y += 40.0;
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!("Fuse duplicates"),
+                frame.rect(x, y, width, 58.0),
+                46.0 * s,
+                color::TEXT,
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            y += 66.0;
+            if let Some(need) = need {
+                y = left_lines(
+                    &mut self.ui,
+                    frame,
+                    &crate::forge_fuse::summary(tier, need),
+                    [x, y, width],
+                    (80, 2),
+                    17.0,
+                    color::TEXT,
+                    TextAlign::Start,
+                );
+            }
+            y += 10.0;
+            // The copies picked, a line each, the most first.
+            let picks = self.forge.fuse_picks.clone();
+            let shown_max = 6;
+            for (id, copies) in picks.iter().take(shown_max) {
+                let name = unlockables::find(id).map_or(*id, |skin| skin.name);
+                text(
+                    &mut self.ui,
+                    TextFamily::Body,
+                    format_args!("{}  {name}  x{copies}", symbols::COPIES),
+                    frame.rect(x, y, width, 22.0),
+                    16.0 * s,
+                    color::HOLO,
+                    FontWeight::Semibold,
+                    TextAlign::Start,
+                );
+                y += 26.0;
+            }
+            if picks.len() > shown_max {
+                text(
+                    &mut self.ui,
+                    TextFamily::Body,
+                    format_args!("and {} more", picks.len() - shown_max),
+                    frame.rect(x, y, width, 22.0),
+                    15.0 * s,
+                    color::QUIET,
+                    FontWeight::Regular,
+                    TextAlign::Start,
+                );
+            }
+        }
+        // The foot: why not yet (or what comes), the stepper, Propose and Fuse.
+        let bottom = y0 + height0;
+        let button_y = bottom - PAD - 56.0;
+        let check = self.forge.fuse_check();
+        let (note, note_colour) = match check {
+            Ok(()) => (
+                format!(
+                    "Ready: the SJK hub gives you a {} shader you lack.",
+                    next.label()
+                ),
+                color::GOLD_BRIGHT,
+            ),
+            Err(block) => (crate::forge_fuse::block_words(tier, block), color::EMBER),
+        };
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{note}"),
+            frame.rect(x, button_y - 64.0, width, 22.0),
+            15.0 * s,
+            note_colour,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        self.forge_answer_line(frame, Press::Fuse, [x, button_y - 36.0, width]);
+        let waiting = self.forge.waiting();
+        let open = self.forge.data.can_trade;
+        let armed = self.forge.is_armed(Press::Fuse, now);
+        let picked = self.forge.fuse_picked();
+        let need = need.unwrap_or(0);
+        let label = if waiting && self.forge.sent.is_some_and(|(_, sent)| sent == Press::Fuse) {
+            "Fusing...".to_owned()
+        } else if armed && check.is_ok() {
+            format!("Confirm: fuse {need} duplicates")
+        } else {
+            format!("Fuse  {picked} / {need}")
+        };
+        let ready = open && check.is_ok();
+        kit::button(
+            &mut self.ui,
+            frame,
+            [x, button_y, 300.0, 56.0],
+            &label,
+            ready,
+            ready && !waiting,
+            armed,
+            ACTION_TOKEN,
+        );
+        // The chosen card's copies, fewer and more.
+        let chosen = self.forge.fuse_list.get(self.forge.fuse).copied();
+        let copies = chosen.map_or(0, |spare| self.forge.fuse_copies(spare.skin.id));
+        let most = chosen.map_or(0, |spare| spare.spare());
+        let stepper = x + 316.0;
+        let fewer = open && !waiting && copies > 0;
+        let more = open && !waiting && copies < most && picked < need;
+        kit::button(
+            &mut self.ui,
+            frame,
+            [stepper, button_y, 56.0, 56.0],
+            "",
+            false,
+            fewer,
+            false,
+            PICK_LESS_TOKEN,
+        );
+        self.forge_step_sign(frame, [stepper, button_y], "-", fewer);
+        let words = match chosen {
+            None => String::new(),
+            Some(_) => format!("{copies} of {most}"),
+        };
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{words}"),
+            frame.rect(stepper + 60.0, button_y + 17.0, 92.0, 24.0),
+            17.0 * s,
+            if copies > 0 {
+                color::GOLD_BRIGHT
+            } else {
+                color::MUTED
+            },
+            FontWeight::Semibold,
+            TextAlign::Center,
+        );
+        kit::button(
+            &mut self.ui,
+            frame,
+            [stepper + 156.0, button_y, 56.0, 56.0],
+            "",
+            false,
+            more,
+            false,
+            PICK_MORE_TOKEN,
+        );
+        self.forge_step_sign(frame, [stepper + 156.0, button_y], "+", more);
+        let propose = (x + width) - (stepper + 228.0);
+        if propose >= 120.0 {
+            kit::button(
+                &mut self.ui,
+                frame,
+                [stepper + 228.0, button_y, propose, 56.0],
+                "Propose (P)",
+                false,
+                open && !waiting && !self.forge.fuse_list.is_empty(),
+                false,
+                PROPOSE_TOKEN,
             );
         }
     }
@@ -2676,11 +3297,37 @@ impl Panel {
                 let chosen = self.forge.chosen_shader();
                 hover::mark_card(token_mark(token), &self.marks, chosen)
             }
+            WISH_TOKEN => {
+                let skin = self.forge.craft_list.get(self.forge.craft)?.skin;
+                self.forge.data.wishlist.as_ref()?;
+                Some(hover::wish_card(
+                    self.forge.data.wished(skin.id),
+                    self.forge.data.wishlist_full(),
+                    true,
+                ))
+            }
+            token
+                if (OFFER_WISH_BASE..OFFER_WISH_BASE + 4).contains(&token)
+                    && self.forge.section == Section::Shop =>
+            {
+                let offer = self
+                    .forge
+                    .offers()
+                    .get(usize::from(token - OFFER_WISH_BASE))?;
+                let skin = unlockables::find(&offer.id)?;
+                self.forge.data.wishlist.as_ref()?;
+                Some(hover::wish_card(
+                    self.forge.data.wished(skin.id),
+                    self.forge.data.wishlist_full(),
+                    crate::wishlist::may_wish(skin, offer.owned || offer.bought),
+                ))
+            }
             token => {
                 let index = usize::from(token.checked_sub(TILE_BASE)?);
                 let skin = match self.forge.section {
                     Section::Craft => self.forge.craft_list.get(index)?.skin,
                     Section::Break => self.forge.break_list.get(index)?.skin,
+                    Section::Fuse => self.forge.fuse_list.get(index)?.skin,
                     Section::Shop => return None,
                 };
                 Some(hover::shader_card(
@@ -2691,6 +3338,29 @@ impl Panel {
             }
         }
     }
+}
+
+/// What the Shop says of the wishlist `list` (10/11/2026): the shaders on it, or how to
+/// fill it.
+pub(super) fn wishlist_words(list: &[String]) -> String {
+    if list.is_empty() {
+        return format!(
+            "Your wishlist is empty: wish for up to {} shaders you lack (the toggle on an \
+             offer, on Craft or on the Shaders tab). A wished offer is marked here.",
+            crate::wishlist::MAX
+        );
+    }
+    let names: Vec<&str> = list
+        .iter()
+        .map(|id| unlockables::find(id).map_or(id.as_str(), |skin| skin.name))
+        .collect();
+    format!(
+        "{}  Your wishlist ({} of {}): {}.",
+        symbols::GIFT,
+        list.len(),
+        crate::wishlist::MAX,
+        names.join(", ")
+    )
 }
 
 /// Which of the marks' hover cards the Forge's `token` asks for.

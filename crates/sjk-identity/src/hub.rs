@@ -482,6 +482,13 @@ pub trait Hub: Send {
             "this hub client does not send name emoji".to_owned(),
         ))
     }
+    /// Set the identity's custom SJK name ([`crate::wire::custom_name`], checked),
+    /// shown instead of the name worn in game; the hub answers with the key's profile.
+    fn set_name(&mut self, _identity: &Identity, _name: &str) -> Result<Profile, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not send names".to_owned(),
+        ))
+    }
     /// The PNG of `version` of `key_id`'s picture, as the hub serves it.
     fn avatar(&mut self, _key_id: &str, _version: &str) -> Result<Vec<u8>, HubError> {
         Err(HubError::Protocol(
@@ -607,6 +614,31 @@ pub trait Hub: Send {
     ) -> Result<crate::wire::CraftAnswer, HubError> {
         Err(HubError::Protocol(
             "this hub client does not craft shaders".to_owned(),
+        ))
+    }
+
+    /// Fuse duplicates into a shader of the next tier the person lacks (`POST
+    /// /v1/unlocks/fuse`, 10/11/2026, hubs whose economy says `fuse`): `ids` names each
+    /// shader once per copy given, all of one tier.
+    fn fuse_unlocks(
+        &mut self,
+        _identity: &Identity,
+        _ids: &[String],
+    ) -> Result<crate::wire::FuseAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not fuse shaders".to_owned(),
+        ))
+    }
+
+    /// Replace the person's wishlist with `ids`, up to three saber shaders (`PUT
+    /// /v1/shop/wishlist`, 10/11/2026, hubs whose economy sends `wishlist`).
+    fn set_wishlist(
+        &mut self,
+        _identity: &Identity,
+        _ids: &[String],
+    ) -> Result<crate::wire::WishlistAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not keep wishlists".to_owned(),
         ))
     }
 
@@ -1817,6 +1849,11 @@ impl Hub for HttpHub {
         parse(self.send(Some(identity), "PUT", "/v1/profile", Some(body))?)
     }
 
+    fn set_name(&mut self, identity: &Identity, name: &str) -> Result<Profile, HubError> {
+        let body = json!({ "name": name });
+        parse(self.send(Some(identity), "PUT", "/v1/profile", Some(body))?)
+    }
+
     fn set_achievements(
         &mut self,
         identity: &Identity,
@@ -2081,6 +2118,34 @@ impl Hub for HttpHub {
             "/v1/unlocks/craft",
             Some(json!({ "id": id })),
         )?)
+    }
+
+    fn fuse_unlocks(
+        &mut self,
+        identity: &Identity,
+        ids: &[String],
+    ) -> Result<crate::wire::FuseAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/unlocks/fuse",
+            Some(json!({ "ids": ids })),
+        )?)
+    }
+
+    fn set_wishlist(
+        &mut self,
+        identity: &Identity,
+        ids: &[String],
+    ) -> Result<crate::wire::WishlistAnswer, HubError> {
+        let answer = self.send(
+            Some(identity),
+            "PUT",
+            "/v1/shop/wishlist",
+            Some(json!({ "ids": ids })),
+        )?;
+        // An answer without the list (or none at all) keeps the list sent.
+        Ok(serde_json::from_value(answer).unwrap_or_default())
     }
 
     fn shatter_tag(

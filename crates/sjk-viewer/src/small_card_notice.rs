@@ -212,7 +212,7 @@ fn key(code: KeyCode) -> Option<Choice> {
 fn words(lightened: Lightened) -> String {
     let mut changes = Vec::new();
     if lightened.vanilla {
-        changes.push("Vanilla style graphics");
+        changes.push("Vanilla graphics");
     }
     if lightened.stock_blades {
         changes.push("other players' blades drawn stock");
@@ -227,7 +227,7 @@ fn words(lightened: Lightened) -> String {
     };
     format!(
         "Your graphics card has {} MiB of video memory, so SJK starts on lighter settings: \
-         {list}{}. Keep them for a steadier game, or go back to SJK (recommended) graphics. \
+         {list}{}. Keep them for a steadier game, or go back to Vanilla Plus graphics. \
          Each can be changed in Settings at any time.",
         lightened.mib,
         if lightened.smaller_textures {
@@ -322,9 +322,7 @@ mod tests {
             "{said}"
         );
         assert!(
-            said.contains(
-                "Vanilla style graphics, other players' blades drawn stock and a 60 FPS cap"
-            ),
+            said.contains("Vanilla graphics, other players' blades drawn stock and a 60 FPS cap"),
             "{said}"
         );
         let blades = words(Lightened {

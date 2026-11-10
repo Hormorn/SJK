@@ -27,7 +27,7 @@ pub(crate) struct Loaded {
     pub(crate) scene: FlattenedScene,
     /// The skeletons the worker parsed, kept for the next loads.
     pub(crate) cache: GlaCache,
-    /// Why the requested model could not be loaded; Kyle stands in.
+    /// Why the requested model could not be loaded; its stand-in is drawn.
     pub(crate) failed: Option<String>,
     /// Its textures' mip chains, built here.
     pub(crate) textures: crate::world_materials::WarmTextures,
@@ -52,8 +52,11 @@ pub(crate) struct Request {
     pub(crate) appearance: Appearance,
     pub(crate) entity_id: EntityId,
     pub(crate) saber_names: [Option<String>; 2],
-    /// The model failed in this world before: Kyle at once.
+    /// The model failed in this world before: its stand-in at once.
     pub(crate) known_failed: bool,
+    /// What is drawn when the model cannot be loaded: Kyle, or a retail model with
+    /// `cg_defaultModelRandom` ([`crate::actor_load::stand_in`]).
+    pub(crate) stand_in: Appearance,
     /// Build a body copy for the body pool: the player's bodies wear this model, not a
     /// forced or overridden one ([`GpuState::body_appearance`]).
     pub(crate) pool_body: bool,
@@ -216,7 +219,8 @@ impl Loads {
     }
 }
 
-/// The worker: the model (Kyle when it cannot be loaded), its mesh and its textures.
+/// The worker: the model (its stand-in when it cannot be loaded), its mesh and its
+/// textures.
 fn prepare(request: Request, sources: Sources) -> Prepared {
     let Sources {
         vfs,
@@ -237,12 +241,18 @@ fn prepare(request: Request, sources: Sources) -> Prepared {
         .map_err(|error| error.to_string())
     };
     let kyle = crate::actor_load::fallback_appearance();
-    let (preview, failed) = if request.known_failed {
-        (load(&kyle)?, None)
-    } else {
-        match load(&request.appearance) {
-            Ok(preview) => (preview, None),
-            Err(error) => (load(&kyle)?, Some(error)),
+    let (preview, failed) = match (!request.known_failed).then(|| load(&request.appearance)) {
+        Some(Ok(preview)) => (preview, None),
+        outcome => {
+            let (preview, drawn) = match load(&request.stand_in) {
+                Err(_) if request.stand_in != kyle => (load(&kyle)?, &kyle),
+                loaded => (loaded?, &request.stand_in),
+            };
+            // Name what is drawn, so the log shows which stand-in it took.
+            let failed = outcome
+                .and_then(Result::err)
+                .map(|error| format!("{error}; using {}/{}", drawn.model, drawn.variant));
+            (preview, failed)
         }
     };
     // As the world load pairs each player with one (`actor_load.rs`).
@@ -362,7 +372,7 @@ impl GpuState {
             .absorb(std::mem::take(&mut loaded.cache));
         if let Some(error) = &loaded.failed {
             log::progress(format_args!(
-                "could not load {}/{}: {error}; using Kyle",
+                "could not load {}/{}: {error}",
                 appearance.model, appearance.variant
             ));
             self.clientinfo_watch.failed.insert(appearance.clone());
@@ -480,6 +490,7 @@ mod tests {
             entity_id: EntityId::new(u64::from(client) + 1),
             saber_names: [None, None],
             known_failed: false,
+            stand_in: crate::actor_load::fallback_appearance(),
             pool_body: true,
         }
     }

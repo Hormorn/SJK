@@ -64,6 +64,11 @@ pub(crate) const GRAB: u16 = 28;
 pub(crate) const REMOVE: u16 = 29;
 /// Place: the placed model nudged along the world axis nearest the view's left, right,
 /// away and back.
+/// Select every surface and face of the selection's shader, every placed model; copy
+/// the selected placed models (Ctrl+D).
+pub(crate) const SELECT_SHADER: u16 = 32;
+pub(crate) const SELECT_PLACED: u16 = 33;
+pub(crate) const DUPLICATE: u16 = 39;
 pub(crate) const MOVE_LEFT: u16 = 34;
 pub(crate) const MOVE_RIGHT: u16 = 35;
 pub(crate) const FARTHER: u16 = 36;
@@ -73,6 +78,12 @@ pub(crate) const NEARER: u16 = 37;
 /// page): place one where the next click meets the floor, the toy's kind and escort,
 /// remove the chosen one.
 pub(crate) const PLACE_THINGS: u16 = 82;
+/// Place: models placed and grabbed stand along the surface (`mapedit_surface`).
+pub(crate) const PLACE_SURFACE: u16 = 81;
+/// Selected, on surfaces: select one ring more, or one less (`mapedit_select grow`,
+/// `shrink`).
+pub(crate) const SELECT_MORE: u16 = 48;
+pub(crate) const SELECT_LESS: u16 = 49;
 pub(crate) const PLACE_MODELS: u16 = 83;
 pub(crate) const THING_BOOMBOX: u16 = 84;
 pub(crate) const THING_BOX: u16 = 85;
@@ -119,6 +130,31 @@ pub(crate) const LIGHT_SWATCH: u16 = 70;
 /// Edits: the invisible brushes' view (`r_showBrushes`), `BRUSHES..BRUSHES + 4` for its
 /// presets ([`BrushPreset`]).
 pub(crate) const BRUSHES: u16 = 90;
+
+/// Selected, on a caulk, nodraw or sky face: the switch between the shader list and the
+/// texture's alignment, and the alignment's buttons (`ALIGN_STEPS`, in their order).
+pub(crate) const ALIGN: u16 = 600;
+pub(crate) const ALIGN_STEP: u16 = 601;
+
+/// The alignment's buttons, three rows of four: what each says and the step it takes
+/// ([`super::align`]), before Shift makes it fine.
+pub(crate) const ALIGN_STEPS: [(&str, super::align::Step); 12] = {
+    use super::align::{SCALE_STEP, SHIFT_STEP, Step, TURN_STEP};
+    [
+        ("Left", Step::Shift([SHIFT_STEP, 0.0])),
+        ("Right", Step::Shift([-SHIFT_STEP, 0.0])),
+        ("Up", Step::Shift([0.0, SHIFT_STEP])),
+        ("Down", Step::Shift([0.0, -SHIFT_STEP])),
+        ("Turn left", Step::Rotate(TURN_STEP)),
+        ("Turn right", Step::Rotate(-TURN_STEP)),
+        ("Smaller", Step::Scale([1.0 / SCALE_STEP; 2])),
+        ("Bigger", Step::Scale([SCALE_STEP; 2])),
+        ("Flip across", Step::Scale([-1.0, 1.0])),
+        ("Flip down", Step::Scale([1.0, -1.0])),
+        ("Fit", Step::Fit),
+        ("Reset", Step::Reset),
+    ]
+};
 
 /// The browser editor's brush-view presets, as `r_showBrushes` and `r_showBrushesTypes`
 /// set them: none, what play feels (`r_showBrushes 1`), the faces a caulk fix is about
@@ -366,6 +402,11 @@ pub(crate) enum Action {
     Link(Grow),
     /// Draw the selected faces with the nearby texture.
     Fill,
+    /// `mapedit_select shader` and `mapedit_select placed` (Shift: added).
+    SelectShader,
+    SelectPlaced,
+    /// `mapedit_duplicate`: copies of the selected placed models (Ctrl+D).
+    Duplicate,
     Place,
     Turn(f32),
     Lift(f32),
@@ -415,7 +456,34 @@ pub(crate) enum Action {
     /// Lights: the chosen lamp off or on, and back as the map has it.
     LampToggle,
     LampReset,
+    /// F: glide the camera to frame the selection (`mapedit_frame`).
+    Frame,
+    /// A step of the selected faces' texture alignment (`mapedit_align`).
+    Align(super::align::Step),
+    /// Place's Surface switch (`mapedit_surface`).
+    OnSurface,
+    /// Grow, shrink or invert the selection (`mapedit_select grow|shrink|invert`).
+    Ring(super::select_grow::Ring),
+    /// M: the measure tool on or off (`mapedit_measure`).
+    Measure,
+    /// A double click on a row: glide the camera to what it names.
+    FlyTo(FlyTarget),
 }
+
+/// What a double click on a row flies to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum FlyTarget {
+    /// The chosen edit of the Edits list.
+    Edit,
+    /// The chosen thing of Place's things.
+    Thing,
+    /// The chosen added light, or lamp, of Lights.
+    Light,
+    Lamp,
+}
+
+/// A second click on the same row this soon after the first is a double click.
+const DOUBLE_CLICK: std::time::Duration = std::time::Duration::from_millis(450);
 
 /// What the selection is, as the panel names it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -479,6 +547,11 @@ pub(crate) struct Facts {
     /// The nearby vote's first [`FILL_CANDIDATES`], with their shares: a face's shader
     /// list starts with them.
     pub(crate) fill_candidates: Vec<(String, f32)>,
+    /// The nearby vote round the selected drawn surfaces, and the map's most used
+    /// shaders: with the family of the selection's shader, the Suggested rows
+    /// ([`super::suggest`]).
+    pub(crate) nearby: Vec<(String, f32)>,
+    pub(crate) map_usage: Vec<(String, u32)>,
     /// Why the editor has the player's own view, not the free camera, when it has.
     pub(crate) camera: Option<String>,
     /// The editor flies (the right mouse button held).
@@ -521,6 +594,10 @@ pub(crate) struct Facts {
     pub(crate) creator: bool,
     /// The invisible brushes' view in force, when it is one of the presets.
     pub(crate) brushes: Option<BrushPreset>,
+    /// How the newest selected face's texture lies, when an edit draws it.
+    pub(crate) align: Option<super::document::Align>,
+    /// Models placed and grabbed stand along the surface (`mapedit_surface`).
+    pub(crate) on_surface: bool,
 }
 
 /// What the panel's facts were read for ([`Panel`]'s `seen`): the document's revision,
@@ -589,9 +666,12 @@ pub(crate) struct Panel {
     pub(crate) transforming: bool,
     /// The shader list drawn as tiles (pictures only, more of them) instead of rows.
     pub(crate) tiles: bool,
-    /// How many rows at the head of the shader list are Fill's candidates (before the
-    /// Recent ones).
+    /// How many rows at the head of the shader list are Suggested ones (before the
+    /// Recent ones), and why each is ([`super::suggest`]).
     pub(crate) candidate_rows: usize,
+    pub(crate) suggested: Vec<super::suggest::Reason>,
+    /// The drawn surfaces the last surface vote was asked for.
+    surfaces_for: Option<(String, bool, Vec<usize>)>,
     /// The shader row or tile under the pointer (its index in the list), for the preview.
     pub(crate) hover_shader: Option<usize>,
     /// Where the large preview card lies (window pixels): a press there is the panel's.
@@ -620,6 +700,17 @@ pub(crate) struct Panel {
     pub(crate) thing_list: Option<Rect>,
     /// The last copy (Ctrl+C), with its angles and scale ([`super::clip`]).
     pub(crate) clip: Option<super::clip::Clip>,
+    /// The pointer over the scene: the hover, a box being drawn ([`super::select`]).
+    pub(crate) scene: super::select::ScenePointer,
+    /// The remap previewed from the shader list ([`super::preview`]).
+    pub(crate) preview: super::preview::Preview,
+    /// The last click on a list's row (its token) and when: a second soon after is a
+    /// double click ([`DOUBLE_CLICK`]).
+    last_click: Option<(u16, std::time::Instant)>,
+    /// Selected shows a face's texture alignment instead of the shader list.
+    pub(crate) aligning: bool,
+    /// The measure tool ([`super::measure`]).
+    pub(crate) measure: super::measure::Measure,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -828,13 +919,40 @@ impl Panel {
     pub(crate) fn refilter_shaders(&mut self) {
         let query = self.remap.trim().to_ascii_lowercase();
         self.shader_shown.clear();
-        // On faces, Fill's candidates first (whatever the search), then the Recent rows
-        // (those the search keeps), then every match.
-        for (name, _) in &self.facts.fill_candidates {
-            if let Ok(index) = self.shaders.binary_search(&shader_stem(name))
-                && !self.shader_shown.contains(&(index as u32))
-            {
+        // The Suggested rows first (whatever the search: on faces Fill's candidates lead
+        // them), then the Recent rows (those the search keeps), then every match.
+        let own_shader = self
+            .facts
+            .selection
+            .as_ref()
+            .and_then(|selection| selection.shader.as_deref());
+        let nearby = if self.facts.fill_candidates.is_empty() {
+            &self.facts.nearby
+        } else {
+            &self.facts.fill_candidates
+        };
+        // A caulk or nodraw face's own shader is a tool's: its family (caulk_water,
+        // caulk_lava...) is nothing to draw on it.
+        let on_face = self
+            .facts
+            .selection
+            .as_ref()
+            .is_some_and(|selection| selection.picked == Picked::Face);
+        let kin = own_shader
+            .filter(|_| !on_face)
+            .map_or_else(Vec::new, |own| super::suggest::family(own, &self.shaders));
+        let shaders = &self.shaders;
+        let suggestions =
+            super::suggest::merge(own_shader, nearby, &kin, &self.facts.map_usage, |shader| {
+                shaders
+                    .binary_search_by(|known| known.as_str().cmp(shader))
+                    .is_ok()
+            });
+        self.suggested.clear();
+        for (name, reason) in suggestions {
+            if let Ok(index) = self.shaders.binary_search(&name) {
                 self.shader_shown.push(index as u32);
+                self.suggested.push(reason);
             }
         }
         self.candidate_rows = self.shader_shown.len();
@@ -878,7 +996,10 @@ impl Panel {
                 .iter()
                 .position(|&index| self.shaders[index as usize] == name)
         };
+        // The name typed, else the first Suggested row (the list opens on them), else the
+        // selection's own shader among its neighbours.
         self.shader_row = named(&query)
+            .or_else(|| (self.candidate_rows > 0).then_some(0))
             .or_else(|| own.as_deref().and_then(named))
             .unwrap_or(0);
         self.shader_first = 0;
@@ -931,24 +1052,24 @@ impl Panel {
         self.pictures.thumbnail(shader)
     }
 
-    /// The share of the vote of the shader list's row `index`, when it is one of Fill's
-    /// candidates.
+    /// The share of the vote of the shader list's row `index`, when it is suggested for
+    /// being nearby.
     pub(crate) fn candidate_share(&self, index: usize) -> Option<f32> {
-        if index >= self.candidate_rows {
-            return None;
+        match self.suggestion(index)? {
+            super::suggest::Reason::Nearby(share) => Some(share),
+            _ => None,
         }
-        let shader = self.shown_shader(index)?;
-        self.facts
-            .fill_candidates
-            .iter()
-            .find(|(name, _)| shader_stem(name) == shader)
-            .map(|(_, share)| *share)
     }
 
-    /// What Fill draws: the chosen row when it is one of the candidates, else the vote's
-    /// first.
+    /// Why the shader list's row `index` is suggested, when it is.
+    pub(crate) fn suggestion(&self, index: usize) -> Option<super::suggest::Reason> {
+        self.suggested.get(index).copied()
+    }
+
+    /// What Fill draws: the chosen row when it is one of Fill's candidates (suggested for
+    /// being nearby on faces), else the vote's first.
     pub(crate) fn fill_choice(&self) -> Option<&str> {
-        (self.shader_row < self.candidate_rows)
+        (!self.facts.fill_candidates.is_empty() && self.candidate_share(self.shader_row).is_some())
             .then(|| self.chosen_shader())
             .flatten()
     }
@@ -1321,7 +1442,38 @@ impl Panel {
             return None;
         }
         self.focus = token;
-        self.activate(token)
+        let double = self.double_click(token, std::time::Instant::now());
+        let action = self.activate(token);
+        match double {
+            Some(target) => Some(Action::FlyTo(target)),
+            None => action,
+        }
+    }
+
+    /// A click on `token` at `now`: what it flies to when it is the second click of a
+    /// double click on a row of the edits, things, lights or lamps.
+    pub(crate) fn double_click(
+        &mut self,
+        token: u16,
+        now: std::time::Instant,
+    ) -> Option<FlyTarget> {
+        let target = if self.is_edit_row(token) {
+            FlyTarget::Edit
+        } else if self.is_thing_row(token) {
+            FlyTarget::Thing
+        } else if self.is_light_row(token) {
+            FlyTarget::Light
+        } else if self.is_lamp_row(token) {
+            FlyTarget::Lamp
+        } else {
+            self.last_click = None;
+            return None;
+        };
+        let second = self
+            .last_click
+            .is_some_and(|(last, when)| last == token && now.duration_since(when) <= DOUBLE_CLICK);
+        self.last_click = (!second).then_some((token, now));
+        second.then_some(target)
     }
 
     /// Enter, Space or a click on `token`.
@@ -1384,7 +1536,17 @@ impl Panel {
             LINK_PLANE => return Some(Action::Link(Grow::Plane)),
             LINK_SURFACE => return Some(Action::Link(Grow::Surface)),
             FILL => return Some(Action::Fill),
+            SELECT_SHADER => return Some(Action::SelectShader),
+            SELECT_PLACED => return Some(Action::SelectPlaced),
+            DUPLICATE => return Some(Action::Duplicate),
             TILES => self.toggle_tiles(),
+            PLACE_SURFACE => return Some(Action::OnSurface),
+            SELECT_MORE => return Some(Action::Ring(super::select_grow::Ring::Grow)),
+            SELECT_LESS => return Some(Action::Ring(super::select_grow::Ring::Shrink)),
+            ALIGN => self.aligning = !self.aligning,
+            step if (ALIGN_STEP..ALIGN_STEP + ALIGN_STEPS.len() as u16).contains(&step) => {
+                return Some(Action::Align(ALIGN_STEPS[usize::from(step - ALIGN_STEP)].1));
+            }
             REMEMBER => return Some(Action::Remember),
             FORGET => return Some(Action::Forget),
             PLACE | SEARCH => return Some(Action::Place),
@@ -1562,10 +1724,40 @@ impl Panel {
                     Action::ClipPaste
                 });
             }
+            KeyCode::KeyD
+                if control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(Action::Duplicate);
+            }
             KeyCode::KeyB
                 if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
             {
                 return Some(Action::Brushes(None));
+            }
+            KeyCode::KeyF
+                if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(Action::Frame);
+            }
+            KeyCode::KeyM
+                if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(Action::Measure);
+            }
+            // Blender's Select More, Less and Invert: Ctrl with + (or =), - and I.
+            KeyCode::Equal
+            | KeyCode::NumpadAdd
+            | KeyCode::Minus
+            | KeyCode::NumpadSubtract
+            | KeyCode::KeyI
+                if control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                use super::select_grow::Ring;
+                return Some(Action::Ring(match key {
+                    KeyCode::Equal | KeyCode::NumpadAdd => Ring::Grow,
+                    KeyCode::KeyI => Ring::Invert,
+                    _ => Ring::Shrink,
+                }));
             }
             KeyCode::Delete if self.is_edit_row(self.focus) && !event.repeat => {
                 return Some(Action::Delete);
@@ -1645,6 +1837,9 @@ impl GpuState {
 
     /// Close the panel (the editor going off, or a world shot).
     pub(crate) fn close_map_edit_panel(&mut self) {
+        self.world_notes.set_hover(None);
+        self.map_edits.panel.scene = super::select::ScenePointer::default();
+        self.map_edit_preview_off();
         if self.map_edit_panel_open() {
             self.game_menu = false;
             self.game_menu_page = Page::Main;
@@ -1717,6 +1912,25 @@ impl GpuState {
     /// grabbed model.
     pub(crate) fn map_edit_pointer(&mut self, event: InputEvent) {
         let scene_right = self.map_edits.panel.scene_right;
+        // A press held on the scene: its moves draw a box, its release selects
+        // ([`super::select`]); the gizmo never saw that press.
+        match event {
+            InputEvent::PointerMove(at) => {
+                if self.map_edit_scene_move([at.x, at.y]) {
+                    return;
+                }
+            }
+            InputEvent::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            } => {
+                if self.map_edit_scene_release() {
+                    return;
+                }
+            }
+            InputEvent::PointerLeave => self.map_edits.panel.scene.at = None,
+            _ => {}
+        }
         // The preview card stands over the scene's edge: a press on it is the panel's.
         if let InputEvent::PointerPress { position, .. } = event
             && self
@@ -1745,10 +1959,9 @@ impl GpuState {
         if self.map_edit_gizmo_pointer(event) {
             return;
         }
-        let shift = self
-            .console
-            .as_ref()
-            .is_some_and(|console| console.shift_held());
+        let (shift, control) = self.console.as_ref().map_or((false, false), |console| {
+            (console.shift_held(), console.control_held())
+        });
         match event {
             InputEvent::PointerPress {
                 position,
@@ -1766,6 +1979,10 @@ impl GpuState {
                     self.map_edit_light_add_at(point);
                     return;
                 }
+                if self.map_edits.panel.measure.on {
+                    self.map_edit_measure_at(point);
+                    return;
+                }
                 if let Some(thing) = self.map_edits.panel.placing_thing {
                     self.map_edit_thing_at(thing, point);
                     return;
@@ -1777,13 +1994,15 @@ impl GpuState {
                     self.map_edit_choose_light(choice, index);
                     return;
                 }
-                if shift {
-                    let toggled = self.map_edit_toggle_pick(Some(point));
-                    self.map_edit_toggled(toggled);
+                // A click selects at the release; a drag draws a box.
+                let combine = if control {
+                    crate::world_notes::Combine::Remove
+                } else if shift {
+                    crate::world_notes::Combine::Add
                 } else {
-                    let picked = self.map_edit_pick_at(point);
-                    self.map_edit_picked(picked, "Nothing there to edit");
-                }
+                    crate::world_notes::Combine::Replace
+                };
+                self.map_edit_scene_press(point, combine);
                 return;
             }
             InputEvent::PointerWheel { position, delta }
@@ -1820,9 +2039,13 @@ impl GpuState {
                 away: away.signum() * f32::from(away != 0.0),
             },
             Action::Scale(factor) if fine => Action::Scale(factor.powf(0.1)),
+            Action::Align(step) if fine => Action::Align(super::align::fine(step)),
             action => action,
         };
         let (name, args): (&str, Vec<String>) = match action {
+            Action::Escape if self.map_edits.panel.measure.on => {
+                ("mapedit_measure", text(&["off"]))
+            }
             Action::Escape if self.map_edits.panel.adding_light => {
                 let panel = &mut self.map_edits.panel;
                 panel.adding_light = false;
@@ -1964,6 +2187,19 @@ impl GpuState {
             Action::Unremap => ("mapedit_remap", text(&["-"])),
             Action::Link(Grow::Plane) => ("mapedit_link", text(&["plane"])),
             Action::Link(Grow::Surface) => ("mapedit_link", text(&["surface"])),
+            Action::SelectShader | Action::SelectPlaced => {
+                let what = if action == Action::SelectShader {
+                    "shader"
+                } else {
+                    "placed"
+                };
+                let mut words = vec![what.to_owned()];
+                if fine {
+                    words.push("add".to_owned());
+                }
+                ("mapedit_select", words)
+            }
+            Action::Duplicate => ("mapedit_duplicate", vec![]),
             Action::Fill => match self.map_edits.panel.fill_choice() {
                 Some(shader) => ("mapedit_fill", vec![shader.to_owned()]),
                 None => ("mapedit_fill", vec![]),
@@ -2036,6 +2272,30 @@ impl GpuState {
                     return;
                 }
             },
+            Action::Frame => ("mapedit_frame", vec![]),
+            Action::Measure => ("mapedit_measure", vec![]),
+            Action::Ring(ring) => (
+                "mapedit_select",
+                text(&[match ring {
+                    super::select_grow::Ring::Grow => "grow",
+                    super::select_grow::Ring::Shrink => "shrink",
+                    super::select_grow::Ring::Invert => "invert",
+                }]),
+            ),
+            Action::OnSurface => {
+                let on = !self.map_edits.editor.on_surface();
+                ("mapedit_surface", text(&[if on { "on" } else { "off" }]))
+            }
+            Action::Align(step) => ("mapedit_align", super::align::words(step)),
+            Action::FlyTo(target) => match self.map_edit_fly_target(target) {
+                Ok((centre, radius)) => {
+                    ("mapedit_frame", super::fly_to::frame_words(centre, radius))
+                }
+                Err(why) => {
+                    self.map_edits.panel.answer(Err(why));
+                    return;
+                }
+            },
             Action::Undo => ("mapedit_undo", vec![]),
             Action::Redo => ("mapedit_redo", vec![]),
             Action::Scope(Scope::AllServers) => ("mapedit_scope", text(&["all"])),
@@ -2075,8 +2335,42 @@ impl GpuState {
             Action::Remap if ok && self.world_notes.edit_selection_len() <= 1 => {
                 panel.remap.clear();
             }
-            Action::Link(_) if ok => panel.show(Tab::Selected),
+            Action::Link(_) | Action::SelectShader | Action::Ring(_) if ok => {
+                panel.show(Tab::Selected);
+            }
             _ => {}
+        }
+    }
+
+    /// Where a double-clicked row's thing stands, and how big it is.
+    fn map_edit_fly_target(&self, target: FlyTarget) -> Result<(glam::Vec3, f32), String> {
+        use super::fly_to::POINT_RADIUS;
+        let panel = &self.map_edits.panel;
+        match target {
+            FlyTarget::Edit => {
+                let id = panel
+                    .chosen_edit()
+                    .ok_or("Choose an edit in the list first")?;
+                self.map_edit_edit_sphere(id)
+            }
+            FlyTarget::Thing => panel
+                .chosen_thing()
+                .map(|thing| (thing.origin, POINT_RADIUS))
+                .ok_or_else(|| "Choose a thing in the list first".to_owned()),
+            FlyTarget::Light => {
+                let row = panel
+                    .facts
+                    .lights
+                    .get(panel.light_row)
+                    .ok_or("Choose a light in the list first")?;
+                Ok((glam::Vec3::from_array(row.origin), POINT_RADIUS))
+            }
+            FlyTarget::Lamp => panel
+                .facts
+                .lamps
+                .get(panel.lamp_row)
+                .map(|lamp| (lamp.at(), POINT_RADIUS))
+                .ok_or_else(|| "Choose a lamp in the list first".to_owned()),
         }
     }
 
@@ -2150,7 +2444,7 @@ impl GpuState {
     /// The world offset of a nudge `right` of the view and `away` from it, along the
     /// world axes nearest those directions (a map's walls mostly follow them), so steps
     /// add up straight.
-    fn map_edit_nudge(&self, right: f32, away: f32) -> Option<[f32; 3]> {
+    pub(super) fn map_edit_nudge(&self, right: f32, away: f32) -> Option<[f32; 3]> {
         let (_, forward) = self.world_notes.view()?;
         // The view's heading on the floor, snapped to an axis.
         let ahead = if forward.x.abs() >= forward.y.abs() {
@@ -2211,6 +2505,8 @@ impl GpuState {
     /// Once a frame while the panel is open: read the facts again when the edits, the
     /// placed model or the grab changed (allocation-free otherwise).
     pub(crate) fn refresh_map_edit_panel(&mut self) {
+        self.map_edit_hover_tick();
+        self.map_edit_preview_tick();
         let editor = &self.map_edits.editor;
         let key = (
             self.map_edits.revision,
@@ -2226,6 +2522,7 @@ impl GpuState {
             return;
         }
         self.map_edits.panel.seen = Some(key);
+        self.world_notes.recheck_hover();
         let selection = self.map_edit_selected();
         let server = self.map_edits_server();
         let first_key = |command: &str| {
@@ -2260,6 +2557,25 @@ impl GpuState {
             panel.facts.fill_candidates = candidates;
             panel.fill_for = faces;
         }
+        // The vote round the selected drawn surfaces, again only when they change.
+        let surfaces = (
+            self.world_load_map.clone(),
+            self.map_edits.map().is_some(),
+            self.map_edit_selected_surfaces(),
+        );
+        if self.map_edits.panel.surfaces_for.as_ref() != Some(&surfaces) {
+            let (nearby, usage) = if surfaces.1 {
+                self.map_edit_surface_vote(&surfaces.2)
+            } else {
+                (Vec::new(), Vec::new())
+            };
+            let panel = &mut self.map_edits.panel;
+            panel.facts.nearby = nearby;
+            panel.facts.map_usage = usage;
+            panel.surfaces_for = Some(surfaces);
+        }
+        let nearby = self.map_edits.panel.facts.nearby.clone();
+        let map_usage = self.map_edits.panel.facts.map_usage.clone();
         let fill = self.map_edits.panel.facts.fill.clone();
         let fill_candidates = self.map_edits.panel.facts.fill_candidates.clone();
         let count = self.world_notes.edit_selection_len();
@@ -2330,6 +2646,7 @@ impl GpuState {
             )
         });
         let forced = self.context.weather.force() != 0;
+        let align = self.map_edit_selected_align();
         let hub_problem = match &state.hub_note {
             Some(Err(problem)) => Some(problem.clone()),
             _ => None,
@@ -2349,6 +2666,8 @@ impl GpuState {
             models,
             fill,
             fill_candidates,
+            nearby,
+            map_usage,
             camera,
             flying,
             exit_key,
@@ -2372,6 +2691,8 @@ impl GpuState {
             on_server,
             creator,
             brushes,
+            align,
+            on_surface: state.editor.on_surface(),
         };
         let vfs = self.vfs.clone();
         let panel = &mut self.map_edits.panel;
@@ -2711,12 +3032,27 @@ mod tests {
         ]);
         panel.prefill_remap();
         assert_eq!(panel.remap, "textures/yavin/");
-        assert_eq!(panel.shader_shown.len(), 3);
+        // floor2 is suggested as its family, then the folder's three
+        assert_eq!(panel.shader_shown.len(), 4);
+        assert_eq!(panel.candidate_rows, 1);
+        assert_eq!(panel.shown_shader(0), Some("textures/yavin/floor2"));
+        assert_eq!(
+            panel.suggestion(0),
+            Some(super::super::suggest::Reason::Family)
+        );
         assert_eq!(
             panel.chosen_shader(),
-            Some("textures/yavin/floor"),
-            "its own shader is chosen first"
+            Some("textures/yavin/floor2"),
+            "the list opens on its suggestions"
         );
+        // Without any, its own shader is chosen among its neighbours.
+        panel.set_shaders(&[
+            "textures/korriban/wall",
+            "textures/yavin/floor",
+            "textures/yavin/stone",
+        ]);
+        assert_eq!(panel.candidate_rows, 0);
+        assert_eq!(panel.chosen_shader(), Some("textures/yavin/floor"));
         // Typed since: another selection leaves the search alone.
         panel.remap = "stone".to_owned();
         panel.refilter_shaders();
@@ -2845,5 +3181,31 @@ mod tests {
         assert_eq!(panel.activate(MODEL_ROW + 1), None);
         assert_eq!(panel.chosen_model(), Some("models/b.md3"));
         assert_eq!(panel.activate(MODEL_ROW + 1), Some(Action::Place));
+    }
+
+    /// Two quick clicks on one row of the edits, things, lights or lamps fly to it; a
+    /// slow second click, another row or a button does not.
+    #[test]
+    fn a_double_click_on_a_row_flies_to_it() {
+        let mut panel = Panel::default();
+        let now = std::time::Instant::now();
+        let soon = now + DOUBLE_CLICK / 2;
+        assert_eq!(panel.double_click(EDIT_ROW + 2, now), None);
+        assert_eq!(
+            panel.double_click(EDIT_ROW + 2, soon),
+            Some(FlyTarget::Edit)
+        );
+        // a third click starts over
+        assert_eq!(panel.double_click(EDIT_ROW + 2, soon), None);
+        assert_eq!(panel.double_click(LIGHT_ROW, now), None);
+        assert_eq!(panel.double_click(LIGHT_ROW + 1, soon), None, "another row");
+        let late = soon + DOUBLE_CLICK * 2;
+        assert_eq!(panel.double_click(LIGHT_ROW + 1, late), None, "too slow");
+        assert_eq!(panel.double_click(THING_ROW, now), None);
+        assert_eq!(panel.double_click(THING_ROW, soon), Some(FlyTarget::Thing));
+        assert_eq!(panel.double_click(LAMP_ROW, now), None);
+        assert_eq!(panel.double_click(LAMP_ROW, soon), Some(FlyTarget::Lamp));
+        assert_eq!(panel.double_click(HIDE, now), None);
+        assert_eq!(panel.double_click(HIDE, soon), None, "a button is no row");
     }
 }

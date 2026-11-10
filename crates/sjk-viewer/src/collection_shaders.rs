@@ -2235,6 +2235,29 @@ impl Panel {
             );
             right = toggles_x - 12.0;
         }
+        // The wishlist's toggle before them, on a hub that keeps a wishlist (10/11/2026):
+        // a shader of the trade the player lacks, or one on the list already.
+        self.shader_wish = None;
+        if let Some(skin) = row.skin
+            && let Some(list) = inputs.snapshot.and_then(crate::wishlist::of)
+        {
+            let on = list.iter().any(|id| id == skin.id);
+            let full = list.len() >= crate::wishlist::MAX;
+            if on || crate::wishlist::may_wish(skin, row.owned) {
+                let wish_x = right - marks_view::TOGGLE;
+                marks_view::toggle(
+                    &mut self.ui,
+                    frame,
+                    [wish_x, button_y],
+                    symbols::GIFT,
+                    on,
+                    on || !full,
+                    SHADER_WISH_TOKEN,
+                );
+                self.shader_wish = Some((skin.id, on, full));
+                right = wish_x - 12.0;
+            }
+        }
         self.trade_buttons(frame, row, inputs, [left, button_y], right);
     }
 
@@ -3486,6 +3509,63 @@ mod tests {
     /// The wall and the list, their tiles, rows and words, fit the canvas over the keys
     /// and left of the saber at 1080 lines, 4K, 4:3 and 21:9, wherever they scroll (the
     /// larger menu text sizes are a world shot's: the style is the whole process's).
+    #[test]
+    fn the_wishlist_toggle_stands_on_the_card_of_a_shader_lacked() {
+        let held = [unlock("saber_sun")];
+        let font = crate::text::load_modern(1.0, None).expect("Inter").font;
+        let mut snapshot = super::super::forge::sample_snapshot(Vec::new());
+        for wishlist in [Vec::new(), vec!["a".into(), "b".into(), "c".into()]] {
+            if let Some(economy) = snapshot.economy.as_mut() {
+                economy.wishlist = Some(wishlist.clone());
+            }
+            for viewport in [[1_920.0, 1_080.0], [3_840.0, 2_160.0], [1_440.0, 1_080.0]] {
+                let inputs = Inputs {
+                    snapshot: Some(&snapshot),
+                    ..super::super::tests::inputs(unlockables::Holdings::Known(&held), "saber_sun")
+                };
+                let mut panel = Panel::new();
+                panel.open(Tab::Shaders, true, true, ReturnTarget::MainMenu);
+                panel.set_backstage(Backstage::World { head: None });
+                panel.build(&inputs, &font, viewport);
+                // A shader of the trade the player lacks.
+                panel.shader = (0..SHADER_ROWS)
+                    .find(|row| {
+                        panel.skin_at(*row).is_some_and(|skin| {
+                            crate::economy::in_trade(skin) && skin.id != "saber_sun"
+                        })
+                    })
+                    .unwrap_or(1);
+                panel.build(&inputs, &font, viewport);
+                assert!(!panel.ui.overflowed(), "{viewport:?}");
+                let skin = panel.skin_at(panel.shader).unwrap();
+                assert!(crate::economy::in_trade(skin), "{}", skin.id);
+                {
+                    let full = wishlist.len() == 3;
+                    assert_eq!(panel.shader_wish, Some((skin.id, false, full)));
+                    assert!(panel.ui.rect_for(SHADER_WISH_TOKEN).is_some());
+                    let action = panel.toggle_wish();
+                    if full {
+                        assert_eq!(action, PanelAction::None, "a full list takes no more");
+                    } else {
+                        assert_eq!(action, PanelAction::Wish(skin.id, true));
+                    }
+                }
+            }
+        }
+        // A hub without a wishlist: no toggle.
+        if let Some(economy) = snapshot.economy.as_mut() {
+            economy.wishlist = None;
+        }
+        let inputs = Inputs {
+            snapshot: Some(&snapshot),
+            ..super::super::tests::inputs(unlockables::Holdings::Known(&held), "saber_sun")
+        };
+        let mut panel = Panel::new();
+        panel.open(Tab::Shaders, true, true, ReturnTarget::MainMenu);
+        panel.build(&inputs, &font, [1_920.0, 1_080.0]);
+        assert_eq!(panel.shader_wish, None);
+    }
+
     #[test]
     fn the_wall_and_the_list_fit_over_the_keys_at_every_shape() {
         let held = [unlock("saber_sun")];

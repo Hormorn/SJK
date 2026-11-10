@@ -1,3 +1,67 @@
+## Verified-only pictures and GIFs, Change name sets the SJK name
+
+10/11/2026, `personal/verified-pictures-name` (Sol: "we don't accept profile pictures from
+unverified people no more + we don't play their gifs in chat. Also fix the change name in
+the SJK profile"). Hub branch `verified-pictures` refuses `PUT /v1/avatar` from a key that
+is not verified, staff or the creator (403 `not_verified`); it must be deployed for the
+picture rule to hold (the client has no check of its own). Client: `chat_gifs::plays_from`
+keeps an unverified sender's GIF link as text in the chat box, docks and SJK chat page;
+the SJK Profile tab's Change name opens a name panel that sends `PUT /v1/profile {"name"}`
+(the old route to the Character tab's Name field is gone). Existing pictures of unverified
+players stay up. Untested in game.
+
+## Forge fusion, deal of the day, wishlist (10/11/2026)
+
+10/11/2026, client `personal/forge-shop` based on `main` `c10f6aab7`, against the hub branch
+`forge-shop` built at the same time (Sol: "make crafting and the shop more relevant, people
+barely use it"; live then: 7 shop purchases ever, 38 crafts, a median of 148 kyber shards
+against a Legendary's 600). The Forge gains **Fuse** (duplicates of one tier for a shader of
+the next the player lacks, proposed from the biggest piles, never a last copy), the Shop
+marks the **deal of the day** (its struck table price), wished offers and Beta offers, and a
+**wishlist** of three shaders is kept from the Shaders tab, Craft and the offers, with a
+card once a shop day when a wished shader is on offer and a gold dot on the Forge tab, the
+Shop and Fuse chips and the Holocrons tab's Shop button while something waits there
+([cards.md](cards.md#fusion-deal-of-the-day-wishlist), [sjk-ui.md](sjk-ui.md#collection)).
+Each part hides against a hub that does not send it. Verified: `cargo test -p sjk-identity
+-p sjk-viewer` (wire parsing with and without the new fields, the fake hub's fuse and
+wishlist requests, the proposal and checks, the wishlist's limit, the dot's conditions, the
+card once a day, layout fits at 1920x1080, 3840x2160, 1440x1080 and 2560x1080), clippy on
+both crates, and the startup stack check. Not verified: nothing was tried in a running
+client nor against a deployed hub; the wire is the agreed contract, not a captured answer.
+
+## Map editor: texture guesses and better selections
+
+10/11/2026, `personal/mapedit-ingame-3`, based on `main` `e8f685997` (Sol: "further improve
+the in game editor with textures guesses, better selections and just whatever you can think
+of"). Every selection's shader list starts with Suggested rows: the nearby vote (Fill's on
+faces, asked by the surfaces' own triangles on drawn surfaces), the same name family in the
+folder, and the map's most used textures, each with why
+([map-edits.md](map-edits.md#texture-guesses-and-selections)); resting on a row previews the
+remap on the selected surfaces without writing anything. The hover outlines what is under
+the pointer with a tip; a drag draws a box selecting surfaces, seen caulk faces and placed
+models (Shift adds, Ctrl takes out); Ctrl+click takes one out; `mapedit_select shader|placed`
+and `mapedit_duplicate` (Ctrl+D) are new. Fixed: the face pick took a physics clip for a
+hidden face (now told by the `trans` flag, read at its real bit 0x80000000, which the cover
+test and the vote also had wrong), and a pick tests only the surfaces whose bounds the ray
+meets. Not built: grow and shrink, invert, normal-aligned placing, measuring, fly-to; the
+browser editor has none of these yet. Verification: below in map-edits.md's Limits.
+
+## Holocron seasons: the Beta tables
+
+10/11/2026, client `personal/holocron-seasons` and hub branch `beta-season` (Sol: "build what
+you can build, decisions later"). The 05/11 design ([cards.md](cards.md#seasons)) is built,
+behind the hub's Beta switch, which stays off: a Beta holocron of Rare or better gives a
+card with a rarity floor and its credits, a shader with a tier floor (Rare holocron
+Uncommon, Legendary Rare, Mythical Legendary; Beta's own odds, Sol 10/11) and bonus rolls on
+top, and Beta kyber crystals get their own better odds; pity 15/80 per person over Beta openings; Legendary and Mythical ones pick
+card faces not held yet; opening a Beta holocron needs the Beta release. The client shows a
+Beta holocron's prizes one by one, best last, has a Beta page on the loot table (B), the
+guarantee and pity on a Beta holocron's hover card, and `debug_open <tier> beta`.
+Verified on Windows 11: the hub's tests (the floors, the bonus shares with banners off, the
+pity's run and raise, a Beta Mythical's prizes, an Alpha holocron unchanged, a Beta Uncommon
+counted, fresh faces, the release gate, the status answer) and the client's (the wire, the
+reveal order, the rehearsal, the Beta page's lines and fit). Not verified: in a running
+client, or against a deployed hub. Not deployed; no changelog line until Beta opens.
 ## GIF tags
 
 10/11/2026, `personal/gif-tags`, based on `main` `9c92344ab` (Sol's idea: a blank tag
@@ -2810,7 +2874,7 @@ camera (`cg_cameraStyle ejk`, the locked default) and SP camera (`sjk`, the ease
 EJK and SJK before; only the names changed, the cvar values stay
 ([client.md](client.md#camera-style)). The Vanilla style graphics preset follows a survey
 of EternalJK's defaults on its default renderer (rd-eternaljk, rd-vanilla's code;
-[client.md](client.md#vanilla-style-and-eternaljk)): it now turns light flares off too
+[client.md](client.md#vanilla-and-eternaljk)): it now turns light flares off too
 (`r_flares 0`, a new Light flares row in Graphics > Image; SJK's default stays 1), dynamic
 glow stays off; everything else already matched or has no counterpart in SJK's renderer.
 A profile set to Vanilla style before reads Custom until the preset is picked again. Not

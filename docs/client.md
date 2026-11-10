@@ -910,7 +910,19 @@ A player's or NPC's appearance (`models/players/<model>/<skin>`) loads its
 `animation.cfg` and a skin; if the model cannot be loaded or built, the client
 draws Kyle for that player instead
 ([player_assets.rs](../crates/sjk-viewer/src/player_assets.rs),
-[actor_load.rs](../crates/sjk-viewer/src/actor_load.rs)). A folder holding
+[actor_load.rs](../crates/sjk-viewer/src/actor_load.rs)). With **Random missing
+models** (`cg_defaultModelRandom`, off; Settings > Gameplay > Items and models)
+the stand-in is a retail model picked from the missing model's name instead, after JoF
+EJK: the sum of its lower-cased bytes chooses among ten male models (or seven female
+ones for a player whose clientinfo says `ds f`), so a missing model always looks the
+same. A non-Jedi stand-in keeps a `default`/`red`/`blue` skin or takes one of them, and
+wears the team's in team games; a `jedi_*` stand-in gets a head, torso and legs that
+the retail model has (EJK's own table gives `jedi_rm` and `jedi_kdm` the human male's
+`head_a2` and `torso_d2`, which only `jedi_hm` has, so SJK pairs those with `jedi_hm`).
+A stand-in that cannot load either falls back to Kyle. Switching it redraws players
+already shown with a stand-in
+([default_model_random.rs](../crates/sjk-client/src/default_model_random.rs)). A
+missing skin is not a missing model: the model's default skin draws, as in JKA. A folder holding
 `sjk_rig.cfg` is a [rig model](rig-models.md): a glTF with its own skeleton, drawn in
 place of a stock driver model whose skeleton still carries the animations. That includes a model
 changed during the match (`/model`, or a new player in a used slot), as
@@ -2345,6 +2357,18 @@ with a `width` or `height` as `WP_ROCKET_LAUNCHER`, so before 03/11/2026 the AT-
 red laser (`atst_laser`, 8 by 8) burst in a rocket's explosion instead of
 `atst/wall_impact` (Kushina's report). A weapon without `impactFX` keeps the carrier's.
 
+A disruptor beam (`EV_DISRUPTOR_MAIN_SHOT`, `EV_DISRUPTOR_SNIPER_SHOT`) starts at the
+shooter's gun, not at the server's muzzle point in `origin2` (`cg_event.c:2805-2860`):
+the local first-person shooter's at the view gun's `tag_flash` of the last frame
+(`cg.lastFPFlashPoint`), anyone else's, and the local player's in third person, at
+their world gun's flash bolt as last drawn (`CG_GetClientWeaponMuzzleBoltPoint`,
+[world_muzzles.rs](../crates/sjk-viewer/src/world_muzzles.rs)). A gun not drawn on
+the last frame keeps the server muzzle. Stock keeps the view gun's last flash point
+while the gun is hidden, so a zoomed sniper shot started where the gun was before
+zooming in; SJK uses the server muzzle then. Before 10/11/2026 SJK started every
+beam but the local first-person one at the server muzzle, in front of the chest
+(hub report #294).
+
 A destroyed vehicle (`EF_DEAD`, until it blows up: the AT-ST's `explosionDelay` is 2.45
 s) burns: `effects/ships/dest_burning.efx` at its origin every 50 ms, as the dead branch
 of `CG_VehicleEffects` plays it, animals excepted
@@ -2451,10 +2475,18 @@ of VIDEO is gone (10/10/2026). The groups are:
 
 | Tab | Settings |
 | --- | --- |
-| IMAGE | HDR scene and exposure, eye adaptation (`r_autoExposure`) and its range in EV, filmic tone curve, bloom, dynamic glow (`r_DynamicGlow` 0-3), No glow on sabers (`r_dynamicGlowNoSabers`) and the glow's blur style (`r_dynamicGlowStyle`), FXAA, supersampling (`r_superSample`), render scale (`r_renderScale`, also in the SJK UI's Simple Display; see [Render scale](rendering.md#render-scale-and-supersampling)), soft particles, ambient occlusion (`r_ssao`), sunbeam dust (`r_dustMotes`), per-pixel model lighting, toon models (`r_toonModels`) and toon on my model (`cg_toonModel`, see [Toon models](rendering.md#toon-models)), reflection probes (`r_cubeMapping`), floor mirrors (`r_floorReflections`), normal and specular maps (`r_normalMapping`, `r_specularMapping`), parallax mapping (`r_parallaxMapping`) and its depth (`r_parallaxStrength`), emission maps (`r_emissiveMaps`), their strength (`r_emissionStrength`) and glow halo (`r_emissiveGlow`) |
-| LIGHTING | Sun and sky (`r_dayNight`), live lighting tier, time of day, time of day from the PC's clock (`r_dayClock`), day length, sunlight brightness, ambient fill and its corner shading, indirect boost, emission-map lights (`r_emissiveLights`), light shafts (`r_volumetrics`) and their clarity |
-| SHADOWS | World and character sun shadows, shadow resolution, sharp and close cascade distances, filter taps, slit closing, contact shadows |
-| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`), volumetric clouds (`r_clouds`), lightning in storms (`r_weatherLightning`), wet reflections (`r_weatherReflections`), puddles, rain visibility, haze and spray, ground fog thickness (`r_weatherPuddles`, `r_weatherRainOpacity`, `r_weatherHaze`, `r_weatherFogDensity`) and settled snow (`r_weatherSnowCover`); see [Weather](rendering.md#weather) |
+| IMAGE | HDR scene and exposure, eye adaptation (`r_autoExposure`) and its range in EV, filmic tone curve, bloom, dynamic glow (`r_DynamicGlow` 0-3), No glow on sabers (`r_dynamicGlowNoSabers`) and the glow's blur style (`r_dynamicGlowStyle`), FXAA, sharpening, supersampling (`r_superSample`: Off, 2x, 3x), render scale (`r_renderScale`, also in the SJK UI's Simple Display; see [Render scale](rendering.md#render-scale-and-supersampling)); *Textures*: texture detail (`r_picmip`: Full, Half, Quarter, Eighth), largest texture, compression; *Effects*: soft particles, light flares, ambient occlusion (`r_ssao`), per-pixel model lighting, toon models (`r_toonModels`) and toon on my model (`cg_toonModel`, see [Toon models](rendering.md#toon-models)); *Materials*: normal and specular maps (`r_normalMapping`, `r_specularMapping`), parallax mapping (`r_parallaxMapping`) and its depth (`r_parallaxStrength`), emission maps (`r_emissiveMaps`), their strength (`r_emissionStrength`) and glow halo (`r_emissiveGlow`), reflection probes (`r_cubeMapping`), floor mirrors (`r_floorReflections`) |
+| LIGHTING (Solar Renderer lighting) | Real-time lighting (`r_dayNight`), bounced light (`r_bouncedLight`), lamp shadows (`r_lampShadows`), live lighting (`r_liveLighting`: Baked bounce, Live with casters kept, All live), sunlight brightness, ambient fill and its corner shading, indirect boost, emission-map lights (`r_emissiveLights`), glowing lamp light; *Light shafts*: light shafts (`r_volumetrics`), their clarity, sunbeam dust (`r_dustMotes`: Off, Light, Full); *Time of day*: time-of-day sky (`r_daySky`), time of day, the PC's clock (`r_dayClock`), day length (`r_dayMinutes`: holds still, 10 or 30 minutes, 1 or 24 hours) |
+| SHADOWS | World and character sun shadows, shadow resolution (Low 512 to Ultra 4096), shadow softness (`r_sunShadowTaps`: Hard 4 to Softest 32), sharp and close cascade distances (Short to Very long), slit closing, contact shadows |
+| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`: Light, Original, Double, Triple, Quadruple), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`), volumetric clouds (`r_clouds`), lightning in storms (`r_weatherLightning`), wet reflections (`r_weatherReflections`), puddles, rain visibility, haze and spray, ground fog thickness (`r_weatherPuddles`, `r_weatherRainOpacity`, `r_weatherHaze`, `r_weatherFogDensity`) and settled snow (`r_weatherSnowCover`); see [Weather](rendering.md#weather) |
+
+Since 10/11/2026 (Sol: "make more dropdowns when it makes sense with explicit settings more
+than sliders") the settings whose numbers are steps of a few known costs are dropdowns of
+named choices (`CHOICE_NAMES` in [help.rs](../crates/sjk-viewer/src/settings/help.rs)): a
+value set from the console between them still shows as its number. The SJK UI's Graphics
+page puts sub-headings inside the tabs (`GRAPHICS_SUBHEADINGS` in
+[groups.rs](../crates/sjk-viewer/src/settings/groups.rs)): Textures, Effects, Materials,
+Light shafts, Time of day and Rain looks.
 
 Rows marked "(reload)" are read only when the graphics start and apply after a
 [graphics reload](#graphics-reload); "(next map)" applies when a map loads; the
@@ -2476,75 +2508,106 @@ See [catalog.rs](../crates/sjk-viewer/src/settings/catalog.rs).
 The first row of VIDEO, of [First setup](#first-setup) (under Graphics), of the SJK
 UI's Graphics (Advanced, under Quality) and of Simple's Graphics (under Preset) is
 the graphics preset ([graphics_quality.rs](../crates/sjk-viewer/src/graphics_quality.rs)),
-a dropdown of three presets (Sol's request, 16/10/2026; until then a Renderer row,
-Vanilla or SJK (alpha), and an SJK quality row of four levels, from 12/10/2026):
+a dropdown of six presets in two families (Sol's request, 10/11/2026; three presets from
+16/10/2026, Vanilla style, SJK (recommended) and Experimental; before them a Renderer row
+and an SJK quality row of four levels):
 
-- **Vanilla style**: the original game's look at the most frames per second, every
-  SJK extra off, as EternalJK draws it with its defaults (the level called EJK from
-  10/10/2026, Ultra low before, then Vanilla). See [Vanilla style and
-  EternalJK](#vanilla-style-and-eternaljk).
-- **SJK (recommended)**: Sol's own setup (as Sol had it on 16/10/2026): SJK's image
-  (HDR, bloom, dynamic glow, FXAA, ambient occlusion, per-pixel model lighting,
-  emission maps and their halo) over the maps' baked lighting, without the sun,
-  shadows, reflections, material maps, light shafts or weather extras. A new
-  profile (no `config.cfg` when SJK starts, applied in
-  [app_launch.rs](../crates/sjk-viewer/src/app_launch.rs)) starts on it, and
-  Backspace on the row returns to it.
-- **Experimental**: everything the SJK renderer draws (sun and sky, sun shadows,
-  reflection probes, floor mirrors, normal, specular and parallax maps, light
-  shafts, the richest weather), still in alpha. Its values are the renderer cvars'
-  registered defaults, the [default visual profile](rendering.md#default-visual-profile)
-  the renderer was tuned for (the former High).
+- **Vanilla**: the maps' own baked lighting.
+  - *Vanilla*: the original game's look at the most frames per second, every SJK extra
+    off, as EternalJK draws it with its defaults (Vanilla style until 10/11/2026, EJK and
+    Ultra low before). See [Vanilla and EternalJK](#vanilla-and-eternaljk).
+  - *Vanilla Plus*: Sol's own setup (as Sol had it on 16/10/2026): SJK's image (HDR,
+    bloom, dynamic glow, FXAA, ambient occlusion, per-pixel model lighting, emission maps
+    and their halo) over the maps' baked lighting (SJK (recommended) until 10/11/2026). A
+    new profile (no `config.cfg` when SJK starts, applied in
+    [app_launch.rs](../crates/sjk-viewer/src/app_launch.rs)) starts on it, and Backspace
+    on the row returns to it.
+- **Solar Renderer**: SJK's own renderer with its real-time lighting (`r_dayNight`): a
+  live sun, sky and lamps light the map in place of its baked light; still in alpha.
+  - *Low*: everything it can leave out left out: no ambient occlusion, soft particles,
+    material maps, bounced light, lamp shadows, character shadows or light shafts,
+    shadow maps of 512 with 4 taps.
+  - *Medium*: bounced light, normal and specular maps, character shadows, low light
+    shafts, emission-map lights, medium weather.
+  - *High*: everything at the quality the renderer was tuned for (Experimental until
+    10/11/2026). Its values are the renderer cvars' registered defaults, the
+    [default visual profile](rendering.md#default-visual-profile).
+  - *Ultra*: High with 4096 shadow maps, 24 taps, a sharp cascade twice as deep, triple
+    weather density and ultra weather.
+
+Profiles saved on the presets of 16/10/2026 read as their new names (a test pins it):
+the settings the Solar Renderer alone reads (bounced light, lamp shadows, the sharp
+cascade's depth) keep their defaults in the Vanilla family, where they change nothing.
+
+**Ratings and the recommendation.** Each preset in the list carries a coloured mark for
+this PC: green runs smoothly, yellow well, orange is heavy, red too heavy
+(`Level::rating`). It compares the card's own video memory
+([video_memory.rs](../crates/sjk-viewer/src/video_memory.rs), DXGI on Windows) with what
+the preset wants (`WANTS_MIB`: 1, 2, 3, 4, 6 and 8 GB from Vanilla to Ultra, from the VRAM
+measurements in [rendering.md](rendering.md#gpu-memory)): 1.25 times it or more is green,
+as much yellow, seven tenths orange, less red; Vanilla is never worse than yellow. Video
+memory stands in for the card's class; frame rates are not measured. A card SJK cannot
+read is taken as 4 GB. The row under the preset, **Recommended for this PC**, shows and
+sets the richest preset rated green (Vanilla when none is, Vanilla Plus where the card is
+not known); its name carries "(recommended)" in the list, the list reaches further left
+than other lists so it fits, and the detail column of both rows names the card's memory
+and the pick in its colour. The `graphicsrecommended` command (and `graphicsquality
+recommended`) sets it. The small-card lightening at start ([video_memory.rs](../crates/sjk-viewer/src/video_memory.rs))
+is unchanged: under 3.5 GB, the untouched Vanilla Plus becomes Vanilla once.
 
 The volumetric clouds (`r_clouds`, Settings > Graphics > WEATHER, "Volumetric clouds") are
 no preset's (Sol, 05/11/2026): off by default and left as the player sets them under every
 preset, so choosing a preset never turns them on or off. Until then Experimental turned them
 on; the release that changed it asks players once on its what's-new card (`= r_clouds
-reset`), starting from off.
+reset`), starting from off. So is the time-of-day sky (`r_daySky`), a player's choice.
 
-While the settings are not Vanilla style's, the detail column of every renderer
-setting carries the alpha warning in gold ([sjk-ui.md](sjk-ui.md#settings)).
+While the settings are a Solar Renderer preset's or nearest one, the detail column of
+every renderer setting carries the alpha warning in gold ([sjk-ui.md](sjk-ui.md#settings));
+until 10/11/2026 it showed whenever they were not Vanilla style's.
 
 The preset is not saved on its own: the row shows whichever preset the settings
 match, and Custom once one of them has been changed on its own; stepping (Left,
 Right) from Custom starts at the preset the settings are nearest, and a step stops
-at either end. A renderer setting's row reads its value in the preset in use (or,
-for Custom, the nearest) as its default (`graphics_quality::row_default`), so a
-preset's rows do not carry the changed dot, a row changed on its own does, and its
-Backspace leads back to the preset. The `graphicsquality` command names the preset,
-or sets it with `graphicsquality vanilla|sjk|experimental` (a preset's name works
-too; `ejk` and `ultralow` still name Vanilla style). Profiles on one of the former
-levels read Experimental (High) or Custom (Performance, Balanced, Ultra).
+at either end (the six are one row, Vanilla to Solar Ultra). A renderer setting's row
+reads its value in the preset in use (or, for Custom, the nearest) as its default
+(`graphics_quality::row_default`), so a preset's rows do not carry the changed dot, a
+row changed on its own does, and its Backspace leads back to the preset. The
+`graphicsquality` command names the preset, or sets it with `graphicsquality
+vanilla|vanillaplus|low|medium|high|ultra|recommended` (a preset's name works too, with
+or without "Solar"; the old names `ejk`, `ultralow`, `Vanilla style`, `sjk` and
+`experimental` still work).
 
-| Setting | Vanilla style | SJK (recommended) | Experimental |
-| --- | --- | --- | --- |
-| HDR scene, bloom, FXAA, per-pixel model lighting | off | on | on |
-| Soft particles | off | off | on |
-| Ambient occlusion (`r_ssao`) | off | on | on |
-| Dynamic glow (`r_DynamicGlow`) | off | on | on |
-| Light flares (`r_flares`) | off | on | on |
-| Sunbeam dust (`r_dustMotes`) | 0 | 0 | 1 |
-| Reflection probes, floor mirrors | off | off | on |
-| Normal, specular and parallax maps | off | off | on |
-| Emission maps and their halo | off | on | on |
-| Sun and sky (`r_dayNight`) | off | off | on |
-| Emission-map lights (`r_emissiveLights`) | 0 | 0 | 1 |
-| Light shafts (`r_volumetrics`) | 0 | 0 | 3 |
-| World and character sun shadows | off | off | on |
-| Shadow resolution | 1024 | 1024 | 2048 |
-| Shadow filter taps | 8 | 8 | 16 |
-| Weather density | 1 | 1 | 2 |
-| Weather quality | 0 | 0 | 2 |
-| Volumetric clouds | off | off | on |
+| Setting | Vanilla | Vanilla Plus | Solar Low | Solar Medium | Solar High | Solar Ultra |
+| --- | --- | --- | --- | --- | --- | --- |
+| HDR scene, bloom, FXAA, per-pixel model lighting, dynamic glow, light flares, emission maps and halo | off | on | on | on | on | on |
+| Soft particles | off | off | off | on | on | on |
+| Ambient occlusion (`r_ssao`) | off | on | off | on | on | on |
+| Sunbeam dust (`r_dustMotes`) | off | off | off | off | full | full |
+| Reflection probes, floor mirrors, parallax maps | off | off | off | off | on | on |
+| Normal and specular maps | off | off | off | on | on | on |
+| Real-time lighting (`r_dayNight`) | off | off | on | on | on | on |
+| Bounced light (`r_bouncedLight`) | (on) | (on) | off | on | on | on |
+| Lamp shadows (`r_lampShadows`) | (on) | (on) | off | off | on | on |
+| Emission-map lights (`r_emissiveLights`) | 0 | 0 | 0 | 1 | 1 | 1 |
+| Light shafts (`r_volumetrics`) | off | off | off | low | high | high |
+| World sun shadows | off | off | on | on | on | on |
+| Character sun shadows | off | off | off | on | on | on |
+| Shadow resolution | (1024) | (1024) | 512 | 1024 | 2048 | 4096 |
+| Shadow softness (taps) | (8) | (8) | 4 | 8 | 16 | 24 |
+| Sharp shadow distance | (1024) | (1024) | 512 | 1024 | 1024 | 2048 |
+| Weather density | 1 | 1 | 1 | 2 | 2 | 3 |
+| Weather quality | low | low | low | medium | high | ultra |
 
-### Vanilla style and EternalJK
+Values in brackets do nothing there (no real-time lighting, no sun shadows).
 
-Vanilla style follows EternalJK's defaults on its default renderer, `rd-eternaljk`
+### Vanilla and EternalJK
+
+Vanilla follows EternalJK's defaults on its default renderer, `rd-eternaljk`
 (built from `codemp/rd-vanilla`; JoF EJK's `cl_main.cpp` `DEFAULT_RENDER_LIBRARY`),
 surveyed on 26/10/2026 (Sol's request) from JoF EJK's `rd-vanilla/tr_init.cpp`,
 `shared/sdl/sdl_window.cpp` and `cgame/cg_xcvar.h`:
 
-| EternalJK default | SJK under Vanilla style |
+| EternalJK default | SJK under Vanilla |
 | --- | --- |
 | `r_DynamicGlow 0` | Off (the preset) |
 | `r_flares 0` | Off (the preset; SJK's own default is 1) |
@@ -2562,14 +2625,14 @@ draws the maps' lighting in its own way. Vertical sync (`r_swapInterval`) and th
 window are left to the player, as for every preset. Sol's own JoF EJK profile differs
 from these defaults: rd-vulkan with dynamic glow and 8x multisampling.
 
-Under Vanilla style and SJK (recommended), with no sun, light shafts or sun shadows,
+Under Vanilla and Vanilla Plus, with no sun, light shafts or sun shadows,
 a map loads without building its lamps (see [rendering](rendering.md#default-visual-profile)), which no pass reads there.
 
 The `renderer` command keeps the former Renderer row's switch: `renderer vanilla`
 keeps the player's values of every setting in the table (`r_ultraLowRestore`,
-archived, its name from before the renames) before applying Vanilla style;
-`renderer sjk` puts them back, custom values included, or SJK (recommended) when
-Vanilla style was picked as a preset and nothing was kept. The [low-FPS
+archived, its name from before the renames) before applying Vanilla;
+`renderer sjk` puts them back, custom values included, or Vanilla Plus when
+Vanilla was picked as a preset and nothing was kept. The [low-FPS
 help](#low-fps-help) offers the same switch. Like the preset, it needs a [graphics
 reload](#graphics-reload) for the lighting to change. Everything else is left as the
 player set it: the FPS cap, vertical sync, resolution, supersampling and render scale

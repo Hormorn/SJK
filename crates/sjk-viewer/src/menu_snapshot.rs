@@ -852,9 +852,15 @@ fn menu_snapshot() {
         shots.save(name, menu.draw_list(), &vertices, frame == Frame::InGame);
     }
     // Classic+ search over every option, and a dropdown in both frames.
-    let searches: [(&str, Frame, Option<&str>, &str); 3] = [
+    let searches: [(&str, Frame, Option<&str>, &str); 4] = [
         ("settings-search", Frame::Main, Some("shadow"), ""),
         ("settings-dropdown", Frame::Main, None, "r_fullscreen"),
+        (
+            "settings-dropdown-preset",
+            Frame::Main,
+            None,
+            crate::graphics_quality::ROW_NAME,
+        ),
         (
             "settings-dropdown-ingame",
             Frame::InGame,
@@ -1619,12 +1625,14 @@ fn identity_page(shots: &Snapshot, art: ArtSet) {
         log_answer: None,
         economy: None,
         kyber: None,
+        seasons: None,
         shop: None,
         trade: None,
         tag_trade: None,
         marks: None,
         marks_revision: 0,
         mark_refusal: None,
+        wishlist_refusal: None,
         trades: None,
         history: None,
         announcements: Vec::new(),
@@ -2227,7 +2235,7 @@ fn sjk_settings_snapshot() {
         bool,
         Option<&'a str>,
     );
-    let cases: [Case; 11] = [
+    let cases: [Case; 14] = [
         (
             "sjk-settings",
             VIEWPORT_WIDE,
@@ -2258,6 +2266,33 @@ fn sjk_settings_snapshot() {
             2,
             Some(crate::weather::CVAR),
             false,
+            None,
+        ),
+        // The preset list, each preset marked for this PC's card.
+        (
+            "sjk-settings-graphics-presets",
+            VIEWPORT_WIDE,
+            2,
+            Some(crate::graphics_quality::ROW_NAME),
+            true,
+            None,
+        ),
+        // The Solar Renderer's lighting rows, on Solar High.
+        (
+            "sjk-settings-graphics-lighting-solar",
+            VIEWPORT_WIDE,
+            2,
+            Some(crate::world_materials::shadows::settings::BOUNCE_CVAR),
+            false,
+            None,
+        ),
+        // A shadow setting's named choices.
+        (
+            "sjk-settings-graphics-shadows-solar",
+            VIEWPORT_WIDE,
+            2,
+            Some("r_sunShadowTaps"),
+            true,
             None,
         ),
         (
@@ -2377,6 +2412,8 @@ fn sjk_settings_snapshot() {
         }
         let preset = if name.ends_with("-vanilla") {
             crate::graphics_quality::Level::Vanilla
+        } else if name.ends_with("-solar") || name.ends_with("-alpha") {
+            crate::graphics_quality::Level::SolarHigh
         } else {
             crate::graphics_quality::Level::DEFAULT
         };
@@ -3274,12 +3311,14 @@ fn medals_snapshot() {
         log_answer: None,
         economy: None,
         kyber: None,
+        seasons: None,
         shop: None,
         trade: None,
         tag_trade: None,
         marks: None,
         marks_revision: 0,
         mark_refusal: None,
+        wishlist_refusal: None,
         trades: None,
         history: None,
         announcements: Vec::new(),

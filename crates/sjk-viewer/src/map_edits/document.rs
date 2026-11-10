@@ -20,6 +20,14 @@ pub(crate) const LIGHT_RADIUS: std::ops::RangeInclusive<f32> = 16.0..=2048.0;
 pub(crate) const LIGHT_INTENSITY: std::ops::RangeInclusive<f32> = 0.05..=8.0;
 /// Farthest a map lamp may be moved from where the map has it, along each axis.
 pub(crate) const LAMP_OFFSET: f32 = 4096.0;
+/// The units a texel of a shown face may cover ([`Align::scale`], either sign: a
+/// negative scale flips the texture).
+pub(crate) const ALIGN_SCALE: std::ops::RangeInclusive<f32> = 0.01..=64.0;
+/// Farthest a shown face's texture may be shifted (texels) or turned (degrees).
+pub(crate) const ALIGN_SHIFT: f32 = 65_536.0;
+pub(crate) const ALIGN_ROTATE: f32 = 3_600.0;
+/// Radiant's texture scale for a new brush: a texel covers half a unit.
+pub(crate) const RADIANT_SCALE: f32 = 0.5;
 
 /// One map's edits.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -81,12 +89,15 @@ pub(crate) enum Kind {
     Remap { from: String, to: String },
     /// Draw side `side` of world brush `brush` (BSP numbers), a face the map draws
     /// nothing on (caulk, nodraw), with shader `to`; `shader` is the side's own, kept to
-    /// check and to name it.
+    /// check and to name it. `align` lays the texture (its fields sit beside the others,
+    /// each left out at Radiant's default).
     ShowFace {
         brush: u32,
         side: u32,
         shader: String,
         to: String,
+        #[serde(flatten)]
+        align: Align,
     },
     /// The map's weather: world effect commands (`r_we`'s: `heavyrain`, `gustingwind`,
     /// `mist`, ...) run in place of the map's own, as `r_weatherForce` replaces them. One
@@ -118,6 +129,87 @@ pub(crate) enum Kind {
         #[serde(default)]
         offset: [f32; 3],
     },
+}
+
+/// How a shown face's texture lies on it, as Radiant's surface inspector sets a brush
+/// face's: shifted (`shift`, texels along the texture's width and height), scaled
+/// (`scale`, units a texel covers along each; [`RADIANT_SCALE`] by default, a negative one
+/// flips it) and turned (`rotate`, degrees). The projection is Radiant's axial one
+/// (`faces::texture_coordinates`). Each field is left out of the JSON at its default, so a
+/// face never aligned is written as before; a client from before alignment reads the
+/// fields as unknown ones, ignores them and draws the face at Radiant's default.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+pub(crate) struct Align {
+    #[serde(default, skip_serializing_if = "is_zero_pair")]
+    pub(crate) shift: [f32; 2],
+    #[serde(default = "radiant_scale", skip_serializing_if = "is_radiant_scale")]
+    pub(crate) scale: [f32; 2],
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub(crate) rotate: f32,
+}
+
+impl Default for Align {
+    fn default() -> Self {
+        Self {
+            shift: [0.0; 2],
+            scale: radiant_scale(),
+            rotate: 0.0,
+        }
+    }
+}
+
+impl Align {
+    /// Whether it keeps the limits: finite, the scale's size in [`ALIGN_SCALE`], the
+    /// shift within [`ALIGN_SHIFT`] and the turn within [`ALIGN_ROTATE`].
+    pub(crate) fn valid(&self) -> bool {
+        self.shift
+            .iter()
+            .all(|value| value.is_finite() && value.abs() <= ALIGN_SHIFT)
+            && self
+                .scale
+                .iter()
+                .all(|value| value.is_finite() && ALIGN_SCALE.contains(&value.abs()))
+            && self.rotate.is_finite()
+            && self.rotate.abs() <= ALIGN_ROTATE
+    }
+
+    /// Short words for the panel and the answers: `shift 8 0, scale 0.50 0.50, turn 15`.
+    pub(crate) fn describe(&self) -> String {
+        format!(
+            "shift {} {}, scale {:.2} {:.2}, turn {}",
+            round(self.shift[0]),
+            round(self.shift[1]),
+            self.scale[0],
+            self.scale[1],
+            round(self.rotate)
+        )
+    }
+}
+
+/// A value to a tenth, without a needless `.0`.
+fn round(value: f32) -> String {
+    let tenths = (value * 10.0).round() / 10.0;
+    if tenths.fract() == 0.0 {
+        format!("{tenths:.0}")
+    } else {
+        format!("{tenths:.1}")
+    }
+}
+
+fn radiant_scale() -> [f32; 2] {
+    [RADIANT_SCALE; 2]
+}
+
+fn is_radiant_scale(scale: &[f32; 2]) -> bool {
+    *scale == radiant_scale()
+}
+
+fn is_zero_pair(pair: &[f32; 2]) -> bool {
+    *pair == [0.0; 2]
+}
+
+fn is_zero(value: &f32) -> bool {
+    *value == 0.0
 }
 
 fn unit_intensity() -> f32 {
@@ -229,7 +321,15 @@ impl Edit {
                 side,
                 shader,
                 to,
-            } => format!("show brush {brush} side {side} ({shader}) as {to}"),
+                align,
+            } => format!(
+                "show brush {brush} side {side} ({shader}) as {to}{}",
+                if *align == Align::default() {
+                    String::new()
+                } else {
+                    format!(", {}", align.describe())
+                }
+            ),
             Kind::Weather { commands } => format!("weather {}", commands.join(", ")),
             Kind::Light {
                 origin,
@@ -314,7 +414,14 @@ impl Document {
                     &[model]
                 }
                 Kind::Remap { from, to } => &[from, to],
-                Kind::ShowFace { shader, to, .. } => &[shader, to],
+                Kind::ShowFace {
+                    shader, to, align, ..
+                } => {
+                    if !align.valid() {
+                        return Err(format!("edit {}: bad texture alignment", edit.id));
+                    }
+                    &[shader, to]
+                }
                 Kind::Weather { commands } => {
                     check_weather(commands)
                         .map_err(|why| format!("edit {}: bad weather: {why}", edit.id))?;
@@ -361,11 +468,20 @@ impl Document {
     /// does the same thing for the same servers is replaced instead: hiding a prop twice
     /// keeps one edit, remapping a shader again keeps the newest target.
     pub(crate) fn add(&mut self, kind: Kind, server: Option<String>) -> u32 {
+        let mut kind = kind;
         if let Some(edit) = self
             .edits
             .iter_mut()
             .find(|edit| edit.server == server && same_subject(&edit.kind, &kind))
         {
+            // A face drawn with another shader keeps its texture's alignment, as a
+            // brush face given another texture does in Radiant.
+            if let (Kind::ShowFace { align: old, .. }, Kind::ShowFace { align: new, .. }) =
+                (&edit.kind, &mut kind)
+                && *new == Align::default()
+            {
+                *new = *old;
+            }
             edit.kind = kind;
             self.unpublished = true;
             return edit.id;
@@ -633,6 +749,7 @@ mod tests {
             side,
             shader: "textures/system/caulk".into(),
             to: to.into(),
+            align: Align::default(),
         };
         let first = document.add(face(7, "textures/a/wall"), None);
         assert_eq!(document.add(face(7, "textures/a/wall2"), None), first);
@@ -845,6 +962,128 @@ mod tests {
             document.add(bad.clone(), None);
             assert!(document.check().is_err(), "{bad:?}");
         }
+    }
+
+    /// A shown face's alignment round-trips, is left out at Radiant's default (a document
+    /// of faces never aligned reads as before), keeps its limits, and a client from before
+    /// alignment, whose `show_face` knows no such fields, still reads the whole document
+    /// (serde ignores unknown fields: no `deny_unknown_fields` on the edits).
+    #[test]
+    fn a_shown_faces_alignment_is_optional_and_old_clients_read_it() {
+        let face = |align: Align| Kind::ShowFace {
+            brush: 40,
+            side: 7,
+            shader: "textures/system/caulk".into(),
+            to: "textures/a/wall".into(),
+            align,
+        };
+        let mut document = Document::new("mp/ffa3", 1);
+        document.add(face(Align::default()), None);
+        let plain = serde_json::to_string(&document).unwrap();
+        assert!(
+            !plain.contains("shift") && !plain.contains("scale") && !plain.contains("rotate"),
+            "{plain}"
+        );
+        let aligned = Align {
+            shift: [8.0, -16.0],
+            scale: [0.25, -0.5],
+            rotate: 15.0,
+        };
+        document.add(face(aligned), None);
+        assert_eq!(document.edits.len(), 1, "one edit per face");
+        let text = serde_json::to_string(&document).unwrap();
+        assert!(
+            text.contains(r#""shift":[8.0,-16.0],"scale":[0.25,-0.5],"rotate":15.0"#),
+            "{text}"
+        );
+        let back = Document::parse(&text, "mp/ffa3", 1).unwrap();
+        assert_eq!(back, document);
+        assert_eq!(
+            document.edits[0].describe(),
+            "1: show brush 40 side 7 (textures/system/caulk) as textures/a/wall, \
+             shift 8 -16, scale 0.25 -0.50, turn 15 [all servers]"
+        );
+        // A field left out takes its default.
+        let partial = r#"{"map":"mp/ffa3","checksum":1,"edits":[{"id":1,"kind":"show_face","brush":1,"side":2,"shader":"a/b","to":"c/d","rotate":90}]}"#;
+        let parsed = Document::parse(partial, "mp/ffa3", 1).unwrap();
+        assert!(matches!(
+            parsed.edits[0].kind,
+            Kind::ShowFace { align, .. } if align == Align { rotate: 90.0, ..Align::default() }
+        ));
+        // The limits.
+        for bad in [
+            Align {
+                scale: [0.0, 0.5],
+                ..Align::default()
+            },
+            Align {
+                scale: [100.0, 0.5],
+                ..Align::default()
+            },
+            Align {
+                shift: [f32::NAN, 0.0],
+                ..Align::default()
+            },
+            Align {
+                rotate: 1e6,
+                ..Align::default()
+            },
+        ] {
+            let mut document = Document::new("mp/ffa3", 1);
+            document.add(face(bad), None);
+            assert!(document.check().is_err(), "{bad:?}");
+        }
+        // The edit as clients before alignment declared it (this file's shape on main
+        // before 10/11/2026): the new fields are unknown to it and ignored.
+        #[derive(Debug, Deserialize)]
+        struct OldDocument {
+            edits: Vec<OldEdit>,
+        }
+        #[derive(Debug, Deserialize)]
+        struct OldEdit {
+            #[serde(flatten)]
+            kind: OldKind,
+        }
+        #[derive(Debug, Deserialize, PartialEq)]
+        #[serde(tag = "kind", rename_all = "snake_case")]
+        enum OldKind {
+            ShowFace {
+                brush: u32,
+                side: u32,
+                shader: String,
+                to: String,
+            },
+            Remap {
+                from: String,
+                to: String,
+            },
+        }
+        let mut both = document.clone();
+        both.add(
+            Kind::Remap {
+                from: "textures/a".into(),
+                to: "textures/b".into(),
+            },
+            None,
+        );
+        let text = serde_json::to_string(&both).unwrap();
+        let old: OldDocument = serde_json::from_str(&text).expect("an old client reads it");
+        assert_eq!(
+            old.edits[0].kind,
+            OldKind::ShowFace {
+                brush: 40,
+                side: 7,
+                shader: "textures/system/caulk".into(),
+                to: "textures/a/wall".into(),
+            }
+        );
+        assert_eq!(
+            old.edits[1].kind,
+            OldKind::Remap {
+                from: "textures/a".into(),
+                to: "textures/b".into(),
+            }
+        );
     }
 
     /// A client from before a kind is added refuses the whole document (serde knows no

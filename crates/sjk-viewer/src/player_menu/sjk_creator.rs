@@ -1224,15 +1224,15 @@ mod tests {
         assert_eq!(menu.creator.items, [0, 1]);
     }
 
-    /// The SJK Profile tab's Change name shows the Character page with its Name field
-    /// open; what is typed there is worn as `name` once the field is left (hub
-    /// report #202).
+    /// A click on the Character page's Name field opens it; what is typed there is
+    /// worn as `name` once the field is left (hub report #202).
     #[test]
-    fn change_name_opens_the_name_field_and_the_name_is_worn() {
+    fn the_name_field_opens_and_the_name_is_worn() {
         let (mut menu, mut console, _directory) = page();
-        menu.set_page(ProfilePage::Force);
-        menu.open_name_field();
-        assert_eq!(menu.page, ProfilePage::Character);
+        menu.set_page(ProfilePage::Character);
+        draw(&mut menu);
+        let at = centre(&menu, 0);
+        click(&mut menu, &mut console, at);
         assert!(menu.typing());
         assert_eq!(menu.selected, 0);
         menu.draft.name = "^5Nib".to_owned();
