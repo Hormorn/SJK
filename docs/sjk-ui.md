@@ -1821,12 +1821,15 @@ for the run.
   the Hax's, how to turn it on and that `+use` held on a holder hacks them.
 - **Nameplates:** none exist yet. "No nameplates yet"; three empty places, dashed, each
   with a drawing of where its kind will go on the plate: Crest (before the name),
-  Frame (round the plate), Trail (under the plate). Under the model, at a fixed place
-  (its bottom at x 1120, y 950: between the empty places and the words, over the keys'
-  line; 10/11/2026, it stood over the model's head, projected from the stage, which
-  moves and put it into the row of tabs) the player's nameplate as a match draws it near
-  (in the style chosen, `cg_nameplateStyle`, [client.md](client.md#nameplates), drawn
-  with the match's layout at twice its size). The holo frame: their picture (or their
+  Frame (round the plate), Trail (under the plate). In the words' card, over Style, a
+  gold **Showcase current set** button (10/11/2026; the plate stood over the model's
+  head before, projected from the stage, which moves and put it into the row of tabs):
+  its click opens a card over the empty places (dark fill, gold edge, "Your nameplate ·
+  Capsule") with the player's nameplate as a match draws it near; a click on Style or
+  See & share nameplates leaves it open and it follows at once, another click, Escape or
+  another tab closes it. The plate there is drawn in the style chosen
+  (`cg_nameplateStyle`, [client.md](client.md#nameplates)) with the match's layout at
+  twice its size. The holo frame: their picture (or their
   initial on their colour) in the hexagon, the name in its colours and, while See &
   share nameplates is on, the gold corner and the shield, health and Force bars (else the
   dotted line). The capsule: the picture and the name in the pill, gold-edged with the

@@ -1,8 +1,9 @@
 //! The Collection's Nameplates tab: ornaments for the nameplate every player sees over
 //! the player's head (`docs/client.md`, Nameplates). None exist yet, so the tab shows
 //! where they will go: three empty places on the left (a crest before the name, a
-//! frame round the plate, a trail under it) and, under the player's model beside the
-//! page, their nameplate as a match draws it near in the style they chose (the holo
+//! frame round the plate, a trail under it) and, over them while Showcase current set
+//! (over Style, beside the model) has opened it, a card with their nameplate as a match
+//! draws it near in the style they chose (the holo
 //! frame, the capsule or the classic plate, `cg_nameplateStyle`, with its bars while
 //! they share), with dashed marks at those places.
 //! Under the words beside it, Style chooses that look, and See and share nameplates
@@ -31,10 +32,15 @@ const PLATE_ALPHA: f32 = 0.78;
 /// `cg_nameplateScale` 0.5.
 const CLASSIC_U: f32 = NAME_SIZE / 18.0;
 const CREST: f32 = 28.0;
-/// Where the nameplate's bottom stands (frame pixels): under the model, between the
-/// empty places and the words, clear of the keys' line (10/11/2026; it stood over the
-/// model's head, which moves, and ran into the row of tabs).
-const PLATE_SPOT: [f32; 2] = [1_120.0, 950.0];
+/// The showcase card (10/11/2026): over the empty places and as wide as them (left, top,
+/// width, height), the nameplate's bottom this far over its foot. Showcase current set
+/// opens it; the plate stood over the model's head before, which moves, and ran into the
+/// row of tabs.
+const SHOWCASE_CARD: [f32; 4] = [LEFT_X, 336.0, 3.0 * PLACE + 2.0 * PLACE_GAP, 300.0];
+const SHOWCASE_FOOT: f32 = 56.0;
+/// Showcase current set's row over Style, and the button's height.
+const SHOWCASE_ROW: f32 = 56.0;
+const SHOWCASE_HEIGHT: f32 = 40.0;
 const PLATE_GAP: f32 = 12.0;
 const SHIELD: Color = Color::new(0.25, 0.82, 0.5, 1.0);
 const HEALTH: Color = Color::new(0.9, 0.28, 0.3, 1.0);
@@ -282,8 +288,55 @@ impl Panel {
             716.0,
             "Nothing to collect here yet: the first ones come later.",
         );
-        self.nameplate(frame, inputs, PLATE_SPOT);
         self.nameplate_words(frame, inputs);
+    }
+
+    /// The card Showcase current set opens, over the page (its last drawing): the
+    /// player's nameplate in the style chosen under it (a click on Style or See & share
+    /// nameplates leaves it open and it follows at once), with the dashed marks where
+    /// ornaments will go, on a dark fill.
+    pub(super) fn nameplate_showcase(&mut self, frame: &Frame, inputs: &Inputs<'_>) {
+        let s = frame.s;
+        let [x, y, width, height] = SHOWCASE_CARD;
+        let rect = frame.rect(x, y, width, height);
+        self.ui.cover(rect);
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect: frame.rect(x + 3.0, y + 8.0, width, height),
+            radius: 16.0 * s,
+            color: color::alpha(color::SPACE, 0.55),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect,
+            radius: 16.0 * s,
+            color: Color::new(0.015, 0.022, 0.05, 0.99),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect,
+            radius: 16.0 * s,
+            width: 1.5 * s,
+            color: color::alpha(color::GOLD, 0.7),
+        });
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("Your nameplate  ·  {}", inputs.nameplate_style.label()),
+            frame.rect(x + 28.0, y + 20.0, width - 56.0, 30.0),
+            23.0 * s,
+            color::GOLD_BRIGHT,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("As every SJK player sees it over your head in a match."),
+            frame.rect(x + 28.0, y + 54.0, width - 56.0, 22.0),
+            15.0 * s,
+            color::MUTED,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+        self.nameplate(frame, inputs, [x + width * 0.5, y + height - SHOWCASE_FOOT]);
     }
 
     /// Empty place `index` from `x`: a dashed niche with a drawing of where its kind
@@ -868,6 +921,7 @@ impl Panel {
             + 4.0
             + lines(ORNAMENTS, NOTE_CHARS) * 16.0 * 1.42 * k
             + 26.0
+            + SHOWCASE_ROW
             + STYLE_ROW
             + 48.0
             + lines(note, NOTE_CHARS) * 16.0 * 1.42 * k
@@ -930,6 +984,18 @@ impl Panel {
             color::MUTED,
         );
         y += 26.0;
+        // Showcase current set, gold, over Style: it opens the showcase card.
+        kit::button(
+            &mut self.ui,
+            frame,
+            [x, y, SHARE_ROW, SHOWCASE_HEIGHT],
+            "Showcase current set",
+            true,
+            true,
+            self.showcase_open,
+            SHOWCASE_TOKEN,
+        );
+        y += SHOWCASE_ROW;
         self.style_row(frame, inputs, [x, y]);
         y += STYLE_ROW;
         self.share_switch(frame, inputs, [x, y, width], note);
