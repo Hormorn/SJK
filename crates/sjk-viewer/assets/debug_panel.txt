@@ -9768,3 +9768,9 @@ test: Move a custom model's PK3 to assets/personal: it is still in the Profile a
 test: Move a map PK3 to assets/jof: Create game lists it and the local server starts on it.
 test: assetbrowser lists assets/personal/name.pk3, and disabling it takes effect.
 test: With GameData/assets/S/base there, sith.downloads names that folder, a base copy is kept.
+
+[credits-pr-count]
+area: Menus & settings
+title: Credits count the pull requests of older merge names (#403)
+change: Merges named "Merge PR #N (Author): title" or "Merge PR #N" count as pull requests.
+test: Main menu > Credits: Slash's card shows 138 pull requests, Sol's 32.
