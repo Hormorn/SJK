@@ -2002,7 +2002,10 @@ filters, the fade and falloff, the arc's place and scale.
 `deutsch`, `francais` or `espanol` (and `german`, `french`, `spanish`) reads a path's
 `chars` as `chr_d`, `chr_f` or `chr_e`, the folders in `assets0.pk3`, and a voice the
 language lacks stays English (`snd_mem.cpp`). Sounds already loaded change at the next
-`snd_restart`.
+`snd_restart`. The game's sound tables (the players' pain, death and taunt voices,
+`LegacySoundAdapter`) and the viewer's sound cache read it from one place,
+[voice_language.rs](../crates/sjk-client/src/voice_language.rs); until hub report #298
+only the cache did, so those voices stayed English.
 
 `s_volumeVoice` (Settings > Sound, Voice volume; 0 to 1, default 1) is the loudness of
 voices: every sound on the voice channels (`CHAN_VOICE`, `CHAN_VOICE_ATTEN`,
