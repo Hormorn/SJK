@@ -870,8 +870,20 @@ impl Panel {
         let total = all.len();
         let shards = self.forge.data.shards.unwrap_or(0);
         let affordable = all.iter().filter(|item| item.cost <= shards).count();
+        let held = if total == 0 {
+            Vec::new()
+        } else {
+            held_matches(
+                &inputs.holdings,
+                &self.forge.craft_filter.shaders,
+                &self.marks,
+            )
+        };
         let line = if total == 0 {
             crate::terms::say("Every shader holocrons drop is yours already.").into_owned()
+        } else if !held.is_empty() && !self.forge.craft_list.is_empty() {
+            // Hub report #305: the search also names held shaders Craft leaves out.
+            held_note(&held)
         } else {
             format!(
                 "{total} saber shaders you lack, made with kyber shards: {affordable} within reach."
@@ -881,15 +893,6 @@ impl Panel {
         self.forge_filter(frame, "Affordable", false);
         let list = self.forge.craft_list.clone();
         if list.is_empty() {
-            let held = if total == 0 {
-                Vec::new()
-            } else {
-                held_matches(
-                    &inputs.holdings,
-                    &self.forge.craft_filter.shaders,
-                    &self.marks,
-                )
-            };
             let words: std::borrow::Cow<'_, str> = if total == 0 {
                 "You hold every saber shader holocrons drop. New ones join the Forge as they                  come."
                     .into()

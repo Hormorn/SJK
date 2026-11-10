@@ -328,6 +328,19 @@ pub(super) fn held_matches(
         .collect()
 }
 
+/// The Craft intro while a search also names held shaders (`held`, not empty) that the
+/// list leaves out: the first two by name, then how many more.
+pub(super) fn held_note(held: &[&'static Unlockable]) -> String {
+    let names: Vec<&str> = held.iter().take(2).map(|skin| skin.name).collect();
+    let more = held.len().saturating_sub(names.len());
+    let mut line = format!("Yours already, so not listed: {}", names.join(", "));
+    if more > 0 {
+        line.push_str(&format!(" and {more} more"));
+    }
+    line.push('.');
+    line
+}
+
 impl Panel {
     /// The player's card copies in `inputs`, while the identity is on (empty before the
     /// hub sent their profile; a world shot's made-up ones in tests).
@@ -1755,6 +1768,18 @@ mod tests {
         );
         assert!(held_matches(&holdings, &search(""), &none).is_empty());
         assert!(held_matches(&holdings, &search("aurora"), &none).is_empty());
+        assert_eq!(
+            held_note(&found),
+            "Yours already, so not listed: Kyber Filament blade."
+        );
+        // "kyber" also lists the kyber shaders the player lacks; the held one is named.
+        let kyber = held_matches(&holdings, &search("kyber"), &none);
+        assert_eq!(kyber.len(), 1);
+        assert!(
+            craftable(&holdings, &[], &none)
+                .iter()
+                .any(|item| search("kyber").passes(item.skin, false, false))
+        );
     }
 
     /// Collection marks (29/10/2026): favourites first, the marks on each item, and a
