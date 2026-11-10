@@ -479,7 +479,17 @@ impl Panel {
     fn nameplate(&mut self, frame: &Frame, inputs: &Inputs<'_>, at: [f32; 2]) {
         use crate::hud::nameplate::Style;
         let name = crate::profile_hub::title(inputs.name);
-        let name_width = crate::text::display_width(&plain(name), NAME_SIZE);
+        // Measured as the name is drawn (10/11/2026: measured in the display family
+        // without the text size and letter spacing, the classic plate's frame was too
+        // narrow and the name was cut short, "JoF''kush...", past it): the body family
+        // runs about a seventh wider than the display family's advances.
+        let name_width = {
+            let plain = plain(name);
+            let style = crate::text::style::current();
+            let size = NAME_SIZE * style.scale;
+            crate::text::display_width(&plain, size) * 1.15 * self.widen
+                + style.tracking * size * plain.chars().count() as f32
+        };
         let (bounds, [crest_x, crest_y]) = match inputs.nameplate_style {
             Style::Holo => self.holo_plate(frame, inputs, at, name, name_width),
             Style::Capsule => self.capsule_plate(frame, inputs, at, name, name_width),
