@@ -1906,7 +1906,12 @@ for the run.
   and requests, [collection_forge_view.rs](../crates/sjk-viewer/src/collection_forge_view.rs)
   for the look): the Collection's tab between Holocrons and Cards, its count the player's
   kyber shards. Under the row, three section chips, **Shop**, **Craft** and **Break down**
-  (the last with how many duplicate copies wait), the one on show gold; at the top right
+  (the last with how many duplicate copies wait), the one on show gold, each as wide as
+  its label with the player's text size and letter spacing (10/11/2026: with
+  `ui_letterSpacing` the labels were cut to "Sh...", "Cr..."); after them a round "i"
+  chip whose hover card says what the section is ("84 saber shaders you lack, made with
+  kyber shards: 50 within reach."), once a line under the chips that ran into the
+  search field; at the top right
   the player's kyber shards and credits large, each mark and sum over its word, with how
   each is earned in its hover card. Tab and Shift+Tab (or 1, 2, 3) change section, the
   arrows choose, Enter or Space presses the chosen thing's button, the pointer chooses by

@@ -1,5 +1,6 @@
-//! How the Forge tab looks ([`super::forge`]): its section chips and the player's
-//! balances under the row of tabs, then the section on show. The Shop lays the day's four
+//! How the Forge tab looks ([`super::forge`]): its section chips (with an "i" chip whose
+//! hover card says what the section is) and the player's balances under the row of
+//! tabs, then the section on show. The Shop lays the day's four
 //! offers out as large cards over the whole width with the holocrons credits buy under
 //! them; Craft and Break down list their shaders on the left (a grid of cards or a list,
 //! as `ui_shaderList` says) and show the one chosen big on the right. A card over the
@@ -15,7 +16,7 @@ use crate::symbols;
 use crate::unlockables::Unlockable;
 use sjk_ui::{Color, DrawCommand, FontWeight, TextAlign};
 
-/// The section chips and the line under them.
+/// The section chips, and the line under them (the search field's).
 const SECTION_Y: f32 = 206.0;
 const SECTION_HEIGHT: f32 = 48.0;
 const INTRO_Y: f32 = 268.0;
@@ -89,7 +90,7 @@ impl Panel {
             self.forge_ask(frame, ask, inputs, seconds, viewport);
             return;
         }
-        self.forge_sections(frame);
+        let info_x = self.forge_sections(frame);
         self.forge_balances(frame);
         let reason = match (self.forge.data.closed.clone(), inputs.holdings.reason()) {
             (Closed::IdentityOff, _) => Some((
@@ -109,7 +110,7 @@ impl Panel {
             (Closed::Open, None) => None,
         };
         if let Some((title, line)) = reason {
-            self.forge_intro(frame, "");
+            self.forge_intro("");
             self.forge_empty(
                 frame,
                 [LEFT_X, OFFERS_Y, RIGHT_X - LEFT_X, 420.0],
@@ -123,6 +124,7 @@ impl Panel {
             Section::Craft => self.forge_craft(frame, inputs, seconds),
             Section::Break => self.forge_break(frame, inputs, seconds),
         }
+        self.forge_info(frame, info_x);
     }
 
     /// Read the sections' lists for this frame from what the player holds and the filters;
@@ -200,8 +202,9 @@ impl Panel {
     }
 
     /// The section chips: Shop, Craft and Break down, the one on show gold; Break down
-    /// says how many duplicates wait.
-    fn forge_sections(&mut self, frame: &Frame) {
+    /// says how many duplicates wait. Each is as wide as its label drawn with the player's
+    /// text size and letter spacing. Answers where the next chip may start.
+    fn forge_sections(&mut self, frame: &Frame) -> f32 {
         let s = frame.s;
         let mut x = LEFT_X;
         for (index, section) in Section::ALL.into_iter().enumerate() {
@@ -212,11 +215,9 @@ impl Panel {
                 Section::Break if self.forge.spare.0 > 0 => Some(self.forge.spare.0.to_string()),
                 _ => None,
             };
-            let label_width = crate::text::display_width(section.label(), 24.0)
-                * crate::text::style::current().scale
-                * self.widen;
+            let label_width = display_label_width(section.label(), 24.0, self.widen);
             let badge_width = badge.as_ref().map_or(0.0, |badge| {
-                crate::text::display_width(badge, 15.0) * self.widen + 22.0
+                display_label_width(badge, 15.0, self.widen) + 22.0
             });
             let width = label_width + badge_width + 56.0;
             let rect = frame.rect(x, SECTION_Y, width, SECTION_HEIGHT);
@@ -251,7 +252,7 @@ impl Panel {
                 &mut self.ui,
                 TextFamily::Display,
                 format_args!("{}", section.label()),
-                frame.rect(x + 28.0, SECTION_Y + 10.0, label_width + 4.0, 28.0),
+                frame.rect(x + 28.0, SECTION_Y + 10.0, label_width + 8.0, 28.0),
                 24.0 * s,
                 ink,
                 FontWeight::Semibold,
@@ -283,6 +284,41 @@ impl Panel {
             self.ui.hit_region(token, rect);
             x += width + 12.0;
         }
+        x
+    }
+
+    /// The round "i" chip at `x` on the section chips' line; the pointer resting on it
+    /// shows the section's line ([`Forge::intro`]) in a hover card. None without a line.
+    fn forge_info(&mut self, frame: &Frame, x: f32) {
+        if self.forge.intro.is_empty() {
+            return;
+        }
+        let s = frame.s;
+        let hovered = self.ui.token_hovered(INFO_TOKEN);
+        let rect = frame.rect(x, SECTION_Y, SECTION_HEIGHT, SECTION_HEIGHT);
+        let radius = SECTION_HEIGHT * 0.5 * s;
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect,
+            radius,
+            color: color::alpha(color::HOLO, if hovered { 0.14 } else { 0.05 }),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect,
+            radius,
+            width: 1.4 * s,
+            color: color::alpha(color::HOLO, if hovered { 0.7 } else { 0.35 }),
+        });
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("i"),
+            frame.rect(x, SECTION_Y + 10.0, SECTION_HEIGHT, 28.0),
+            24.0 * s,
+            if hovered { color::TEXT } else { color::MUTED },
+            FontWeight::Semibold,
+            TextAlign::Center,
+        );
+        self.ui.hit_region(INFO_TOKEN, rect);
     }
 
     /// The player's kyber shards and credits at the top right, large, each mark and sum
@@ -373,19 +409,12 @@ impl Panel {
         }
     }
 
-    /// The line under the chips: what the section is, or `line` when given.
-    fn forge_intro(&mut self, frame: &Frame, line: &str) {
-        let s = frame.s;
-        text(
-            &mut self.ui,
-            TextFamily::Body,
-            format_args!("{line}"),
-            frame.rect(LEFT_X, INTRO_Y, 900.0, 24.0),
-            17.0 * s,
-            color::MUTED,
-            FontWeight::Regular,
-            TextAlign::Start,
-        );
+    /// What the section is, `line`: kept for the "i" chip's hover card rather than drawn
+    /// under the chips, where a long one ran into the search field (10/11/2026).
+    fn forge_intro(&mut self, line: &str) {
+        if self.forge.intro != line {
+            line.clone_into(&mut self.forge.intro);
+        }
     }
 
     /// A quiet place in `rect` saying why it is empty: a dim shard, `title` and `line`.
@@ -431,14 +460,11 @@ impl Panel {
     fn forge_shop(&mut self, frame: &Frame, seconds: f32) {
         let s = frame.s;
         let now = Instant::now();
-        self.forge_intro(
-            frame,
-            if crate::economy::shop_in_shards() {
-                "Four saber shaders a day, picked for you from those you lack, for kyber shards."
-            } else {
-                "Four saber shaders a day, the same for every player, for credits."
-            },
-        );
+        self.forge_intro(if crate::economy::shop_in_shards() {
+            "Four saber shaders a day, picked for you from those you lack, for kyber shards."
+        } else {
+            "Four saber shaders a day, the same for every player, for credits."
+        });
         let (day, countdown) = match &self.forge.data.shop {
             Some(state) if state.message.is_empty() => (
                 format!("Your offers of {}", day_text(&state.day.day)),
@@ -877,7 +903,7 @@ impl Panel {
                 "{total} saber shaders you lack, made with kyber shards: {affordable} within reach."
             )
         };
-        self.forge_intro(frame, &line);
+        self.forge_intro(&line);
         self.forge_filter(frame, "Affordable", false);
         let list = self.forge.craft_list.clone();
         if list.is_empty() {
@@ -935,7 +961,7 @@ impl Panel {
         } else {
             "Turn duplicate saber shaders into kyber shards: you keep your last copy.".to_owned()
         };
-        self.forge_intro(frame, &line);
+        self.forge_intro(&line);
         self.forge_filter(frame, "Duplicates", self.marks.kept);
         let list = self.forge.break_list.clone();
         if list.is_empty() {
@@ -2613,6 +2639,11 @@ impl Panel {
                     )),
                 ],
             }),
+            INFO_TOKEN => Some(Card {
+                title: self.forge.section.label().to_owned(),
+                colour: color::GOLD_BRIGHT,
+                lines: vec![Line::how(self.forge.intro.clone())],
+            }),
             CREDITS_TOKEN => Some(Card {
                 title: "Credits".to_owned(),
                 colour: color::GOLD_BRIGHT,
@@ -2657,6 +2688,16 @@ fn token_mark(token: u16) -> hover::MarkToken {
         PADLOCK_TOKEN => hover::MarkToken::Lock,
         _ => hover::MarkToken::Favourites,
     }
+}
+
+/// How wide `words` are drawn in the display family at `size` (frame pixels): the
+/// player's text size, `widen` (Inter in place of the families) and the letter spacing
+/// (`ui_letterSpacing`), which a chip's label overflowed without.
+fn display_label_width(words: &str, size: f32, widen: f32) -> f32 {
+    let style = crate::text::style::current();
+    let size = size * style.scale;
+    let tracking = style.tracking * size * words.chars().count() as f32;
+    (crate::text::display_width(words, size) * widen + tracking).max(0.0)
 }
 
 /// How wide `words` are in the body family at `size` (frame pixels), near enough for a
