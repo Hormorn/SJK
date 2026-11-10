@@ -401,7 +401,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 138 merged pull requests
+role: Contributor: 139 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -542,6 +542,7 @@ did: #396 A boombox on the floor is hidden in a private duel
 did: #398 SJK UI: a typed slider value opens a gold pill at the number's size
 did: #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK
 did: #403 The credits page counts the pull requests merged under older merge names
+did: #407 The Jedi Knight II HUD's selector bar opens behind the icons
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]
