@@ -78,6 +78,7 @@ did: The shop in kyber shards, and holocrons bought with credits
 did: Kyber crystals: a reward for every achievement, always a saber shader
 did: Holocron seasons: Beta holocrons with guaranteed prizes, bonus rolls and a pity
 did: Beta season: a guaranteed shader in every Rare+ holocron, better Beta crystal odds
+did: Forge fusion, a deal of the day in the shop, and a wishlist of three shaders
 did: Fourteen more achievements, a secret one among them, and Surveyor retired
 did: Achievements announced with their kyber crystal once the SJK hub unlocks them
 did: The Mythical holocron's engram: gold plates breathing round a glowing core

@@ -31,6 +31,18 @@
 //! a locked shader is never broken down (its button says so) nor counted among all
 //! duplicates.
 //!
+//! Since 10/11/2026 (Sol: "make crafting and the shop more relevant, people barely use
+//! it") a fourth section, **Fuse**, shows on a hub whose economy says `fuse`: a tier's
+//! chip, its duplicates as cards (the most duplicated first), the copies the Forge
+//! proposes picked on them (never a last copy, [`crate::forge_fuse::propose`]), and on the
+//! right what the fusion gives and Fuse (pressed twice); a click or Space picks a copy or
+//! lets it go, + and - change the chosen one's, P proposes again, T steps the tier and 4
+//! shows the section. The shader gained is revealed on the card. The Shop marks the deal
+//! of the day (its old price struck), a wished offer and a Beta offer's edition, lists
+//! the wishlist (on a hub that keeps one, [`crate::wishlist`]), and each offer and Craft's
+//! chosen shader carry a wishlist toggle (W on Craft). Shop and Fuse carry a gold dot when
+//! something waits there ([`crate::forge_alert`]).
+//!
 //! Since 05/11/2026 (Atrosex's idea, hubs whose economy says `shatter_many`) Break down
 //! has a Select chip (S): while it is on, a click on a shader (or Space on the chosen one)
 //! picks a copy of it, + and - (or the stepper) pick more or fewer of the chosen one's
@@ -69,6 +81,13 @@ pub(super) const FAVOURITES_TOKEN: u16 = 9_056;
 pub(super) const SELECT_TOKEN: u16 = 9_057;
 pub(super) const PICK_LESS_TOKEN: u16 = 9_058;
 pub(super) const PICK_MORE_TOKEN: u16 = 9_059;
+/// Fuse's tier chips (10/11/2026), one a tier of [`crate::forge_fuse::TIERS`].
+pub(super) const FUSE_TIER_BASE: u16 = 9_060;
+/// Each offer's wishlist toggle, and Craft's chosen shader's (10/11/2026).
+pub(super) const OFFER_WISH_BASE: u16 = 9_065;
+pub(super) const WISH_TOKEN: u16 = 9_070;
+/// Fuse's Propose again.
+pub(super) const PROPOSE_TOKEN: u16 = 9_071;
 pub(super) const TILE_BASE: u16 = 9_100;
 /// The most things a section lists (every blade skin fits).
 pub(super) const TILES_MAX: usize = 400;
@@ -100,10 +119,18 @@ pub(crate) enum Section {
     Craft,
     /// Shaders turned into kyber shards.
     Break,
+    /// Duplicates of one tier fused into a shader of the next (10/11/2026, a hub whose
+    /// economy says `fuse`).
+    Fuse,
 }
 
 impl Section {
-    pub(crate) const ALL: [Self; 3] = [Self::Shop, Self::Craft, Self::Break];
+    pub(crate) const ALL: [Self; 4] = [Self::Shop, Self::Craft, Self::Break, Self::Fuse];
+
+    /// The sections shown: Fuse only on a hub that fuses (`fuse`).
+    pub(crate) fn shown(fuse: bool) -> &'static [Self] {
+        if fuse { &Self::ALL } else { &Self::ALL[..3] }
+    }
 
     /// The chip's name.
     pub(crate) const fn label(self) -> &'static str {
@@ -111,6 +138,7 @@ impl Section {
             Self::Shop => "Shop",
             Self::Craft => "Craft",
             Self::Break => "Break down",
+            Self::Fuse => "Fuse",
         }
     }
 
@@ -119,18 +147,27 @@ impl Section {
             Self::Shop => 0,
             Self::Craft => 1,
             Self::Break => 2,
+            Self::Fuse => 3,
         }
     }
 
-    /// The section after this one (`forward`) or before it, wrapping.
+    /// The section after this one (`forward`) or before it among the three first, wrapping.
     pub(crate) fn next(self, forward: bool) -> Self {
-        let count = Self::ALL.len();
+        self.next_in(forward, false)
+    }
+
+    /// The section after this one (`forward`) or before it among those shown (`fuse`: Fuse
+    /// too), wrapping.
+    pub(crate) fn next_in(self, forward: bool, fuse: bool) -> Self {
+        let shown = Self::shown(fuse);
+        let count = shown.len();
+        let at = self.index().min(count - 1);
         let index = if forward {
-            (self.index() + 1) % count
+            (at + 1) % count
         } else {
-            (self.index() + count - 1) % count
+            (at + count - 1) % count
         };
-        Self::ALL[index]
+        shown[index]
     }
 }
 
@@ -168,6 +205,38 @@ pub(crate) struct ForgeData {
     pub(crate) shop: Option<sjk_identity::ShopState>,
     /// What became of the last trade.
     pub(crate) trade: Option<sjk_identity::TradeOutcome>,
+    /// The duplicates a fusion of each tier takes, Common to Mythical, 0 for none
+    /// (10/11/2026; all 0 on a hub that does not say `fuse`).
+    pub(crate) fuse: [u32; crate::economy::TIERS],
+    /// The player's wishlist (10/11/2026); `None` on a hub that keeps none.
+    pub(crate) wishlist: Option<Vec<String>>,
+}
+
+impl ForgeData {
+    /// Whether the hub fuses some tier: the Fuse section shows.
+    pub(crate) fn fuses(&self) -> bool {
+        self.fuse.iter().any(|need| *need > 0)
+    }
+
+    /// The duplicates a fusion of `tier` takes; `None` when the hub does not fuse it.
+    pub(crate) fn fuse_need(&self, tier: Rarity) -> Option<u32> {
+        let need = self.fuse.get(tier as usize).copied().unwrap_or(0);
+        (need > 0 && crate::forge_fuse::next_tier(tier).is_some()).then_some(need)
+    }
+
+    /// Whether shader `id` is on the wishlist.
+    pub(crate) fn wished(&self, id: &str) -> bool {
+        self.wishlist
+            .as_ref()
+            .is_some_and(|list| list.iter().any(|wished| wished == id))
+    }
+
+    /// Whether the wishlist is full.
+    pub(crate) fn wishlist_full(&self) -> bool {
+        self.wishlist
+            .as_ref()
+            .is_some_and(|list| list.len() >= crate::wishlist::MAX)
+    }
 }
 
 impl ForgeData {
@@ -213,6 +282,12 @@ impl ForgeData {
             many: economy.is_some_and(|tables| tables.can("shatter_many")),
             shop: snapshot.shop.clone(),
             trade: snapshot.trade.clone(),
+            fuse: std::array::from_fn(|tier| {
+                economy
+                    .and_then(|tables| tables.fuse_count(tier))
+                    .unwrap_or(0)
+            }),
+            wishlist: economy.and_then(|tables| tables.wishlist.clone()),
         }
     }
 
@@ -386,6 +461,8 @@ pub(super) enum Press {
     Craft(&'static str),
     /// Break a copy of this shader down.
     Break(&'static str),
+    /// Fuse the picked duplicates (10/11/2026).
+    Fuse,
 }
 
 /// The card over the page that asks before a trade that cannot be pressed twice.
@@ -555,6 +632,19 @@ pub(super) struct Forge {
     pub(super) want: Option<String>,
     /// The outcome serial a last copy's answer was looked for at.
     pub(super) unequip_seen: u64,
+    /// Fuse (10/11/2026): the tier shown (its place in [`crate::forge_fuse::TIERS`]), its
+    /// duplicates as the last frame listed them, the one chosen and the first line or row
+    /// shown, the copies picked, and the shaders of the next tier left to gain.
+    pub(super) fuse_tier: usize,
+    pub(super) fuse_list: Vec<crate::forge_fuse::Spare>,
+    pub(super) fuse: usize,
+    pub(super) fuse_first: usize,
+    pub(super) fuse_picks: Vec<(&'static str, u32)>,
+    pub(super) fuse_targets: usize,
+    /// The picks are to be proposed again (the tier changed, or a fusion went).
+    pub(super) fuse_stale: bool,
+    /// The shader the last fusion gave, revealed on Fuse's card until the picks change.
+    pub(super) fused: Option<&'static Unlockable>,
 }
 
 impl Forge {
@@ -579,6 +669,7 @@ impl Forge {
             Section::Shop => self.shop_choices(),
             Section::Craft => self.craft_list.len(),
             Section::Break => self.break_list.len(),
+            Section::Fuse => self.fuse_list.len(),
         }
     }
 
@@ -588,7 +679,197 @@ impl Forge {
             Section::Shop => &mut self.shop_selected,
             Section::Craft => &mut self.craft,
             Section::Break => &mut self.breaks,
+            Section::Fuse => &mut self.fuse,
         }
+    }
+
+    /// The sections shown, Fuse on a hub that fuses.
+    pub(super) fn sections(&self) -> &'static [Section] {
+        Section::shown(self.data.fuses())
+    }
+
+    /// Fuse's tier.
+    pub(super) fn fuse_tier(&self) -> Rarity {
+        crate::forge_fuse::TIERS[self.fuse_tier.min(crate::forge_fuse::TIERS.len() - 1)]
+    }
+
+    /// The copies picked on Fuse in all.
+    pub(super) fn fuse_picked(&self) -> u32 {
+        self.fuse_picks.iter().map(|(_, copies)| copies).sum()
+    }
+
+    /// The copies picked of shader `id` on Fuse, 0 when none.
+    pub(super) fn fuse_copies(&self, id: &str) -> u32 {
+        self.fuse_picks
+            .iter()
+            .find(|(picked, _)| *picked == id)
+            .map_or(0, |(_, copies)| *copies)
+    }
+
+    /// Whether the picks may be sent as a fusion, or why not.
+    pub(super) fn fuse_check(&self) -> Result<(), crate::forge_fuse::Block> {
+        let tier = self.fuse_tier();
+        crate::forge_fuse::check(
+            tier,
+            &self.fuse_picks,
+            &self.fuse_list,
+            self.data.fuse_need(tier),
+            self.fuse_targets,
+        )
+    }
+
+    /// Take Fuse's list for this frame (`list`, the tier's spare duplicates, `targets`
+    /// shaders of the next tier left): the picks proposed again when stale, else kept to
+    /// what may still go.
+    pub(super) fn follow_fuse(&mut self, list: Vec<crate::forge_fuse::Spare>, targets: usize) {
+        self.fuse_list = list;
+        self.fuse_targets = targets;
+        let need = self.data.fuse_need(self.fuse_tier()).unwrap_or(0);
+        if self.fuse_stale {
+            self.fuse_stale = false;
+            self.fuse_picks = crate::forge_fuse::propose(&self.fuse_list, need);
+            return;
+        }
+        let list = &self.fuse_list;
+        self.fuse_picks.retain_mut(|(id, copies)| {
+            let most = list
+                .iter()
+                .find(|spare| spare.skin.id == *id)
+                .map_or(0, |spare| spare.spare());
+            *copies = (*copies).min(most);
+            *copies > 0
+        });
+    }
+
+    /// Show Fuse's tier `index` (of [`crate::forge_fuse::TIERS`]): its proposal comes.
+    pub(super) fn set_fuse_tier(&mut self, index: usize) -> PanelAction {
+        if index >= crate::forge_fuse::TIERS.len() {
+            return PanelAction::None;
+        }
+        if self.fuse_tier != index {
+            ui_cues::post(Cue::Click);
+        }
+        self.fuse_tier = index;
+        self.fuse_stale = true;
+        self.fused = None;
+        self.fuse = 0;
+        self.fuse_first = 0;
+        self.armed = None;
+        PanelAction::None
+    }
+
+    /// Step Fuse's tier to the next one the hub fuses (the previous with `back`).
+    fn cycle_fuse_tier(&mut self, back: bool) -> PanelAction {
+        let count = crate::forge_fuse::TIERS.len();
+        for step in 1..=count {
+            let index = if back {
+                (self.fuse_tier + count * 2 - step) % count
+            } else {
+                (self.fuse_tier + step) % count
+            };
+            if self
+                .data
+                .fuse_need(crate::forge_fuse::TIERS[index])
+                .is_some()
+            {
+                return self.set_fuse_tier(index);
+            }
+        }
+        PanelAction::None
+    }
+
+    /// Pick a copy of Fuse's shader at `index`, or let it go when picked; no more than the
+    /// fusion takes, never its last copy.
+    fn toggle_fuse_pick(&mut self, index: usize) {
+        let Some(spare) = self.fuse_list.get(index).copied() else {
+            return;
+        };
+        self.armed = None;
+        self.fused = None;
+        if let Some(at) = self
+            .fuse_picks
+            .iter()
+            .position(|(id, _)| *id == spare.skin.id)
+        {
+            self.fuse_picks.remove(at);
+            ui_cues::post(Cue::Back);
+            return;
+        }
+        let need = self.data.fuse_need(self.fuse_tier()).unwrap_or(0);
+        if spare.spare() > 0 && self.fuse_picked() < need {
+            self.fuse_picks.push((spare.skin.id, 1));
+            ui_cues::post(Cue::Click);
+        }
+    }
+
+    /// One copy more (`more`) or less of Fuse's chosen shader (+ and -, or the stepper).
+    pub(super) fn step_fuse(&mut self, more: bool) -> PanelAction {
+        let Some(spare) = self.fuse_list.get(self.fuse).copied() else {
+            return PanelAction::None;
+        };
+        let need = self.data.fuse_need(self.fuse_tier()).unwrap_or(0);
+        let room = self.fuse_picked() < need;
+        let at = self
+            .fuse_picks
+            .iter()
+            .position(|(id, _)| *id == spare.skin.id);
+        let changed = match (at, more) {
+            (Some(at), true) if room && self.fuse_picks[at].1 < spare.spare() => {
+                self.fuse_picks[at].1 += 1;
+                true
+            }
+            (Some(at), false) => {
+                self.fuse_picks[at].1 -= 1;
+                if self.fuse_picks[at].1 == 0 {
+                    self.fuse_picks.remove(at);
+                }
+                true
+            }
+            (None, true) if room && spare.spare() > 0 => {
+                self.fuse_picks.push((spare.skin.id, 1));
+                true
+            }
+            _ => false,
+        };
+        if changed {
+            self.armed = None;
+            self.fused = None;
+            ui_cues::post(Cue::Click);
+        }
+        PanelAction::None
+    }
+
+    /// Propose Fuse's picks again (P).
+    pub(super) fn propose_fuse(&mut self) -> PanelAction {
+        let need = self.data.fuse_need(self.fuse_tier()).unwrap_or(0);
+        self.fuse_picks = crate::forge_fuse::propose(&self.fuse_list, need);
+        self.armed = None;
+        self.fused = None;
+        ui_cues::post(Cue::Click);
+        PanelAction::None
+    }
+
+    /// Fuse's button: asks twice, then sends the picks.
+    fn press_fuse(&mut self, now: Instant) -> PanelAction {
+        if self.fuse_check().is_err() {
+            self.armed = None;
+            return PanelAction::None;
+        }
+        self.press(Press::Fuse, now)
+    }
+
+    /// Add shader `id` to the wishlist (`on`) or take it off, when the hub keeps one; a
+    /// full wishlist takes nothing more.
+    pub(super) fn wish(&self, id: &'static str) -> PanelAction {
+        if self.data.wishlist.is_none() {
+            return PanelAction::None;
+        }
+        let on = !self.data.wished(id);
+        if on && self.data.wishlist_full() {
+            return PanelAction::None;
+        }
+        ui_cues::post(Cue::Click);
+        PanelAction::Wish(id, on)
     }
 
     /// The day's offers, once read.
@@ -712,6 +993,7 @@ impl Forge {
                 }),
             Press::Craft(id) => PanelAction::Craft(id),
             Press::Break(id) => PanelAction::Shatter(id),
+            Press::Fuse => PanelAction::Fuse(crate::forge_fuse::ids(&self.fuse_picks)),
         }
     }
 
@@ -972,6 +1254,7 @@ impl Forge {
             Section::Craft => self.press_craft(now),
             Section::Break if self.selecting => self.ask_picked(),
             Section::Break => self.press_break(now),
+            Section::Fuse => self.press_fuse(now),
         }
     }
 
@@ -981,6 +1264,11 @@ impl Forge {
             self.leave_search();
             self.armed = None;
             ui_cues::post(Cue::Click);
+            // Fuse proposes its picks afresh each time it shows.
+            if section == Section::Fuse {
+                self.fuse_stale = true;
+                self.fused = None;
+            }
         }
         self.section = section;
         if section != Section::Shop {
@@ -1035,6 +1323,7 @@ impl Forge {
         *self.chosen_mut() = 0;
         match self.section {
             Section::Break => self.break_first = 0,
+            Section::Fuse => self.fuse_first = 0,
             _ => self.craft_first = 0,
         }
         self.armed = None;
@@ -1085,6 +1374,10 @@ impl Forge {
             Section::Break => self
                 .break_list
                 .get(self.breaks)
+                .map(|item| (item.skin.id, true)),
+            Section::Fuse => self
+                .fuse_list
+                .get(self.fuse)
                 .map(|item| (item.skin.id, true)),
             Section::Shop => None,
         }
@@ -1177,12 +1470,15 @@ impl Forge {
             }
             return PanelAction::None;
         }
-        let listing = self.section != Section::Shop;
+        let listing = matches!(self.section, Section::Craft | Section::Break);
         let picking = self.section == Section::Break && self.selecting;
+        let fusing = self.section == Section::Fuse;
         // + and - as typed, whatever the layout puts them on (a Slovak keyboard's + is on
         // the 1 key, which otherwise changes section).
-        if picking {
+        if picking || fusing {
             match text {
+                Some("+") if fusing => return self.step_fuse(true),
+                Some("-") if fusing => return self.step_fuse(false),
                 Some("+") => return self.step_pick(true),
                 Some("-") => return self.step_pick(false),
                 _ => {}
@@ -1193,7 +1489,7 @@ impl Forge {
             KeyCode::Escape if picking => self.toggle_select(),
             KeyCode::Escape => PanelAction::Close,
             KeyCode::Tab => {
-                self.show(self.section.next(!shift));
+                self.show(self.section.next_in(!shift, self.data.fuses()));
                 PanelAction::None
             }
             KeyCode::Digit1 | KeyCode::Digit2 | KeyCode::Digit3 => {
@@ -1203,6 +1499,24 @@ impl Forge {
                     _ => Section::Break,
                 });
                 PanelAction::None
+            }
+            KeyCode::Digit4 if self.data.fuses() => {
+                self.show(Section::Fuse);
+                PanelAction::None
+            }
+            KeyCode::Space if fusing => {
+                self.toggle_fuse_pick(self.fuse);
+                PanelAction::None
+            }
+            KeyCode::KeyT if fusing => self.cycle_fuse_tier(shift),
+            KeyCode::KeyP if fusing && !control => self.propose_fuse(),
+            KeyCode::Equal | KeyCode::NumpadAdd if fusing => self.step_fuse(true),
+            KeyCode::Minus | KeyCode::NumpadSubtract if fusing => self.step_fuse(false),
+            KeyCode::KeyW if self.section == Section::Craft && !control => {
+                match self.craft_list.get(self.craft) {
+                    Some(item) => self.wish(item.skin.id),
+                    None => PanelAction::None,
+                }
             }
             KeyCode::ArrowLeft | KeyCode::ArrowRight | KeyCode::ArrowUp | KeyCode::ArrowDown => {
                 self.arrow(key, grid);
@@ -1221,7 +1535,7 @@ impl Forge {
                 PanelAction::None
             }
             KeyCode::Enter | KeyCode::NumpadEnter | KeyCode::Space => self.activate(now),
-            KeyCode::KeyV if listing => PanelAction::ShaderView(!grid),
+            KeyCode::KeyV if listing || fusing => PanelAction::ShaderView(!grid),
             KeyCode::Slash if listing => self.focus_search(),
             KeyCode::KeyF if listing && control => self.focus_search(),
             KeyCode::KeyT if listing => self.cycle_tier(shift),
@@ -1282,9 +1596,11 @@ impl Forge {
                 self.armed = None;
             }
             *self.chosen_mut() = index;
-            // While Select is on, a click picks it too (or lets it go).
+            // While Select is on, a click picks it too (or lets it go); on Fuse always.
             if self.section == Section::Break && self.selecting {
                 self.toggle_pick(index);
+            } else if self.section == Section::Fuse {
+                self.toggle_fuse_pick(index);
             }
             return Some(PanelAction::None);
         }
@@ -1294,9 +1610,24 @@ impl Forge {
         if token != SEARCH_TOKEN {
             self.leave_search();
         }
-        if let Some(index) = within(SECTION_BASE, 3) {
+        if let Some(index) = within(SECTION_BASE, self.sections().len()) {
             self.show(Section::ALL[index]);
             return Some(PanelAction::None);
+        }
+        if let Some(index) = within(FUSE_TIER_BASE, crate::forge_fuse::TIERS.len())
+            .filter(|_| self.section == Section::Fuse)
+        {
+            return Some(self.set_fuse_tier(index));
+        }
+        if let Some(index) =
+            within(OFFER_WISH_BASE, offers).filter(|_| self.section == Section::Shop)
+        {
+            let id = self
+                .offers()
+                .get(index)
+                .and_then(|offer| unlockables::find(&offer.id))
+                .map(|skin| skin.id);
+            return Some(id.map_or(PanelAction::None, |id| self.wish(id)));
         }
         if let Some(index) = within(OFFER_BUY_BASE, offers) {
             return Some(self.press_shop(index, now));
@@ -1318,8 +1649,15 @@ impl Forge {
             ACTION_TOKEN => self.activate(now),
             ALL_TOKEN => self.ask_all(),
             SELECT_TOKEN => self.toggle_select(),
+            PICK_MORE_TOKEN if self.section == Section::Fuse => self.step_fuse(true),
+            PICK_LESS_TOKEN if self.section == Section::Fuse => self.step_fuse(false),
             PICK_MORE_TOKEN => self.step_pick(true),
             PICK_LESS_TOKEN => self.step_pick(false),
+            PROPOSE_TOKEN => self.propose_fuse(),
+            WISH_TOKEN => match self.craft_list.get(self.craft) {
+                Some(item) if self.section == Section::Craft => self.wish(item.skin.id),
+                _ => PanelAction::None,
+            },
             SHARDS_TOKEN | CREDITS_TOKEN => PanelAction::None,
             _ => return None,
         })
@@ -1336,6 +1674,7 @@ impl Forge {
             Section::Shop => return,
             Section::Craft => &mut self.craft_first,
             Section::Break => &mut self.break_first,
+            Section::Fuse => &mut self.fuse_first,
         };
         *first = if up {
             first.saturating_sub(1)
@@ -1371,6 +1710,17 @@ impl Forge {
             self.unequip.extend(lasts.iter().copied());
             self.picked.clear();
             self.selecting = false;
+        }
+        // A fusion went: the shader gained is revealed, and the next picks proposed.
+        if outcome.trade == sjk_identity::Trade::Fuse
+            && self
+                .sent
+                .is_some_and(|(asked, press)| press == Press::Fuse && outcome.serial > asked)
+        {
+            self.fuse_stale = true;
+            if outcome.done() {
+                self.fused = unlockables::find(&outcome.id);
+            }
         }
     }
 
@@ -1482,6 +1832,7 @@ impl Panel {
                 .break_list
                 .get(chosen)
                 .map_or(Press::Offer(0), |item| Press::Break(item.skin.id)),
+            Section::Fuse => Press::Fuse,
         };
         if armed {
             forge.armed = Some((press, Instant::now()));
@@ -1543,8 +1894,9 @@ impl Panel {
     }
 }
 
+/// An offer of the day for the world shots and the tests: shader `id` of `tier`, at `price`.
 #[cfg(test)]
-fn offer(id: &str, tier: &str, price: u64) -> sjk_identity::Offer {
+pub(crate) fn sample_offer(id: &str, tier: &str, price: u64) -> sjk_identity::Offer {
     sjk_identity::Offer {
         id: id.to_owned(),
         name: unlockables::find(id).map_or(String::new(), |skin| skin.name.to_owned()),
@@ -1552,7 +1904,51 @@ fn offer(id: &str, tier: &str, price: u64) -> sjk_identity::Offer {
         price,
         bought: false,
         owned: false,
+        deal: false,
+        wished: false,
+        edition: None,
     }
+}
+
+#[cfg(test)]
+use sample_offer as offer;
+
+/// A snapshot of a player the hub lets trade, holding `unlocks`, on a hub that fuses three
+/// of each tier but Mythical (five Legendary) and keeps an empty wishlist; no shop read.
+#[cfg(test)]
+pub(crate) fn sample_snapshot(unlocks: Vec<sjk_identity::Unlock>) -> sjk_identity::Snapshot {
+    let mut me: sjk_identity::Profile = serde_json::from_str(
+        r#"{"key_id":"0123456789abcdef","key":"k","name":"Sol","bio":"","verified":false,
+            "created":1}"#,
+    )
+    .expect("a profile");
+    me.unlocks = unlocks;
+    let mut snapshot = sjk_identity::Snapshot::blank(&sjk_identity::Identity::from_seed([7; 32]));
+    snapshot.status = sjk_identity::Status::Online;
+    snapshot.me = Some(me);
+    snapshot.holocrons = Some(sjk_identity::HolocronProgress {
+        progress_secs: 0,
+        every_secs: 1_800,
+        today: 0,
+        daily_cap: 8,
+        resets_at: None,
+        server_time: 1_791_000_000,
+        can_open: true,
+        catchup: None,
+        activity: None,
+        read_at: Instant::now(),
+    });
+    snapshot.economy = Some(sjk_identity::EconomyTables {
+        shatter: vec![5, 10, 25, 60, 150],
+        craft: vec![40, 100, 300, 800, 2_000],
+        shop: vec![30, 75, 225, 600, 1_500],
+        shop_currency: "shards".to_owned(),
+        abilities: vec!["fuse".to_owned()],
+        fuse: vec![3, 3, 3, 5, 0],
+        wishlist: Some(Vec::new()),
+        ..Default::default()
+    });
+    snapshot
 }
 
 /// The day the shop shows in a world shot and the tests: four offers, one of each slot,
@@ -1594,6 +1990,8 @@ pub(crate) fn sample_data(shards: u64, credits: u64, left: i64, abilities: bool)
         many: abilities,
         shop: Some(sample_day(left)),
         trade: None,
+        fuse: if abilities { [3, 3, 3, 5, 0] } else { [0; 5] },
+        wishlist: abilities.then(Vec::new),
     }
 }
 
@@ -2121,10 +2519,195 @@ mod tests {
         assert_eq!(key(&mut panel, KeyCode::Escape), PanelAction::Close);
     }
 
+    /// The first `n` shaders of the trade of `tier`, as the catalogue lists them.
+    fn of_tier(tier: Rarity, n: usize) -> Vec<&'static str> {
+        unlockables::blade_skins_by_tier()
+            .iter()
+            .filter(|skin| skin.tier == tier && crate::economy::in_trade(skin))
+            .take(n)
+            .map(|skin| skin.id)
+            .collect()
+    }
+
+    /// Fuse (10/11/2026): shown only on a hub that fuses; the Forge proposes the exact
+    /// count from the biggest piles, a click lets a copy go or picks one, the button asks
+    /// twice and sends each shader once per copy, and the shader gained is revealed.
+    #[test]
+    fn duplicates_fuse_after_two_presses_and_the_gain_is_revealed() {
+        let commons = of_tier(Rarity::Common, 2);
+        let held = [copy(commons[0], 3), copy(commons[1], 2)];
+        // An older hub: no Fuse section, 4 changes nothing, Tab skips it.
+        let mut old = forge(Section::Break, &held, sample_data(0, 0, 3_600, false));
+        assert_eq!(old.forge.sections().len(), 3);
+        let _ = key(&mut old, KeyCode::Digit4);
+        assert_eq!(old.forge_section(), Section::Break);
+        let _ = key(&mut old, KeyCode::Tab);
+        assert_eq!(old.forge_section(), Section::Shop);
+        old.show_forge(Section::Fuse);
+        build(&mut old, &held, [1920.0, 1080.0]);
+        assert_eq!(old.forge_section(), Section::Shop, "Fuse gives way");
+        // A hub that fuses three Commons.
+        let mut panel = forge(Section::Break, &held, sample_data(0, 0, 3_600, true));
+        let _ = key(&mut panel, KeyCode::Tab);
+        assert_eq!(panel.forge_section(), Section::Fuse);
+        build(&mut panel, &held, [1920.0, 1080.0]);
+        assert!(panel.fuse_ready, "three spare Commons fuse");
+        assert_eq!(panel.forge.fuse_tier(), Rarity::Common);
+        assert_eq!(panel.forge.fuse_list.len(), 2);
+        assert_eq!(panel.forge.fuse_picks, [(commons[0], 2), (commons[1], 1)]);
+        assert_eq!(panel.forge.fuse_check(), Ok(()));
+        // A click on the first card lets its copies go: one short.
+        let now = Instant::now();
+        let _ = panel.forge.token(TILE_BASE, true, now);
+        assert_eq!(panel.forge.fuse_picked(), 1);
+        assert!(panel.forge.fuse_check().is_err());
+        assert_eq!(key(&mut panel, KeyCode::Enter), PanelAction::None);
+        assert_eq!(panel.forge.armed, None, "nothing to arm");
+        // + picks a copy of the chosen one, never its last.
+        let _ = panel
+            .forge
+            .key(Some("+"), KeyCode::Equal, false, false, false);
+        let _ = panel
+            .forge
+            .key(Some("+"), KeyCode::Equal, false, false, false);
+        let _ = panel
+            .forge
+            .key(Some("+"), KeyCode::Equal, false, false, false);
+        assert_eq!(
+            panel.forge.fuse_copies(commons[0]),
+            2,
+            "its last copy stays"
+        );
+        assert_eq!(panel.forge.fuse_picked(), 3);
+        // P proposes again; Enter twice sends.
+        let _ = key(&mut panel, KeyCode::KeyP);
+        assert_eq!(panel.forge.fuse_picked(), 3);
+        assert_eq!(key(&mut panel, KeyCode::Enter), PanelAction::None);
+        let PanelAction::Fuse(ids) = key(&mut panel, KeyCode::Enter) else {
+            panic!("the fusion goes on the second press");
+        };
+        assert_eq!(ids, [commons[0], commons[0], commons[1]]);
+        assert!(panel.forge.waiting());
+        // The hub's answer: the shader gained is revealed, and the picks come again.
+        let gained = of_tier(Rarity::Uncommon, 1)[0];
+        let serial = panel.forge.sent.map_or(0, |(asked, _)| asked) + 1;
+        panel.preview_forge(Some(ForgeData {
+            trade: Some(sjk_identity::TradeOutcome {
+                serial,
+                trade: sjk_identity::Trade::Fuse,
+                id: gained.to_owned(),
+                amount: 0,
+                copies: 3,
+                message: String::new(),
+            }),
+            ..sample_data(0, 0, 3_600, true)
+        }));
+        panel.set_forge(ForgeData::default());
+        assert_eq!(panel.forge.fused.map(|skin| skin.id), Some(gained));
+        assert!(panel.forge.fuse_stale);
+        build(&mut panel, &held, [1920.0, 1080.0]);
+        // T steps to the next tier the hub fuses: no Uncommon duplicates.
+        let _ = key(&mut panel, KeyCode::KeyT);
+        build(&mut panel, &held, [1920.0, 1080.0]);
+        assert_eq!(panel.forge.fuse_tier(), Rarity::Uncommon);
+        assert!(panel.forge.fused.is_none());
+        assert!(panel.forge.fuse_list.is_empty());
+        assert_eq!(
+            panel.forge.fuse_check(),
+            Err(crate::forge_fuse::Block::Short { have: 0, need: 3 })
+        );
+    }
+
+    /// The wishlist (10/11/2026): an offer's toggle and Craft's W add a shader and take it
+    /// off; a full list takes nothing more; a hub without one shows no toggle.
+    #[test]
+    fn the_wishlist_toggles_from_the_shop_and_craft() {
+        let held = [copy("saber_tidal", 3)];
+        let mut panel = forge(Section::Shop, &held, sample_data(300, 300, 3_600, true));
+        let now = Instant::now();
+        assert_eq!(
+            panel.forge.token(OFFER_WISH_BASE, true, now),
+            Some(PanelAction::Wish("saber_aurora", true))
+        );
+        let full = ForgeData {
+            wishlist: Some(vec![
+                "saber_phoenix".to_owned(),
+                "saber_sakura".to_owned(),
+                "saber_lavalamp".to_owned(),
+            ]),
+            ..sample_data(300, 300, 3_600, true)
+        };
+        let mut panel = forge(Section::Shop, &held, full);
+        assert_eq!(
+            panel.forge.token(OFFER_WISH_BASE, true, now),
+            Some(PanelAction::None),
+            "full"
+        );
+        assert_eq!(
+            panel.forge.token(OFFER_WISH_BASE + 1, true, now),
+            Some(PanelAction::Wish("saber_sakura", false)),
+            "one on it comes off"
+        );
+        let mut craft = forge(Section::Craft, &held, sample_data(300, 300, 3_600, true));
+        let first = craft.forge.craft_list[0].skin.id;
+        assert_eq!(
+            key(&mut craft, KeyCode::KeyW),
+            PanelAction::Wish(first, true)
+        );
+        let mut old = forge(Section::Craft, &held, sample_data(300, 300, 3_600, false));
+        assert_eq!(key(&mut old, KeyCode::KeyW), PanelAction::None);
+        assert!(super::super::forge_view::wishlist_words(&[]).contains("empty"));
+        let aurora = unlockables::find("saber_aurora").unwrap().name;
+        assert!(
+            super::super::forge_view::wishlist_words(&["saber_aurora".to_owned()])
+                .contains(&format!("(1 of 3): {aurora}."))
+        );
+    }
+
+    /// The Shop's dot (10/11/2026): a wished offer, or the deal within reach.
+    #[test]
+    fn the_shop_chip_carries_a_dot_when_an_offer_waits() {
+        let held = [copy("saber_tidal", 3)];
+        let quiet = forge(Section::Shop, &held, sample_data(300, 300, 3_600, true));
+        assert!(!quiet.forge_shop_waits());
+        let with = |deal: bool, wished: bool, shards: u64| {
+            let mut data = sample_data(shards, 300, 3_600, true);
+            if let Some(shop) = data.shop.as_mut() {
+                shop.day.offers[3].deal = deal;
+                shop.day.offers[3].price = 750;
+                shop.day.offers[3].wished = wished;
+            }
+            forge(Section::Shop, &held, data)
+        };
+        assert!(with(true, false, 750).forge_shop_waits());
+        assert!(!with(true, false, 749).forge_shop_waits(), "out of reach");
+        assert!(with(false, true, 0).forge_shop_waits());
+    }
+
     /// Every section and state fits the canvas in every window shape.
     #[test]
     fn every_section_fits() {
-        let held = [copy("saber_tidal", 3), copy("saber_aurora", 1)];
+        let commons = of_tier(Rarity::Common, 6);
+        let mut held = vec![copy("saber_tidal", 3), copy("saber_aurora", 1)];
+        held.extend(commons.iter().map(|id| copy(id, 4)));
+        // The deal, a wished offer and a Beta one, and a full wishlist of long names.
+        let mut marked = sample_data(300, 300, 3_600, true);
+        if let Some(shop) = marked.shop.as_mut() {
+            shop.day.offers[0].deal = true;
+            shop.day.offers[0].edition = Some("beta".to_owned());
+            shop.day.offers[1].wished = true;
+            shop.day.offers[2].edition = Some("beta".to_owned());
+        }
+        let mut longest: Vec<&'static Unlockable> = unlockables::blade_skins().collect();
+        longest.sort_by_key(|skin| std::cmp::Reverse(skin.name.len()));
+        marked.wishlist = Some(
+            longest
+                .iter()
+                .take(3)
+                .map(|skin| skin.id.to_owned())
+                .collect(),
+        );
+        let held = held.as_slice();
         for viewport in [
             [1920.0, 1080.0],
             [3840.0, 2160.0],
@@ -2134,6 +2717,7 @@ mod tests {
             for section in Section::ALL {
                 for data in [
                     sample_data(300, 300, 3_600, true),
+                    marked.clone(),
                     ForgeData {
                         closed: Closed::NoEconomy,
                         ..ForgeData::default()
@@ -2143,8 +2727,13 @@ mod tests {
                         ..sample_data(0, 0, 0, false)
                     },
                 ] {
-                    let mut panel = forge(section, &held, data);
-                    build(&mut panel, &held, viewport);
+                    let mut panel = forge(section, held, data);
+                    build(&mut panel, held, viewport);
+                    if section == Section::Fuse {
+                        // The shader a fusion gave, revealed.
+                        panel.forge.fused = unlockables::find(longest[0].id);
+                        build(&mut panel, held, viewport);
+                    }
                 }
             }
         }
