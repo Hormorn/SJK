@@ -464,6 +464,8 @@ pub(crate) enum Action {
     OnSurface,
     /// Grow, shrink or invert the selection (`mapedit_select grow|shrink|invert`).
     Ring(super::select_grow::Ring),
+    /// M: the measure tool on or off (`mapedit_measure`).
+    Measure,
     /// A double click on a row: glide the camera to what it names.
     FlyTo(FlyTarget),
 }
@@ -707,6 +709,8 @@ pub(crate) struct Panel {
     last_click: Option<(u16, std::time::Instant)>,
     /// Selected shows a face's texture alignment instead of the shader list.
     pub(crate) aligning: bool,
+    /// The measure tool ([`super::measure`]).
+    pub(crate) measure: super::measure::Measure,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -1727,6 +1731,11 @@ impl Panel {
             {
                 return Some(Action::Frame);
             }
+            KeyCode::KeyM
+                if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                return Some(Action::Measure);
+            }
             // Blender's Select More, Less and Invert: Ctrl with + (or =), - and I.
             KeyCode::Equal
             | KeyCode::NumpadAdd
@@ -1962,6 +1971,10 @@ impl GpuState {
                     self.map_edit_light_add_at(point);
                     return;
                 }
+                if self.map_edits.panel.measure.on {
+                    self.map_edit_measure_at(point);
+                    return;
+                }
                 if let Some(thing) = self.map_edits.panel.placing_thing {
                     self.map_edit_thing_at(thing, point);
                     return;
@@ -2022,6 +2035,9 @@ impl GpuState {
             action => action,
         };
         let (name, args): (&str, Vec<String>) = match action {
+            Action::Escape if self.map_edits.panel.measure.on => {
+                ("mapedit_measure", text(&["off"]))
+            }
             Action::Escape if self.map_edits.panel.adding_light => {
                 let panel = &mut self.map_edits.panel;
                 panel.adding_light = false;
@@ -2249,6 +2265,7 @@ impl GpuState {
                 }
             },
             Action::Frame => ("mapedit_frame", vec![]),
+            Action::Measure => ("mapedit_measure", vec![]),
             Action::Ring(ring) => (
                 "mapedit_select",
                 text(&[match ring {

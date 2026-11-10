@@ -88,6 +88,7 @@ pub(super) fn build(panel: &mut Panel, ui: &mut MenuCanvas, viewport: [f32; 2]) 
 /// line on navy glass under and right of the pointer, kept on the scene.
 fn scene_marks(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
     let s = frame.s;
+    measure_label(ui, frame, panel);
     if let Some([x0, y0, x1, y1]) = panel.scene.marquee {
         let rect = Rect::new(x0, y0, x1 - x0, y1 - y0);
         push(
@@ -151,6 +152,49 @@ fn scene_marks(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
         14.0 * s,
         color::TEXT,
         FontWeight::Regular,
+        TextAlign::Start,
+    );
+}
+
+/// The measure's label over its line's middle: its length and deltas in gold on navy
+/// glass, kept on the scene.
+fn measure_label(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
+    let s = frame.s;
+    let Some(([x, y], words)) = &panel.measure.label else {
+        return;
+    };
+    let width = (words.chars().count() as f32 * 7.4 + 26.0) * s;
+    let height = 28.0 * s;
+    let left = (x - width * 0.5)
+        .min(panel.scene_right - width - 8.0 * s)
+        .max(0.0);
+    let top = (y - height - 10.0 * s).max(0.0);
+    let rect = Rect::new(left, top, width, height);
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect,
+            radius: 8.0 * s,
+            color: color::alpha(color::SPACE, 0.9),
+        },
+    );
+    push(
+        ui,
+        DrawCommand::Border {
+            rect,
+            radius: 8.0 * s,
+            width: 1.0 * s,
+            color: color::alpha(color::GOLD_BRIGHT, 0.6),
+        },
+    );
+    text(
+        ui,
+        TextFamily::Body,
+        format_args!("{words}"),
+        Rect::new(left + 12.0 * s, top + 4.0 * s, width - 16.0 * s, 20.0 * s),
+        15.0 * s,
+        color::GOLD_BRIGHT,
+        FontWeight::Semibold,
         TextAlign::Start,
     );
 }
@@ -2126,7 +2170,13 @@ fn key_lines<'a>(panel: &'a Panel, exit: &'a [&'a str]) -> Vec<Vec<Hint<'a>>> {
         ];
     }
     let typing = matches!(panel.focus, SEARCH | REMAP_FIELD);
-    let first: Vec<Hint<'a>> = if panel.facts.grabbing {
+    let first: Vec<Hint<'a>> = if panel.measure.on {
+        vec![
+            (&["Click"], "measure to"),
+            (&["M"], "stop"),
+            (&["Esc"], "stop"),
+        ]
+    } else if panel.facts.grabbing {
         vec![
             (&["Click"], "put down"),
             (&["Wheel"], "turn"),
@@ -2707,9 +2757,15 @@ mod tests {
                 (false, true, tab.token()),
                 (false, false, SEARCH),
             ] {
-                for (exit_key, grabbing) in [("", false), ("F7", true), ("Backspace", false)] {
+                for (exit_key, grabbing, measuring) in [
+                    ("", false, false),
+                    ("F7", true, false),
+                    ("Backspace", false, false),
+                    ("Backspace", false, true),
+                ] {
                     let mut panel = Panel::default();
                     panel.facts.grabbing = grabbing;
+                    panel.measure.on = measuring;
                     panel.tab = tab;
                     panel.focus = focus;
                     panel.transforming = transforming;
@@ -2734,7 +2790,9 @@ mod tests {
         let exit = [exit_cap(&panel)];
         let lines = key_lines(&panel, &exit);
         let actions: Vec<&str> = lines.iter().flatten().map(|(_, action)| *action).collect();
-        for wanted in ["fly", "select", "add", "gizmo", "back", "leave", "undo"] {
+        for wanted in [
+            "fly", "select", "add", "gizmo", "back", "leave", "undo", "frame",
+        ] {
             assert!(actions.contains(&wanted), "{wanted}: {actions:?}");
         }
         assert!(lines.iter().flatten().any(|(caps, _)| caps == &["F7"]));

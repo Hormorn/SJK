@@ -34,6 +34,7 @@ pub(crate) mod fly_to;
 pub(crate) mod gizmo;
 pub(crate) mod lights;
 pub(crate) mod linked;
+pub(crate) mod measure;
 pub(crate) mod nearby;
 pub(crate) mod on_surface;
 pub(crate) mod panel;

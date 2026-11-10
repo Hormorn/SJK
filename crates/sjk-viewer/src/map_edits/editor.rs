@@ -291,6 +291,10 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: lay the texture of the selected drawn faces: shift <s t> texels, scale <s t> (factors; negative flips), rotate <degrees>, fit, reset, or set <shift s t> <scale s t> <degrees>",
     ),
     (
+        "mapedit_measure",
+        "Map editor: measure between two points (M): on|off (alone: the other way), clear, or x y z to put an end; says the distance and the axis deltas",
+    ),
+    (
         "mapedit_surface",
         "Map editor: models placed and grabbed stand along the surface under the pointer (its normal their up), or upright as before (on|off; alone: the other way)",
     ),
@@ -495,6 +499,7 @@ impl GpuState {
                 }])
             }
             "mapedit_align" => self.map_edit_align(args),
+            "mapedit_measure" => self.map_edit_measure(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_weather" => self.map_edit_weather(args),
             "mapedit_light" => self.map_edit_light(args),
