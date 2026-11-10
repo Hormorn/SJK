@@ -4851,6 +4851,13 @@ test: With no skin, retail and RGB blades look exactly as before.
 note: Needs the hub's unlocks and asset packs (SJK-hub #2 and #3), not deployed when merged.
 note: Not run in a game against the deployed hub; the sounds have not been heard yet.
 
+[disruptor-beam-tip]
+area: Rendering & effects
+title: Disruptor beams leave the gun's tip (Slash, PR #405, hub #294)
+change: Another player's beam, yours in third person and a zoomed shot start at the gun's flash.
+test: Watch another player fire the disruptor: the beam leaves their barrel, not their chest.
+test: Fire in third person, then zoomed in: the beam starts at the gun, not where it was before.
+
 # ---- Audio ----
 
 [saber-toggle-spam]

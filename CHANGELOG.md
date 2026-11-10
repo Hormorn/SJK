@@ -47,6 +47,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Rain looks richer (Settings > Graphics > WEATHER): wet streets shine in patches and gather water at the foot of walls, rivulets start under a wall's lip and widen as they run down, a downpour raises a spray over the ground and comes in waves with the wind; at Ultra every wet surface mirrors the lit city round it, softly on a street, sharply in a puddle (`r_weatherReflections` picks sky, puddles or everything). New sliders: Puddles, Rain visibility, Rain haze and spray, Ground fog thickness _(Sol)_
 - The Jedi Knight II HUD (`cg_hudFiles 2`) opens its selector bar when you change weapon, Force power or item: the bar slides open behind the icons between its lit prongs and closes after, and the unlit prongs wait at its ends _(Slash, PR #407, hub report #301, after EternalJK)_
 - The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
+- The disruptor's beam leaves the gun's tip: another player's shot, and yours in third person, now starts at the barrel instead of in front of the chest, and a zoomed sniper shot no longer starts where your gun was before you zoomed in (hub report #294) _(Slash, PR #405, after Sol's report)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
 

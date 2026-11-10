@@ -3558,6 +3558,9 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 10/11/2026 | SJK #405 | Disruptor beams leave the gun's tip (hub report #294)
+- a39e53b |  | Disruptor beams leave the gun's tip (hub report #294)
+- d69857b |  | Changelog: the beam fix's PR number
 + 10/11/2026 | SJK #407 | JK2 HUD: the selector bar opens behind the icons (hub report #301)
 - 44c0f37 |  | JK2 HUD: open the selector bar behind the icons (hub report #301)
 - 7402bb7 |  | Changelog: PR number for the JK2 selector bar
