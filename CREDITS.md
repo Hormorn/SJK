@@ -449,6 +449,11 @@ includes:
   Mythical blade on the GPU and ranks them, and every blade change is timed against
   `main` from now on; the top-tier blades then drawn about a quarter faster with the same
   look (the blade's hiding worked out once per pixel, far lightning bolts skipped);
+- blade shaders cached and built ahead (10/11/2026, Sol's idea: "store the shaders
+  locally in a cache once they loaded them so they load faster next time"): on Vulkan the
+  compiled blade and world pipelines are kept in a pipeline cache file between runs, the
+  blades players wear are built before they first draw, and each build's log line says
+  how long it waited and how long each pipeline took;
 - toon models (02/11/2026): `r_toonModels` draws lit models with banded light, a rim
   and livelier colour, live and off by default; since 08/11/2026 each player chooses it
   for their own model (`cg_toonModel`, the Character tab's Toon shading), synced through

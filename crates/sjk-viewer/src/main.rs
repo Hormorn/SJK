@@ -231,6 +231,7 @@ mod ordered_json;
 mod particle_atlas;
 mod particle_draw;
 mod peek;
+mod pipeline_cache;
 mod player_trades;
 mod portable_shields;
 mod portal;
@@ -483,6 +484,8 @@ fn main() {
         std::process::exit(1);
     }
     crash_report::clean_exit();
+    // What the driver compiled this run, for the next one (`pipeline_cache.rs`).
+    pipeline_cache::save_at_exit();
     // Keep the last achievement counts, then withdraw the identity claim on the hub.
     achievements::sync(None, player_identity::hub_on(), true);
     player_identity::shutdown();

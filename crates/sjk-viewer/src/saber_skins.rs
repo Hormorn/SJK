@@ -1484,6 +1484,9 @@ pub(crate) struct SaberSkins {
     plain: bool,
     /// Whose blades the player draws stock to save GPU time ([`crate::stock_blades`]).
     stock: crate::stock_blades::StockBlades,
+    /// Counts the changes of who wears what (and of `stock`), for the signature builds
+    /// asked ahead ([`Self::worn_ahead`]).
+    worn_revision: u64,
     /// Blades the world shots add every frame, without a session (blade, unlock id or
     /// a stock colour, seed).
     #[cfg(test)]
@@ -1699,6 +1702,7 @@ impl SaberSkins {
     /// Draw `others`, with the local player's own skins in its slot, and hear
     /// `sound_others` so.
     fn merge(&mut self) {
+        self.worn_revision += 1;
         self.clients = self.others;
         self.seconds = self.other_seconds;
         self.sounds = self.sound_others;
@@ -1751,7 +1755,30 @@ impl SaberSkins {
     /// their skin ([`crate::stock_blades`]). Only the world's blades: the menus' preview
     /// takes [`Self::local`], and the sounds are unchanged.
     pub(crate) fn set_stock(&mut self, stock: crate::stock_blades::StockBlades) {
-        self.stock = stock;
+        if stock != self.stock {
+            self.stock = stock;
+            self.worn_revision += 1;
+        }
+    }
+
+    /// The skins whose signature pipelines are built ahead, before a blade first draws them
+    /// (`saber_gpu.rs` `build_ahead`, 10/11/2026), and the revision of that set: every skin on
+    /// either saber of a player in a slot, and the local player's own (also with no session,
+    /// for the menus' preview). Blades the player's `cg_stockBlades` draws stock are left out;
+    /// a duel's stock blades are not, as the skins come back after it. A skin can come twice.
+    pub(crate) fn worn_ahead(&self) -> (u64, impl Iterator<Item = SkinIndex> + '_) {
+        let slots = (0..MAX_CLIENTS)
+            .filter(|&client| !self.stock.plain(Some(client) == self.local_client))
+            .flat_map(|client| {
+                let first = self.clients[client];
+                [first, self.seconds[client].resolve(first)]
+            });
+        let own = (!self.stock.plain(true))
+            .then(|| [self.local, self.local_second.resolve(self.local)])
+            .into_iter()
+            .flatten();
+        let skins = slots.chain(own).flatten().map(|skin| skin.index);
+        (self.worn_revision, skins)
     }
 
     /// Who sits in each client slot, and the local player's own name (`name`), for
@@ -1951,6 +1978,9 @@ impl GpuState {
             .and_then(|id| self.blade_skins.index_of(id));
         self.saber_skins
             .set_local_each(client, skin, own_second, sound);
+        // Their signatures built ahead, before their blades first draw (`build_ahead`).
+        let (revision, worn) = self.saber_skins.worn_ahead();
+        self.saber_gpu.build_ahead(revision, worn);
         if let Some(preview) = crate::saber_sound_choice::take_preview() {
             self.play_sound_preview(game_audio, preview);
         }

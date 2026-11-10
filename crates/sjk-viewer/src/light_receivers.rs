@@ -360,7 +360,7 @@ impl Pipelines {
             depth_stencil: None,
             multisample: Default::default(),
             multiview_mask: None,
-            cache: None,
+            cache: crate::pipeline_cache::of(device).as_ref(),
         });
         Self {
             attributes,
@@ -445,7 +445,7 @@ impl Pipelines {
                 depth_stencil: None,
                 multisample: Default::default(),
                 multiview_mask: None,
-                cache: None,
+                cache: crate::pipeline_cache::of(device).as_ref(),
             });
             let direct_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
@@ -467,7 +467,7 @@ impl Pipelines {
                     "direct_lamps"
                 }),
                 compilation_options: Default::default(),
-                cache: None,
+                cache: crate::pipeline_cache::of(device).as_ref(),
             });
             Cached {
                 attributes,
@@ -557,7 +557,7 @@ fn attribute_pipeline(
         }),
         multisample: Default::default(),
         multiview_mask: None,
-        cache: None,
+        cache: crate::pipeline_cache::of(device).as_ref(),
     })
 }
 

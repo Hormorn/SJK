@@ -3204,6 +3204,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sjk-pipeline-cache"
+version = "0.1.0"
+dependencies = [
+ "wgpu",
+]
+
+[[package]]
 name = "sjk-protocol"
 version = "0.1.0"
 
@@ -3320,6 +3327,7 @@ dependencies = [
  "sjk-mod-jof",
  "sjk-model",
  "sjk-network",
+ "sjk-pipeline-cache",
  "sjk-protocol",
  "sjk-runtime",
  "sjk-scene",

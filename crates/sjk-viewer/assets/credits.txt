@@ -93,6 +93,7 @@ did: The Forge: shop, crafting and breaking any saber shader down, in one tab
 did: The History tab: every drop, opening, credit and shard spent, box and trade
 did: Blade cost ranking: every Legendary and Mythical blade timed on the GPU
 did: Top-tier saber shaders made faster with the same look
+did: Blade shaders kept in a cache on disk and built ahead for the blades worn
 did: The four holocrons: the Jedi cube, the Great Holocron, the Sith pyramid, the kyber prism
 did: Grand finds told in SJK chat: who opened a holocron and got a grand prize
 did: The holocron limit resets for everyone at 9:00, Paris time

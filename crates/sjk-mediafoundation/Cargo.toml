@@ -19,7 +19,7 @@ windows = { version = "0.62.2", features = [
     "Win32_System_LibraryLoader",
 ] }
 
-# One of the two crates allowed `unsafe` (with sjk-gpu-memory): every Media Foundation call is a COM call. Each
+# One of the three crates allowed `unsafe` (with sjk-gpu-memory and sjk-pipeline-cache): every Media Foundation call is a COM call. Each
 # block says why it is sound (undocumented_unsafe_blocks); the rest of the workspace
 # keeps `unsafe_code = "forbid"`.
 [lints.rust]

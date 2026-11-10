@@ -1,3 +1,24 @@
+## Blade shader cache and build-ahead (10/11/2026)
+
+10/11/2026, `personal/shader-cache` based on `main` `5a347a01b` (Sol: "store the shaders
+locally in a cache once they loaded them so they load faster next time"). Sol's logs of
+08/11/2026 (RTX 5080, Vulkan) had 17 of 20 signature builds at about 20 ms and three at 6.8 to
+8.2 s; the build timer started when a builder took the build, so those were compiles, and
+Abyssal Eye and Eclipse took 25 ms in the next run, the driver's own cache by then holding
+them. Built: on Vulkan a wgpu pipeline cache kept on disk per graphics card in the settings'
+`cache/` folder, loaded at start with wgpu's fallback, saved 10 s after the last new pipeline
+and at a clean exit (temporary file, then a rename), used by the blade pipelines, the world and
+model stage pipelines, depth priming and the lamp cache's receivers; the one `unsafe` call in a
+new crate, `sjk-pipeline-cache`; the build line split into the module, each pipeline and the
+wait in the queue; and the skins worn in the server's slots and by the local player built ahead
+at the lowest urgency ([rendering.md](rendering.md#pipeline-cache-on-disk)). DX12, GL and Metal
+log "unsupported" and keep their drivers' caches. Verified: `cargo test -p sjk-viewer` (file
+name, missing, damaged and oversized files, the atomic save, the build line, which skins are
+built ahead), the GPU test that a damaged file gives an empty cache that builds and saves, clippy
+and the startup stack check. Not verified: nothing was tried in a running client; whether the
+cache shortens the first compiles beyond the driver's own cache, and how much building ahead
+costs during a map load, are not measured.
+
 ## Verified-only pictures and GIFs, Change name sets the SJK name
 
 10/11/2026, `personal/verified-pictures-name` (Sol: "we don't accept profile pictures from

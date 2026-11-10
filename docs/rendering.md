@@ -534,6 +534,70 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 `[+ms]` stamps of these log lines and the `frame-budget` maxima after a map load with
 `SJK_FRAME_BUDGET=1` (see [status](status.md)).
 
+### Pipeline cache on disk
+
+Since 10/11/2026 the windowed client keeps a wgpu pipeline cache on disk
+([pipeline_cache.rs](../crates/sjk-viewer/src/pipeline_cache.rs), with the one `unsafe` call in
+[sjk-pipeline-cache](../crates/sjk-pipeline-cache/src/lib.rs)): what the driver compiled in one
+run is handed back to it in the next, so a pipeline built once does not start from nothing.
+
+- **Backends.** Vulkan only: wgpu's `Features::PIPELINE_CACHE` is requested at device creation
+  where the adapter offers it. DX12, GL and Metal have none and rely on their drivers' own
+  shader caches, as before (log: `pipeline cache: unsupported on Dx12, the driver's own cache
+  only`).
+- **Where.** One file per graphics card in the `cache/` folder beside `config.cfg`
+  (`GameData/SJK/cache/`, or the per-user SJK folder's), named by
+  `wgpu::util::pipeline_cache_key`: `wgpu_pipeline_cache_vulkan_<vendor>_<device>.bin`. Off-screen
+  renders (tests, world shots) open no file.
+- **Loading and invalidation.** It is loaded once at start with `fallback`: wgpu checks the
+  header it wrote (header version and ABI, backend, vendor and device, the driver's pipeline
+  cache UUID, the body's length) and starts an empty cache when anything differs, so a driver
+  update, another card or another wgpu version simply begins again; a file over 64 MiB is not
+  read. Log: `pipeline cache: loaded N bytes from ... (M bytes kept by the driver)` (M far below
+  N means the driver dropped it), or `created empty (... is new)`. Deleting the file is always
+  safe.
+- **Saving.** A thread (`sjk-pipeline-cache`) saves `get_data()` 10 s after the last pipeline
+  made with the cache, and the client saves it again at a clean exit; each save writes a
+  temporary file and renames it over the old one, and skips data identical to the last save
+  (log: `pipeline cache: saved N bytes to ...`). The file only grows (wgpu cannot trim a cache);
+  data over 64 MiB is not saved.
+- **Which pipelines use it.** The blade pipelines (the shared ones in `saber_gpu::Runtime::new`,
+  every signature's main, view, half-size volume and solid pipelines and its menu one), the
+  world and model stage pipelines (`world_material_gpu::create_pipeline_for_vertex`: the keys
+  compiled at load, the stage table's, glow, fog, flare and mid-match model variants), the
+  depth-priming pipelines and the lamp cache's receiver pipelines (`light_receivers.rs`). The
+  other ~60 call sites (post-processing, UI, sky, weather, shadows, GI, reflections, effects)
+  still pass `cache: None`; they are made once at start or on first use and can take
+  `crate::pipeline_cache::of(device).as_ref()` the same way.
+
+On the RTX 5080 of Sol's logs of 08/11/2026 most signature builds took about 20 ms, with the
+driver's own cache warm; Abyssal Eye and Eclipse took 6.8 and 8.2 s in one run and 25 ms in the
+next, and Sith Holocron 7 s the first time it was worn. The build timer started when a builder
+took the build, so those seconds were compiling (the driver's first compile of that pipeline),
+not waiting in the queue. Whether the pipeline cache saves those first compiles beyond what the
+driver's own cache does is not measured: the build line now says (below).
+
+### Signature builds: the log line, and building ahead
+
+Each signature build logs one line:
+`blade skins: <id>'s signature shader built in T ms (module M ms, main A ms, view B ms, volume C
+ms, solid D ms; waited W ms, wanted now|picture|ahead)`. `T` is from a builder taking the build
+to its pipelines ready (the pipelines are made side by side, so `T` is about the module plus the
+slowest); each pipeline the signature has is listed with its own time; `W` is how long it waited
+in the queue since first asked. A slow build with a small `W` and one large pipeline time is the
+driver compiling; a large `W` is the queue.
+
+The skins worn are built ahead (`saber_gpu::Runtime::build_ahead`, from
+`SaberSkins::worn_ahead`): every skin on either saber of a player in the server's slots (from
+the hub's looks) and the local player's own, also in the menus, are asked with the lowest
+urgency whenever that set changes, so the second builder makes them while the map loads or
+plays, and a blade first drawn finds its pipelines ready instead of drawing plain until its
+build ends. A blade drawn meanwhile moves its build up to "now". Blades `cg_stockBlades` draws
+stock are left out; a duel's stock blades are not, as the skins come back after it. Nothing
+else is built ahead: never every signature (only `saber_loadall` and the world shots'
+`build_every_signature` ask for them all), and the Collection's pictures still ask for theirs
+when they are drawn.
+
 ## Selected controls
 
 | Cvar | Behavior |

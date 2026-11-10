@@ -257,7 +257,7 @@ pub(super) fn create_pipeline_for_vertex(
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
-        cache: None,
+        cache: crate::pipeline_cache::of(device).as_ref(),
     })
 }
 
