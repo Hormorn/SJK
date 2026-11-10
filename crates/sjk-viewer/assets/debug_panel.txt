@@ -9742,3 +9742,4 @@ change: PK3s in GameData/assets and below load as if in base, sorted by file nam
 test: Move a custom model's PK3 to assets/personal: it is still in the Profile after fs_restart.
 test: Move a map PK3 to assets/jof: Create game lists it and the local server starts on it.
 test: assetbrowser lists assets/personal/name.pk3, and disabling it takes effect.
+test: With GameData/assets/S/base there, sith.downloads names that folder, a base copy is kept.

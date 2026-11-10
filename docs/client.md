@@ -51,8 +51,9 @@ loads as if it were in `base`, sorted by file name among `base`'s, so moving a p
 changes nothing about which pack wins. The folder holds PK3s only: loose files are not
 read, links are not followed, and the four retail archives stay in `base`. The client,
 the local server (its maps and configs), the material generator and the check for packs
-already owned before a download all see them; downloads and the content switches still
-write to `base`. In `fs_disabledPaks` such a pack is named by its own folder
+already owned before a download all see them; server downloads and JoF content keep
+their own places, and the Sith cloud uses `assets/S` once the SJK Launcher has made it
+([Sith cloud](sith-cloud.md#where-the-files-go)). In `fs_disabledPaks` such a pack is named by its own folder
 (`jof/name.pk3`), and a pack directly in `assets` as `assets/name.pk3`.
 
 `fs_restart` mounts the installed game files again without restarting SJK
