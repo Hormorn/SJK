@@ -361,6 +361,9 @@ pub struct Snapshot {
     /// The kyber crystals' odds and the person's pity counter, as the hub last sent them
     /// with the progress; `None` before, or from a hub older than crystals (21/10/2026).
     pub kyber: Option<crate::wire::KyberTables>,
+    /// The Beta season's tables and the person's holocron pity, as the hub last sent them
+    /// with the progress; `None` before, or from a hub older than seasons (10/11/2026).
+    pub seasons: Option<crate::wire::SeasonTables>,
     /// The SJK team's open requests for the player's logs (oldest first), as the hub
     /// last listed them, without the ones the player answered: the game asks the
     /// player about each ([`Service::answer_logs`]).
@@ -789,6 +792,7 @@ impl Snapshot {
             reveal: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
@@ -3276,6 +3280,7 @@ impl Worker {
                     }
                     if state.kyber.is_some() {
                         snapshot.kyber.clone_from(&state.kyber);
+                        snapshot.seasons.clone_from(&state.seasons);
                     }
                     // A hub that keeps marks sends them every time (none: an empty list);
                     // one that keeps none leaves them out.
@@ -5477,6 +5482,8 @@ mod tests {
                     credits: 40,
                     unlock: None,
                     shards: 0,
+                    extra: Vec::new(),
+                    pity: None,
                 })
                 .collect();
             let mut profile = profile("Sol");
@@ -6337,6 +6344,7 @@ mod tests {
             loot: Vec::new(),
             economy: None,
             kyber: None,
+            seasons: None,
             marks: None,
             catchup: None,
             activity: None,

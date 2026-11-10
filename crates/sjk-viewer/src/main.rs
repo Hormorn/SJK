@@ -236,6 +236,7 @@ mod prediction_preview;
 mod ragdoll;
 mod scene_views;
 mod scope;
+mod seasons;
 mod sender_card;
 mod server_caps;
 mod siege_objective_notice;

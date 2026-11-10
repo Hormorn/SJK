@@ -160,14 +160,25 @@ impl Shown {
     pub(crate) fn of(opened: &sjk_identity::Opened) -> Option<Self> {
         // A shader instead of a card is a [`Prize::Shader`].
         let held = opened.card.as_ref()?;
+        Self::of_card(opened, held, opened.credits, opened.shards)
+    }
+
+    /// Card copy `held` from holocron `opened`, shown with `credits` and `shards` (a Beta
+    /// holocron's bonus card comes with neither).
+    fn of_card(
+        opened: &sjk_identity::Opened,
+        held: &sjk_identity::OpenedCard,
+        credits: u64,
+        shards: u64,
+    ) -> Option<Self> {
         Some(Self {
             holocron: opened.holocron,
             tier: holocrons::any(&opened.tier)?.slot,
             rarity: Rarity::from_id(&held.rarity)?,
             finish: Finish::from_id(&held.finish)?,
             edition: cards::edition_name(&held.edition),
-            credits: opened.credits,
-            shards: opened.shards,
+            credits,
+            shards,
             card: held.card.clone(),
             bonus: None,
         })
@@ -316,6 +327,50 @@ pub(crate) enum Prize {
 }
 
 impl Prize {
+    /// Everything one holocron brought, each its own reveal: its prize ([`Prize::of`]),
+    /// then a Beta holocron's extras (the hub's `PROTOCOL.md`, "Seasons", 10/11/2026), the
+    /// group ordered so its best prize comes last. An Alpha holocron gives its one prize.
+    pub(crate) fn all(opened: &sjk_identity::Opened) -> Vec<Self> {
+        let mut prizes: Vec<Self> = Self::of(opened).into_iter().collect();
+        if opened.extra.is_empty() {
+            return prizes;
+        }
+        for extra in &opened.extra {
+            let prize = match (&extra.unlock, &extra.card) {
+                (Some(unlock), _) => Found::of(opened, unlock).map(Self::Shader),
+                (None, Some(card)) => Shown::of_card(opened, card, 0, 0).map(Self::Card),
+                (None, None) if extra.shards > 0 => holocrons::any(&opened.tier).map(|tier| {
+                    Self::Shards(Pile {
+                        holocron: opened.holocron,
+                        tier: tier.slot,
+                        shards: extra.shards,
+                    })
+                }),
+                (None, None) => None,
+            };
+            prizes.extend(prize);
+        }
+        // Stable: equal ones keep the hub's order (its card first).
+        prizes.sort_by_key(Self::rank);
+        prizes
+    }
+
+    /// How fine a prize is, for showing a holocron's best last: a pile of shards least,
+    /// then a card by its rarity then finish, a shader or tag by its tier.
+    fn rank(&self) -> (usize, usize) {
+        match self {
+            Self::Card(shown) => (shown.rarity.index + 1, shown.finish.index),
+            Self::Shader(found) => {
+                let tier = found
+                    .skin
+                    .map(|skin| skin.tier)
+                    .or_else(|| found.tag.map(|tag| tag.tier));
+                (tier.map_or(1, |tier| tier as usize + 1), 0)
+            }
+            Self::Shards(_) => (0, 0),
+        }
+    }
+
     /// A second reveal, without replacing any part of the ordinary prize.
     fn bonus(opened: &sjk_identity::Opened) -> Option<Self> {
         opened
@@ -559,7 +614,7 @@ impl Panel {
                 self.opening_serial = serial;
                 // The page reads the hub's counts again at once.
                 self.refreshed = None;
-                let shown: Vec<Prize> = outcome.opened.iter().filter_map(Prize::of).collect();
+                let shown: Vec<Prize> = outcome.opened.iter().flat_map(Prize::all).collect();
                 let bonuses: Vec<Prize> = outcome.opened.iter().filter_map(Prize::bonus).collect();
                 if shown.is_empty() && !bonuses.is_empty() {
                     self.show(bonuses, now);
@@ -3030,6 +3085,33 @@ mod bonus_tests {
         assert_eq!(banner.id, "banner_jedi_archives");
         assert_eq!(banner.count, 2);
         assert_eq!(banner.kind(), "bonus profile banner");
+    }
+
+    #[test]
+    fn a_beta_holocron_reveals_each_prize_its_best_last() {
+        let opened: sjk_identity::Opened = serde_json::from_value(serde_json::json!({
+            "holocron":3,"tier":"mythical","credits":300,
+            "card":{"id":9,"rarity":"legendary","finish":"holo","edition":"beta"},
+            "extra":[
+                {"kind":"shader","unlock":{"id":"saber_tidal","name":"Tidal blade","count":1}},
+                {"kind":"shards","shards":40},
+                {"kind":"card","card":{"id":10,"rarity":"rare","finish":"normal","edition":"beta"}}
+            ]
+        }))
+        .unwrap();
+        let prizes = Prize::all(&opened);
+        assert_eq!(prizes.len(), 4);
+        assert!(matches!(&prizes[0], Prize::Shards(pile) if pile.shards == 40));
+        let Some(Prize::Card(best)) = prizes.last() else {
+            panic!("the Legendary card last")
+        };
+        assert_eq!((best.rarity.id, best.credits), ("legendary", 300));
+        assert!(prizes.iter().any(|prize| matches!(prize,
+            Prize::Card(card) if card.rarity.id == "rare" && card.credits == 0)));
+        // An Alpha holocron: its one prize, as before.
+        let mut alpha = opened.clone();
+        alpha.extra.clear();
+        assert_eq!(Prize::all(&alpha), vec![Prize::of(&alpha).unwrap()]);
     }
 
     #[test]

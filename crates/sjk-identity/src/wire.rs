@@ -426,6 +426,31 @@ pub struct Opened {
     /// (the hub leaves the field out then).
     #[serde(default)]
     pub shards: u64,
+    /// A Beta holocron's other prizes (the hub's `PROTOCOL.md`, "Seasons", 10/11/2026):
+    /// its guaranteed shader first, then its bonus rolls; empty for an Alpha holocron and
+    /// from hubs before.
+    #[serde(default)]
+    pub extra: Vec<OpenedExtra>,
+    /// The tier the person's holocron pity raised this opening to (`legendary` or
+    /// `mythical`); `None` when it did not, and from hubs before.
+    #[serde(default)]
+    pub pity: Option<String>,
+}
+
+/// One more prize of a Beta holocron ([`Opened::extra`]).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct OpenedExtra {
+    /// `shader`, `tag`, `shards`, `banner` or `card`.
+    pub kind: String,
+    /// The shader, tag or banner.
+    #[serde(default)]
+    pub unlock: Option<OpenedUnlock>,
+    /// A bonus card (without credits).
+    #[serde(default)]
+    pub card: Option<OpenedCard>,
+    /// A pile of kyber shards.
+    #[serde(default)]
+    pub shards: u64,
 }
 
 /// A shader an opening brought.
@@ -526,6 +551,10 @@ pub struct HolocronState {
     /// `PROTOCOL.md`, "Kyber crystals"); `None` from hubs before.
     #[serde(default)]
     pub kyber: Option<KyberTables>,
+    /// The Beta season's tables and the person's holocron pity (10/11/2026; the hub's
+    /// `PROTOCOL.md`, "Seasons"); `None` from hubs before.
+    #[serde(default)]
+    pub seasons: Option<SeasonTables>,
     /// The person's collection marks (29/10/2026; the hub's `PROTOCOL.md`, "Collection
     /// marks"): their favourite and locked saber shaders. `None` from hubs before, which
     /// keep none (their economy does not say [`MARKS_ABILITY`]).
@@ -837,6 +866,98 @@ impl Mark {
 pub struct MarksAnswer {
     /// The person's marks after the change.
     pub marks: UnlockMarks,
+}
+
+/// The holocron seasons' tables as the hub sends them with the progress (`PROTOCOL.md`,
+/// "Seasons", 10/11/2026): how a Beta holocron of Rare or better opens, and the person's
+/// pity.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonTables {
+    /// One per Beta tier, Rare to Mythical.
+    #[serde(default)]
+    pub beta: Vec<SeasonTier>,
+    /// The person's holocron pity.
+    #[serde(default)]
+    pub pity: SeasonPity,
+}
+
+/// How a Beta holocron of one tier opens ([`SeasonTables::beta`]).
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonTier {
+    /// The holocron tier's wire id (`rare`).
+    pub tier: String,
+    /// Its guaranteed card's rarity odds, Common to Mythical, per mille.
+    #[serde(default)]
+    pub rarity: Vec<u32>,
+    /// Its card's finish odds, Normal, Holo, Solar, per mille.
+    #[serde(default)]
+    pub finish: Vec<u32>,
+    /// Its credits, an inclusive range.
+    #[serde(default)]
+    pub credits: [u64; 2],
+    /// Its guaranteed shader's lowest tier (`rare`); `None` for no guaranteed shader.
+    #[serde(default)]
+    pub shader_floor: Option<String>,
+    /// The shader odds the floor renormalises, Common to Mythical, per mille.
+    #[serde(default)]
+    pub shader_tier: Option<Vec<u32>>,
+    /// One per bonus roll.
+    #[serde(default)]
+    pub bonus: Vec<SeasonBonus>,
+    /// Whether its cards prefer faces the person does not hold yet.
+    #[serde(default)]
+    pub fresh_faces: bool,
+}
+
+/// One bonus roll's shares, per mille out of [`SeasonBonus::scale`]; the rest is nothing.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonBonus {
+    /// A shader.
+    #[serde(default)]
+    pub shader: u32,
+    /// A tag.
+    #[serde(default)]
+    pub tag: u32,
+    /// A pile of kyber shards.
+    #[serde(default)]
+    pub shards: u32,
+    /// A profile banner.
+    #[serde(default)]
+    pub banner: u32,
+    /// A second card.
+    #[serde(default)]
+    pub card: u32,
+    /// The whole the shares are out of (less than 1000 while banners do not drop).
+    #[serde(default = "thousand")]
+    pub scale: u32,
+}
+
+/// 1000, a bonus roll's whole.
+fn thousand() -> u32 {
+    1_000
+}
+
+/// The person's holocron pity ([`SeasonTables::pity`]).
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct SeasonPity {
+    /// Toward a prize of Legendary or better.
+    #[serde(default)]
+    pub grand: PityCount,
+    /// Toward a Mythical prize.
+    #[serde(default)]
+    pub mythical: PityCount,
+}
+
+/// One pity count: a prize at the latest every `every` Beta holocrons, `since` opened
+/// since the last one.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct PityCount {
+    /// The run's length.
+    #[serde(default)]
+    pub every: u32,
+    /// Beta holocrons opened since the last such prize.
+    #[serde(default)]
+    pub since: u32,
 }
 
 /// The kyber crystals' tables as the hub sends them with the progress (`PROTOCOL.md`,
@@ -2339,6 +2460,7 @@ mod tests {
                 loot: Vec::new(),
                 economy: None,
                 kyber: None,
+                seasons: None,
                 marks: None,
                 catchup: None,
                 activity: None,
@@ -2491,6 +2613,32 @@ mod tests {
         .unwrap();
         assert_eq!(gated.min_client.as_deref(), Some("2026.1022.1"));
         // Kyber crystals (21/10/2026): their odds and the person's pity, beside `loot`.
+        let seasons: HolocronState = serde_json::from_str(
+            r#"{"progress_secs":0,"every_secs":1800,"seasons":{"beta":[{"tier":"mythical",
+            "rarity":[0,0,500,380,120],"finish":[0,850,150],"credits":[250,350],
+            "shader_floor":"legendary","shader_tier":[50,150,350,330,120],
+            "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750}],
+            "fresh_faces":true}],"pity":{"grand":{"every":15,"since":3},
+            "mythical":{"every":80,"since":40}}}}"#,
+        )
+        .unwrap();
+        let tables = seasons.seasons.unwrap();
+        assert_eq!(tables.beta[0].shader_floor.as_deref(), Some("legendary"));
+        assert_eq!(tables.beta[0].bonus[0].scale, 750);
+        assert_eq!(
+            (tables.pity.grand.since, tables.pity.mythical.every),
+            (3, 80)
+        );
+        let opened: Opened = serde_json::from_str(
+            r#"{"holocron":7,"tier":"mythical","credits":300,
+            "card":{"id":1,"rarity":"rare","finish":"holo","edition":"beta"},
+            "extra":[{"kind":"shader","unlock":{"id":"saber_sun","name":"Sun","count":1}},
+            {"kind":"shards","shards":40}],"pity":"legendary"}"#,
+        )
+        .unwrap();
+        assert_eq!(opened.extra.len(), 2);
+        assert_eq!(opened.extra[1].shards, 40);
+        assert_eq!(opened.pity.as_deref(), Some("legendary"));
         let kyber: HolocronState = serde_json::from_str(
             r#"{"progress_secs":0,"every_secs":1800,"server_time":1,
                 "kyber":{"tiers":[{"tier":"kyber_uncommon","shader_tier":[450,400,120,25,5]},

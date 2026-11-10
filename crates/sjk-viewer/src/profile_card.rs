@@ -626,6 +626,7 @@ mod tests {
             log_answer: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
