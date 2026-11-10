@@ -634,6 +634,18 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Spend a blank tag on GIPHY GIF `giphy`, a GIF tag for good (`POST /v1/tags/gif`,
+    /// 10/11/2026, verified players on hubs whose profiles list `gif_tags`).
+    fn make_gif_tag(
+        &mut self,
+        _identity: &Identity,
+        _giphy: &str,
+    ) -> Result<crate::wire::GifTagAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not make GIF tags".to_owned(),
+        ))
+    }
+
     /// Set (`on`) or clear `mark` on saber shader `id` (`POST /v1/unlocks/marks`,
     /// 29/10/2026, hubs whose economy says `marks`): the hub answers every mark after.
     fn set_mark(
@@ -2094,6 +2106,19 @@ impl Hub for HttpHub {
             "POST",
             "/v1/tags/craft",
             Some(json!({ "copies": copies })),
+        )?)
+    }
+
+    fn make_gif_tag(
+        &mut self,
+        identity: &Identity,
+        giphy: &str,
+    ) -> Result<crate::wire::GifTagAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/tags/gif",
+            Some(json!({ "giphy": giphy })),
         )?)
     }
 

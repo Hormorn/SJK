@@ -13,6 +13,26 @@ pity's run and raise, a Beta Mythical's prizes, an Alpha holocron unchanged, a B
 counted, fresh faces, the release gate, the status answer) and the client's (the wire, the
 reveal order, the rehearsal, the Beta page's lines and fit). Not verified: in a running
 client, or against a deployed hub. Not deployed; no changelog line until Beta opens.
+## GIF tags
+
+10/11/2026, `personal/gif-tags`, based on `main` `9c92344ab` (Sol's idea: a blank tag
+dropped as the others, spent once on a GIPHY link, a tag that plays that GIF on walls
+forever; verified players only, a GIF GIPHY deletes is a tag lost, opt-in with GIF tags
+off by default and classic tags on). The client side of [Tag](client.md#tag): the blank
+tag in the catalogue, `gif:<id>` tag ids, the profile's `gif_tags` and `POST /v1/tags/gif`
+in `sjk-identity`, the blank's card (Paste link, Make on a second press), a GIF tags
+heading, `cg_toyGifTags` (the card's switch and Settings, with "Show others' tags" for
+`cg_toyTags`), and GIF tags animated on walls by the tags' pass from the chat's GIF cache
+([rendering](rendering.md#tags)). Needs the hub's `gif-tags` branch (deployed first);
+on an older hub the blank tag shows but cannot be spent and no GIF tag is offered.
+Verified on Windows 11: unit tests (GIF tag ids, holdings from the profile, the blank
+never stuck, the own GIF tag going when the hub takes it, the card's reasons, the wall's
+parts, the settings' help), the world shots `duel6_sjk_collection_gif_tags` (looked at: the
+GIF tag's card and tile playing, the blank's card with a GIF pasted and Make pressed once)
+and `duel6_tags_on_walls_and_floor` (a GIF tag on a wall, two frames apart, looked at),
+fmt, clippy and the viewer's tests. Not verified: in a running client against the hub
+(the clipboard, a real GIPHY GIF on a wall, other players seeing it, the spray), and the
+Toys tab has no Tag row (the switches are on the Tags card and in Settings).
 
 ## Map editor panel: the page's tools in game, and texture pictures
 

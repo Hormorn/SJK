@@ -609,6 +609,9 @@ pub enum TagTrade {
     Shatter(crate::wire::TagCopy),
     /// Two copies given for a tag not held yet.
     Craft([crate::wire::TagCopy; 2]),
+    /// A blank tag spent on a GIPHY GIF, by its id (10/11/2026): the GIF tag made is
+    /// told as [`TagOutcome::crafted`], its id `gif:<giphy>`.
+    Gif(String),
 }
 
 /// What became of a tag copies request.
@@ -1000,6 +1003,7 @@ enum Command {
     ShatterTag(crate::wire::TagCopy),
     /// Give two tag copies for a new tag.
     CraftTags([crate::wire::TagCopy; 2]),
+    MakeGifTag(String),
     /// The feed relayed a holocron drop of the player's own key.
     OwnDrop,
     /// The viewer wants fresh holocron progress.
@@ -1333,6 +1337,11 @@ fn tag_refusal(error: &HubError) -> String {
             "finishes_differ" => "Both copies must be of the same finish.",
             "tiers_differ" => "Both copies must be of the same tier.",
             "nothing_new" => "You already have every tag of that tier in that finish.",
+            "not_verified" => "GIF tags are for verified players.",
+            "bad_gif" => "That is not a GIPHY GIF link.",
+            "gif_tag_held" => "You already have a GIF tag of that GIF.",
+            "no_blank_tag" => "You have no blank tag left.",
+            "gif_tags_full" => "You have as many GIF tags as the hub keeps.",
             "opening_staff_only" => "Shards and the shop open with holocrons: soon.",
             "client_update_required" => return update_notice(message),
             _ => return message.clone(),
@@ -2038,6 +2047,7 @@ impl Worker {
             Command::Play(play) => self.play.add(&play),
             Command::ShatterTag(copy) => self.tag_trade(TagTrade::Shatter(copy)),
             Command::CraftTags(copies) => self.tag_trade(TagTrade::Craft(copies)),
+            Command::MakeGifTag(giphy) => self.tag_trade(TagTrade::Gif(giphy)),
             Command::OwnDrop => self.own_drop(now),
             Command::RefreshHolocrons => self.holocrons_soon(now),
             Command::MenuOpened => self.menu_opened(now),
@@ -2441,6 +2451,16 @@ impl Worker {
                 TagTrade::Craft(copies) => hub
                     .craft_tags(&self.identity, copies)
                     .map(|answer| (0, Some(answer.crafted), answer.profile)),
+                TagTrade::Gif(giphy) => hub.make_gif_tag(&self.identity, giphy).map(|answer| {
+                    let made = crate::wire::TagCrafted {
+                        id: answer.made.id,
+                        name: "GIF tag".to_owned(),
+                        tier: String::new(),
+                        finish: "normal".to_owned(),
+                        gave: Vec::new(),
+                    };
+                    (0, Some(made), answer.profile)
+                }),
             },
             _ => Err(self.not_connected()),
         };
@@ -4705,6 +4725,12 @@ impl Service {
         let _ = self.commands.send(Command::CraftTags(copies));
     }
 
+    /// Spend a blank tag on GIPHY GIF `giphy` for a GIF tag (verified players, hubs whose
+    /// profiles list `gif_tags`): what came of it arrives in [`Snapshot::tag_trade`].
+    pub fn make_gif_tag(&self, giphy: String) {
+        let _ = self.commands.send(Command::MakeGifTag(giphy));
+    }
+
     /// Ask for fresh holocron progress ([`Snapshot::holocrons`]); read at most once
     /// every 30 seconds, for a page that shows it as it opens.
     pub fn refresh_holocrons(&self) {
@@ -5345,6 +5371,7 @@ mod tests {
     fn profile(name: &str) -> Profile {
         Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             key_id: "0123456789abcdef".to_owned(),
             key: String::new(),
             name: name.to_owned(),

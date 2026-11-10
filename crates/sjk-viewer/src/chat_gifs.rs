@@ -63,6 +63,18 @@ const RETRY_AFTER: Duration = Duration::from_secs(300);
 const TEXTURE_BASE: u32 = 0x7000_0000;
 
 static ENABLED: AtomicBool = AtomicBool::new(true);
+/// `cg_toyGifTags`: GIF tags on walls are fetched and drawn ([`wall`]).
+static WALLS: AtomicBool = AtomicBool::new(false);
+
+/// Follow `cg_toyGifTags` (once a frame, `tags_frame.rs`).
+pub(crate) fn set_walls(on: bool) {
+    WALLS.store(on, Ordering::Relaxed);
+}
+
+/// Whether GIF tags on walls show.
+pub(crate) fn walls() -> bool {
+    WALLS.load(Ordering::Relaxed)
+}
 
 /// Follow `cl_sjkChatGifs` (once a frame).
 pub(crate) fn set_enabled(on: bool) {
@@ -130,6 +142,9 @@ fn for_message_with(text: &str, muted: bool, on: bool) -> (String, Option<GifId>
 struct Key {
     id: GifId,
     preview: bool,
+    /// For a GIF tag on a wall ([`wall`]): fetched while GIF tags are on, whatever
+    /// `cl_sjkChatGifs` says.
+    wall: bool,
     revision: u64,
 }
 
@@ -138,6 +153,7 @@ impl Key {
         Self {
             id: id.clone(),
             preview: false,
+            wall: false,
             revision: sources::revision(),
         }
     }
@@ -465,6 +481,7 @@ pub(crate) fn show_hidden_preview(id: &GifId) -> Shown {
     lock().show(&Key {
         id: id.clone(),
         preview: true,
+        wall: false,
         revision: sources::revision(),
     })
 }
@@ -478,8 +495,91 @@ pub(crate) fn show_preview(id: &GifId) -> Shown {
     lock().show(&Key {
         id: id.clone(),
         preview: true,
+        wall: false,
         revision: sources::revision(),
     })
+}
+
+/// What to draw for GIF tag `id` as a tile or card of the Collection's Tags tab: its
+/// preview file, while GIF tags are on (`cg_toyGifTags`), whatever the chat's switch says.
+pub(crate) fn show_tag_preview(id: &GifId) -> Shown {
+    if !walls() || !shows(id) {
+        return Shown::Unavailable;
+    }
+    lock().show(&Key {
+        id: id.clone(),
+        preview: true,
+        wall: true,
+        revision: sources::revision(),
+    })
+}
+
+/// What a GIF tag on a wall draws this frame ([`wall`]).
+#[derive(Clone, Debug)]
+pub(crate) enum Wall {
+    /// Being fetched or decoded: nothing yet.
+    Loading,
+    /// The GIF and the frame its animation is at (every copy of a GIF plays in step).
+    Ready { gif: Arc<Gif>, frame: usize },
+    /// It could not be had (GIPHY removed it, say), it is hidden, or GIF tags are off.
+    Unavailable,
+}
+
+/// What GIF tag `id` draws on a wall this frame (`tag_render.rs`): the decoded GIF, the
+/// chat's file, without a GIF texture of the UI's; the tags' pass uploads its frames
+/// itself. The first call asks the workers for it, while GIF tags are on
+/// (`cg_toyGifTags`) and the player did not hide that GIF.
+pub(crate) fn wall(id: &GifId) -> Wall {
+    if !walls() || !shows(id) {
+        return Wall::Unavailable;
+    }
+    let key = Key {
+        id: id.clone(),
+        preview: false,
+        wall: true,
+        revision: sources::revision(),
+    };
+    let mut gifs = lock();
+    let frame = gifs.frame;
+    let Some(index) = gifs.entries.iter().position(|entry| entry.key == key) else {
+        gifs.entries.push(Entry {
+            key: key.clone(),
+            state: State::Loading,
+            used: frame,
+        });
+        gifs.ask(&key);
+        gifs.evict();
+        return Wall::Loading;
+    };
+    gifs.entries[index].used = frame;
+    match gifs.entries[index].state.clone() {
+        State::Loading => Wall::Loading,
+        State::Failed(since) if since.elapsed() >= RETRY_AFTER => {
+            gifs.entries[index].state = State::Loading;
+            gifs.ask(&key);
+            Wall::Loading
+        }
+        State::Failed(_) => Wall::Unavailable,
+        State::Ready(gif) => {
+            let frame = gif.frame_at(gifs.elapsed_ms());
+            Wall::Ready { gif, frame }
+        }
+    }
+}
+
+/// Keep `bytes` decoded as GIF tag `id`'s GIF, on walls and in the Collection, held at
+/// `held_ms`, for a world shot.
+#[cfg(test)]
+pub(crate) fn insert_wall_for_shot(id: &GifId, bytes: &[u8], held_ms: u64) {
+    for preview in [false, true] {
+        let key = Key {
+            id: id.clone(),
+            preview,
+            wall: true,
+            revision: sources::revision(),
+        };
+        insert_key_for_shot(key, bytes, held_ms);
+    }
 }
 
 /// Whether the cache still waits for `key`: a GIF dropped while it waited in the queue
@@ -487,7 +587,8 @@ pub(crate) fn show_preview(id: &GifId) -> Shown {
 fn wanted(key: &Key) -> bool {
     // A hidden GIF is never fetched for a line; its preview only for the Hidden tab.
     let hidden = !key.preview && hidden::contains(&key.id);
-    if !enabled() || key.revision != sources::revision() || !sources::trusted(&key.id) || hidden {
+    let on = if key.wall { walls() } else { enabled() };
+    if !on || key.revision != sources::revision() || !sources::trusted(&key.id) || hidden {
         return false;
     }
     lock()
@@ -573,6 +674,7 @@ pub(crate) fn insert_preview_for_shot(id: &GifId, bytes: &[u8], held_ms: u64) {
     let key = Key {
         id: id.clone(),
         preview: true,
+        wall: false,
         revision: sources::revision(),
     };
     insert_key_for_shot(key, bytes, held_ms);
@@ -781,6 +883,7 @@ mod tests {
         let tile = Key {
             id: chat.id.clone(),
             preview: true,
+            wall: false,
             revision: sources::revision(),
         };
         let _ = gifs.show(&chat);

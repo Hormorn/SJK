@@ -1256,6 +1256,13 @@ pub(crate) fn craft_tags(copies: [sjk_identity::TagCopy; 2]) {
     }
 }
 
+/// Spend a blank tag on GIPHY GIF `giphy` for a GIF tag (verified players).
+pub(crate) fn make_gif_tag(giphy: String) {
+    if let Some(service) = lock().service.as_ref() {
+        service.make_gif_tag(giphy);
+    }
+}
+
 /// Tell the service whether the player is actively playing, when that is not what it
 /// was last told; false when the service has not started.
 pub(crate) fn set_active(active: bool) -> bool {

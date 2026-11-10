@@ -1063,6 +1063,7 @@ mod tests {
     fn profile(holocrons: Vec<sjk_identity::Holocron>) -> sjk_identity::Profile {
         sjk_identity::Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),

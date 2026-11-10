@@ -111,6 +111,34 @@ fn duel6_tags_on_walls_and_floor() {
             gpu.effect_aux.decals.tag_polys() > 0,
             "the tags were projected"
         );
+        // A GIF tag (10/11/2026) on the first wall, a made-up animation standing in for its
+        // GIPHY GIF, two frames apart.
+        crate::chat_gifs::set_walls(true);
+        let gif = crate::chat_gifs::GifId::new("TestGif1").unwrap();
+        let animation = crate::chat_gifs::decode::test_animation([320, 200], 8, 120);
+        let (at, normal, forward) = spots[0];
+        let tag = sjk_identity::PlacedTag {
+            id: "gif:TestGif1".to_owned(),
+            map: "mp/duel6".to_owned(),
+            at: at.to_array(),
+            normal: normal.to_array(),
+            spin: crate::tags::spin_for(normal, crate::tags::up_for(normal, forward)),
+            finish: None,
+        };
+        gpu.effect_aux.decals.set_tag(0, Some(&tag));
+        let back = at - forward * 110.0 + Vec3::Z * 10.0;
+        let look = (at - back).normalize();
+        aim(
+            &mut gpu,
+            back.to_array(),
+            look.y.atan2(look.x).to_degrees(),
+            look.z.asin().to_degrees(),
+        );
+        for held in [0, 480] {
+            crate::chat_gifs::insert_wall_for_shot(&gif, &animation, held);
+            images.push(frame(&mut gpu, 6));
+            println!("GIF tag at {held} ms: drawn {}", gpu.tag_render.has_draws());
+        }
         println!("{}", sheet(&images, 2, 960, "duel6-tags").display());
     });
 }

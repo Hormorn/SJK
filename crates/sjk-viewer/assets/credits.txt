@@ -153,6 +153,7 @@ did: The Sith cloud on the same card, with the SJK hub naming both collections' 
 did: Automatic updates for JoF content and the Sith cloud: opt in, hourly, for the groups you mark
 did: The News panel: release recaps and announcements in one, with links into the game, pictures and switches
 did: Sharp tags drawn in a pass of their own, Holo and Solar tags, and the credits cards as tags
+did: GIF tags: a blank tag spent once on a GIPHY GIF that plays on walls, opt in
 did: The Toy Master: toys hidden on maps to find, each a secret achievement
 did: Mythical shader parts: the Sun's and the Spectral's effects, each switched on or off
 did: The Sun's orbiting glints, circling its blade below the tip
@@ -398,7 +399,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 137 merged pull requests
+role: Contributor: 138 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -538,6 +539,7 @@ did: #395 A click that brings the window back no longer attacks
 did: #396 A boombox on the floor is hidden in a private duel
 did: #398 SJK UI: a typed slider value opens a gold pill at the number's size
 did: #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK
+did: #403 The credits page counts the pull requests merged under older merge names
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]

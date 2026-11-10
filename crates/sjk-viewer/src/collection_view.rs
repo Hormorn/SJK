@@ -180,6 +180,7 @@ pub(crate) fn row_labels(
         tag: "",
         tag_finish: "",
         finisher: "",
+        gif_tags: false,
     };
     counts(&inputs).iter().map(|count| count.label()).collect()
 }

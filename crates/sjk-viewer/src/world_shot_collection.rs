@@ -1083,6 +1083,79 @@ fn duel6_sjk_collection_tags() {
     });
 }
 
+/// The Tags tab's GIF tags (10/11/2026) on the made-up profile, verified, with GIF tags
+/// on: a blank tag held and one GIF tag made (a made-up animation standing in for its
+/// GIPHY GIF). First the GIF tag's card, then the blank tag's with a link pasted and Make
+/// pressed once.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_sjk_collection_gif_tags() {
+    on_big_stack(|| {
+        super::saber_skins::mount_test_packs();
+        let cvars = [
+            ("ui_menuStyle", "sjk"),
+            (crate::settings::quick::HIDE_CVAR, "1"),
+            (crate::tags::GIF_SHOW_CVAR, "1"),
+            (crate::discord_presence::CVAR, "0"),
+        ];
+        let Some((mut gpu, _profile)) = open(
+            "maps/mp/duel6.bsp",
+            [1920, 1080],
+            Some(menu::ClientMenu::new(true, String::new())),
+            &cvars,
+        ) else {
+            return;
+        };
+        let _ = frame(&mut gpu, 10);
+        crate::chat_gifs::set_walls(true);
+        let made = crate::chat_gifs::GifId::new("TestGif1").unwrap();
+        let pasted = crate::chat_gifs::GifId::new("TestGif2").unwrap();
+        let animation = crate::chat_gifs::decode::test_animation([320, 200], 8, 120);
+        crate::chat_gifs::insert_wall_for_shot(&made, &animation, 360);
+        crate::chat_gifs::insert_wall_for_shot(&pasted, &animation, 600);
+        let blank = sjk_identity::Unlock {
+            id: crate::tags::BLANK.to_owned(),
+            count: 1,
+            ..sun()
+        };
+        let mut profile = preview();
+        if let Some(me) = profile.snapshot.me.as_mut() {
+            me.verified = true;
+            me.gif_tags = Some(vec![sjk_identity::GifTag {
+                id: "TestGif1".to_owned(),
+                made: 1_794_300_000,
+            }]);
+        }
+        if let Some(console) = gpu.console.as_mut() {
+            console.preview_profile(profile);
+            console.preview_collection(Some(vec![sun(), blank]), 0.8);
+            console.open_profile_hub_page(Tab::Tags, ReturnTarget::MainMenu);
+        }
+        // The wall lists the GIF tag once a frame drew it.
+        let _ = frame(&mut gpu, 2);
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_tag_for_shot("gif:TestGif1", 0);
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 20, "duel6-collection-gif-tag").display()
+        );
+        assert!(!overflowed(&gpu));
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_tag_for_shot(crate::tags::BLANK, 0);
+        }
+        let _ = frame(&mut gpu, 2);
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_gif_link_for_shot(pasted);
+        }
+        println!(
+            "{}",
+            shoot(&mut gpu, 20, "duel6-collection-blank-tag").display()
+        );
+        assert!(!overflowed(&gpu));
+    });
+}
+
 /// The History tab (31/10/2026) on made-up lines: an Open all of five gathered (opened on
 /// its lines), single openings with a card and a shader, drops, a purchase, a shatter, a
 /// mystery box and a trade, then Load older.

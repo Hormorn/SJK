@@ -1063,6 +1063,14 @@ const HELP: &[(&str, &str)] = &[
         "Off: no Banana peel toy peel is drawn, yours or other players', nor their sounds heard. You can still slip while the toy is on.",
     ),
     (
+        crate::tags::SHOW_CVAR,
+        "Off: other players' tags are not drawn on this PC, nor their sprays heard. Yours still is.",
+    ),
+    (
+        crate::tags::GIF_SHOW_CVAR,
+        "Off by default. On: GIF tags (a GIPHY GIF on a blank tag) play on walls, yours and others'.",
+    ),
+    (
         crate::toy_sight::ILLUMINATE,
         "Off: other players' Illuminate holocrons are not drawn on this PC. Yours still is.",
     ),

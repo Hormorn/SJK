@@ -247,6 +247,7 @@ mod tests {
             key_id: "0123456789abcdef".to_owned(),
             me: Some(Profile {
                 tag_cards: Vec::new(),
+                gif_tags: None,
                 credits: 0,
                 cards: Vec::new(),
                 keys: Vec::new(),
@@ -442,6 +443,7 @@ mod tests {
             "fedcba9876543210".to_owned(),
             Profile {
                 tag_cards: Vec::new(),
+                gif_tags: None,
                 credits: 0,
                 cards: Vec::new(),
                 keys: Vec::new(),

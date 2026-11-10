@@ -6334,6 +6334,26 @@ sees it there.
   the same map. `cg_toyTags 0` hides other players' tags on this PC; a muted or blocked
   player's never show.
 
+- **GIF tags** (Sol's decisions, 10/11/2026): the **Blank tag** (`tag_blank`, Rare, Alpha)
+  drops from holocrons as the other tags do, always Normal, and is never stuck itself
+  ("A blank tag takes a GIF first"). Its card in Collection > Tags makes a GIF tag:
+  **Paste link** reads a GIPHY link from the clipboard (the chat's rules,
+  [hub-chat.md](hub-chat.md#gifs-from-giphy)) and shows its GIF as it will play;
+  **Make**, pressed twice, asks the hub (`POST /v1/tags/gif`) to spend one blank tag on
+  it, for good. Verified players only (the hub's rule; the card says why it waits: a hub
+  before GIF tags, not verified, GIF tags off, no blank). The GIF tags made stand under
+  their own heading, each playing its GIF, and are chosen as any tag: `cg_tag gif:<id>`,
+  no finish. They never trade, break down or craft; spare blank tags do, as any tag's
+  copies. A GIF GIPHY removes is a tag lost: its card says so, nothing is given back.
+  Staff can take a GIF tag away (undoable).
+- **GIF tags are opt-in** (`cg_toyGifTags`, off by default; the switch on a GIF tag's or
+  the blank's card, Settings > Gameplay "Show GIF tags"): off, no GIF tag is fetched,
+  drawn or stuck on this PC, the own included, and their sprays are not heard. On, each
+  client fetches the GIF from GIPHY itself, as chat GIFs are (the chat's cache, its
+  limits and its trusted sources, whatever `cl_sjkChatGifs` says), and a GIF the player
+  hid in chat never shows on a wall either. Classic tags stay on (`cg_toyTags 1`, now in
+  Settings too as "Show others' tags").
+
 A tag is a lasting decal with a slot of its own per player
 ([decal_store.rs](../crates/sjk-viewer/src/decal_store.rs)): projected once when it
 changes (as impact marks are, over corners and patches), kept until it goes, never pushed

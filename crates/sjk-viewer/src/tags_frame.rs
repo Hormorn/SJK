@@ -73,8 +73,16 @@ impl GpuState {
             .filter(|id| !id.is_empty())
             .unwrap_or(crate::tags::DEFAULT)
             .to_owned();
-        if crate::tags::get(&chosen).is_none() && !crate::tags::is_card_id(&chosen) {
+        if chosen == crate::tags::BLANK {
+            self.tag_centre("A blank tag takes a GIF first: make it in Collection > Tags");
+            return;
+        }
+        if !crate::tags::stickable(&chosen) {
             self.tag_centre("No such tag: choose one in the Collection");
+            return;
+        }
+        if crate::tags::gif_id(&chosen).is_some() && !self.gif_tags_on() {
+            self.tag_centre("GIF tags are off: turn them on in Collection > Tags");
             return;
         }
         let held = self.tag_held(&chosen);
@@ -149,6 +157,14 @@ impl GpuState {
         self.tags.stick(server, tag, now);
     }
 
+    /// Whether GIF tags are on on this PC ([`crate::tags::GIF_SHOW_CVAR`], off by default).
+    fn gif_tags_on(&self) -> bool {
+        self.console
+            .as_ref()
+            .and_then(|console| console.bool_cvar(crate::tags::GIF_SHOW_CVAR))
+            .unwrap_or(false)
+    }
+
     /// `toy_tag clear`: take the own tag off.
     pub(crate) fn clear_tag(&mut self) {
         if self.tags.clear() {
@@ -188,26 +204,37 @@ impl GpuState {
             .as_ref()
             .and_then(|console| console.bool_cvar(crate::tags::SHOW_CVAR))
             .unwrap_or(true);
+        // GIF tags are opt-in: off, none is drawn, the own included, nor fetched.
+        let gifs = self.gif_tags_on();
+        crate::chat_gifs::set_walls(gifs);
+        let shown = |tag: &&sjk_identity::PlacedTag| gifs || crate::tags::gif_id(&tag.id).is_none();
         let own_slot = self.looks.own_slot().map(usize::from);
         for slot in 0..crate::looks::SLOTS {
             let tag = if Some(slot) == own_slot {
-                own.as_ref()
+                own.as_ref().filter(shown)
             } else if show && map.is_some() {
                 self.looks
                     .tag(slot)
                     .filter(|tag| Some(tag.map.as_str()) == map.as_deref())
+                    .filter(shown)
             } else {
                 None
             };
             self.effect_aux.decals.set_tag(slot, tag);
         }
-        self.hear_other_sprays(show, map.as_deref(), own_slot);
+        self.hear_other_sprays(show, gifs, map.as_deref(), own_slot);
     }
 
     /// Queue the spray of each other player who put a new tag up on this map since the
     /// last frame (not one whose look just arrived with it, nor any while tags are
     /// hidden).
-    fn hear_other_sprays(&mut self, show: bool, map: Option<&str>, own_slot: Option<usize>) {
+    fn hear_other_sprays(
+        &mut self,
+        show: bool,
+        gifs: bool,
+        map: Option<&str>,
+        own_slot: Option<usize>,
+    ) {
         self.tags.seen.resize(crate::looks::SLOTS, None);
         for slot in 0..crate::looks::SLOTS {
             let now = if Some(slot) == own_slot {
@@ -220,6 +247,7 @@ impl GpuState {
             let before = std::mem::replace(&mut self.tags.seen[slot], now.clone());
             if let (Some(before), Some(Some(tag))) = (before, now)
                 && show
+                && (gifs || crate::tags::gif_id(&tag.id).is_none())
                 && before.as_ref() != Some(&tag)
             {
                 self.tags.sprays.push(Vec3::from_array(tag.at));

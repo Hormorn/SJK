@@ -17,6 +17,10 @@
 //!   the card's colour). Built on a worker thread the first time one is on show, kept
 //!   while it is drawn and let go [`UNUSED`] after; packs mounted anew drop them all.
 //!   A picture not there yet (or missing) draws nothing.
+//! - **GIF tags** (10/11/2026): the chat's decoded GIF (`chat_gifs::wall`), each in a
+//!   square texture of its own (the GIF centred on transparency, so it keeps its shape),
+//!   one level, written again only when the animation reaches a new frame. No finish, so
+//!   no outline: a blank one stands in.
 //! - **The outline:** a signed distance to the picture's edge ([`outline`]), in a second
 //!   texture, for Solar's corona.
 //! - **Drawn** in the effect layer right after the world's marks (`particle_draw.rs`),
@@ -84,12 +88,16 @@ pub(crate) enum Source {
     Tag(String),
     /// A card: its picture in the card packs, made a sticker.
     Card(String),
+    /// A GIF tag: its GIPHY GIF, animated.
+    Gif(crate::chat_gifs::GifId),
 }
 
 impl Source {
     /// The picture a placed tag shows.
     pub(crate) fn of(id: &str) -> Self {
-        if crate::tags::get(id).is_some() {
+        if let Some(gif) = crate::tags::gif_id(id) {
+            Self::Gif(gif)
+        } else if crate::tags::get(id).is_some() {
             Self::Tag(id.to_owned())
         } else {
             Self::Card(id.to_owned())
@@ -122,6 +130,16 @@ struct Slot {
     source: Source,
     state: State,
     used: Instant,
+    /// A GIF tag's texture, once its GIF is decoded.
+    gif: Option<GifTexture>,
+}
+
+/// A GIF tag's texture: square, its side the GIF's longer one.
+struct GifTexture {
+    texture: wgpu::Texture,
+    /// The GIF it holds (its frames' address) and the frame written last.
+    gif: usize,
+    frame: usize,
 }
 
 /// One tag's draw: its picture and its vertices.
@@ -150,6 +168,8 @@ pub(crate) struct TagRender {
     built: (Sender<Delivery>, Receiver<Delivery>),
     /// The last time slots were swept for pictures not drawn lately.
     swept: Instant,
+    /// The outline GIF tags are drawn with: one texel, outside every picture.
+    blank_outline: wgpu::TextureView,
 }
 
 impl TagRender {
@@ -281,6 +301,23 @@ impl TagRender {
             packs: crate::sjk_packs::generation(),
             built: channel(),
             swept: Instant::now(),
+            // wgpu clears a new texture: its one texel is 0, outside every picture.
+            blank_outline: device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("SJK GIF tag outline"),
+                    size: wgpu::Extent3d {
+                        width: 1,
+                        height: 1,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::R8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    view_formats: &[],
+                })
+                .create_view(&wgpu::TextureViewDescriptor::default()),
         }
     }
 
@@ -319,10 +356,12 @@ impl TagRender {
         if self.version != Some(decals.tags_version()) {
             self.rebuild(device, queue, decals, now);
         }
-        for draw in &self.draws {
-            if let Some(slot) = self.slots.get_mut(draw.slot) {
-                slot.used = now;
+        for index in 0..self.draws.len() {
+            let slot = self.draws[index].slot;
+            if let Some(held) = self.slots.get_mut(slot) {
+                held.used = now;
             }
+            self.animate(device, queue, slot);
         }
         if !self.draws.is_empty() {
             queue.write_buffer(
@@ -338,9 +377,110 @@ impl TagRender {
                     && matches!(slot.state, State::Ready(_) | State::Missing)
                 {
                     slot.state = State::Gone;
+                    slot.gif = None;
                 }
             }
         }
+    }
+
+    /// Bring GIF tag slot `index` to its animation's frame of the moment: its texture made
+    /// once the GIF is decoded, the frame written when it changed. A GIF that cannot be
+    /// had (or is hidden, or GIF tags went off) draws nothing.
+    fn animate(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &crate::frame_queue::FrameQueue,
+        index: usize,
+    ) {
+        let Some(Slot {
+            source: Source::Gif(id),
+            ..
+        }) = self.slots.get(index)
+        else {
+            return;
+        };
+        let (gif, frame) = match crate::chat_gifs::wall(id) {
+            crate::chat_gifs::Wall::Ready { gif, frame } => (gif, frame),
+            crate::chat_gifs::Wall::Loading => {
+                let slot = &mut self.slots[index];
+                if slot.gif.is_none() {
+                    slot.state = State::Loading;
+                }
+                return;
+            }
+            crate::chat_gifs::Wall::Unavailable => {
+                let slot = &mut self.slots[index];
+                slot.state = State::Missing;
+                slot.gif = None;
+                return;
+            }
+        };
+        let address = Arc::as_ptr(&gif) as usize;
+        let [width, height] = gif.size;
+        let edge = width.max(height).max(1);
+        let fresh = self.slots[index]
+            .gif
+            .as_ref()
+            .is_none_or(|held| held.gif != address);
+        if fresh {
+            // wgpu clears a new texture: round the GIF it stays transparent.
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("SJK GIF tag"),
+                size: wgpu::Extent3d {
+                    width: edge,
+                    height: edge,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let group = self.bind(device, &view, &self.blank_outline);
+            let slot = &mut self.slots[index];
+            slot.state = State::Ready(group);
+            slot.gif = Some(GifTexture {
+                texture,
+                gif: address,
+                frame: usize::MAX,
+            });
+        }
+        let Some(held) = self.slots[index].gif.as_mut() else {
+            return;
+        };
+        let Some(pixels) = gif.frames.get(frame) else {
+            return;
+        };
+        if held.frame == frame || pixels.rgba.len() != (width * height * 4) as usize {
+            return;
+        }
+        held.frame = frame;
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &held.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: (edge - width) / 2,
+                    y: (edge - height) / 2,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels.rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 
     /// The draws and vertices of `decals`' tags, and their pictures asked for.
@@ -424,10 +564,19 @@ impl TagRender {
                     source: source.clone(),
                     state: State::Gone,
                     used: now,
+                    gif: None,
                 });
                 self.slots.len() - 1
             }
         };
+        if matches!(source, Source::Gif(_)) {
+            // A GIF comes from the chat's cache, frame by frame ([`Self::animate`]).
+            if matches!(self.slots[index].state, State::Gone) {
+                self.slots[index].state = State::Loading;
+                self.slots[index].used = now;
+            }
+            return index;
+        }
         if matches!(self.slots[index].state, State::Gone) {
             self.slots[index].state = State::Loading;
             self.slots[index].used = now;
@@ -446,17 +595,27 @@ impl TagRender {
         let picture =
             crate::gpu_texture::upload_levels(device, queue, "SJK tag picture", &built.picture);
         let outline = upload_gray_levels(device, queue, "SJK tag outline", &built.outline);
+        self.bind(device, &picture, &outline)
+    }
+
+    /// Bind a picture and its outline.
+    fn bind(
+        &self,
+        device: &wgpu::Device,
+        picture: &wgpu::TextureView,
+        outline: &wgpu::TextureView,
+    ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("SJK tag picture"),
             layout: &self.picture_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&picture),
+                    resource: wgpu::BindingResource::TextureView(picture),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&outline),
+                    resource: wgpu::BindingResource::TextureView(outline),
                 },
             ],
         })
@@ -571,6 +730,8 @@ fn ask(source: Source, done: Sender<Delivery>) {
                 .flatten()
                 .map(|asset| Job::Tag(asset.bytes, path))
         }
+        // A GIF tag's frames come from the chat's cache, never from here.
+        Source::Gif(_) => None,
         Source::Card(id) => {
             let faces = crate::cards::faces::current();
             faces.find(id).and_then(|(index, face)| {
