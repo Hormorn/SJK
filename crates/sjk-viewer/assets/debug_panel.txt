@@ -24,6 +24,21 @@
 
 # ---- Console & chat ----
 
+[forge-shop]
+area: Menus & settings
+title: Forge fusion, deal of the day, wishlist
+change: Forge > Fuse (4): duplicates of one tier make a shader of the next you lack.
+change: Shop: the deal of the day (old price struck), wished and Beta offers marked.
+change: Wishlist of 3 (gift toggle); a card once a day when one is on offer; gold dots.
+test: Collection > Forge > Fuse: the proposal never takes a last copy; P proposes again.
+test: Click a card, + and -: the count stays at the fusion's; Fuse twice reveals the gain.
+test: T steps the tier; a tier without enough duplicates says how many more are needed.
+test: Shop: the deal shows its ribbon, "Was ..." struck and the halved price; buy it.
+test: Shaders card, Craft (W) and an offer: the gift toggle adds and takes off; 3 is full.
+test: Shop lists the wishlist; a dot on the Forge tab and Holocrons' Shop when one waits.
+test: Restart the same day: the wishlist card does not come back; it does the next day.
+note: Needs the hub branch forge-shop deployed; an older hub shows none of it.
+
 [holocron-seasons]
 area: Menus & settings
 title: Holocron seasons: Beta holocrons, guaranteed prizes, bonus rolls, pity

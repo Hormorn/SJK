@@ -147,6 +147,10 @@ includes:
   give a card with a rarity floor, a shader with a tier floor (Uncommon, Rare, Legendary;
   Beta's own odds, and better Beta kyber crystal odds, 10/11/2026) and bonus rolls on top, with a pity (Legendary or better every 15, Mythical every 80) and card
   faces not held yet; shown prize by prize, best last;
+- Forge fusion, the deal of the day and a wishlist (10/11/2026, Sol's request to make
+  crafting and the shop more used): duplicates of one tier fused into a shader of the next
+  not held yet, one offer a day at half price, and up to three wished shaders marked in the
+  shop with a card the day one is on offer;
 - the Legendary holocron's Sith pyramid sculpted anew (05/11/2026, art by Sol,
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
   the high-poly model, and normal maps on models whose shader names one (`normalMap`);

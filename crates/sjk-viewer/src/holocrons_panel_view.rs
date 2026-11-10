@@ -1017,6 +1017,10 @@ impl Panel {
                 false,
                 SHOP_TOKEN,
             );
+            // The Forge's dot while something waits there (10/11/2026).
+            if crate::forge_alert::shown() {
+                kit::attention_dot(&mut self.ui, frame, [left + total - 16.0, BUTTONS_Y + 10.0]);
+            }
         }
         kit::button(
             &mut self.ui,

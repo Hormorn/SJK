@@ -911,6 +911,22 @@ pub(crate) fn changed_dot(canvas: &mut MenuCanvas, frame: &Frame, x: f32, y: f32
     );
 }
 
+/// The gold dot that says something waits behind a chip or a button (10/11/2026), centred
+/// on `[x, y]` (frame pixels).
+pub(crate) fn attention_dot(canvas: &mut MenuCanvas, frame: &Frame, [x, y]: [f32; 2]) {
+    let r = 5.0;
+    let _ = canvas.draw_list_mut().push(DrawCommand::RoundedRect {
+        rect: frame.rect(x - r - 1.5, y - r - 1.5, (r + 1.5) * 2.0, (r + 1.5) * 2.0),
+        radius: (r + 1.5) * frame.s,
+        color: color::alpha(color::SPACE, 0.9),
+    });
+    let _ = canvas.draw_list_mut().push(DrawCommand::RoundedRect {
+        rect: frame.rect(x - r, y - r, r * 2.0, r * 2.0),
+        radius: r * frame.s,
+        color: color::GOLD_BRIGHT,
+    });
+}
+
 /// A sub-heading at (`x`, `y`) with a rule after it to `x + width`.
 pub(crate) fn heading(
     canvas: &mut MenuCanvas,
