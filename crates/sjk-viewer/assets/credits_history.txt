@@ -3576,6 +3576,28 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 10/11/2026 | SJK #413 | No line above weapon icons: sample inside each atlas cell (hub report #311)
+- b64b7bf |  | UI icon atlas: sample half a texel inside each cell (hub report #311)
+- c9f9fb3 |  | Changelog: PR number for hub report #311
++ 10/11/2026 | SJK #412 | A held weapnext key keeps cycling the weapons (hub report #309)
+- 03295c2 |  | A held weapnext key keeps cycling the weapons (hub report #309)
+- d76ec54 |  | Changelog: PR number for hub report #309
++ 10/11/2026 | SJK #411 | Commands and cvars list: Ctrl+A and a double click select again (hub report #308)
+- 4eb6bda |  | Commands and cvars list: Ctrl+A and a double click select again (hub report #308)
+- 6952bab |  | Changelog: PR number for hub report #308
++ 10/11/2026 | SJK #409 | s_language reaches the players' voices after snd_restart (hub report #298)
+- 229cff5 |  | s_language: the game's sound tables read the voices in the language (hub report #298)
+- 66248d0 |  | Changelog: PR number for the s_language voices
++ 10/11/2026 | SJK #406 | cg_defaultModelRandom: a missing player model shows as a retail model, not always Kyle (hub report #302)
+- 527cf43 |  | cg_defaultModelRandom: a missing player model stands in as a retail model picked from its name (hub report #302)
+- c555dcf |  | cg_defaultModelRandom: switching it redraws players since the world load
++ 10/11/2026 | SJK #404 | Saber swings play every swing sound again (hub report #303)
+- 1c21f08 |  | Saber swings: pick each swing's sound at random, not one per player (hub report #303)
+- 20965ac |  | CHANGELOG: PR number for the swing sound fix
++ 10/11/2026 | - | Forge: a Craft search for a held shader says it is held (hub report #305)
+- b6883a3 |  | Forge: a Craft search for a held shader says it is held (hub report #305)
++ 10/11/2026 | - | Forge: name held matches in the Craft intro while others list (hub report #305)
+- 8f8d50f |  | Forge: name held matches in the Craft intro while others list (hub report #305)
 + 10/11/2026 | SJK #405 | Disruptor beams leave the gun's tip (hub report #294)
 - a39e53b |  | Disruptor beams leave the gun's tip (hub report #294)
 - d69857b |  | Changelog: the beam fix's PR number

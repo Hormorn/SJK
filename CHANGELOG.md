@@ -35,10 +35,16 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
 
+- Ctrl+A and a double click select the search again in the console's commands and cvars list (F3), and a cvar value being edited there: the selection no longer vanishes on the next frame _(Slash, PR #411, hub report #308, after akr's report)_
+- Holding a key bound to `weapnext` or `weapprev` keeps cycling the weapons, as in base JKA: a held key's repeat runs its bind's commands again (a `+command` such as `+attack` stays held) _(Slash, PR #412, hub report #309, after akr's report)_
+- No more thin line above some weapon icons (and other HUD and menu icons) drawn larger than their picture: an icon no longer blends in the edge of the icon next to it _(Slash, PR #413, hub report #311, after akr's report)_
+- `s_language` reaches the players' own voices too: with `s_language francais` (or `deutsch`, `espanol`) and `snd_restart`, their pain, death and taunt voices are French as well, not only some of the other voices _(Slash, PR #409, hub report #298, after jof'mg.perso's report)_
+- The Forge's Craft search tells you when the shader you looked for is yours already (it crafts only shaders you lack; another copy comes from holocrons), instead of finding nothing _(Slash, hub report #305, after SimpleSmokie's report)_
 - Change name on your SJK profile now sets your SJK name (shown in the SJK chat, on cards and on the hub) instead of sending you to the in-game name _(Sol)_
 - Only verified players' GIFs play in the SJK chat; anyone else's link stays a link. Only verified players can upload a profile picture _(Sol)_
 - The map editor flies to things: double click an edit, a thing, a light or a lamp in its lists, or press F on the selection, and the camera glides there (your body stays put). It also aligns the texture on caulk faces it draws (shift, turn, scale, flip, fit, as in Radiant), previews textures on caulk faces before you keep them, stands placed models along walls and slopes (Place > Surface), measures between two points (M), and grows, shrinks or inverts the selection (Ctrl with +, - and I) _(Sol)_
 - The map editor guesses textures: every selection's shader list starts with suggestions (what surrounds it, the same family of names, what the map uses most), and resting on one shows it on the map before you keep it. Better selections too: what is under the pointer is outlined with a tip, a drag draws a box to select, Ctrl+click takes one out, Same shader selects every surface of a texture, Ctrl+D duplicates placed models, and clicking a clip brush no longer selects it _(Sol)_
+- Saber swings sound different again: each swing picks one of the stock swing sounds (or the saber's own) at random as in base, instead of each player hearing the same one on every swing; saber hits, blocks and footsteps vary the same way _(Slash, PR #404, hub report #303, after jof'mg.perso's report)_
 - GIF tags: a new Rare Blank tag drops from holocrons; verified players spend it once on a GIPHY link for a tag that plays that GIF on walls, theirs for good (a GIF GIPHY removes is a tag lost). GIF tags are off until you turn them on (`cg_toyGifTags`, on the tag's card or Settings > Gameplay) _(Sol)_
 - PK3s no longer have to sit in `base`: make a `GameData/assets` folder and sort them into subfolders as you like (`assets/jof`, `assets/personal`), every one loads as if it were in `base` _(Sol)_
 - The Sith cloud card follows the SJK Launcher into `assets/S` and doesn't fetch a file you already have in `base` _(Sol)_
@@ -49,6 +55,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - The Jedi Knight II HUD (`cg_hudFiles 2`) opens its selector bar when you change weapon, Force power or item: the bar slides open behind the icons between its lit prongs and closes after, and the unlit prongs wait at its ends _(Slash, PR #407, hub report #301, after EternalJK)_
 - The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
 - The disruptor's beam leaves the gun's tip: another player's shot, and yours in third person, now starts at the barrel instead of in front of the chest, and a zoomed sniper shot no longer starts where your gun was before you zoomed in (hub report #294) _(Slash, PR #405, after Sol's report)_
+- `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, PR #406, after mg.perso's report, hub report #302; after JoF EJK)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
 

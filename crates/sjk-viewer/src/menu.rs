@@ -177,6 +177,9 @@ pub(crate) struct ClientMenu {
     create_game: create_game::CreateGameMenu,
     ui: MenuCanvas,
     filter_editing: bool,
+    /// Whether one of the menu's fields had the keys at the last poll, so the menu
+    /// drops a selection only when its own field closes.
+    field_was_open: bool,
     /// The classic browser's SERVER INFO pop-up is open.
     classic_info: bool,
     password_target: Option<String>,
@@ -277,6 +280,7 @@ impl ClientMenu {
             create_game: create_game::CreateGameMenu::new(),
             ui: MenuCanvas::new(),
             filter_editing: false,
+            field_was_open: false,
             classic_info: false,
             password_target: None,
             destination_map: None,
@@ -871,10 +875,11 @@ impl ClientMenu {
         }
         self.poll_local_server();
         self.poll_favourite_lookup();
-        if !self.field_open() {
-            // A selection ends with the field.
+        let field_open = self.field_open();
+        if selection_ends(self.field_was_open, field_open) {
             crate::text_entry::deselect();
         }
+        self.field_was_open = field_open;
         let browser_visible = matches!(self.state.phase(), ClientPhase::Browser);
         if browser_visible {
             self.browser.tick_details();
@@ -1538,6 +1543,13 @@ impl ClientMenu {
     }
 }
 
+/// Whether the menu drops the text selection at a poll: only when its own field has
+/// just closed. A field outside the menu (the console's commands and cvars list, a
+/// panel) keeps its selection while the menu's fields stay closed (hub report #308).
+fn selection_ends(field_was_open: bool, field_open: bool) -> bool {
+    field_was_open && !field_open
+}
+
 /// Whether a held `event` repeats in an open text field: Backspace, or a key that types
 /// (not with Ctrl held: a held Ctrl+V pastes once).
 fn repeats_in_a_field(event: &KeyEvent, control: bool) -> bool {
@@ -1547,4 +1559,18 @@ fn repeats_in_a_field(event: &KeyEvent, control: bool) -> bool {
                 .text
                 .as_deref()
                 .is_some_and(|text| !text.is_empty() && text.chars().all(|c| !c.is_control())))
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::selection_ends;
+
+    #[test]
+    fn only_the_menu_s_own_field_closing_drops_the_selection() {
+        assert!(selection_ends(true, false));
+        assert!(!selection_ends(true, true));
+        assert!(!selection_ends(false, true));
+        // No menu field open before or now: a selection elsewhere stays.
+        assert!(!selection_ends(false, false));
+    }
 }

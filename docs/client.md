@@ -910,7 +910,19 @@ A player's or NPC's appearance (`models/players/<model>/<skin>`) loads its
 `animation.cfg` and a skin; if the model cannot be loaded or built, the client
 draws Kyle for that player instead
 ([player_assets.rs](../crates/sjk-viewer/src/player_assets.rs),
-[actor_load.rs](../crates/sjk-viewer/src/actor_load.rs)). A folder holding
+[actor_load.rs](../crates/sjk-viewer/src/actor_load.rs)). With **Random missing
+models** (`cg_defaultModelRandom`, off; Settings > Gameplay > Items and models)
+the stand-in is a retail model picked from the missing model's name instead, after JoF
+EJK: the sum of its lower-cased bytes chooses among ten male models (or seven female
+ones for a player whose clientinfo says `ds f`), so a missing model always looks the
+same. A non-Jedi stand-in keeps a `default`/`red`/`blue` skin or takes one of them, and
+wears the team's in team games; a `jedi_*` stand-in gets a head, torso and legs that
+the retail model has (EJK's own table gives `jedi_rm` and `jedi_kdm` the human male's
+`head_a2` and `torso_d2`, which only `jedi_hm` has, so SJK pairs those with `jedi_hm`).
+A stand-in that cannot load either falls back to Kyle. Switching it redraws players
+already shown with a stand-in
+([default_model_random.rs](../crates/sjk-client/src/default_model_random.rs)). A
+missing skin is not a missing model: the model's default skin draws, as in JKA. A folder holding
 `sjk_rig.cfg` is a [rig model](rig-models.md): a glTF with its own skeleton, drawn in
 place of a stock driver model whose skeleton still carries the animations. That includes a model
 changed during the match (`/model`, or a new player in a used slot), as
@@ -1990,7 +2002,10 @@ filters, the fade and falloff, the arc's place and scale.
 `deutsch`, `francais` or `espanol` (and `german`, `french`, `spanish`) reads a path's
 `chars` as `chr_d`, `chr_f` or `chr_e`, the folders in `assets0.pk3`, and a voice the
 language lacks stays English (`snd_mem.cpp`). Sounds already loaded change at the next
-`snd_restart`.
+`snd_restart`. The game's sound tables (the players' pain, death and taunt voices,
+`LegacySoundAdapter`) and the viewer's sound cache read it from one place,
+[voice_language.rs](../crates/sjk-client/src/voice_language.rs); until hub report #298
+only the cache did, so those voices stayed English.
 
 `s_volumeVoice` (Settings > Sound, Voice volume; 0 to 1, default 1) is the loudness of
 voices: every sound on the voice channels (`CHAN_VOICE`, `CHAN_VOICE_ATTEN`,

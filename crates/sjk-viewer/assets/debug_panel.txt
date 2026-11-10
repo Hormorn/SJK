@@ -2683,6 +2683,15 @@ test: Have a JoF EternalJK player say the same: SJK shows the % and the quotes t
 test: Type 60 percent signs: the box stops at 15, and the sent line is never cut mid-escape.
 note: The console copy of a chat line keeps the escapes, as in EternalJK.
 
+[browser-select-all]
+area: Console & chat
+title: Ctrl+A and double click select in the F3 list (Slash, PR #411, hub #308)
+change: The menu drops a text selection only when its own field closes, not every frame.
+test: Open the console, F3, type a search, Ctrl+A: it is highlighted; typing replaces it.
+test: Double click the search: it is selected. Enter on a cvar, Ctrl+A selects its value.
+test: Settings search: Ctrl+A and a double click still select, Esc still leaves.
+
+
 # ---- Input ----
 
 [toggle-binds]
@@ -2768,6 +2777,14 @@ test: Same while running backwards and strafing; plain +movedown on another key 
 test: Hold SPACE, press C: the jump is let go and you crouch; release C: you stand up.
 test: With cl_idrive 2: hold C, then SPACE: you jump; let go of SPACE: you crouch again.
 note: A roll on landing while crouched (PM_CrashLand) is not prevented, in EJK either.
+
+[held-weapnext-repeats]
+area: Input
+title: A held weapnext key keeps cycling (Slash, PR #412, hub #309)
+change: A held key repeats its bind's down-only commands (weapnext); +commands stay held.
+test: With several weapons, hold the key bound to weapnext: the weapons keep cycling.
+test: Hold +attack: it fires as before. Hold a chord bound to weapnext: it cycles too.
+
 
 # ---- Menus & settings ----
 [classic-collection-camera]
@@ -3949,6 +3966,14 @@ test: Compact SJK scoreboard off, 30 players: two lists side by side as before.
 note: Not tried in a running client: the HUD hiding and the compact board over a real match.
 note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab is pressed again.
 
+[icon-atlas-inset]
+area: HUD
+title: No line above weapon icons (Slash, PR #413, hub #311)
+change: Icons sample half a texel inside their atlas cell, not the neighbouring picture.
+test: Pick up several weapons and open the weapon bar: no thin line above any icon.
+test: Menu and Force icons look as before, edges not cut.
+
+
 # ---- Rendering & effects ----
 
 [rig-chain-motion]
@@ -4944,6 +4969,20 @@ test: In a game, stand with a wall or player on one side: their sounds (steps, s
 test: Turn round with a sound running: it moves to the other ear.
 test: Fire at a wall on your left: the impact plays mostly in the left ear.
 
+[saber-swing-variants]
+area: Audio
+title: Saber swings play every swing sound again (Slash, PR #404, hub #303)
+change: Another player's swings, saber hits, blocks and footsteps pick their sound at random.
+test: Watch another player or a bot swing: the swings sound different, not one sound each.
+test: Their saber hits and blocks vary too, and their footsteps alternate.
+
+[s-language-player-voices]
+area: Audio
+title: s_language reaches the players' voices (Slash, PR #409, hub #298)
+change: The game's sound tables read pain, death and taunt voices in the language's folder.
+test: s_language francais, snd_restart: taunts and the bots' pain and death voices are French.
+test: s_language english, snd_restart: they are English again.
+
 # ---- Gameplay ----
 
 [gif-tags]
@@ -5157,6 +5196,13 @@ area: Gameplay
 title: JA+ duellers pass through other players in prediction
 change: Walking through players in a private duel (or out of yours) no longer snaps back.
 test: JA+: two players duel, walk through them; while duelling, walk through a bystander.
+
+[default-model-random]
+area: Gameplay
+title: cg_defaultModelRandom: a stock model for a missing one (Slash, PR #406, hub #302)
+change: Off by default (Kyle). On: a player whose model you lack gets a stock model from its name.
+test: On a server with a model you lack (shown as Kyle): cg_defaultModelRandom 1 swaps it at once.
+test: The same model always gets the same stand-in; cg_defaultModelRandom 0 brings Kyle back.
 
 # ---- More changes ----
 
@@ -9709,6 +9755,13 @@ test: Select on: pick two shaders, + on one, Break down selected: the card lists
 test: Confirm: shards rise, counts fall, a worn last copy comes off the saber.
 test: Escape stops picking. A locked shader cannot be picked.
 note: Needs hub shared #16 deployed; without it the Select chip does not show.
+
+[forge-craft-held-search]
+area: Menus & settings
+title: Forge Craft search names a held shader (Slash, hub #305)
+change: Craft lists only shaders you lack; a search for a held one now says it is yours already.
+test: Forge > Craft, / and a held shader's full name: the empty list says Yours already.
+test: Search a word that also finds shaders you lack: the intro names the held ones.
 
 [malachor-rose-300]
 area: Rendering & effects

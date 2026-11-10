@@ -403,7 +403,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 140 merged pull requests
+role: Contributor: 146 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -546,6 +546,12 @@ did: #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK
 did: #403 The credits page counts the pull requests merged under older merge names
 did: #407 The Jedi Knight II HUD's selector bar opens behind the icons
 did: #405 Disruptor beams leave the gun's tip, for every player and when zoomed
+did: #404 Saber swings play every swing sound again, as in base
+did: #406 cg_defaultModelRandom: a stock model stands in for a missing one
+did: #409 s_language reaches the players' own voices after snd_restart
+did: #411 Ctrl+A and a double click select in the commands and cvars list again
+did: #412 A held weapnext key keeps cycling the weapons, as in base
+did: #413 No line above weapon icons: each icon samples inside its own picture
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]

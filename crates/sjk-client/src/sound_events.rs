@@ -616,6 +616,10 @@ pub struct LegacySoundAdapter {
     npc: npc_sounds::NpcSounds,
     client_teams: [u8; MAX_CLIENTS],
     taunt_random: crate::animation_events::Random,
+    /// Picks a swing's, hit's, block's or footstep's sample, as codemp's
+    /// `Q_irand` does: a fixed pick per player gave them one swing sound only
+    /// (hub report #303).
+    variant_random: crate::animation_events::Random,
     saber_attack: [Option<u16>; 8],
     saber_hit: [Option<u16>; 3],
     saber_block: [Option<u16>; 9],
@@ -884,6 +888,7 @@ impl LegacySoundAdapter {
             client_teams,
             predicted_events: Default::default(),
             taunt_random: Default::default(),
+            variant_random: Default::default(),
             saber_attack,
             saber_hit,
             saber_block,
@@ -1184,7 +1189,7 @@ impl LegacySoundAdapter {
         };
         let voice = self.voice_of(&entity, speaker);
         let custom = self.voice_set(voice);
-        let variant = deterministic_variant(source, event, parameter);
+        let variant = self.variant_random.index(1 << 16);
         // Event-maintained loops live in centity state and are re-added to the
         // backend every frame (`cg_ents.c:109-110,141-192,244-285`).
         match maintained_rule(event, entity.general_channel) {
@@ -1999,14 +2004,6 @@ pub(crate) fn normalize_voice_channel(channel: u32) -> u32 {
     }
 }
 
-fn deterministic_variant(entity: u16, event: u16, parameter: u8) -> usize {
-    // codemp uses the client rand() stream. Per-entity hashing is deliberately
-    // replay deterministic; only variant choice differs, never table/content.
-    usize::from(entity).wrapping_mul(1_103_515_245)
-        ^ usize::from(event).wrapping_mul(12_345)
-        ^ usize::from(parameter)
-}
-
 fn footstep_kind(material: u8) -> usize {
     // shared/surfaceflags.h material_t values consumed by cg_event.c:1386-1430.
     match material {
@@ -2173,6 +2170,27 @@ pub(crate) fn sound_present(vfs: &VirtualFileSystem, requested: &str) -> bool {
     }
 }
 
+/// `path`, or the same sound with `.wav` and `.mp3` swapped, and the path that held it.
+fn find_sound(vfs: &VirtualFileSystem, path: &str) -> Option<(String, sjk_vfs::Asset)> {
+    if let Some(asset) = vfs.read(path).ok().flatten() {
+        return Some((path.to_owned(), asset));
+    }
+    let candidates = if let Some(base) = path.strip_suffix(".wav") {
+        [format!("{base}.mp3"), String::new()]
+    } else if let Some(base) = path.strip_suffix(".mp3") {
+        [format!("{base}.wav"), String::new()]
+    } else {
+        [format!("{path}.wav"), format!("{path}.mp3")]
+    };
+    candidates
+        .into_iter()
+        .filter(|candidate| !candidate.is_empty())
+        .find_map(|candidate| {
+            let asset = vfs.read(&candidate).ok().flatten()?;
+            Some((candidate, asset))
+        })
+}
+
 pub(crate) fn intern_sound(
     sounds: &mut Vec<RegisteredLegacySound>,
     vfs: &VirtualFileSystem,
@@ -2185,27 +2203,14 @@ pub(crate) fn intern_sound(
     }) {
         return index as u16;
     }
-    let mut resolved = requested.to_owned();
-    let mut asset = vfs.read(requested).ok().flatten();
-    if asset.is_none() {
-        let candidates = if let Some(base) = requested.strip_suffix(".wav") {
-            [format!("{base}.mp3"), String::new()]
-        } else if let Some(base) = requested.strip_suffix(".mp3") {
-            [format!("{base}.wav"), String::new()]
-        } else {
-            [format!("{requested}.wav"), format!("{requested}.mp3")]
-        };
-        for candidate in candidates {
-            if candidate.is_empty() {
-                continue;
-            }
-            if let Some(found) = vfs.read(&candidate).ok().flatten() {
-                resolved = candidate;
-                asset = Some(found);
-                break;
-            }
-        }
-    }
+    // A voice in `s_language`'s folder first (hub report #298), else as asked.
+    let found = crate::voice_language::foreign(requested)
+        .and_then(|foreign| find_sound(vfs, &foreign))
+        .or_else(|| find_sound(vfs, requested));
+    let (resolved, asset) = match found {
+        Some((path, asset)) => (path, Some(asset)),
+        None => (requested.to_owned(), None),
+    };
     let handle = asset
         .as_ref()
         .and_then(|asset| register(&resolved, &asset.bytes));

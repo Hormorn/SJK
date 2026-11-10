@@ -38,10 +38,13 @@ pub(crate) struct ClientInfoWatch {
     respect_model_metadata: bool,
     forced: bool,
     forced_model: String,
+    /// `cg_defaultModelRandom` as last applied.
+    random_stand_ins: bool,
     overrides: [String; 3],
     local_identity: (i32, i32),
-    /// Appearances whose load failed; players wearing one show Kyle, and the
-    /// load is not retried in this world.
+    /// Appearances whose load failed; players wearing one show their stand-in
+    /// (Kyle, or a retail model with `cg_defaultModelRandom`), and the load is not
+    /// retried in this world.
     pub(crate) failed: BTreeSet<Appearance>,
     /// Model folders `rig_reload` reads again: a player already wearing one loads it
     /// anew instead of keeping the mesh up.
@@ -74,6 +77,7 @@ impl ClientInfoWatch {
             respect_model_metadata: true,
             forced: false,
             forced_model: String::new(),
+            random_stand_ins: false,
             overrides: std::array::from_fn(|_| String::new()),
             local_identity: (-1, -1),
             failed: BTreeSet::new(),
@@ -135,7 +139,10 @@ impl GpuState {
             )
         });
         let (blacklist, respect_metadata) = crate::actor_load::model_options(self.console.as_ref());
-        if self.clientinfo_watch.model_blacklist == blacklist
+        let random = crate::actor_load::random_stand_ins(self.console.as_ref());
+        let random_changed = self.clientinfo_watch.random_stand_ins != random;
+        if !random_changed
+            && self.clientinfo_watch.model_blacklist == blacklist
             && self.clientinfo_watch.respect_model_metadata == respect_metadata
             && self.clientinfo_watch.forced == forced
             && (!forced || self.clientinfo_watch.forced_model == model)
@@ -160,16 +167,64 @@ impl GpuState {
             stored.push_str(value);
         }
         self.clientinfo_watch.local_identity = local;
+        self.clientinfo_watch.random_stand_ins = random;
         // Without a game state there is no player to rebuild; the first one
         // changes `local` and comes back here.
         if !has_game {
             return;
+        }
+        // Players drawn with a stand-in take the new one: their slot still carries the
+        // appearance they asked for, which an unchanged clientinfo would keep.
+        if random_changed {
+            let failed = self.clientinfo_watch.failed.iter();
+            // Players drawn with a stand-in since the world loaded (`actor_load`) are
+            // not in `failed`: a model whose `model.glm` is missing stands in too.
+            let vfs = self.vfs.as_ref();
+            let missing = self
+                .actor_meshes
+                .iter()
+                .filter(|mesh| !mesh.corpse_pool && mesh.entity_id.is_some())
+                .map(|mesh| &mesh.appearance)
+                .filter(|appearance| {
+                    vfs.is_some_and(|vfs| {
+                        !vfs.contains(&format!("{}/model.glm", appearance.model))
+                            .unwrap_or(true)
+                    })
+                });
+            let folders = failed
+                .chain(missing)
+                .map(|appearance| appearance.model.clone())
+                .collect();
+            self.clientinfo_watch.reload = folders;
         }
         for client in 0..32 {
             if let Err(error) = self.apply_clientinfo(client) {
                 log::progress(format_args!("force-model client {client}: {error}"));
             }
         }
+        if random_changed {
+            self.clientinfo_watch.reload.clear();
+        }
+    }
+
+    /// What `client` (none for an actor that is no player) is drawn with when
+    /// `requested` cannot be loaded: Kyle, or a retail model with `cg_defaultModelRandom`.
+    pub(crate) fn stand_in(&self, client: Option<u16>, requested: &Appearance) -> Appearance {
+        let game_state = self
+            .live_session
+            .as_ref()
+            .map(ClientSession::game_state)
+            .or_else(|| {
+                self.demo_session
+                    .as_ref()
+                    .map(demo_playback::Session::game_state)
+            });
+        crate::actor_load::stand_in(
+            game_state,
+            client,
+            requested,
+            crate::actor_load::random_stand_ins(self.console.as_ref()),
+        )
     }
 
     /// Apply one dirty player slot using the existing actor and hilt caches.
@@ -255,6 +310,7 @@ impl GpuState {
             }
         }
         let known_failed = self.clientinfo_watch.failed.contains(&appearance);
+        let stand_in = self.stand_in(Some(client), &appearance);
         // A forced or overridden model's copy would never be taken by a death.
         let pool_body = body.as_ref() == Some(&appearance);
         self.clientinfo_watch.loads.request(player_loads::Request {
@@ -263,6 +319,7 @@ impl GpuState {
             entity_id,
             saber_names,
             known_failed,
+            stand_in,
             pool_body,
         });
         Ok(())
@@ -288,7 +345,7 @@ impl GpuState {
             }
         }
         let wears = if self.clientinfo_watch.failed.contains(appearance) {
-            "Kyle in place of"
+            "a stand-in in place of"
         } else {
             "now wears"
         };
@@ -298,8 +355,8 @@ impl GpuState {
         ));
     }
 
-    /// [`Self::build_live_actor`], or Kyle standing in for an appearance that
-    /// cannot be loaded here.
+    /// [`Self::build_live_actor`], or `stand_in` (Kyle, or a retail model with
+    /// `cg_defaultModelRandom`) for an appearance that cannot be loaded here.
     ///
     /// `CG_LoadClientInfo` (`codemp/cgame/cg_players.c`) registers
     /// `DEFAULT_MODEL` when a player's model fails, so a model this client lacks
@@ -307,9 +364,10 @@ impl GpuState {
     /// the requested appearance, as at world load (`actor_load`), so an
     /// unchanged clientinfo does not rebuild it and a body copy of that player
     /// reuses it. A failed appearance is only tried once per world.
-    pub(crate) fn build_live_actor_or_kyle(
+    pub(crate) fn build_live_actor_or_stand_in(
         &mut self,
         appearance: &Appearance,
+        stand_in: &Appearance,
         entity_id: EntityId,
         saber_names: [Option<String>; 2],
     ) -> Result<ActorMesh, Box<dyn Error>> {
@@ -318,8 +376,8 @@ impl GpuState {
                 Ok(mesh) => return Ok(mesh),
                 Err(error) => {
                     log::progress(format_args!(
-                        "could not load {}/{}: {error}; using Kyle",
-                        appearance.model, appearance.variant
+                        "could not load {}/{}: {error}; using {}/{}",
+                        appearance.model, appearance.variant, stand_in.model, stand_in.variant
                     ));
                     self.clientinfo_watch.failed.insert(appearance.clone());
                 }
@@ -327,12 +385,10 @@ impl GpuState {
         }
         let kyle = crate::actor_load::fallback_appearance();
         let vfs = self.vfs.clone().ok_or("no VFS")?;
-        let preview = load_player_appearance_with(
+        let preview = crate::actor_load::load_stand_in(
             &vfs,
-            &kyle.model,
-            &kyle.variant,
-            [0.0; 3],
-            0.0,
+            stand_in,
+            &kyle,
             &mut self.clientinfo_watch.gla_cache,
         )?;
         self.upload_actor(preview, appearance, entity_id, saber_names)
