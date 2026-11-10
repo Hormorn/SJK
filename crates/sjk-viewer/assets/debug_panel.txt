@@ -9815,6 +9815,13 @@ change: Settings > HUD lists Jedi Knight II, with a preview. cg_hudFiles 1 is st
 test: Settings > HUD: pick Jedi Knight II. Health, armor, Force and ammo draw and drain.
 test: Low health blinks. On a wide screen the corners keep to their edges.
 
+[jk2-hud-selector]
+area: HUD
+title: JK2 HUD: selector bar opens behind the icons (Slash, PR #407, hub #301)
+change: cg_hudFiles 2: the weapon, Force and item bars open a background between lit prongs.
+test: cg_hudFiles 2, change weapon: the bar opens, the prongs glow yellow and move in.
+test: Cycle Force (blue) and items (light blue); the bar closes after 1.4 s, grey prongs stay.
+
 [assets-folder]
 area: Menus & settings
 title: GameData/assets folder for PK3s, subfolders included

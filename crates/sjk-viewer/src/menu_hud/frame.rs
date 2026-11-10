@@ -67,6 +67,19 @@ pub(crate) struct Readout {
     pub(crate) fraglimit: i32,
     /// `cg.time`.
     pub(crate) time: i32,
+    /// The most recent of the weapon, Force and inventory selectors while it shows
+    /// (`WEAPON_SELECT_TIME` after `cg.weaponSelectTime`, `cg.forceSelectTime` or
+    /// `cg.invenSelectTime`), and how many milliseconds ago it changed.
+    pub(crate) selector: Option<(Selector, i32)>,
+}
+
+/// Which selector bar shows: the Jedi Knight II HUD opens its matching background.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum Selector {
+    #[default]
+    Weapon,
+    Force,
+    Inventory,
 }
 
 /// What the vehicle HUD reads: `cg.predictedVehicleState` and the `.veh`
@@ -109,6 +122,12 @@ pub(crate) struct Timers {
     tick_flash_time: i32,
     /// `cg.HUDHealthFlag`: the Jedi Knight II health tic, off while it blinks.
     health_flag: bool,
+    /// `cg.iconHUDActive`: the Jedi Knight II selector background is fully open.
+    icon_active: bool,
+    /// The selector it last opened for, and when it stopped showing: the
+    /// background closes over the next 130 ms.
+    icon_selector: Selector,
+    icon_closed_at: Option<i32>,
 }
 
 /// One picture: the [`Piece`]'s rectangle and edge, with its draw colour.

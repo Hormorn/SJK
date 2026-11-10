@@ -212,6 +212,18 @@ impl Selection {
         }
     }
 
+    /// The most recently cycled of the Force and inventory selectors and when
+    /// (`cg.forceSelectTime` / `cg.invenSelectTime`): `true` for the inventory.
+    pub fn cycled_at(&self) -> Option<(bool, i32)> {
+        let inventory = self.item_time > self.force_time;
+        let at = if inventory {
+            self.item_time
+        } else {
+            self.force_time
+        }?;
+        Some((inventory, at))
+    }
+
     /// Most recently cycled selector; only visible alive and outside spectator/follow.
     pub fn view(&self, player: &PlayerState, time: i32) -> Option<SelectionView> {
         if player.health() <= 0

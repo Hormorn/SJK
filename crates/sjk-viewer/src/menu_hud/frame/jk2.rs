@@ -4,12 +4,18 @@
 //! are built into the client, so the HUD needs nothing installed. EternalJK's
 //! scrolling static behind the metal frames is not drawn.
 //!
+//! Its selector bar, `CG_DrawIconBackground`: while the weapon, Force or
+//! inventory selector shows, its background (retail's `gfx/hud/background`,
+//! `_f` and `_i`) opens from the middle over 130 ms and the prongs at its ends
+//! light and move in by 8 units; when the selector goes they close again, and the
+//! unlit prongs stay at the ends.
+//!
 //! Positions are the 640x480 screen with each corner's 80-unit square kept to
 //! its own edge, which is what EternalJK's `widthRatioCoef` does on wide screens.
 
 use super::{AMMO_INDEX, AMMO_MAX, WHITE, infinite_ammo};
 use super::{
-    BLACK, Frame, HUD_GREEN, HUD_ORANGE, HUD_RED, MEDIUM_POINTS, Readout, TextRun, Timers,
+    BLACK, Frame, HUD_GREEN, HUD_ORANGE, HUD_RED, MEDIUM_POINTS, Readout, Selector, TextRun, Timers,
 };
 use crate::menu_hud::layout::{Layout, Side};
 use image::RgbaImage;
@@ -30,6 +36,24 @@ const SCORE_Y: f32 = 457.0;
 const HEALTH_BLINK: f32 = 0.20;
 /// Milliseconds between the tics' blinks.
 const BLINK_MS: i32 = 100;
+/// Milliseconds the selector background takes to open or close.
+const ICON_OPEN_MS: f32 = 130.0;
+/// The selector background: `x2 + 60`, its width, and where its halves meet
+/// (`y2 + 30`, with `x2 = 30`, `y2 = SCREEN_HEIGHT - 70`).
+const ICON_X: f32 = 90.0;
+const ICON_WIDTH: f32 = 460.0;
+const ICON_MIDDLE: f32 = 440.0;
+/// The halves' height when open.
+const ICON_HEIGHT: f32 = 60.0;
+/// The prongs: the left one's x (`x2 + 37`), the right one's right edge
+/// (`SCREEN_WIDTH - (36 + x2)`), their top (`y2 - 10`), size and how far in
+/// they move when open.
+const PRONG_LEFT: f32 = 67.0;
+const PRONG_RIGHT: f32 = 574.0;
+const PRONG_TOP: f32 = 400.0;
+const PRONG_WIDTH: f32 = 40.0;
+const PRONG_HEIGHT: f32 = 80.0;
+const PRONG_TRAVEL: f32 = 8.0;
 
 macro_rules! pictures {
     ($($file:literal),+ $(,)?) => {
@@ -37,8 +61,8 @@ macro_rules! pictures {
     };
 }
 
-/// The pictures, in the order of the indices below.
-const PICTURES: [(&str, &[u8]); 27] = pictures![
+/// The built-in pictures, in the order of the indices below.
+const PICTURES: [(&str, &[u8]); 31] = pictures![
     "jk2hudleft.png",
     "jk2hudleft_innerframe.png",
     "jk2hudrightframe.png",
@@ -66,6 +90,19 @@ const PICTURES: [(&str, &[u8]); 27] = pictures![
     "saber_stylesmed.jpg",
     "saber_stylesstrong.jpg",
     "saber_stylesstaff.jpg",
+    "prong_off.png",
+    "prong_on_w.png",
+    "prong_on_f.png",
+    "prong_on_i.png",
+];
+
+/// The selector backgrounds, retail's own (`assets1.pk3`), after [`PICTURES`]:
+/// `cgs.media.weaponIconBackground`, `forceIconBackground` and
+/// `inventoryIconBackground`.
+const BACKGROUNDS: [&str; 3] = [
+    "gfx/hud/background",
+    "gfx/hud/background_f",
+    "gfx/hud/background_i",
 ];
 
 const LEFT_FRAME: u16 = 0;
@@ -80,6 +117,19 @@ const HEALTH_TIC: u16 = 8;
 const FORCE_TICK: u16 = 9;
 const AMMO_TICK: u16 = 16;
 const SABER_STYLE: u16 = 23;
+const PRONG_OFF: u16 = 27;
+/// The lit prongs, then the backgrounds, in [`Selector`] order.
+const PRONG_ON: u16 = 28;
+const BACKGROUND: u16 = PICTURES.len() as u16;
+
+/// The offset of `selector`'s lit prong or background from the first one.
+fn selector_index(selector: Selector) -> u16 {
+    match selector {
+        Selector::Weapon => 0,
+        Selector::Force => 1,
+        Selector::Inventory => 2,
+    }
+}
 
 /// One arc tic: x, y, width (negative mirrors it) and height from the square's
 /// corner, and which of the seven pictures it is. `forceTicPos`, `ammoTicPos`.
@@ -120,10 +170,16 @@ const AMMO_TICS: [Tic; TICS] = [
 ];
 
 /// How many pictures [`attach`] adds.
-pub(in crate::menu_hud) const PICTURE_COUNT: usize = PICTURES.len();
+pub(in crate::menu_hud) const PICTURE_COUNT: usize = PICTURES.len() + BACKGROUNDS.len();
 
-/// The units one of the pictures is drawn at, at most.
-pub(in crate::menu_hud) const LARGEST: f32 = SQUARE;
+/// The units the `index`th of the pictures [`attach`] adds is drawn at, at most.
+pub(in crate::menu_hud) fn largest(index: usize) -> f32 {
+    if index < PICTURES.len() {
+        SQUARE
+    } else {
+        ICON_WIDTH
+    }
+}
 
 /// Add the pictures to `layout` and mark it as this HUD.
 pub(in crate::menu_hud) fn attach(layout: &mut Layout) {
@@ -131,6 +187,9 @@ pub(in crate::menu_hud) fn attach(layout: &mut Layout) {
     layout
         .pictures
         .extend(PICTURES.iter().map(|(file, _)| format!("{PREFIX}{file}")));
+    layout
+        .pictures
+        .extend(BACKGROUNDS.iter().map(|name| (*name).to_owned()));
 }
 
 /// Whether `name` is a built-in picture, and if so whether it blends additively
@@ -167,6 +226,7 @@ impl Frame {
         digits: u16,
         score_label: &str,
     ) {
+        self.jk2_selector(base, readout, timers);
         let start = (self.picture_count, self.text_count);
         self.jk2_square(LEFT_X, Side::Left, base + LEFT_INNER);
         self.jk2_armor(base, readout, timers, digits);
@@ -186,6 +246,67 @@ impl Frame {
         self.jk2_square(RIGHT_X, Side::Right, base + RIGHT_FRAME);
         self.jk2_score(readout, score_label);
         self.end_block(1, start);
+    }
+
+    /// `CG_DrawIconBackground`: the selector background opening or closing and
+    /// the prongs at its ends.
+    fn jk2_selector(&mut self, base: u16, readout: &Readout, timers: &mut Timers) {
+        let (percent, prong) = match readout.selector {
+            Some((selector, age)) => {
+                timers.icon_selector = selector;
+                timers.icon_closed_at = None;
+                let percent = if timers.icon_active {
+                    1.0
+                } else {
+                    let percent = age as f32 / ICON_OPEN_MS;
+                    if percent > 1.0 {
+                        timers.icon_active = true;
+                    }
+                    percent.clamp(0.0, 1.0)
+                };
+                (percent, PRONG_ON + selector_index(selector))
+            }
+            None if timers.icon_active => {
+                let closed = *timers.icon_closed_at.get_or_insert(readout.time);
+                let percent = 1.0 - (readout.time - closed) as f32 / ICON_OPEN_MS;
+                if percent < 0.0 {
+                    timers.icon_active = false;
+                    timers.icon_closed_at = None;
+                }
+                (percent.max(0.0), PRONG_OFF)
+            }
+            None => (0.0, PRONG_OFF),
+        };
+        if percent > 0.0 {
+            let background = base + BACKGROUND + selector_index(timers.icon_selector);
+            let height = ICON_HEIGHT * percent;
+            // Two halves from the middle: the top one mirrored upwards.
+            self.picture_at(
+                [ICON_X, ICON_MIDDLE, ICON_WIDTH, -height],
+                Side::Stretch,
+                background,
+                WHITE,
+            );
+            self.picture_at(
+                [ICON_X, ICON_MIDDLE - 2.0, ICON_WIDTH, height],
+                Side::Stretch,
+                background,
+                WHITE,
+            );
+        }
+        let travel = PRONG_TRAVEL * percent;
+        self.picture_at(
+            [PRONG_LEFT + travel, PRONG_TOP, PRONG_WIDTH, PRONG_HEIGHT],
+            Side::Left,
+            base + prong,
+            WHITE,
+        );
+        self.picture_at(
+            [PRONG_RIGHT - travel, PRONG_TOP, -PRONG_WIDTH, PRONG_HEIGHT],
+            Side::Right,
+            base + prong,
+            WHITE,
+        );
     }
 
     fn jk2_square(&mut self, x: f32, side: Side, picture: u16) {
@@ -481,5 +602,101 @@ mod tests {
             seen[usize::from(lit)] = true;
         }
         assert_eq!(seen, [true, true]);
+    }
+
+    fn selector_pictures(frame: &Frame) -> Vec<super::super::Picture> {
+        frame.pictures[..frame.picture_count]
+            .iter()
+            .filter(|p| (100 + PRONG_OFF..100 + PICTURE_COUNT as u16).contains(&p.picture))
+            .copied()
+            .collect()
+    }
+
+    fn with_selector(selector: Option<(Selector, i32)>, time: i32, timers: &mut Timers) -> Frame {
+        let readout = Readout {
+            selector,
+            time,
+            ..saberist()
+        };
+        let mut frame = Frame::default();
+        frame.jk2_status(100, &readout, timers, 200, "Score");
+        frame
+    }
+
+    #[test]
+    fn the_unlit_prongs_wait_at_the_ends_with_no_selector() {
+        let frame = with_selector(None, 1000, &mut Timers::default());
+        let pictures = selector_pictures(&frame);
+        assert_eq!(pictures.len(), 2);
+        assert!(pictures.iter().all(|p| p.picture == 100 + PRONG_OFF));
+        assert_eq!(pictures[0].rect, [67.0, 400.0, 40.0, 80.0]);
+        assert_eq!(pictures[0].side, Side::Left);
+        assert_eq!(pictures[1].rect, [574.0, 400.0, -40.0, 80.0]);
+        assert_eq!(pictures[1].side, Side::Right);
+    }
+
+    #[test]
+    fn the_force_selector_opens_its_own_background_over_130_ms() {
+        let mut timers = Timers::default();
+        let frame = with_selector(Some((Selector::Force, 65)), 1065, &mut timers);
+        let pictures = selector_pictures(&frame);
+        let force_background = 100 + BACKGROUND + 1;
+        let halves: Vec<_> = pictures
+            .iter()
+            .filter(|p| p.picture == force_background)
+            .collect();
+        assert_eq!(halves.len(), 2);
+        assert!(halves.iter().all(|p| p.side == Side::Stretch));
+        assert_eq!(halves[0].rect, [90.0, 440.0, 460.0, -30.0]);
+        assert_eq!(halves[1].rect, [90.0, 438.0, 460.0, 30.0]);
+        let prongs: Vec<_> = pictures
+            .iter()
+            .filter(|p| p.picture == 100 + PRONG_ON + 1)
+            .collect();
+        assert_eq!(prongs.len(), 2);
+        assert_eq!(prongs[0].rect[0], 71.0);
+        assert_eq!(prongs[1].rect[0], 570.0);
+    }
+
+    #[test]
+    fn the_background_closes_after_the_selector_goes() {
+        let mut timers = Timers::default();
+        let open = with_selector(Some((Selector::Inventory, 400)), 1400, &mut timers);
+        let inventory_background = 100 + BACKGROUND + 2;
+        assert!(
+            selector_pictures(&open)
+                .iter()
+                .any(|p| p.picture == inventory_background && p.rect[3] == 60.0)
+        );
+        // The selector stops showing at 2000; half closed 65 ms later.
+        let _ = with_selector(None, 2000, &mut timers);
+        let closing = with_selector(None, 2065, &mut timers);
+        let pictures = selector_pictures(&closing);
+        assert!(
+            pictures
+                .iter()
+                .any(|p| p.picture == inventory_background && p.rect[3] == 30.0)
+        );
+        assert!(
+            pictures
+                .iter()
+                .any(|p| p.picture == 100 + PRONG_OFF && p.rect[0] == 71.0)
+        );
+        let closed = with_selector(None, 2200, &mut timers);
+        let pictures = selector_pictures(&closed);
+        assert_eq!(pictures.len(), 2);
+        assert_eq!(pictures[0].rect[0], 67.0);
+    }
+
+    #[test]
+    fn a_new_selection_while_open_keeps_it_open() {
+        let mut timers = Timers::default();
+        let _ = with_selector(Some((Selector::Weapon, 300)), 1300, &mut timers);
+        let frame = with_selector(Some((Selector::Force, 0)), 1310, &mut timers);
+        assert!(
+            selector_pictures(&frame)
+                .iter()
+                .any(|p| p.picture == 100 + BACKGROUND + 1 && p.rect[3] == 60.0)
+        );
     }
 }
