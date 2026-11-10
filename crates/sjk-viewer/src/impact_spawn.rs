@@ -25,12 +25,14 @@ pub(crate) struct Sinks<'a> {
 
 /// What `CG_EntityEvent` knows about the local viewer when it picks a beam
 /// start: the client number, whether the view is third person, and the view
-/// gun's `tag_flash` of the last rendered frame.
+/// gun's `tag_flash` of the last rendered frame, and every drawn player's world
+/// gun muzzle.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct LocalView {
     pub(crate) client_num: u16,
     pub(crate) third_person: bool,
     pub(crate) flash_point: Option<[f32; 3]>,
+    pub(crate) world_muzzles: crate::world_muzzles::Points,
 }
 
 /// Counts produced while presenting one received snapshot.
@@ -42,18 +44,25 @@ pub(crate) struct Observation {
 }
 
 impl LocalView {
-    /// `cg_event.c:2448-2456`: the local first-person shooter's beam starts
-    /// at the view gun's flash point instead of the server muzzle.
+    /// `cg_event.c:2805-2860`: a disruptor beam starts at the shooter's gun
+    /// instead of the server muzzle: the local first-person shooter's at the
+    /// view gun's flash point, anyone else's (and the local player's in third
+    /// person) at the world gun's flash bolt. A gun not drawn on the last frame
+    /// keeps the server muzzle.
     pub(crate) fn beam_start(self, event: sjk_client::LegacyImpactEvent) -> [f32; 3] {
-        let local_shot = matches!(
+        if !matches!(
             event.kind,
             LegacyImpactKind::DisruptorMainShot | LegacyImpactKind::DisruptorSniperShot
-        ) && u16::from(event.event_parameter) == self.client_num
-            && !self.third_person;
-        match self.flash_point {
-            Some(point) if local_shot => point,
-            _ => event.start,
+        ) {
+            return event.start;
         }
+        let shooter = u16::from(event.event_parameter);
+        let gun = if shooter == self.client_num && !self.third_person {
+            self.flash_point
+        } else {
+            self.world_muzzles.of(shooter)
+        };
+        gun.unwrap_or(event.start)
     }
 }
 
@@ -236,4 +245,75 @@ pub(crate) fn spawn_line(
         ),
         shape: PrimitiveShape::Billboard,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shot(kind: LegacyImpactKind, shooter: u8) -> sjk_client::LegacyImpactEvent {
+        sjk_client::LegacyImpactEvent {
+            entity_number: 40,
+            event: 35,
+            kind,
+            origin: [500.0, 0.0, 0.0],
+            start: [1.0, 1.0, 1.0],
+            direction: [0.0, 0.0, 1.0],
+            event_parameter: shooter,
+            weapon: 5,
+            alternate: false,
+            charge: 0,
+            full_charge: false,
+            shot: [0.0; 3],
+            ring_direction: [1.0, 0.0, 0.0],
+            vehicle_weapon: 0,
+        }
+    }
+
+    fn view(third_person: bool) -> LocalView {
+        let mut world_muzzles = crate::world_muzzles::Points::default();
+        world_muzzles.record(2, [20.0, 0.0, 0.0]);
+        world_muzzles.record(5, [50.0, 0.0, 0.0]);
+        LocalView {
+            client_num: 2,
+            third_person,
+            flash_point: Some([9.0, 9.0, 9.0]),
+            world_muzzles,
+        }
+    }
+
+    #[test]
+    fn another_players_beam_starts_at_their_world_gun() {
+        for kind in [
+            LegacyImpactKind::DisruptorMainShot,
+            LegacyImpactKind::DisruptorSniperShot,
+        ] {
+            assert_eq!(view(false).beam_start(shot(kind, 5)), [50.0, 0.0, 0.0]);
+        }
+    }
+
+    #[test]
+    fn the_local_beam_starts_at_the_view_gun_in_first_person_and_the_world_gun_in_third() {
+        let event = shot(LegacyImpactKind::DisruptorSniperShot, 2);
+        assert_eq!(view(false).beam_start(event), [9.0, 9.0, 9.0]);
+        assert_eq!(view(true).beam_start(event), [20.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn a_gun_not_drawn_keeps_the_server_muzzle() {
+        let event = shot(LegacyImpactKind::DisruptorMainShot, 7);
+        assert_eq!(view(false).beam_start(event), [1.0, 1.0, 1.0]);
+        let hidden_view_gun = LocalView {
+            flash_point: None,
+            ..view(false)
+        };
+        let local = shot(LegacyImpactKind::DisruptorMainShot, 2);
+        assert_eq!(hidden_view_gun.beam_start(local), [1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn other_impacts_keep_their_start() {
+        let event = shot(LegacyImpactKind::DisruptorHit, 5);
+        assert_eq!(view(false).beam_start(event), [1.0, 1.0, 1.0]);
+    }
 }

@@ -2345,6 +2345,18 @@ with a `width` or `height` as `WP_ROCKET_LAUNCHER`, so before 03/11/2026 the AT-
 red laser (`atst_laser`, 8 by 8) burst in a rocket's explosion instead of
 `atst/wall_impact` (Kushina's report). A weapon without `impactFX` keeps the carrier's.
 
+A disruptor beam (`EV_DISRUPTOR_MAIN_SHOT`, `EV_DISRUPTOR_SNIPER_SHOT`) starts at the
+shooter's gun, not at the server's muzzle point in `origin2` (`cg_event.c:2805-2860`):
+the local first-person shooter's at the view gun's `tag_flash` of the last frame
+(`cg.lastFPFlashPoint`), anyone else's, and the local player's in third person, at
+their world gun's flash bolt as last drawn (`CG_GetClientWeaponMuzzleBoltPoint`,
+[world_muzzles.rs](../crates/sjk-viewer/src/world_muzzles.rs)). A gun not drawn on
+the last frame keeps the server muzzle. Stock keeps the view gun's last flash point
+while the gun is hidden, so a zoomed sniper shot started where the gun was before
+zooming in; SJK uses the server muzzle then. Before 10/11/2026 SJK started every
+beam but the local first-person one at the server muzzle, in front of the chest
+(hub report #294).
+
 A destroyed vehicle (`EF_DEAD`, until it blows up: the AT-ST's `explosionDelay` is 2.45
 s) burns: `effects/ships/dest_burning.efx` at its origin every 50 ms, as the dead branch
 of `CG_VehicleEffects` plays it, animals excepted

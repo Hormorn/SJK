@@ -402,6 +402,7 @@ mod wgsl_source;
 mod wheel_of_doom;
 mod window_icon;
 mod world_materials;
+mod world_muzzles;
 mod world_notes;
 mod world_ping;
 mod world_ping_frame;
@@ -944,6 +945,8 @@ struct GpuState {
     impacts: impacts::Pool,
     /// `cg.lastFPFlashPoint`: the view gun's flash point of the last frame.
     last_first_person_flash: Option<[f32; 3]>,
+    /// Each player's world gun muzzle drawn on the last frame, for disruptor beams.
+    world_muzzles: world_muzzles::Points,
     saber_clash_flare: LegacySaberClashFlare,
     damage_feedback: damage_feedback::Feedback,
     effects: EffectLibrary,
@@ -1894,6 +1897,7 @@ impl GpuState {
             pending_particle_effects: particle_physics::PendingEffects::new(),
             impacts: impacts::Pool::new(),
             last_first_person_flash: None,
+            world_muzzles: world_muzzles::Points::default(),
             saber_clash_flare: LegacySaberClashFlare::default(),
             damage_feedback: damage_feedback::Feedback::default(),
             map_effects,
@@ -3123,6 +3127,11 @@ impl GpuState {
                     presentation_time as i32,
                 );
             }
+        } else {
+            // No view gun this frame (zoomed in, third person, a saber): stock keeps
+            // the last drawn flash point, so a zoomed sniper shot started where the
+            // gun was before zooming in. The beam keeps the server muzzle instead.
+            self.last_first_person_flash = None;
         }
         self.prepare_scene_views(view, projection, presentation_time as i32);
         movers::append_frame(self, presentation_time);
