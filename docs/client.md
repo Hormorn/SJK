@@ -45,6 +45,16 @@ Enter, Space or a click toggles it. Choices save immediately and apply at
 `EternalJK` packs, including disabled packs, and protects retail
 `base/assets0.pk3` through `assets3.pk3` from disabling.
 
+PK3s can be tidied away from `base` into `GameData/assets` and any subfolders under it
+(`assets/jof`, `assets/personal`). Create the folder yourself; every PK3 in it and below it
+loads as if it were in `base`, sorted by file name among `base`'s, so moving a pack there
+changes nothing about which pack wins. The folder holds PK3s only: loose files are not
+read, links are not followed, and the four retail archives stay in `base`. The client,
+the local server (its maps and configs), the material generator and the check for packs
+already owned before a download all see them; downloads and the content switches still
+write to `base`. In `fs_disabledPaks` such a pack is named by its own folder
+(`jof/name.pk3`), and a pack directly in `assets` as `assets/name.pk3`.
+
 `fs_restart` mounts the installed game files again without restarting SJK
 ([fs_restart.rs](../crates/sjk-viewer/src/fs_restart.rs)), as the original game's
 `FS_Restart` searched its paths again: PK3s added or changed since the start, and the

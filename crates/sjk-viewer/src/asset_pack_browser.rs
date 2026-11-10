@@ -74,11 +74,15 @@ impl Browser {
                 if self.packs.iter().any(|pack| pack.key == key) {
                     continue;
                 }
-                let label = format!(
-                    "{}/{}",
-                    directory.file_name().unwrap().to_string_lossy(),
-                    archive.file_name().unwrap().to_string_lossy()
-                );
+                // From GameData where it can, so a tidied pack shows its whole path.
+                let label = match archive.strip_prefix(game_data) {
+                    Ok(relative) => relative.to_string_lossy().replace('\\', "/"),
+                    Err(_) => format!(
+                        "{}/{}",
+                        directory.file_name().unwrap().to_string_lossy(),
+                        archive.file_name().unwrap().to_string_lossy()
+                    ),
+                };
                 self.packs.push(Pack {
                     required: pack_policy::retail(&key),
                     key,
@@ -326,6 +330,22 @@ mod tests {
         browser.select(browser.packs.iter().position(|pack| pack.required).unwrap());
         assert!(matches!(browser.toggle(), Action::None));
         assert!(!browser.disabled.contains("base/assets0.pk3"));
+    }
+
+    #[test]
+    fn packs_tidied_under_assets_are_listed_with_their_path() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(directory.path().join("base")).unwrap();
+        let folder = directory.path().join("assets/personal");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("Mine.pk3"), []).unwrap();
+        let console =
+            crate::console::ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
+        let mut browser = Browser::default();
+        browser.open(directory.path(), &console).unwrap();
+        assert_eq!(browser.packs.len(), 1);
+        assert_eq!(browser.packs[0].label, "assets/personal/Mine.pk3");
+        assert_eq!(browser.packs[0].key, "personal/mine.pk3");
     }
 
     #[test]

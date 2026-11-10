@@ -222,12 +222,14 @@ impl Options {
 
     /// Low-to-high priority directories, matching FS_Startup's nested ordering;
     /// within each game folder the installation, the extra roots
-    /// ([`set_extra_root`]), then the content home.
+    /// ([`set_extra_root`]), then the content home; last the
+    /// [assets folders](sjk_vfs::assets_folders), which hold PK3s only.
     pub(crate) fn directories(&self, install: &Path) -> Result<Vec<PathBuf>, Box<dyn Error>> {
         Ok(self
             .directory_groups(install, &extra_roots())
             .into_iter()
             .flatten()
+            .chain(sjk_vfs::assets_folders(install))
             .collect())
     }
 
@@ -571,7 +573,12 @@ impl Options {
                     vfs.mount_directory(directory)?;
                 }
             }
-            for archive in sjk_vfs::pk3_search_order_merged(&group)? {
+            // The PK3s tidied into the assets folder count as base's.
+            let mut pack_folders = group.clone();
+            if group.contains(&install.join("base")) {
+                pack_folders.extend(sjk_vfs::assets_folders(install));
+            }
+            for archive in sjk_vfs::pk3_search_order_merged(&pack_folders)? {
                 if self.disabled.allows(&archive) {
                     match vfs.mount_pk3(&archive) {
                         Ok(id) if generated && super::generated::is_generated(&vfs, id) => {
@@ -814,6 +821,42 @@ mod tests {
         // The player's zz pack wins, JoF's still beats retail.
         assert!(source("gfx/sphere.tga").ends_with("zz_mine.pk3"));
         assert!(source("gfx/anim.tga").ends_with("jof_assets.pk3"));
+    }
+
+    #[test]
+    fn packs_in_the_assets_folder_and_below_sort_among_base() {
+        let install = tempfile::tempdir().unwrap();
+        let base = install.path().join("base");
+        let nested = install.path().join("assets/jof/maps");
+        std::fs::create_dir_all(&base).unwrap();
+        std::fs::create_dir_all(&nested).unwrap();
+        pk3(
+            &base.join("b.pk3"),
+            &["gfx/a.tga", "gfx/b.tga", "gfx/c.tga"],
+        );
+        pk3(&install.path().join("assets/a.pk3"), &["gfx/a.tga"]);
+        pk3(&nested.join("c.pk3"), &["gfx/c.tga"]);
+        let source = |options: &Options, path: &str| {
+            let vfs = options.mount(install.path()).unwrap();
+            vfs.read(path)
+                .unwrap()
+                .unwrap()
+                .source
+                .mount_name
+                .to_string()
+        };
+        let mut options = Options::default();
+        // By file name, whichever folder holds the pack.
+        assert!(source(&options, "gfx/a.tga").ends_with("b.pk3"));
+        assert!(source(&options, "gfx/c.tga").ends_with("c.pk3"));
+        // The asset browser's switch reaches them.
+        options.disabled.toggle("maps/c.pk3");
+        assert!(source(&options, "gfx/c.tga").ends_with("b.pk3"));
+        // They are PK3s only: a loose file there is no game file.
+        std::fs::write(nested.join("loose.tga"), b"x").unwrap();
+        std::fs::write(install.path().join("assets/loose.tga"), b"x").unwrap();
+        let vfs = options.mount(install.path()).unwrap();
+        assert!(!vfs.contains("loose.tga").unwrap());
     }
 
     #[test]

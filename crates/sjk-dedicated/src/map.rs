@@ -109,14 +109,29 @@ pub fn brush_bounds(bsp: &Bsp, model: usize) -> Option<([f32; 3], [f32; 3])> {
     ))
 }
 
-/// Mount `<game_data>/base/*.pk3` in the reference's search order and load
-/// `maps/<name>.bsp`, as `SV_SpawnServer` finds a map.
+/// Mount `<game_data>/base/*.pk3`, with the PK3s of the assets folder, in the
+/// reference's search order and load `maps/<name>.bsp`, as `SV_SpawnServer` finds a map.
 pub fn load(game_data: &Path, name: &str) -> Result<LoadedMap, Box<dyn Error>> {
     let mut files = VirtualFileSystem::new();
-    files.mount_pk3_directory_with_warnings(game_data.join("base"), |archive, error| {
+    files.mount_base_pk3s_with_warnings(game_data, |archive, error| {
         eprintln!("skipping {}: {error}", archive.display());
     })?;
-    load_from(files, name)
+    let mut map = load_from(files, name)?;
+    if let Some(pak) = &mut map.pak {
+        list_assets_pak_in_base(pak, game_data);
+    }
+    Ok(map)
+}
+
+/// A pak tidied under the assets folder is listed as `base/<name>`: clients have no
+/// such subfolder, and a download belongs in their `base`.
+fn list_assets_pak_in_base(pak: &mut ReferencedPak, game_data: &Path) {
+    let root = game_data.join(sjk_vfs::ASSETS_DIRECTORY).canonicalize();
+    if root.is_ok_and(|root| pak.path.starts_with(root))
+        && let Some(name) = pak.path.file_stem()
+    {
+        pak.name = format!("base/{}", name.to_string_lossy());
+    }
 }
 
 /// `maps/<name>.bsp` and what goes with it, out of `files` however they were mounted.
@@ -548,5 +563,32 @@ mod npc_definition_tests {
             "stock keeps its existing load-error fallback"
         );
         assert!(native.defines(b"large_pack_npc"));
+    }
+}
+
+#[cfg(test)]
+mod assets_pak_tests {
+    use super::*;
+
+    #[test]
+    fn a_pak_under_the_assets_folder_is_listed_in_base() {
+        let root = std::env::temp_dir().join(format!("sjk-assets-pak-{}", std::process::id()));
+        let folder = root.join("assets/jof");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::create_dir_all(root.join("base")).unwrap();
+        let listed = |directory: &Path, starting: &str| {
+            let archive = directory.join("map.pk3");
+            std::fs::write(&archive, []).unwrap();
+            let mut pak = ReferencedPak {
+                checksum: 0,
+                name: starting.to_owned(),
+                path: archive.canonicalize().unwrap(),
+            };
+            list_assets_pak_in_base(&mut pak, &root);
+            pak.name
+        };
+        assert_eq!(listed(&folder, "jof/map"), "base/map");
+        assert_eq!(listed(&root.join("base"), "base/map"), "base/map");
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }
