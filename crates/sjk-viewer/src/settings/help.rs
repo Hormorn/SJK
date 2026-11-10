@@ -283,6 +283,10 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     (crate::weather::FOG_CVAR, "0", "Never"),
     (crate::weather::FOG_CVAR, "1", "Map's fog"),
     (crate::weather::FOG_CVAR, "2", "Always"),
+    (crate::weather::REFLECTIONS_CVAR, "0", "By quality"),
+    (crate::weather::REFLECTIONS_CVAR, "1", "Sky only"),
+    (crate::weather::REFLECTIONS_CVAR, "2", "Puddles"),
+    (crate::weather::REFLECTIONS_CVAR, "3", "Everything wet"),
     ("r_drawfog", "0", "Off"),
     ("r_drawfog", "1", "Volume curve"),
     ("r_drawfog", "2", "Original"),
@@ -1681,8 +1685,8 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::weather::QUALITY_CVAR,
-        "Medium adds splashes, 3D fog and wet ground; High distant rain and water down walls; \
-         Ultra puddles, finer fog and clouds.",
+        "Medium adds splashes, 3D fog and wet ground; High far rain, spray and water on walls; \
+         Ultra puddles and reflections.",
     ),
     (
         crate::weather::FORCE_CVAR,
@@ -1704,6 +1708,35 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::weather::LIGHTNING_CVAR,
         "Storms flash now and then, lighting the rain, fog and wet ground; thunder follows with Rain and wind sounds on.",
+    ),
+    (
+        crate::weather::REFLECTIONS_CVAR,
+        "What wet streets, walls and puddles mirror: the sky's colour, or the buildings and \
+         lights round them (Ultra: everything).",
+    ),
+    (
+        crate::weather::PUDDLES_CVAR,
+        "How much water stands on flat ground in the rain at Ultra quality: 0 none, 1 some, \
+         2 flooded streets.",
+    ),
+    (
+        crate::weather::RAIN_OPACITY_CVAR,
+        "How clearly the falling rain shows: lower for a clearer view in a fight, higher for a \
+         heavier downpour.",
+    ),
+    (
+        crate::weather::HAZE_CVAR,
+        "How much falling rain and snow grey the distance, and the spray a downpour raises over \
+         the ground. 0 keeps the air clear.",
+    ),
+    (
+        crate::weather::FOG_DENSITY_CVAR,
+        "How thick the fog lying on the ground is, where Ground fog shows it.",
+    ),
+    (
+        crate::weather::SNOW_COVER_CVAR,
+        "Falling snow settles on the ground, roofs and ledges under open sky, deeper in drifts \
+         and against walls.",
     ),
     (
         "r_modelPixelLight",

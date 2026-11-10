@@ -5,15 +5,26 @@
 //! (`mirrored` in weather.wgsl, after VisionJK's `Mirror()` in `wet.frag` by Blackwolf:
 //! 32 steps from 2 units growing by 1.18, then five halvings).
 //!
+//! Since 09/11/2026 every wet surface can mirror the world (`r_weatherReflections`): the
+//! copy then carries a chain of smaller, softer levels ([`Mirror::encode_blur`], each half
+//! the last), and a rough wet street reads a soft level where a puddle reads the sharp one.
+//!
 //! The copy needs a scene target it can sample: the render-scale or post-AA scene (every
 //! preset draws to one). Drawn straight to the window, the puddles keep the sky alone.
 //! Players are drawn after the wet pass, so puddles mirror the world, not the players.
 
-/// The copy at half the scene's size, and the wet pass's bind group of it.
+/// The copy's levels at most: half the scene's size down to a sixteenth.
+const LEVELS: u32 = 4;
+
+/// The copy at half the scene's size with its softer levels, and the wet pass's bind
+/// group of them all.
 struct Target {
     size: [u32; 2],
     bind_group: wgpu::BindGroup,
-    view: wgpu::TextureView,
+    /// Each level alone: what its pass draws into.
+    levels: Vec<wgpu::TextureView>,
+    /// Each level but the last, for the pass that makes the next from it.
+    sources: Vec<wgpu::BindGroup>,
 }
 
 /// The mirror's pipeline, its copy and the bind groups the passes read.
@@ -63,6 +74,7 @@ impl Mirror {
             label: Some("SJK puddle mirror sampler"),
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -95,7 +107,7 @@ impl Mirror {
             multiview_mask: None,
             cache: None,
         });
-        let black = texture(device, format, [1, 1]);
+        let black = texture(device, format, [1, 1], 1).create_view(&Default::default());
         let empty = bind_group(device, &layout, &black, &sampler);
         Self {
             layout,
@@ -133,12 +145,27 @@ impl Mirror {
             .as_ref()
             .is_none_or(|target| target.size != size)
         {
-            let view = texture(device, self.format, size);
-            let bind_group = bind_group(device, &self.layout, &view, &self.sampler);
+            let count = LEVELS.min(size[0].max(size[1]).max(1).ilog2() + 1);
+            let texture = texture(device, self.format, size, count);
+            let levels: Vec<_> = (0..count)
+                .map(|level| {
+                    texture.create_view(&wgpu::TextureViewDescriptor {
+                        base_mip_level: level,
+                        mip_level_count: Some(1),
+                        ..Default::default()
+                    })
+                })
+                .collect();
+            let sources = levels[..levels.len() - 1]
+                .iter()
+                .map(|view| bind_group(device, &self.layout, view, &self.sampler))
+                .collect();
+            let whole = texture.create_view(&Default::default());
             self.target = Some(Target {
                 size,
-                bind_group,
-                view,
+                bind_group: bind_group(device, &self.layout, &whole, &self.sampler),
+                levels,
+                sources,
             });
         }
         if self.source.as_ref().is_none_or(|(view, _)| view != scene) {
@@ -159,10 +186,32 @@ impl Mirror {
         let (Some(target), Some((_, source))) = (&self.target, &self.source) else {
             return false;
         };
+        self.halve(encoder, source, &target.levels[0]);
+        true
+    }
+
+    /// Make the copy's softer levels, each from the one before, after
+    /// [`Self::encode_copy`].
+    pub(crate) fn encode_blur(&self, encoder: &mut wgpu::CommandEncoder) {
+        let Some(target) = &self.target else {
+            return;
+        };
+        for (source, level) in target.sources.iter().zip(&target.levels[1..]) {
+            self.halve(encoder, source, level);
+        }
+    }
+
+    /// Draw `source` at half its size into `view`.
+    fn halve(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        source: &wgpu::BindGroup,
+        view: &wgpu::TextureView,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("SJK puddle mirror copy"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &target.view,
+                view,
                 resolve_target: None,
                 depth_slice: None,
                 ops: wgpu::Operations {
@@ -178,7 +227,6 @@ impl Mirror {
         pass.set_pipeline(&self.copy);
         pass.set_bind_group(3, source, &[]);
         pass.draw(0..3, 0..1);
-        true
     }
 
     /// What the wet pass binds as group 3: the copy, or the stand-in.
@@ -194,23 +242,22 @@ fn texture(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
     size: [u32; 2],
-) -> wgpu::TextureView {
-    device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some("SJK puddle mirror"),
-            size: wgpu::Extent3d {
-                width: size[0].max(1),
-                height: size[1].max(1),
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
+    levels: u32,
+) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("SJK puddle mirror"),
+        size: wgpu::Extent3d {
+            width: size[0].max(1),
+            height: size[1].max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: levels,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    })
 }
 
 fn bind_group(

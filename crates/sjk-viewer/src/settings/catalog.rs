@@ -2460,4 +2460,50 @@ pub(super) const RENDER_WEATHER: &[Setting] = &[
         cvar: crate::weather::LIGHTNING_CVAR,
         kind: ValueKind::Bool,
     },
+    Setting {
+        label: "Wet reflections",
+        cvar: crate::weather::REFLECTIONS_CVAR,
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
+    },
+    Setting {
+        label: "Puddles",
+        cvar: crate::weather::PUDDLES_CVAR,
+        kind: ValueKind::Float {
+            min: 0.0,
+            max: 2.0,
+            step: 0.25,
+        },
+    },
+    Setting {
+        label: "Rain visibility",
+        cvar: crate::weather::RAIN_OPACITY_CVAR,
+        kind: ValueKind::Float {
+            min: 0.25,
+            max: 2.0,
+            step: 0.25,
+        },
+    },
+    Setting {
+        label: "Rain haze and spray",
+        cvar: crate::weather::HAZE_CVAR,
+        kind: ValueKind::Float {
+            min: 0.0,
+            max: 2.0,
+            step: 0.25,
+        },
+    },
+    Setting {
+        label: "Ground fog thickness",
+        cvar: crate::weather::FOG_DENSITY_CVAR,
+        kind: ValueKind::Float {
+            min: 0.25,
+            max: 3.0,
+            step: 0.25,
+        },
+    },
+    Setting {
+        label: "Snow settles",
+        cvar: crate::weather::SNOW_COVER_CVAR,
+        kind: ValueKind::Bool,
+    },
 ];

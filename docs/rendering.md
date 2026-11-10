@@ -564,6 +564,12 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 | `r_weatherFog` | Ground fog: 0 none, 1 the map's (default), 2 on every map with sky; live |
 | `r_clouds` | Volumetric clouds over open sky, 0 (default, under every graphics preset) or 1; live |
 | `r_weatherLightning` | Lightning in storms, 0 (default) or 1; live; renderer WEATHER tab. See [Weather](#weather) |
+| `r_weatherReflections` | What wet surfaces mirror: 0 (default) by the quality (ultra: everything, else the sky), 1 the sky's colour, 2 the world in puddles (ultra), 3 the world in every wet surface; live; renderer WEATHER tab |
+| `r_weatherPuddles` | Standing water on flat ground at ultra, 0 none to 2 flooded, default 1; live; renderer WEATHER tab |
+| `r_weatherRainOpacity` | The rain streaks' opacity, 0.25–2, default 1; live; renderer WEATHER tab |
+| `r_weatherHaze` | Falling weather's haze and the spray a downpour raises, 0–2, default 1; live; renderer WEATHER tab |
+| `r_weatherFogDensity` | The ground fog's thickness, 0.25–3, default 1; live; renderer WEATHER tab |
+| `r_weatherSnowCover` | Snow settles on what it falls on, 0 (default) or 1; live; renderer WEATHER tab |
 | `r_normalMapping` | Normal maps on lightmapped world surfaces (rend2 convention) and on models whose shader names one (`normalMap`); default 1 (rend2: 0), applies after a graphics reload |
 | `r_specularMapping` | Specular, roughness and metalness maps on the same surfaces; default 1 (rend2: 0), applies after a graphics reload |
 | `r_parallaxMapping` | Parallax from the height in `_nh`/`normalHeightMap` images; needs `r_normalMapping`; default 1 (at `r_parallaxStrength` 0.1; rend2: 0), applies after a graphics reload |
@@ -4646,8 +4652,8 @@ as bright in a 30-degree cone). Measured on 05/11/2026 (release, Windows, RTX 50
 | --- | --- |
 | 0 low | Near streaks, the original's fog sprites; clouds with 10 samples |
 | 1 medium | Splashes, volumetric fog with 10 samples a ray at most, wet surfaces; clouds 16 |
-| 2 high (default) | The far rain layer, fog 16, water running down slopes and walls; clouds 24 |
-| 3 ultra | More far rain and splashes, fog 24, puddles with rain rings that mirror the world; clouds 40 |
+| 2 high (default) | The far rain layer, fog 16, spray over the ground, water running down slopes and walls; clouds 24 |
+| 3 ultra | More far rain and splashes, fog 24, puddles with rain rings, every wet surface mirroring the world (`r_weatherReflections`); clouds 40 |
 
 **Wet surfaces** (`fragment_wet` in weather.wgsl, from `r_weatherQuality` 1). Rain
 wets what it falls on, in one full-screen pass drawn into the scene right after the
@@ -4727,6 +4733,51 @@ four views of a storm on `T2_Rogue` with and without the mirror. Measured on 08/
 5080, off-screen at 3840×2160 on `T2_Rogue` in a forced storm, `SJK_GPU_PHASES` marks
 `world-opaque`/`rain-wet`): 0.19–0.26 ms a frame at levels 1 and 2, 0.27–0.37 ms at 3,
 in GPU frames of 5.5–7.9 ms.
+
+**Looks of 09/11/2026** (Sol: "the rain, weather, fog to have more options to look even
+better (while keeping perfs in mind) and the water flowing on wall too, maybe with some
+reflection, smarter ways for it to happen"; `personal/weather-looks`):
+
+- *Uneven wet ground.* The ground is no longer one even film: a broad noise (the puddles'
+  1100-unit one) and the foot of higher ground beside a pixel (the cover's four columns,
+  `shelter` in weather.wgsl: a column whose floor stands 12 units or more above the point)
+  make it damp, glossy (film up to 0.42 instead of 0.22) or, at ultra, a puddle; water
+  gathers at the foot of walls and kerbs. `r_weatherPuddles` scales the standing water.
+- *Smarter running water.* Each rivulet starts a little under the wall's lip (8 to 160
+  units, from the column behind the face), widens by half towards the wall's foot where the
+  water has gathered, and the bottom 4 to 34 units of a wall are soaked darker and glossier
+  by the rain splashing off the ground.
+- *Reflections in every wet surface* (`r_weatherReflections` 3, the default at ultra). The
+  puddles' copy of the scene now carries up to four levels, each half the last
+  (`Mirror::encode_blur`); a wet street or wall marches a shorter, coarser ray (16 steps
+  from 4 units growing by 1.38, three halvings, `FILM_*`) and reads a softer level the
+  rougher its water and the farther it is, while a puddle keeps its sharp march. Its
+  strength is `clamp(1.4 F + 0.04, 0, 0.8)` times how much water lies there, so lit windows
+  and signs streak across a soaked street. A rivulet's surface leans across it, so it
+  mirrors a sliver of the world beside it. 2 keeps the world to the puddles, 1 the sky's
+  colour alone (no copy at all, as at high).
+- *Spray.* A downpour raises a thin spray over the ground it beats on (from high; thinning
+  to a third every 10 units, density `SPRAY_DENSITY` times the square of the rain's share
+  of a storm), worked out exactly along each pixel's ray over the floor where the ray ends
+  (`spray_over`), drifting in gusts through the noise. It shows where the view skims the
+  ground and costs one noise read per pixel in the fog's blend.
+- *Rain in waves.* The streaks thicken and thin in two trains (1100 and 430 units long, a
+  quarter turn apart) carried by the wind, up to half again as dense at full wind, a little
+  even in calm air in a storm (`rain_waves`).
+- *Settled snow* (`r_weatherSnowCover`, off). Snow settles in about 6 seconds on what faces
+  up under open sky, deeper in drifts (a 420-unit noise) and against walls, grainy, lit by
+  the overcast sky (`SNOW_TINT`); it melts away as fast once the snow stops. Drawn by the wet
+  pass, so it runs at every quality from low when the snow falls.
+- *Sliders*: `r_weatherRainOpacity` for the streaks, `r_weatherHaze` for the haze and spray,
+  `r_weatherFogDensity` for the ground fog.
+
+Measured on 09/11/2026 (release, Windows, RTX 5080, off-screen at 2560x1440 on `T2_Rogue`
+in a forced storm, `t2_rogue_storm_timing`, medians of 14 samples per view; main 1a485b087
+then the branch, one after the other): the wet pass `rain-wet` 0.13-0.14 ms -> 0.15-0.16 at
+high, 0.27-0.28 -> 0.36 at ultra with every wet surface mirroring, 0.29-0.30 with puddles
+alone and 0.18-0.20 with the sky alone; the effect pass `scene-pass` (fog, spray, rain)
+0.12-0.13 -> 0.15-0.16 at high. World shots `t2_rogue_wet_reflections` and
+`t2_rogue_snow_cover` (`world_shot_weather.rs`).
 
 **Forced weather** (`r_weatherForce`): 1 drizzle (`lightrain`), 2 rain with a
 random wind, 3 a storm (`heavyrain`, gusting wind), 4 snow with wind, in place of the

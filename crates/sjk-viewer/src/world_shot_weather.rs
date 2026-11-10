@@ -71,7 +71,7 @@ fn t2_rogue_storm_timing() {
         // The surveys land first.
         aim(&mut gpu, eye, 90.0, -12.0);
         let _ = frame(&mut gpu, 240);
-        let settings: [(&str, &[(&str, &str)]); 8] = [
+        let settings: [(&str, &[(&str, &str)]); 10] = [
             ("nothing", &[("r_weather", "0"), ("r_clouds", "0")]),
             ("clouds only", &[("r_clouds", "1")]),
             (
@@ -88,7 +88,15 @@ fn t2_rogue_storm_timing() {
                 "storm ultra",
                 &[("r_clouds", "1"), ("r_weatherQuality", "3")],
             ),
-            ("storm medium", &[("r_weatherQuality", "1")]),
+            (
+                "storm ultra, puddles mirror",
+                &[("r_weatherReflections", "2")],
+            ),
+            ("storm ultra, sky only", &[("r_weatherReflections", "1")]),
+            (
+                "storm medium",
+                &[("r_weatherQuality", "1"), ("r_weatherReflections", "0")],
+            ),
             ("storm low", &[("r_weatherQuality", "0")]),
         ];
         // A first round compiles every pipeline the settings use (a frame of 260 ms the
@@ -190,6 +198,89 @@ fn t2_rogue_lightning() {
         println!(
             "{}",
             sheet(&[calm, lit], 2, 800, "t2_rogue_lightning").display()
+        );
+    });
+}
+
+/// What wet surfaces mirror in a storm on `T2_Rogue` at ultra (`r_weatherReflections`): the
+/// sky's colour alone (1), the world in puddles (2) and in every wet surface (3), from the
+/// start's street and close to its walls, as a contact sheet of one row each.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn t2_rogue_wet_reflections() {
+    on_big_stack(|| {
+        let cvars = [
+            ("r_weatherForce", "3"),
+            ("r_weatherQuality", "3"),
+            ("r_weatherFog", "2"),
+        ];
+        let Some((mut gpu, _profile)) = open("maps/t2_rogue.bsp", [1600, 900], None, &cvars) else {
+            return;
+        };
+        gpu.is_menu_world = false;
+        std::fs::create_dir_all(directory()).expect("the shot directory");
+        let views: [([f32; 3], f32, f32); 4] = [
+            ([1872.0, -1984.0, -510.0], 90.0, -12.0),
+            ([1872.0, -1984.0, -510.0], 0.0, -20.0),
+            ([1872.0, -1634.0, -510.0], 180.0, -5.0),
+            ([1872.0, -1284.0, -510.0], 20.0, 0.0),
+        ];
+        let mut images = Vec::new();
+        for mode in ["1", "2", "3"] {
+            if let Some(console) = gpu.console.as_mut() {
+                console.set_cvar("r_weatherReflections", mode);
+            }
+            for (index, (eye, yaw, pitch)) in views.iter().enumerate() {
+                aim(&mut gpu, *eye, *yaw, *pitch);
+                let image = frame(&mut gpu, if images.is_empty() { 240 } else { 64 });
+                image
+                    .save(directory().join(format!("t2_rogue_wet_reflections_{mode}_{index}.png")))
+                    .expect("write the shot");
+                images.push(image);
+            }
+        }
+        println!(
+            "{}",
+            sheet(&images, 4, 640, "t2_rogue_wet_reflections").display()
+        );
+    });
+}
+
+/// Snow on `T2_Rogue` (`r_weatherForce 4`) falling only and settled (`r_weatherSnowCover
+/// 1`, after the time it takes to settle), from the start's street.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn t2_rogue_snow_cover() {
+    on_big_stack(|| {
+        let cvars = [("r_weatherForce", "4"), ("r_weatherFog", "2")];
+        let Some((mut gpu, _profile)) = open("maps/t2_rogue.bsp", [1600, 900], None, &cvars) else {
+            return;
+        };
+        gpu.is_menu_world = false;
+        std::fs::create_dir_all(directory()).expect("the shot directory");
+        let views: [([f32; 3], f32, f32); 3] = [
+            ([1872.0, -1984.0, -510.0], 90.0, -12.0),
+            ([1872.0, -1984.0, -510.0], 0.0, -20.0),
+            ([1872.0, -1634.0, -510.0], 180.0, -5.0),
+        ];
+        let mut images = Vec::new();
+        for cover in ["0", "1"] {
+            if let Some(console) = gpu.console.as_mut() {
+                console.set_cvar("r_weatherSnowCover", cover);
+            }
+            for (index, (eye, yaw, pitch)) in views.iter().enumerate() {
+                aim(&mut gpu, *eye, *yaw, *pitch);
+                // Long enough for the surveys, and for the snow to settle (wall-clock time).
+                let image = frame(&mut gpu, if index == 0 { 900 } else { 64 });
+                image
+                    .save(directory().join(format!("t2_rogue_snow_cover_{cover}_{index}.png")))
+                    .expect("write the shot");
+                images.push(image);
+            }
+        }
+        println!(
+            "{}",
+            sheet(&images, 3, 800, "t2_rogue_snow_cover").display()
         );
     });
 }

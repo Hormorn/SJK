@@ -41,6 +41,15 @@ pub(crate) struct GpuWeather {
     pub(crate) wet_sky: [f32; 4],
     pub(crate) rain: [f32; 4],
     pub(crate) sun: [f32; 4],
+    /// x what wet surfaces mirror (0 the sky's colour, 1 the world in puddles, 2 in every
+    /// wet surface), y the puddles' amount (1 as designed), z settled snow (0..1), w the
+    /// rain streaks' opacity (1 as designed).
+    pub(crate) looks: [f32; 4],
+    /// x the spray over the ground a downpour beats on (per unit at the floor), y how
+    /// strongly the rain comes in waves, zw the two waves' phases.
+    pub(crate) tune: [f32; 4],
+    /// rgb the light settled snow gives back, in the scene's light units.
+    pub(crate) snow: [f32; 4],
     pub(crate) clouds: [GpuCloud; super::effects::MAX_CLOUDS],
 }
 
@@ -432,6 +441,9 @@ impl Gpu {
         mirror: bool,
     ) {
         let copied = mirror && self.mirror.encode_copy(encoder);
+        if copied {
+            self.mirror.encode_blur(encoder);
+        }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("SJK rain-wet surfaces"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -664,7 +676,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<GpuCloud>(), (5 + 2 * BUCKETS) * 16);
         assert_eq!(
             std::mem::size_of::<GpuWeather>(),
-            16 * 16 + super::super::effects::MAX_CLOUDS * std::mem::size_of::<GpuCloud>()
+            19 * 16 + super::super::effects::MAX_CLOUDS * std::mem::size_of::<GpuCloud>()
         );
         let shader = include_str!("weather.wgsl");
         assert!(shader.contains("array<vec4<f32>, 8>"));

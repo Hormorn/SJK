@@ -9288,6 +9288,19 @@ test: Switch presets: Volumetric clouds stays as you set it; a new profile has i
 test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
 test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
 
+[weather-looks]
+area: Rendering & effects
+title: Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
+change: Wet ground in patches, water at wall feet; rivulets start under the lip, widen down.
+change: Spray and rain waves in a downpour; r_weatherReflections 1 sky, 2 puddles, 3 all.
+change: Sliders: r_weatherPuddles, RainOpacity, Haze, FogDensity; r_weatherSnowCover (off).
+test: T2_Rogue, r_weatherForce 3, r_weatherQuality 3: lit windows streak across the wet street.
+test: r_weatherReflections 1/2/3: sky only, puddles only, every wet surface. FPS stays close.
+test: Walls in rain: rivulets begin under the top, wider low down, wall foot darker.
+test: Look along the street in the storm: a low spray drifts over the ground, no halo.
+test: r_weatherForce 4 + Settings > Snow settles: snow lies in drifts within ~6 s, melts off.
+test: Each slider moves its look live; 0 haze clears the air.
+
 [japlus-mode]
 area: Gameplay
 title: SJK's server as a JA+ server (g_mod japlus), step 1: identity, settings, movement
@@ -9669,12 +9682,11 @@ area: Audio
 title: 3D sound rebuilt: measured head, walls by material, corners, room echo
 change: s_spatial now: sounds all round the head (front, back, up, down) through a KEMAR head.
 change: Walls muffle by material per band; a hidden sound comes round a corner or doorway.
-change: The room rings with an echo traced from its walls (2048 rays, convolved per ear).
+change: Room echo traced from its walls; 09/11 fix: well under the sounds (was clipping), ~1 s.
 test: Headphones, s_spatial 1: a player circling you sounds behind you when behind.
 test: Close a door between you and a sound: muffled; open it: heard from the doorway.
 test: Small room vs big hall vs outside: short ring, long ring, almost none.
 test: Settings > Sound: 3D sound for headphones off pans; room echo 0 to 2 changes the ring.
-change: 09/11 fix: the room echo was louder than the sounds and clipped; now well under them, about 1 s.
 test: After the fix: the echo sits behind the sounds, nothing distorts; say if too dry or too wet.
 note: Sol 09/11: first try loud and unreadable. Fix not heard yet.
 
