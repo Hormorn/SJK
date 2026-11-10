@@ -133,7 +133,7 @@ pub(crate) fn notes(tables: Option<&SeasonTables>) -> Vec<String> {
         "A holocron keeps the season it dropped in: an Alpha one opens by the Alpha tables, whenever you open it.".to_owned(),
         "A Beta Uncommon holocron opens as an Alpha one, and counts towards the pity.".to_owned(),
         pity,
-        "The pity raises the guaranteed shader when there is one, else the card. Tags, banners and shards do not count.".to_owned(),
+        "The pity raises the guaranteed shader. Tags, banners and shards do not count.".to_owned(),
         "Opening a Beta holocron needs the SJK release that brought Beta, or newer.".to_owned(),
     ]
 }
@@ -145,7 +145,7 @@ mod tests {
     fn mythical() -> SeasonTier {
         serde_json::from_value(serde_json::json!({
             "tier":"mythical","rarity":[0,0,500,380,120],"finish":[0,850,150],
-            "credits":[250,350],"shader_floor":"legendary","shader_tier":[50,150,350,330,120],
+            "credits":[250,350],"shader_floor":"legendary","shader_tier":[0,0,0,600,400],
             "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750},
                      {"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750}],
             "fresh_faces":true
@@ -162,6 +162,7 @@ mod tests {
         assert!(lines[0].contains("250 to 350 credits"), "{}", lines[0]);
         assert!(lines[1].contains("Legendary or better"), "{}", lines[1]);
         assert!(!lines[1].contains("Rare "), "{}", lines[1]);
+        assert!(lines[1].contains("Mythical 40%"), "{}", lines[1]);
         assert!(lines[2].starts_with("2 bonus rolls"), "{}", lines[2]);
         assert!(!lines[2].contains("banner"), "banners off: {}", lines[2]);
         assert!(!lines[2].contains("nothing"), "{}", lines[2]);

@@ -202,7 +202,7 @@ impl Panel {
 
     /// A key while the loot table shows.
     pub(super) fn loot_key(&mut self, key: KeyCode) -> PanelAction {
-        if key == KeyCode::KeyB && !self.selected().is_kyber() {
+        if key == KeyCode::KeyB {
             ui_cues::post(Cue::Click);
             self.loot_beta = !self.loot_beta;
             return PanelAction::None;
@@ -261,7 +261,10 @@ impl Panel {
         text(
             &mut self.ui,
             TextFamily::Display,
-            format_args!("Loot table: kyber crystals"),
+            format_args!(
+                "Loot table: kyber crystals{}",
+                if self.loot_beta { ", Beta season" } else { "" }
+            ),
             frame.rect(LEFT, TITLE_Y, WIDTH, 54.0),
             44.0 * s,
             color::TEXT,
@@ -367,7 +370,12 @@ impl Panel {
                 FontWeight::Semibold,
                 TextAlign::Start,
             );
-            for (at, share) in odds.shader_tier[index].iter().enumerate() {
+            let shares = if self.loot_beta {
+                &odds.beta_tier[index]
+            } else {
+                &odds.shader_tier[index]
+            };
+            for (at, share) in shares.iter().enumerate() {
                 chance_cell(
                     &mut self.ui,
                     frame,
@@ -1012,10 +1020,8 @@ impl Panel {
         } else {
             "Beta season"
         };
-        let mut keys: Vec<(&[&str], &str)> = vec![(&["L"], &back), (&["Esc"], "back")];
-        if !self.selected().is_kyber() {
-            keys.insert(0, (&["B"], season));
-        }
+        let keys: Vec<(&[&str], &str)> =
+            vec![(&["B"], season), (&["L"], &back), (&["Esc"], "back")];
         let gap = 30.0 * s;
         let width: f32 = keys
             .iter()
@@ -1082,15 +1088,15 @@ mod tests {
     fn beta_tables() -> sjk_identity::SeasonTables {
         serde_json::from_value(serde_json::json!({"beta":[
             {"tier":"rare","rarity":[0,700,250,40,10],"finish":[880,120,0],"credits":[30,50],
-             "shader_floor":null,"shader_tier":[450,380,150,20,0],
-             "bonus":[{"shader":350,"tag":150,"shards":100,"banner":0,"card":0,"scale":1000}],
+             "shader_floor":"uncommon","shader_tier":[0,650,280,60,10],
+             "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":0,"scale":1000}],
              "fresh_faces":false},
             {"tier":"legendary","rarity":[0,0,700,250,50],"finish":[650,330,20],"credits":[80,120],
-             "shader_floor":"rare","shader_tier":[200,300,350,130,20],
+             "shader_floor":"rare","shader_tier":[0,0,550,350,100],
              "bonus":[{"shader":0,"tag":333,"shards":333,"banner":0,"card":0,"scale":666}],
              "fresh_faces":true},
             {"tier":"mythical","rarity":[0,0,500,380,120],"finish":[0,850,150],"credits":[250,350],
-             "shader_floor":"legendary","shader_tier":[50,150,350,330,120],
+             "shader_floor":"legendary","shader_tier":[0,0,0,600,400],
              "bonus":[{"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750},
                       {"shader":0,"tag":250,"shards":250,"banner":0,"card":250,"scale":750}],
              "fresh_faces":true}],

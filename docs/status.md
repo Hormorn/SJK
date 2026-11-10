@@ -3,8 +3,9 @@
 10/11/2026, client `personal/holocron-seasons` and hub branch `beta-season` (Sol: "build what
 you can build, decisions later"). The 05/11 design ([cards.md](cards.md#seasons)) is built,
 behind the hub's Beta switch, which stays off: a Beta holocron of Rare or better gives a
-card with a rarity floor and its credits, a shader with a tier floor from Legendary on, and
-bonus rolls on top; pity 15/80 per person over Beta openings; Legendary and Mythical ones pick
+card with a rarity floor and its credits, a shader with a tier floor (Rare holocron
+Uncommon, Legendary Rare, Mythical Legendary; Beta's own odds, Sol 10/11) and bonus rolls on
+top, and Beta kyber crystals get their own better odds; pity 15/80 per person over Beta openings; Legendary and Mythical ones pick
 card faces not held yet; opening a Beta holocron needs the Beta release. The client shows a
 Beta holocron's prizes one by one, best last, has a Beta page on the loot table (B), the
 guarantee and pity on a Beta holocron's hover card, and `debug_open <tier> beta`.

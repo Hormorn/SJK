@@ -27,11 +27,12 @@
 [holocron-seasons]
 area: Menus & settings
 title: Holocron seasons: Beta holocrons, guaranteed prizes, bonus rolls, pity
-change: A Beta holocron of Rare+ gives a floored card, a shader from Legendary on, and bonuses.
+change: A Beta holocron of Rare+ gives a floored card, a floored shader, and bonuses.
 change: Its prizes reveal one by one, the best last. Loot table: B shows the Beta page.
 test: debug_open mythical beta: card, shader, shards, second card, best last.
-test: debug_open legendary beta x3, then debug_open rare beta: no shader on the Rare.
+test: debug_open rare beta: the Rare gives an Uncommon or better shader too.
 test: Holocrons tab > Loot table > B: the Beta page fits; B again, Esc back.
+test: Kyber crystal row > Loot table > B: the Beta crystal odds (Mythical 50/50).
 note: Live only once the hub branch beta-season is deployed and Beta opened (hub switch).
 
 [sjk-page]

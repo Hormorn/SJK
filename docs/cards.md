@@ -196,7 +196,7 @@ pile of kyber shards, banner) become **bonus rolls** on top.
 | Holocron | Guaranteed | Bonus rolls |
 | --- | --- | --- |
 | Uncommon | As in Alpha: one prize (a shader, or a card and credits) | As in Alpha |
-| Rare | A card, **Uncommon or better**, and credits | One: shader 35 %, tag 15 %, shard pile 10 %, nothing 40 % |
+| Rare | A card, **Uncommon or better**, and credits; a shader, **Uncommon or better** | One: tag 25 %, shard pile 25 %, nothing 50 % |
 | Legendary | A card, **Rare or better**, and credits; a shader, **Rare or better** | One: tag, shard pile or banner |
 | Mythical | A card, **Holo or better**, and credits; a shader, **Legendary or better** | Two: tag, shard pile, banner or a second card |
 
@@ -208,9 +208,20 @@ Card rarity and finish (Beta; Uncommon as Alpha):
 | Legendary | 0 % | 0 % | 70 % | 25 % | 5 % | 65 % | 33 % | 2 % |
 | Mythical | 0 % | 0 % | 50 % | 38 % | 12 % | 0 % | 85 % | 15 % |
 
-Credits and the card pack's shards stay as in Alpha. The shader's tier, inside its floor,
-keeps the Alpha crystal odds of the holocron's tier, renormalised. Provisional: tuned
-after a week of real Beta openings.
+Credits and the card pack's shards stay as in Alpha. The guaranteed shader's tier has
+Beta's own odds (Sol, 10/11/2026: "I feel like I should have dropped more"; Mythical
+holocrons are rare enough to give a good chance of the best):
+
+| Holocron | Uncommon | Rare | Legendary | Mythical |
+| --- | --- | --- | --- | --- |
+| Rare | 65 % | 28 % | 6 % | 1 % |
+| Legendary | | 55 % | 35 % | 10 % |
+| Mythical | | | 60 % | 40 % |
+
+Beta kyber crystals get their own odds too, at least as good as the Beta holocron of
+their tier (Common to Mythical): Uncommon 30/45/20/4/1 %, Rare 0/55/33/9.5/2.5 %,
+Legendary 0/0/45/40/15 %, Mythical 0/0/0/50/50 %. Alpha holocrons and crystals keep their
+odds. Provisional: tuned after a week of real Beta openings.
 
 ### Pity
 
@@ -223,8 +234,7 @@ a Beta holocron's hover card and on the loot table's Beta page:
 - a **Mythical** prize (shader or card) at the latest every **80** (about ten days).
 
 A natural one resets its counter. The last opening of a run rolls its prize's tier from
-the floor up: the guaranteed shader's when the holocron has one (Legendary, Mythical), else
-the card's. A Beta Uncommon holocron counts but is never raised, so a run it would end
+the floor up: the guaranteed shader's (every Beta tier from Rare has one since 10/11). A Beta Uncommon holocron counts but is never raised, so a run it would end
 waits for the next Rare or better one. Tags, banners and shards do not count.
 
 ### No duplicate faces

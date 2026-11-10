@@ -981,6 +981,9 @@ pub struct KyberTier {
     /// The shader's tier per mille, common to mythical (summing to 1000).
     #[serde(default)]
     pub shader_tier: Vec<u32>,
+    /// The same for a Beta crystal (hubs since 10/11/2026; empty before).
+    #[serde(default)]
+    pub beta_tier: Vec<u32>,
 }
 
 /// The person's pity counter: the `every`-th crystal in a row without a Legendary or
