@@ -38,7 +38,7 @@ fn graphics_reload_menu() {
         shoot(&mut gpu, 4, "graphics-reload-card");
         assert!(gpu.graphics_reload.card.is_open(), "the card shows");
         let changes = gpu.graphics_changes();
-        assert!(changes.contains(&"sun and sky"), "{changes:?}");
+        assert!(changes.contains(&"real-time lighting"), "{changes:?}");
 
         // Reload now: the card says the map is being built again over the old world.
         gpu.reload_graphics(&mut None, false)

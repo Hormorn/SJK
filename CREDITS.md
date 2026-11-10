@@ -475,6 +475,10 @@ includes:
 - storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
   the game's own thunder after it, single gusts of wind heard as they rise, and rain
   running down walls and slopes in rivulets with drops along each slope's fall;
+- graphics presets in two families (10/11/2026): Vanilla, Vanilla Plus and the Solar
+  Renderer's Low to Ultra, rated green to red for the player's card with a recommended
+  pick, real-time lighting split into bounced light, lamp shadows and a time-of-day sky,
+  and named choices in place of sliders;
 - richer rain (09/11/2026): uneven wet streets with water gathering at walls, rivulets that
   start under a wall's lip, spray and waves of rain in a downpour, the world mirrored in
   every wet surface (`r_weatherReflections`), settled snow (`r_weatherSnowCover`) and

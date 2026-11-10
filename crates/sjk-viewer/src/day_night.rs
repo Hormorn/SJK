@@ -16,6 +16,8 @@ pub(crate) struct Settings {
     /// `r_dayClock`: the hour is the PC's; without the live sun the sky alone follows it
     /// ([`Self::sky`]).
     pub(crate) pc_clock: bool,
+    /// `r_daySky`: without the live sun the sky alone shows the hour ([`Self::sky`]).
+    pub(crate) sky: bool,
 }
 
 /// Frame-local sunlight and ambient fill, evaluated without allocation.
@@ -61,16 +63,20 @@ impl Settings {
                 number("r_dayMinutes", 0.).clamp(0., 1440.)
             },
             pc_clock,
+            sky: console
+                .and_then(|c| c.integer_cvar(live::SKY_CVAR))
+                .is_some_and(|on| on != 0),
         }
     }
 
     /// What the sky's tint is installed with: these settings with the live sun, and the
-    /// PC clock's hour on the sky alone without it (`r_dayClock` with Sun and sky off, the
-    /// SJK and Vanilla presets): the sky turns to dusk and night with the PC's evening
-    /// at the cost of one tint in the sky's shader, no sun or shadows.
+    /// hour on the sky alone without it (`r_dayClock` or `r_daySky` with real-time lighting
+    /// off, as in the Vanilla presets): the sky turns to dusk and night with the PC's
+    /// evening or the set hour at the cost of one tint in the sky's shader, no sun or
+    /// shadows.
     pub(crate) fn sky(self) -> Self {
         Self {
-            enabled: self.enabled || self.pc_clock,
+            enabled: self.enabled || self.pc_clock || self.sky,
             ..self
         }
     }
@@ -184,7 +190,13 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
         "r_dayNight",
         1_i64,
         CvarFlags::ARCHIVE,
-        "Map-relative sun and sky atmosphere; implies world shadows; vid_restart applies it",
+        "Real-time lighting (the Solar renderer): a live sun, sky and lamps light the map in place of its baked light; implies world shadows; vid_restart applies it",
+    ))?;
+    cvars.register(CvarDefinition::new(
+        live::SKY_CVAR,
+        0_i64,
+        CvarFlags::ARCHIVE,
+        "Without real-time lighting, the sky still shows r_dayHour (dawn, dusk, night); vid_restart applies it",
     ))?;
     cvars.register(CvarDefinition::new(
         "r_liveLighting",
@@ -260,7 +272,7 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
     ] {
         cvars.register(CvarDefinition::new(name, value, CvarFlags::ARCHIVE, help))?;
     }
-    for name in ["r_dayNight"] {
+    for name in ["r_dayNight", live::SKY_CVAR] {
         cvars.on_change(name, |_| {
             crate::log::progress(format_args!(
                 "Day/night setting changed: {}",

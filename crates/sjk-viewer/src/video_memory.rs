@@ -10,8 +10,8 @@
 //! the real-time lighting's lamp cache budget ([`dedicated`]).
 //!
 //! Since 25/10/2026 (Sol's choice) a card under 3.5 GiB, integrated GPUs included, also
-//! gets lighter graphics once ([`PRESET_CVAR`], [`lighten`]): Vanilla style instead of
-//! the untouched SJK (recommended) preset (its full-resolution ambient occlusion, HDR
+//! gets lighter graphics once ([`PRESET_CVAR`], [`lighten`]): Vanilla instead of
+//! the untouched Vanilla Plus preset (its full-resolution ambient occlusion, HDR
 //! and glow cost a weak GPU most), other players' blades stock (`cg_stockBlades 1`) and
 //! a 60 FPS menu cap (`com_maxfpsMenu 60`), each only from its default. A card in the
 //! menus then says what changed and offers to keep it or go back
@@ -38,7 +38,7 @@ static LIGHTENED: OnceLock<Lightened> = OnceLock::new();
 pub(crate) struct Lightened {
     /// The card's video memory, MiB.
     pub(crate) mib: i64,
-    /// SJK (recommended) became Vanilla style.
+    /// Vanilla Plus became Vanilla.
     pub(crate) vanilla: bool,
     /// Other players' blades became stock.
     pub(crate) stock_blades: bool,
@@ -91,7 +91,7 @@ pub(crate) fn register(cvars: &mut sjk_shell::CvarRegistry) -> Result<(), sjk_sh
         0_i64,
         sjk_shell::CvarFlags::ARCHIVE,
         "The graphics card's video memory (MiB) SJK last considered lighter graphics for \
-         (Vanilla style, stock blades for others, a menu cap); 0 to consider them again",
+         (Vanilla graphics, stock blades for others, a menu cap); 0 to consider them again",
     ))
 }
 
@@ -169,7 +169,7 @@ fn apply(console: &mut ViewerConsole, dedicated: u64) -> Vec<String> {
 }
 
 /// Give a card of `dedicated` bytes under 3.5 GiB lighter graphics, once a card: Vanilla
-/// style when the preset is the untouched SJK (recommended) one (kept so Back to SJK
+/// when the preset is the untouched Vanilla Plus one (kept so Back to SJK
 /// restores it, [`crate::graphics_quality::toggle_vanilla`]), stock blades for other
 /// players and the menus' 60 FPS cap when those are off. What changed.
 fn lighten(console: &mut ViewerConsole, dedicated: u64) -> Lightened {
@@ -185,7 +185,7 @@ fn lighten(console: &mut ViewerConsole, dedicated: u64) -> Lightened {
     let detail = crate::world_materials::filtering::mips::PICMIP_CVAR;
     lightened.smaller_textures = console.integer_cvar(detail).unwrap_or(0) > 0;
     use crate::graphics_quality::Level;
-    if Level::current(console) == Some(Level::Sjk) {
+    if Level::current(console) == Some(Level::VanillaPlus) {
         crate::graphics_quality::toggle_vanilla(console);
         lightened.vanilla = Level::current(console) == Some(Level::Vanilla);
     }
@@ -211,7 +211,7 @@ pub(crate) fn lighten_for_shot(lightened: Lightened) {
     let _ = LIGHTENED.set(lightened);
 }
 
-/// Undo what [`lighten`] changed: SJK (recommended) back with the player's kept values,
+/// Undo what [`lighten`] changed: Vanilla Plus back with the player's kept values,
 /// and the stock blades and menu cap off again where it set them.
 pub(crate) fn undo(console: &mut ViewerConsole, lightened: Lightened) {
     if lightened.vanilla && crate::graphics_quality::vanilla(console) {
@@ -298,7 +298,7 @@ mod tests {
         assert!(!lighten(&mut console, 3 * GIB).any());
         // Back to SJK: the preset and the two settings as they were.
         undo(&mut console, lightened);
-        assert_eq!(Level::current(&console), Some(Level::Sjk));
+        assert_eq!(Level::current(&console), Some(Level::VanillaPlus));
         assert_eq!(console.integer_cvar(crate::stock_blades::CVAR), Some(0));
         assert_eq!(
             console.integer_cvar(crate::runtime_settings::MENU_CAP_CVAR),
@@ -311,11 +311,11 @@ mod tests {
         use crate::graphics_quality::Level;
         // A player's own settings are left alone; only what is still off changes.
         let (_directory, mut console) = fresh();
-        Level::Experimental.apply(&mut console);
+        Level::SolarHigh.apply(&mut console);
         console.set_cvar(crate::runtime_settings::MENU_CAP_CVAR, "90");
         let lightened = lighten(&mut console, 2 * GIB);
         assert!(!lightened.vanilla && lightened.stock_blades && !lightened.menu_cap);
-        assert_eq!(Level::current(&console), Some(Level::Experimental));
+        assert_eq!(Level::current(&console), Some(Level::SolarHigh));
         assert_eq!(
             console.integer_cvar(crate::runtime_settings::MENU_CAP_CVAR),
             Some(90)
@@ -325,7 +325,7 @@ mod tests {
             let (_directory, mut console) = fresh();
             crate::graphics_quality::apply_new_profile(&mut console);
             assert!(!lighten(&mut console, size).any());
-            assert_eq!(Level::current(&console), Some(Level::Sjk));
+            assert_eq!(Level::current(&console), Some(Level::VanillaPlus));
         }
     }
 }

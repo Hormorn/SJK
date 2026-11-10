@@ -583,7 +583,11 @@ mod tests {
     fn tags_mark_tools_players_rarely_need() {
         let cases: [(&str, &str, &[&str]); 5] = [
             ("ghost", "Showcase tools, SJK staff only: ...", &["staff"]),
-            ("graphicsquality", "vanilla, sjk or experimental", &[]),
+            (
+                "graphicsquality",
+                "vanilla, vanillaplus, low, medium, high, ultra (the Solar Renderer's) or recommended",
+                &[],
+            ),
             ("fs_debug", "Log mounted sources", &["developer"]),
             (
                 "rateDefaultVersion",

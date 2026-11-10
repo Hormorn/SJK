@@ -620,7 +620,7 @@ impl crate::GpuState {
     /// `backdrop` is the menu backdrop holding the view.
     pub(crate) fn prepare_eye_adaptation(&mut self, delta: f32, backdrop: bool) {
         let mut values = self.context.exposure.values();
-        // Without the live sun (SJK recommended, Vanilla style) the PC clock's night is a
+        // Without the live sun (the Vanilla family) the PC clock's night is a
         // darker exposure; with it, the sun itself shows the hour.
         if !self.context.sun_shadows.day.enabled {
             values.night = self.context.dynamic_light_settings.day_clock().night_tint();

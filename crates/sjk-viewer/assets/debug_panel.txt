@@ -9311,6 +9311,18 @@ test: Switch presets: Volumetric clouds stays as you set it; a new profile has i
 test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
 test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
 
+[solar-renderer]
+area: Menus & settings
+title: Graphics presets: Vanilla / Vanilla Plus / Solar Renderer Low-Ultra, rated for your PC
+change: Six presets; marks green to red by the card's VRAM; Recommended row picks the best green.
+change: Sun and sky is Real-time lighting; Bounced light, Lamp shadows, Time-of-day sky split off.
+change: Named dropdowns: shadow softness/resolution/distance, texture detail, day length, weather.
+test: Settings > Graphics: preset list shows six with coloured dots; yours green up to Ultra.
+test: Recommended for this PC: sets the green pick; old SJK profile reads Vanilla Plus.
+test: Solar Low and Medium on a big map: loads and looks right without bounce/lamp shadows.
+test: Vanilla Plus + Time-of-day sky + hour 20: sky turns to dusk after vid_restart.
+test: Classic+ menus: GRAPHICS panels show the new rows and the preset list.
+
 [weather-looks]
 area: Rendering & effects
 title: Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders

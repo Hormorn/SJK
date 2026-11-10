@@ -445,7 +445,16 @@ impl SettingsMenu {
         match pick {
             Pick::Value(value) => choice_label(cvar, value),
             Pick::Mode(mode) => mode.label(),
-            Pick::Quality(level) => level.label(),
+            Pick::Quality(level) => crate::graphics_quality::list_label(level),
+        }
+    }
+
+    /// The coloured mark of dropdown choice `pick`: a graphics preset's rating for this
+    /// PC ([`crate::graphics_quality::Rating`]); none for other choices.
+    pub(super) fn pick_mark(pick: Pick) -> Option<sjk_ui::Color> {
+        match pick {
+            Pick::Quality(level) => Some(level.rating(crate::graphics_quality::card_mib()).color()),
+            _ => None,
         }
     }
 
@@ -474,7 +483,7 @@ impl SettingsMenu {
 
     /// Return row `row` to its default value. Rows whose value is not one
     /// cvar's (resolution, display mode) are left alone; the graphics preset's
-    /// default is a new profile's, SJK (recommended), and a renderer setting's
+    /// default is a new profile's, Vanilla Plus, and a renderer setting's
     /// is its value in the preset in use ([`crate::graphics_quality::row_default`]).
     pub(super) fn reset_to_default(&mut self, console: &mut ViewerConsole, row: usize) {
         let Some(setting) = self.rows().get(row) else {
@@ -758,14 +767,24 @@ impl SettingsMenu {
                 Some(&(_, slot)) => {
                     let cvar = self.rows().get(dropdown.row).map_or("", |row| row.cvar);
                     let shown = dropdown.shown();
+                    // Classic+'s list is narrow: presets go by their plain names, their
+                    // marks saying how they run (the row under names the recommended one).
                     let labels: Vec<&str> = dropdown.picks[shown.clone()]
                         .iter()
-                        .map(|pick| Self::pick_label(cvar, *pick))
+                        .map(|pick| match pick {
+                            Pick::Quality(level) => level.label(),
+                            _ => Self::pick_label(cvar, *pick),
+                        })
+                        .collect();
+                    let marks: Vec<_> = dropdown.picks[shown.clone()]
+                        .iter()
+                        .map(|pick| Self::pick_mark(*pick))
                         .collect();
                     place.dropdown(
                         &mut self.ui,
                         slot,
                         &labels,
+                        &marks,
                         dropdown.highlighted.wrapping_sub(shown.start),
                         dropdown.current.wrapping_sub(shown.start),
                         DROPDOWN_BASE,
@@ -1247,30 +1266,35 @@ mod tests {
     }
 
     #[test]
-    fn the_graphics_preset_lists_its_presets_and_returns_to_sjk_recommended() {
+    fn the_graphics_preset_lists_its_presets_and_returns_to_vanilla_plus() {
         use crate::graphics_quality::{Level, ROW_NAME};
         let (_directory, mut console) = console();
         crate::graphics_quality::apply_new_profile(&mut console);
         let mut menu = SettingsMenu::new();
         menu.open_tab(&console, SettingsMenu::tab_index("VIDEO").unwrap());
         let row = row_of(&menu, ROW_NAME);
-        assert_eq!(menu.values[row], "SJK (recommended)");
+        assert_eq!(menu.values[row], "Vanilla Plus");
         assert_eq!(
             menu.defaults[row],
             RowDefault {
-                text: Some("SJK (recommended)".to_owned()),
+                text: Some("Vanilla Plus".to_owned()),
                 changed: false
             }
         );
-        // The list holds the three presets and opens on the one in use;
-        // picking one sets it.
+        // The list holds the six presets, each with its mark, and opens on the one in
+        // use; picking one sets it.
         assert!(menu.open_dropdown(&console, row));
         let open = menu.dropdown.as_ref().unwrap();
         assert_eq!(open.picks, Level::ALL.map(Pick::Quality));
+        assert!(
+            open.picks
+                .iter()
+                .all(|pick| SettingsMenu::pick_mark(*pick).is_some())
+        );
         assert_eq!(open.current, 1);
-        menu.apply_pick(&mut console, 2);
-        assert_eq!(Level::current(&console), Some(Level::Experimental));
-        assert_eq!(menu.values[row], "Experimental");
+        menu.apply_pick(&mut console, 4);
+        assert_eq!(Level::current(&console), Some(Level::SolarHigh));
+        assert_eq!(menu.values[row], "Solar Renderer: High");
         assert!(menu.defaults[row].changed);
         // A preset's own rows do not read as changed.
         let shadows = RENDER_SHADOWS
@@ -1286,19 +1310,23 @@ mod tests {
         assert!(row_default(&console, shadows).changed);
         menu.selected = row;
         menu.adjust(&mut console, -1);
-        assert_eq!(menu.values[row], "SJK (recommended)");
+        assert_eq!(menu.values[row], "Solar Renderer: Medium");
         menu.adjust(&mut console, -1);
-        assert_eq!(menu.values[row], "Vanilla style");
+        assert_eq!(menu.values[row], "Solar Renderer: Low");
+        menu.adjust(&mut console, -1);
+        assert_eq!(menu.values[row], "Vanilla Plus");
+        menu.adjust(&mut console, -1);
+        assert_eq!(menu.values[row], "Vanilla");
         assert!(crate::graphics_quality::vanilla(&console));
         assert!(menu.defaults[row].changed);
-        // Vanilla style's rows read its values as their defaults.
+        // Vanilla's rows read its values as their defaults.
         assert!(!row_default(&console, shadows).changed);
 
         menu.adjust(&mut console, -1);
-        assert_eq!(menu.values[row], "Vanilla style");
-        // Backspace's default is SJK (recommended).
+        assert_eq!(menu.values[row], "Vanilla");
+        // Backspace's default is Vanilla Plus.
         menu.reset_to_default(&mut console, row);
-        assert_eq!(Level::current(&console), Some(Level::Sjk));
+        assert_eq!(Level::current(&console), Some(Level::VanillaPlus));
         assert!(!menu.defaults[row].changed);
     }
 

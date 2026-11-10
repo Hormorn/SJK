@@ -8,6 +8,9 @@ use std::time::Instant;
 
 /// `r_dayClock`: the hour of the sun follows this PC's clock.
 pub(crate) const PC_CLOCK_CVAR: &str = "r_dayClock";
+/// `r_daySky`: without the live sun, the sky still shows the hour (`r_dayHour`, turning
+/// with `r_dayMinutes`): dawn, dusk and night tint it, and the night darkens the view.
+pub(crate) const SKY_CVAR: &str = "r_daySky";
 /// How often the PC's clock is read while [`PC_CLOCK_CVAR`] is on, in milliseconds: the
 /// sun moves a quarter of a degree a minute, so once a second is plenty, and the frame
 /// never asks the time zone rules itself.
@@ -22,7 +25,7 @@ pub(crate) fn pc_hour(time: &LocalTime) -> f32 {
 
 /// How dark the PC clock's night is without the live sun: the exposure's factor from
 /// [`NIGHT_DARK_FROM`] to [`NIGHT_DARK_UNTIL`]: night in the SJK and Vanilla presets too, which
-/// keep Sun and sky off.
+/// keep real-time lighting off.
 pub(crate) const NIGHT_FACTOR: f32 = 0.4;
 /// Dusk: full day until 18:00, full night from 20:30.
 const DUSK: (f32, f32) = (18.0, 20.5);
@@ -83,10 +86,10 @@ impl PcClock {
 /// diagnostics bitmask, contact shadows, gap closure, ambient readability fill and
 /// indirect-light controls and whether the hour follows the PC's clock.
 #[derive(Clone)]
-pub(crate) struct Clock(Arc<[AtomicU32; 11]>, Arc<PcClock>);
+pub(crate) struct Clock(Arc<[AtomicU32; 12]>, Arc<PcClock>);
 
 /// Names in slot order; every slot is a live cvar registered by `day::register`.
-pub(crate) const LIVE_CVARS: [&str; 11] = [
+pub(crate) const LIVE_CVARS: [&str; 12] = [
     "r_dayHour",
     "r_dayMinutes",
     "r_volumetricClarity",
@@ -98,6 +101,7 @@ pub(crate) const LIVE_CVARS: [&str; 11] = [
     "r_indirectBoost",
     "r_ambientFillOcclusion",
     PC_CLOCK_CVAR,
+    SKY_CVAR,
 ];
 
 impl Default for Clock {
@@ -114,6 +118,7 @@ impl Default for Clock {
                 AtomicU32::new(0.025_f32.to_bits()),
                 AtomicU32::new(1_f32.to_bits()),
                 AtomicU32::new(1_f32.to_bits()),
+                AtomicU32::new(0),
                 AtomicU32::new(0),
             ]),
             Arc::default(),
@@ -156,7 +161,7 @@ impl Clock {
             7 => value.clamp(0., 0.2),
             8 => value.clamp(0., 4.),
             9 => value.clamp(0., 1.),
-            10 => f32::from(u8::from(value != 0.)),
+            10 | 11 => f32::from(u8::from(value != 0.)),
             _ => value.clamp(0., 4095.),
         };
         self.0[index].store(value.to_bits(), Ordering::Relaxed);
@@ -175,15 +180,21 @@ impl Clock {
     }
 
     /// What the sky alone follows without the live sun (hour, day length): the PC's hour
-    /// while [`PC_CLOCK_CVAR`] is on, else noon, where the sky's tint leaves the authored
-    /// sky as it is; so switching the clock off gives the map its own sky back at once,
-    /// whatever `r_dayHour` says .
+    /// while [`PC_CLOCK_CVAR`] is on, `r_dayHour` and `r_dayMinutes` with [`SKY_CVAR`],
+    /// else noon, where the sky's tint leaves the authored sky as it is; so switching both
+    /// off gives the map its own sky back at once, whatever `r_dayHour` says.
     pub(crate) fn sky_values(&self) -> [f32; 2] {
-        if f32::from_bits(self.0[10].load(Ordering::Relaxed)) != 0. {
+        if self.on(10) {
             [self.1.hour(), 0.]
+        } else if self.on(11) {
+            [0, 1].map(|i| f32::from_bits(self.0[i].load(Ordering::Relaxed)))
         } else {
             [12., 0.]
         }
+    }
+
+    fn on(&self, slot: usize) -> bool {
+        f32::from_bits(self.0[slot].load(Ordering::Relaxed)) != 0.
     }
 
     /// `r_sunShadowGapClose`: holes in the shadow maps narrower than this many world units
@@ -206,8 +217,11 @@ impl Clock {
     /// [`PC_CLOCK_CVAR`] is on, else 1: what stands for the sun's hour when the live sun
     /// is off.
     pub(crate) fn night_tint(&self) -> f32 {
-        if f32::from_bits(self.0[10].load(Ordering::Relaxed)) != 0. {
+        if self.on(10) {
             night_tint(self.1.hour())
+        } else if self.on(11) {
+            // A turning day's hour is the sky shader's; the set hour stands for it here.
+            night_tint(f32::from_bits(self.0[0].load(Ordering::Relaxed)))
         } else {
             1.
         }
@@ -290,6 +304,13 @@ mod tests {
         let clock = Clock::default();
         clock.store(0, &CvarValue::Float(21.));
         assert_eq!(clock.sky_values(), [12., 0.], "noon: the authored sky");
+        assert_eq!(clock.night_tint(), 1.);
+        // The time-of-day sky shows the set hour, and its night darkens the view.
+        clock.store(11, &CvarValue::Integer(1));
+        clock.store(1, &CvarValue::Float(20.));
+        assert_eq!(clock.sky_values(), [21., 20.]);
+        assert!(clock.night_tint() < 1.);
+        clock.store(11, &CvarValue::Integer(0));
         clock.store(10, &CvarValue::Integer(1));
         let [hour, minutes] = clock.sky_values();
         assert!((0. ..24.).contains(&hour));

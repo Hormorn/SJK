@@ -461,6 +461,8 @@ mod render_scale_shots;
 mod scene_views_shots;
 #[path = "world_shot_sharpen.rs"]
 mod sharpen_shots;
+#[path = "world_shot_solar_presets.rs"]
+mod solar_preset_shots;
 #[cfg(test)]
 #[path = "world_shot_tags.rs"]
 mod tags_shots;

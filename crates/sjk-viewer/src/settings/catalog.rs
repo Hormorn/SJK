@@ -131,6 +131,11 @@ pub(super) const VIDEO: &[Setting] = &[
         kind: ValueKind::Quality,
     },
     Setting {
+        label: "Recommended for this PC",
+        cvar: crate::graphics_quality::RECOMMEND_COMMAND,
+        kind: ValueKind::Run,
+    },
+    Setting {
         label: "Resolution",
         cvar: "r_resolution",
         kind: ValueKind::Resolution,
@@ -2113,13 +2118,9 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         },
     },
     Setting {
-        label: "Supersampling, 1 off (reload)",
+        label: "Supersampling (reload)",
         cvar: "r_superSample",
-        kind: ValueKind::Integer {
-            min: 1,
-            max: 3,
-            step: 1,
-        },
+        kind: ValueKind::Choice(&["1", "2", "3"]),
     },
     Setting {
         label: "Render scale (%) (reload)",
@@ -2131,13 +2132,9 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         },
     },
     Setting {
-        label: "Texture detail, 0 full (next map)",
+        label: "Texture detail (next map)",
         cvar: crate::world_materials::filtering::mips::PICMIP_CVAR,
-        kind: ValueKind::Integer {
-            min: 0,
-            max: crate::world_materials::filtering::mips::PICMIP_MAX as i64,
-            step: 1,
-        },
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
     },
     Setting {
         label: "Largest texture, 0 none (next map)",
@@ -2165,15 +2162,6 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "Sunbeam dust (0 off)",
-        cvar: crate::dust_motes::CVAR,
-        kind: ValueKind::Float {
-            min: 0.0,
-            max: 1.0,
-            step: 0.1,
-        },
-    },
-    Setting {
         label: "Per-pixel model lighting",
         cvar: "r_modelPixelLight",
         kind: ValueKind::Bool,
@@ -2186,16 +2174,6 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
     Setting {
         label: "Toon on my model",
         cvar: crate::toon_choice::CVAR,
-        kind: ValueKind::Bool,
-    },
-    Setting {
-        label: "Reflection probes (reload)",
-        cvar: "r_cubeMapping",
-        kind: ValueKind::Bool,
-    },
-    Setting {
-        label: "Floor mirrors",
-        cvar: "r_floorReflections",
         kind: ValueKind::Bool,
     },
     Setting {
@@ -2241,45 +2219,39 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         cvar: "r_emissiveGlow",
         kind: ValueKind::Bool,
     },
+    Setting {
+        label: "Reflection probes (reload)",
+        cvar: "r_cubeMapping",
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Floor mirrors",
+        cvar: "r_floorReflections",
+        kind: ValueKind::Bool,
+    },
 ];
 
+/// The Solar Renderer's real-time lighting, the light shafts and the time of day.
 pub(super) const RENDER_LIGHTING: &[Setting] = &[
     Setting {
-        label: "Sun and sky (reload)",
+        label: "Real-time lighting (reload)",
         cvar: "r_dayNight",
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "Live lighting 0-2 (next map)",
-        cvar: "r_liveLighting",
-        kind: ValueKind::Integer {
-            min: 0,
-            max: 2,
-            step: 1,
-        },
-    },
-    Setting {
-        label: "Time of day (hour)",
-        cvar: "r_dayHour",
-        kind: ValueKind::Float {
-            min: 0.0,
-            max: 24.0,
-            step: 0.5,
-        },
-    },
-    Setting {
-        label: "Sun follows PC clock",
-        cvar: "r_dayClock",
+        label: "Bounced light (reload)",
+        cvar: crate::world_materials::shadows::settings::BOUNCE_CVAR,
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "Day length, min (0 holds)",
-        cvar: "r_dayMinutes",
-        kind: ValueKind::Float {
-            min: 0.0,
-            max: 1440.0,
-            step: 5.0,
-        },
+        label: "Lamp shadows (reload)",
+        cvar: crate::world_materials::shadows::settings::LAMP_SHADOWS_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Live lighting (next map)",
+        cvar: "r_liveLighting",
+        kind: ValueKind::Choice(&["0", "1", "2"]),
     },
     Setting {
         label: "Sunlight brightness",
@@ -2349,8 +2321,38 @@ pub(super) const RENDER_LIGHTING: &[Setting] = &[
             step: 0.05,
         },
     },
+    Setting {
+        label: "Sunbeam dust",
+        cvar: crate::dust_motes::CVAR,
+        kind: ValueKind::Choice(&["0.0", "0.5", "1.0"]),
+    },
+    Setting {
+        label: "Time-of-day sky (reload)",
+        cvar: crate::world_materials::shadows::day::live::SKY_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Time of day (hour)",
+        cvar: "r_dayHour",
+        kind: ValueKind::Float {
+            min: 0.0,
+            max: 24.0,
+            step: 0.5,
+        },
+    },
+    Setting {
+        label: "Sun follows PC clock",
+        cvar: "r_dayClock",
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Day length",
+        cvar: "r_dayMinutes",
+        kind: ValueKind::Choice(&["0.0", "10.0", "30.0", "60.0", "1440.0"]),
+    },
 ];
 
+/// The sun's shadows.
 pub(super) const RENDER_SHADOWS: &[Setting] = &[
     Setting {
         label: "World sun shadows (reload)",
@@ -2365,38 +2367,22 @@ pub(super) const RENDER_SHADOWS: &[Setting] = &[
     Setting {
         label: "Shadow resolution (reload)",
         cvar: "r_sunShadowResolution",
-        kind: ValueKind::Integer {
-            min: 512,
-            max: 4096,
-            step: 512,
-        },
+        kind: ValueKind::Choice(&["512", "1024", "2048", "4096"]),
+    },
+    Setting {
+        label: "Shadow softness (reload)",
+        cvar: "r_sunShadowTaps",
+        kind: ValueKind::Choice(&["4", "8", "16", "24", "32"]),
     },
     Setting {
         label: "Sharp shadow distance (reload)",
         cvar: "r_sunShadowDistance",
-        kind: ValueKind::Integer {
-            min: 128,
-            max: 4096,
-            step: 128,
-        },
+        kind: ValueKind::Choice(&["512", "1024", "2048", "4096"]),
     },
     Setting {
         label: "Close shadow distance (reload)",
         cvar: "r_sunShadowNear",
-        kind: ValueKind::Integer {
-            min: 64,
-            max: 1024,
-            step: 64,
-        },
-    },
-    Setting {
-        label: "Shadow filter taps (reload)",
-        cvar: "r_sunShadowTaps",
-        kind: ValueKind::Integer {
-            min: 4,
-            max: 32,
-            step: 4,
-        },
+        kind: ValueKind::Choice(&["128", "256", "512", "1024"]),
     },
     Setting {
         label: "Close shadow slits (units)",
@@ -2422,13 +2408,9 @@ pub(super) const RENDER_WEATHER: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "Weather density (1 original)",
+        label: "Weather density",
         cvar: crate::weather::DENSITY_CVAR,
-        kind: ValueKind::Float {
-            min: 0.25,
-            max: 4.0,
-            step: 0.25,
-        },
+        kind: ValueKind::Choice(&["0.5", "1.0", "2.0", "3.0", "4.0"]),
     },
     Setting {
         label: "Weather quality",
@@ -2468,38 +2450,22 @@ pub(super) const RENDER_WEATHER: &[Setting] = &[
     Setting {
         label: "Puddles",
         cvar: crate::weather::PUDDLES_CVAR,
-        kind: ValueKind::Float {
-            min: 0.0,
-            max: 2.0,
-            step: 0.25,
-        },
+        kind: ValueKind::Choice(&["0.0", "0.5", "1.0", "1.5", "2.0"]),
     },
     Setting {
         label: "Rain visibility",
         cvar: crate::weather::RAIN_OPACITY_CVAR,
-        kind: ValueKind::Float {
-            min: 0.25,
-            max: 2.0,
-            step: 0.25,
-        },
+        kind: ValueKind::Choice(&["0.5", "0.75", "1.0", "1.5", "2.0"]),
     },
     Setting {
         label: "Rain haze and spray",
         cvar: crate::weather::HAZE_CVAR,
-        kind: ValueKind::Float {
-            min: 0.0,
-            max: 2.0,
-            step: 0.25,
-        },
+        kind: ValueKind::Choice(&["0.0", "0.5", "1.0", "1.5", "2.0"]),
     },
     Setting {
         label: "Ground fog thickness",
         cvar: crate::weather::FOG_DENSITY_CVAR,
-        kind: ValueKind::Float {
-            min: 0.25,
-            max: 3.0,
-            step: 0.25,
-        },
+        kind: ValueKind::Choice(&["0.5", "1.0", "1.5", "2.0", "3.0"]),
     },
     Setting {
         label: "Snow settles",

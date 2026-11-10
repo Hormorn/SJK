@@ -34,7 +34,7 @@ pub(super) fn run() -> Result<(), Box<dyn Error>> {
     };
     platform::initialize_storage(&game_data)?;
     let mut console = console::ViewerConsole::new(platform::user_config_file()?)?;
-    // A player's first start is on the SJK (recommended) graphics preset.
+    // A player's first start is on the Vanilla Plus graphics preset.
 
     if console.new_profile() {
         crate::graphics_quality::apply_new_profile(&mut console);
