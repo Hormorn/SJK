@@ -152,6 +152,7 @@ impl GpuState {
         self.offer_medals();
         self.offer_holocrons();
         self.follow_official();
+        self.follow_site();
         let _ = player_identity::with_snapshot(|snapshot| {
             log_look_outcome(snapshot.look_outcome.as_ref());
             crate::loot_odds::follow(&snapshot.loot);
@@ -161,6 +162,7 @@ impl GpuState {
                 crate::kyber::follow_rewards(&me.achievements);
             }
         });
+        self.follow_wishlist();
         self.update_achievements();
         self.update_holocron_activity();
         self.follow_crash_reports();
@@ -213,6 +215,55 @@ impl GpuState {
             .and_then(installed_models::folder)
             .filter(|folder| !models.retail.contains(folder));
         player_identity::set_own_model(own);
+    }
+}
+
+impl GpuState {
+    /// Act once on each answer to `identity site` and `identity link`: open the sign-in
+    /// link in the browser, or say whose account a link code joins.
+    fn follow_site(&mut self) {
+        static FOLLOWED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let Some(Some(outcome)) = player_identity::with_snapshot(|snapshot| snapshot.site.clone())
+        else {
+            return;
+        };
+        if FOLLOWED.swap(outcome.serial, std::sync::atomic::Ordering::AcqRel) == outcome.serial {
+            return;
+        }
+        let lines = site_lines(&outcome.result);
+        if let Ok(sjk_identity::site::SiteAnswer::SignIn(link)) = &outcome.result {
+            crate::update::open_page(&link.url);
+        }
+        if let Some(console) = self.console.as_mut() {
+            for line in lines {
+                console.push_log(line);
+            }
+        }
+    }
+}
+
+/// What the console says of a site answer. A sign-in link is never printed (it signs in
+/// whoever opens it); neither is a link code.
+pub(crate) fn site_lines(result: &Result<sjk_identity::site::SiteAnswer, String>) -> Vec<String> {
+    use sjk_identity::site::SiteAnswer;
+    match result {
+        Ok(SiteAnswer::SignIn(_)) => vec![
+            "Your SJK page opens in the browser, signed in. The link works once.".to_owned(),
+        ],
+        Ok(SiteAnswer::Link(linked)) => match linked.keys {
+            None => vec![
+                format!("This code joins this key to the SJK account of {}^7.", linked.account),
+                "Everything this key holds (holocrons, cards, medals, credits) moves there for good."
+                    .to_owned(),
+                "If that account is yours, type the same command again with confirm at the end."
+                    .to_owned(),
+            ],
+            Some(keys) => vec![format!(
+                "This key joined the SJK account of {}^7: it has {keys} keys now.",
+                linked.account
+            )],
+        },
+        Err(why) => vec![why.clone()],
     }
 }
 

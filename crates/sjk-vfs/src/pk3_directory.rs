@@ -43,6 +43,54 @@ impl VirtualFileSystem {
         }
         Ok(mounts)
     }
+
+    /// Mounts the PK3s of `game_data`'s `base` and of its [assets folders](assets_folders)
+    /// as one folder's, reporting and skipping failed mounts as
+    /// [`Self::mount_pk3_directory_with_warnings`] does.
+    pub fn mount_base_pk3s_with_warnings(
+        &mut self,
+        game_data: impl AsRef<Path>,
+        mut warning: impl FnMut(&Path, &VfsError),
+    ) -> Result<Vec<MountId>, VfsError> {
+        let game_data = game_data.as_ref();
+        let mut folders = vec![game_data.join("base")];
+        folders.extend(assets_folders(game_data));
+        let mut mounts = Vec::new();
+        for archive in pk3_search_order_merged(&folders)? {
+            match self.mount_pk3(&archive) {
+                Ok(id) => mounts.push(id),
+                Err(error) => warning(&archive, &error),
+            }
+        }
+        Ok(mounts)
+    }
+}
+
+/// The folder beside `base` in `GameData` where a player can tidy PK3s away.
+pub const ASSETS_DIRECTORY: &str = "assets";
+
+/// `game_data`'s [`ASSETS_DIRECTORY`] and every folder below it, sorted: empty when
+/// there is none. Their PK3s count as `base`'s, by way of
+/// [`pk3_search_order_merged`], so moving a pack in or out never changes what it
+/// replaces. A folder that cannot be listed is left out, and links are not followed,
+/// so a link cannot make the walk go round for ever.
+pub fn assets_folders(game_data: impl AsRef<Path>) -> Vec<PathBuf> {
+    let mut folders = Vec::new();
+    let mut waiting = vec![game_data.as_ref().join(ASSETS_DIRECTORY)];
+    while let Some(folder) = waiting.pop() {
+        let Ok(entries) = fs::read_dir(&folder) else {
+            continue;
+        };
+        waiting.extend(
+            entries
+                .flatten()
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                .map(|entry| entry.path()),
+        );
+        folders.push(folder);
+    }
+    folders.sort();
+    folders
 }
 
 /// The `*.pk3` files directly inside `directory`, lowest priority first: the

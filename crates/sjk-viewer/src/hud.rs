@@ -538,6 +538,10 @@ impl HudOverlay {
     }
 
     /// Place the elements the player moved ([`placement`]).
+    pub(crate) fn offsets(&self) -> placement::Offsets {
+        self.offsets
+    }
+
     pub(crate) fn set_offsets(&mut self, offsets: placement::Offsets) {
         self.offsets = offsets;
     }

@@ -141,6 +141,14 @@ impl ViewerConsole {
             PanelAction::Craft(id) => {
                 let _ = crate::economy::craft(id);
             }
+            PanelAction::Fuse(ids) => {
+                let _ = crate::economy::fuse(&ids);
+            }
+            PanelAction::Wish(id, on) => {
+                if let Some(words) = crate::wishlist::set(id, on) {
+                    self.push_log(format!("^3Collection: {words}"));
+                }
+            }
             PanelAction::Buy(id) => {
                 let _ = crate::player_identity::buy(&id);
             }
@@ -245,6 +253,10 @@ impl ViewerConsole {
                 self.set_cvar(crate::tags::CVAR, &id);
                 self.set_cvar(crate::tags::FINISH_CVAR, finish);
             }
+            PanelAction::GifTags(on) => {
+                self.set_cvar(crate::tags::GIF_SHOW_CVAR, if on { "1" } else { "0" });
+            }
+            PanelAction::MakeGifTag(giphy) => crate::player_identity::make_gif_tag(giphy),
             PanelAction::ShatterTag(copy) => crate::player_identity::shatter_tag(copy),
             PanelAction::CraftTags(copies) => crate::player_identity::craft_tags(copies),
             PanelAction::Hub(tab) => {
@@ -555,6 +567,7 @@ impl ViewerConsole {
             .text_cvar(crate::tags::FINISH_CVAR)
             .unwrap_or_default()
             .to_owned();
+        let gif_tags = self.bool_cvar(crate::tags::GIF_SHOW_CVAR) == Some(true);
         let finisher = self
             .text_cvar(crate::finishers::CVAR)
             .unwrap_or_default()
@@ -662,6 +675,7 @@ impl ViewerConsole {
                 tag: &tag,
                 tag_finish: &tag_finish,
                 finisher: &finisher,
+                gif_tags,
             };
             self.collection_panel.append_sjk(&inputs, target, viewport);
             self.collection_panel.preview = Some(unlocks);
@@ -704,6 +718,7 @@ impl ViewerConsole {
             tag: &tag,
             tag_finish: &tag_finish,
             finisher: &finisher,
+            gif_tags,
         };
         self.collection_panel.append_sjk(&inputs, target, viewport);
     }
@@ -754,6 +769,11 @@ impl ViewerConsole {
         // A star or a padlock the hub refused (29/10/2026): said once; the hub's marks
         // come back with its next answer.
         if let Some(words) = self.collection_panel.take_mark_refusal(snapshot) {
+            self.push_log(format!("^3Collection: {words}"));
+        }
+        // A wishlist change the hub refused (10/11/2026): said once; the hub's list comes
+        // back with its next answer.
+        if let Some(words) = self.collection_panel.take_wishlist_refusal(snapshot) {
             self.push_log(format!("^3Collection: {words}"));
         }
         if let Some(id) = self.collection_panel.take_forge_unequip() {
@@ -901,6 +921,12 @@ impl ViewerConsole {
     #[cfg(test)]
     pub(crate) fn collection_tag_for_shot(&mut self, id: &str, finish: usize) {
         self.collection_panel.choose_tag_for_shot(id, finish);
+    }
+
+    /// Show GIF `id` pasted on the blank tag's card, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_gif_link_for_shot(&mut self, id: crate::chat_gifs::GifId) {
+        self.collection_panel.paste_gif_for_shot(id);
     }
 
     /// Choose the Cards tab's tile `index` (in the list its filter shows), for a world

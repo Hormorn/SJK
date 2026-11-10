@@ -58,6 +58,8 @@ mod editions;
 mod entity_view;
 mod fishing;
 mod fishing_sell;
+mod forge_alert;
+mod forge_fuse;
 mod kyber;
 mod loot_odds;
 mod propgun;
@@ -236,6 +238,7 @@ mod prediction_preview;
 mod ragdoll;
 mod scene_views;
 mod scope;
+mod seasons;
 mod sender_card;
 mod server_caps;
 mod siege_objective_notice;
@@ -401,7 +404,9 @@ mod weather;
 mod wgsl_source;
 mod wheel_of_doom;
 mod window_icon;
+mod wishlist;
 mod world_materials;
+mod world_muzzles;
 mod world_notes;
 mod world_ping;
 mod world_ping_frame;
@@ -857,6 +862,7 @@ struct GpuState {
     pointer_captured: bool,
     /// A primary press consumed by spectator aim-to-follow; consume its release too.
     spectator_follow_click: bool,
+    refocus_click: pointer_input::RefocusClick,
     cursor_policy: pointer_input::CursorPolicy,
     cursor_position: [f32; 2],
     ui_epoch: Instant,
@@ -943,6 +949,8 @@ struct GpuState {
     impacts: impacts::Pool,
     /// `cg.lastFPFlashPoint`: the view gun's flash point of the last frame.
     last_first_person_flash: Option<[f32; 3]>,
+    /// Each player's world gun muzzle drawn on the last frame, for disruptor beams.
+    world_muzzles: world_muzzles::Points,
     saber_clash_flare: LegacySaberClashFlare,
     damage_feedback: damage_feedback::Feedback,
     effects: EffectLibrary,
@@ -1830,6 +1838,7 @@ impl GpuState {
             frame_view: None,
             pointer_captured: false,
             spectator_follow_click: false,
+            refocus_click: Default::default(),
             cursor_policy: pointer_input::CursorPolicy::new(),
             cursor_position: [0.0; 2],
             ui_epoch: Instant::now(),
@@ -1892,6 +1901,7 @@ impl GpuState {
             pending_particle_effects: particle_physics::PendingEffects::new(),
             impacts: impacts::Pool::new(),
             last_first_person_flash: None,
+            world_muzzles: world_muzzles::Points::default(),
             saber_clash_flare: LegacySaberClashFlare::default(),
             damage_feedback: damage_feedback::Feedback::default(),
             map_effects,
@@ -2152,8 +2162,12 @@ impl GpuState {
             .damage_feedback
             .marker(presentation_time as i32, self.console.as_ref());
         self.update_auto_switch();
-        let mut hud_visibility =
-            ground_hud::frame(self, intermission_view.is_some(), presentation_time as i32);
+        let mut hud_visibility = ground_hud::frame(
+            self,
+            intermission_view.is_some(),
+            detached_before_peek,
+            presentation_time as i32,
+        );
         brush_view::frame(self);
         let [crosshair, names] = scope::crosshair_visibility(
             self.scope.mode,
@@ -2757,6 +2771,10 @@ impl GpuState {
             }
         }
         // A trade running while its window is closed: the toast at the top, over play.
+        // The frame timings over everything but the full-frame console, so they can be
+        // watched while settings change in the menus; laid out before the HUD edit
+        // mode, which outlines the panel to move it.
+        let timings_shown = self.append_frame_timings(viewport, console_covers_frame);
         // The HUD edit mode's outlines and panel, over the game it edits.
         let hud_edit_shown = !console_covers_frame && self.prepare_hud_edit();
         if hud_edit_shown {
@@ -2766,9 +2784,6 @@ impl GpuState {
         // An achievement unlocked, or a medal or holocron in a match: its card over play or
         // the menus, never input-taking.
         let unlock_toast = self.append_unlock_toast(viewport, console_covers_frame || medal_popup);
-        // The frame timings over everything but the full-frame console, so they can be
-        // watched while settings change in the menus.
-        let timings_shown = self.append_frame_timings(viewport, console_covers_frame);
         self.world_notes.draw_highlight(viewport);
         self.map_edit_gizmo_draw();
         // The menu camera tour's fades, over the menu world only.
@@ -2800,7 +2815,6 @@ impl GpuState {
                 .then(|| self.quick_wheel.draw_list()),
             information_visible.then(|| self.hud.draw_list()),
             (chat_visible && !chat_over_trade).then(|| self.chat.draw_list()),
-            hud_edit_shown.then(|| self.hud_edit.draw_list()),
             self.ghost
                 .editor
                 .as_deref()
@@ -2842,6 +2856,7 @@ impl GpuState {
             alpha_shown.then(|| self.alpha_card.draw_list()),
             unlock_toast.then(|| self.unlock_toast.draw_list()),
             timings_shown.then(|| self.frame_timings.draw_list()),
+            hud_edit_shown.then(|| self.hud_edit.draw_list()),
         ];
         self.ui_shapes
             .prepare_layers(&self.queue, layers.into_iter().flatten(), viewport);
@@ -3116,6 +3131,11 @@ impl GpuState {
                     presentation_time as i32,
                 );
             }
+        } else {
+            // No view gun this frame (zoomed in, third person, a saber): stock keeps
+            // the last drawn flash point, so a zoomed sniper shot started where the
+            // gun was before zooming in. The beam keeps the server muzzle instead.
+            self.last_first_person_flash = None;
         }
         self.prepare_scene_views(view, projection, presentation_time as i32);
         movers::append_frame(self, presentation_time);

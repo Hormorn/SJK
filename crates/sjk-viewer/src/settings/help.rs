@@ -267,6 +267,82 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     ("r_DynamicGlow", "2", "Sabers"),
     ("r_dynamicGlowStyle", "0", "Original"),
     ("r_dynamicGlowStyle", "1", "Vulkan"),
+    ("r_superSample", "1", "Off"),
+    ("r_superSample", "2", "2x"),
+    ("r_superSample", "3", "3x"),
+    (
+        crate::world_materials::filtering::mips::PICMIP_CVAR,
+        "0",
+        "Full",
+    ),
+    (
+        crate::world_materials::filtering::mips::PICMIP_CVAR,
+        "1",
+        "Half",
+    ),
+    (
+        crate::world_materials::filtering::mips::PICMIP_CVAR,
+        "2",
+        "Quarter",
+    ),
+    (
+        crate::world_materials::filtering::mips::PICMIP_CVAR,
+        "3",
+        "Eighth",
+    ),
+    (crate::dust_motes::CVAR, "0.0", "Off"),
+    (crate::dust_motes::CVAR, "0.5", "Light"),
+    (crate::dust_motes::CVAR, "1.0", "Full"),
+    ("r_liveLighting", "0", "Baked bounce"),
+    ("r_liveLighting", "1", "Live, casters kept"),
+    ("r_liveLighting", "2", "All live"),
+    ("r_dayMinutes", "0.0", "Holds still"),
+    ("r_dayMinutes", "10.0", "10 minutes"),
+    ("r_dayMinutes", "30.0", "30 minutes"),
+    ("r_dayMinutes", "60.0", "1 hour"),
+    ("r_dayMinutes", "1440.0", "24 hours"),
+    ("r_sunShadowResolution", "512", "Low"),
+    ("r_sunShadowResolution", "1024", "Medium"),
+    ("r_sunShadowResolution", "2048", "High"),
+    ("r_sunShadowResolution", "4096", "Ultra"),
+    ("r_sunShadowTaps", "4", "Hard"),
+    ("r_sunShadowTaps", "8", "Soft"),
+    ("r_sunShadowTaps", "16", "Softer"),
+    ("r_sunShadowTaps", "24", "Very soft"),
+    ("r_sunShadowTaps", "32", "Softest"),
+    ("r_sunShadowDistance", "512", "Short"),
+    ("r_sunShadowDistance", "1024", "Medium"),
+    ("r_sunShadowDistance", "2048", "Long"),
+    ("r_sunShadowDistance", "4096", "Very long"),
+    ("r_sunShadowNear", "128", "Short"),
+    ("r_sunShadowNear", "256", "Medium"),
+    ("r_sunShadowNear", "512", "Long"),
+    ("r_sunShadowNear", "1024", "Very long"),
+    (crate::weather::DENSITY_CVAR, "0.5", "Light"),
+    (crate::weather::DENSITY_CVAR, "1.0", "Original"),
+    (crate::weather::DENSITY_CVAR, "2.0", "Double"),
+    (crate::weather::DENSITY_CVAR, "3.0", "Triple"),
+    (crate::weather::DENSITY_CVAR, "4.0", "Quadruple"),
+    (crate::weather::PUDDLES_CVAR, "0.0", "None"),
+    (crate::weather::PUDDLES_CVAR, "0.5", "A few"),
+    (crate::weather::PUDDLES_CVAR, "1.0", "Some"),
+    (crate::weather::PUDDLES_CVAR, "1.5", "Many"),
+    (crate::weather::PUDDLES_CVAR, "2.0", "Flooded"),
+    (crate::weather::RAIN_OPACITY_CVAR, "0.5", "Faint"),
+    (crate::weather::RAIN_OPACITY_CVAR, "0.75", "Light"),
+    (crate::weather::RAIN_OPACITY_CVAR, "1.0", "Normal"),
+    (crate::weather::RAIN_OPACITY_CVAR, "1.5", "Heavy"),
+    (crate::weather::RAIN_OPACITY_CVAR, "2.0", "Very heavy"),
+    (crate::weather::HAZE_CVAR, "0.0", "Clear"),
+    (crate::weather::HAZE_CVAR, "0.5", "Light"),
+    (crate::weather::HAZE_CVAR, "1.0", "Normal"),
+    (crate::weather::HAZE_CVAR, "1.5", "Thick"),
+    (crate::weather::HAZE_CVAR, "2.0", "Very thick"),
+    (crate::weather::FOG_DENSITY_CVAR, "0.5", "Thin"),
+    (crate::weather::FOG_DENSITY_CVAR, "1.0", "Normal"),
+    (crate::weather::FOG_DENSITY_CVAR, "1.5", "Thick"),
+    (crate::weather::FOG_DENSITY_CVAR, "2.0", "Very thick"),
+    (crate::weather::FOG_DENSITY_CVAR, "3.0", "Pea soup"),
     ("r_volumetrics", "0", "Off"),
     ("r_volumetrics", "1", "Low"),
     ("r_volumetrics", "2", "Medium"),
@@ -283,6 +359,10 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     (crate::weather::FOG_CVAR, "0", "Never"),
     (crate::weather::FOG_CVAR, "1", "Map's fog"),
     (crate::weather::FOG_CVAR, "2", "Always"),
+    (crate::weather::REFLECTIONS_CVAR, "0", "By quality"),
+    (crate::weather::REFLECTIONS_CVAR, "1", "Sky only"),
+    (crate::weather::REFLECTIONS_CVAR, "2", "Puddles"),
+    (crate::weather::REFLECTIONS_CVAR, "3", "Everything wet"),
     ("r_drawfog", "0", "Off"),
     ("r_drawfog", "1", "Volume curve"),
     ("r_drawfog", "2", "Original"),
@@ -304,9 +384,9 @@ pub(super) fn choice_name(cvar: &str, value: &str) -> Option<&'static str> {
 
 /// What the detail column says, in gold, while the SJK renderer is on and a
 /// renderer setting is focused ([`super::renderer_row`]).
-pub(super) const ALPHA_WARNING: &str = "The SJK renderer is in alpha: some maps can show glitches \
-    (lighting, shadows, missing surfaces) or run slower. Report them from the SJK menu's Report a \
-    bug; Vanilla style is the safe choice.";
+pub(super) const ALPHA_WARNING: &str = "The Solar Renderer is in alpha: some maps can show \
+    glitches (lighting, shadows, missing surfaces) or run slower. Report them from the SJK menu's \
+    Report a bug; Vanilla is the safe choice.";
 
 /// The settings whose description speaks of SJK's medals and holocrons, which the JoF
 /// tools may rename ([`crate::terms`]); the others' holocrons are the game's pickups.
@@ -398,7 +478,11 @@ const HELP: &[(&str, &str)] = &[
     // VIDEO
     (
         crate::graphics_quality::ROW_NAME,
-        "Vanilla style: the original look, the most FPS. SJK (recommended): SJK's image on the maps' lighting. Experimental: everything on.",
+        "Vanilla: the original look. Vanilla Plus: SJK's image on the maps' lighting. Solar Renderer: live lighting, Low to Ultra.",
+    ),
+    (
+        crate::graphics_quality::RECOMMEND_COMMAND,
+        "Picks the preset this PC's graphics card runs smoothly: its colour in the preset list is green.",
     ),
     (
         "r_resolution",
@@ -464,7 +548,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::frame_timings::DRAW_CVAR,
-        "Panel on the left: the milliseconds each part of the frame takes on the graphics card (GPU), and on the processor (CPU) too.",
+        "Panel at the top right: the milliseconds each part of the frame takes on the graphics card (GPU), and on the processor (CPU) too.",
     ),
     (
         crate::frame_timings::LOG_CVAR,
@@ -539,7 +623,15 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::audio::spatial::CVAR,
-        "Sounds heard from your head, quieter and duller behind walls and shut doors, and rooms ring, a hall longer than a corridor.",
+        "Sounds all round your head, duller behind walls and shut doors, round corners and through doorways; rooms ring with their own echo.",
+    ),
+    (
+        crate::audio::spatial::HEADPHONES_CVAR,
+        "On: 3D sound through a measured dummy head, sounds in front, behind, above or below. Off: panned left and right, for speakers.",
+    ),
+    (
+        crate::audio::spatial::REVERB_CVAR,
+        "How loud rooms ring with 3D sound: 1 as the walls of the room make it, 0 no echo, 2 twice as loud.",
     ),
     (
         crate::weather::sound::CVAR,
@@ -1055,6 +1147,14 @@ const HELP: &[(&str, &str)] = &[
         "Off: no Banana peel toy peel is drawn, yours or other players', nor their sounds heard. You can still slip while the toy is on.",
     ),
     (
+        crate::tags::SHOW_CVAR,
+        "Off: other players' tags are not drawn on this PC, nor their sprays heard. Yours still is.",
+    ),
+    (
+        crate::tags::GIF_SHOW_CVAR,
+        "Off by default. On: GIF tags (a GIPHY GIF on a blank tag) play on walls, yours and others'.",
+    ),
+    (
         crate::toy_sight::ILLUMINATE,
         "Off: other players' Illuminate holocrons are not drawn on this PC. Yours still is.",
     ),
@@ -1213,7 +1313,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         "cg_thirdPersonCameraDamp",
-        "How loosely the third-person camera follows you: lower is smoother, 1 sticks to you.",
+        "How loosely the third-person camera follows you: lower is smoother, 0 holds it still, 1 sticks to you.",
     ),
     (
         "cg_thirdPersonTargetDamp",
@@ -1657,7 +1757,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::dust_motes::CVAR,
-        "Dust drifting in sunbeams; needs light shafts. 0 is off.",
+        "Dust drifting in sunbeams; needs light shafts.",
     ),
     (
         crate::weather::CVAR,
@@ -1669,8 +1769,8 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::weather::QUALITY_CVAR,
-        "Medium adds splashes, 3D fog and wet ground; High distant rain and water down walls; \
-         Ultra puddles, finer fog and clouds.",
+        "Medium adds splashes, 3D fog and wet ground; High far rain, spray and water on walls; \
+         Ultra puddles and reflections.",
     ),
     (
         crate::weather::FORCE_CVAR,
@@ -1692,6 +1792,35 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::weather::LIGHTNING_CVAR,
         "Storms flash now and then, lighting the rain, fog and wet ground; thunder follows with Rain and wind sounds on.",
+    ),
+    (
+        crate::weather::REFLECTIONS_CVAR,
+        "What wet streets, walls and puddles mirror: the sky's colour, or the buildings and \
+         lights round them (Ultra: everything).",
+    ),
+    (
+        crate::weather::PUDDLES_CVAR,
+        "How much water stands on flat ground in the rain at Ultra quality: 0 none, 1 some, \
+         2 flooded streets.",
+    ),
+    (
+        crate::weather::RAIN_OPACITY_CVAR,
+        "How clearly the falling rain shows: lower for a clearer view in a fight, higher for a \
+         heavier downpour.",
+    ),
+    (
+        crate::weather::HAZE_CVAR,
+        "How much falling rain and snow grey the distance, and the spray a downpour raises over \
+         the ground. 0 keeps the air clear.",
+    ),
+    (
+        crate::weather::FOG_DENSITY_CVAR,
+        "How thick the fog lying on the ground is, where Ground fog shows it.",
+    ),
+    (
+        crate::weather::SNOW_COVER_CVAR,
+        "Falling snow settles on the ground, roofs and ledges under open sky, deeper in drifts \
+         and against walls.",
     ),
     (
         "r_modelPixelLight",
@@ -1744,7 +1873,19 @@ const HELP: &[(&str, &str)] = &[
     // LIGHTING
     (
         "r_dayNight",
-        "Lights maps with SJK's sun and sky as well as their own baked light.",
+        "The Solar Renderer: a live sun, sky and lamps light the map in place of its baked light.",
+    ),
+    (
+        crate::world_materials::shadows::settings::BOUNCE_CVAR,
+        "With real-time lighting, light bounces off walls and floors into the shade. Off saves a pass.",
+    ),
+    (
+        crate::world_materials::shadows::settings::LAMP_SHADOWS_CVAR,
+        "With real-time lighting, the nearest lamps cast shadows of walls and players.",
+    ),
+    (
+        crate::world_materials::shadows::day::live::SKY_CVAR,
+        "Without real-time lighting, the sky still shows the hour: dawn, dusk, and darker nights.",
     ),
     (
         "r_liveLighting",
@@ -1752,15 +1893,15 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         "r_dayHour",
-        "The hour of the sun, 0 to 24, when the sun and sky are on.",
+        "The hour of the sun, 0 to 24, with real-time lighting or the time-of-day sky.",
     ),
     (
         "r_dayClock",
-        "Day and night follow your PC's clock; without Sun and sky the nights are darker.",
+        "Day and night follow your PC's clock; without real-time lighting the nights are darker.",
     ),
     (
         "r_dayMinutes",
-        "Real minutes a whole day lasts; 0 holds the hour still.",
+        "How long a whole day lasts in real time, or the hour holds still.",
     ),
     (
         "r_dayBrightness",
@@ -1817,7 +1958,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         "r_sunShadowTaps",
-        "Samples taken along a shadow's edge: more is smoother and more costly.",
+        "How soft a shadow's edge is: softer takes more samples and costs more.",
     ),
     (
         "r_sunShadowGapClose",

@@ -9,6 +9,82 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 10/11/2026 | - | Map editor: fly-to and frame (F, double clicks, mapedit_frame)
+- 127f867 |  | Map editor: fly-to and frame (F, double clicks, mapedit_frame)
++ 10/11/2026 | - | Map editor: texture alignment of shown faces (mapedit_align, Align on Selected)
+- fdd9cf1 |  | Map editor: texture alignment of shown faces (mapedit_align, Align on Selected)
++ 10/11/2026 | - | Map editor: place and grab along the surface (mapedit_surface, Place's Surface)
+- 4f5d6ed |  | Map editor: place and grab along the surface (mapedit_surface, Place's Surface)
++ 10/11/2026 | - | Map editor: grow, shrink and invert the selection
+- bab9616 |  | Map editor: grow, shrink and invert the selection
++ 10/11/2026 | - | Map editor: measure tool (M, mapedit_measure)
+- 246797b |  | Map editor: measure tool (M, mapedit_measure)
++ 10/11/2026 | - | Map editor: live preview on caulk and nodraw faces
+- 2b53e3a |  | Map editor: live preview on caulk and nodraw faces
++ 10/11/2026 | - | Map editor: a box casts its rays among the surfaces it can meet
+- d0ab594 |  | Map editor: a box casts its rays among the surfaces it can meet
++ 10/11/2026 | - | Map editor: world shot of the fourth round, and its fixes
+- 9f422df |  | Map editor: world shot of the fourth round, and its fixes
++ 10/11/2026 | - | Docs: the map editor's fly-to, alignment, caulk preview, surfaces, grow, measure
+- 89069aa |  | Docs: the map editor's fly-to, alignment, caulk preview, surfaces, grow, measure
++ 10/11/2026 | - | Verified-only GIFs, Change name sets the SJK name
+- b8cb802 |  | Verified-only GIFs, Change name sets the SJK name
++ 10/11/2026 | - | Credits history after Slash's PR #407
+- eea6e7b |  | Credits history after Slash's PR #407
++ 10/11/2026 | - | Forge fusion, deal of the day and a wishlist (client)
+- 19a22ac |  | Forge fusion, deal of the day and a wishlist (client)
++ 10/11/2026 | - | Credits history: the map editor guesses and selections round
+- c10f6aa |  | Credits history: the map editor guesses and selections round
++ 10/11/2026 | - | Map editor: clips, triggers and invisible walls are no hidden faces
+- 84e69d3 |  | Map editor: clips, triggers and invisible walls are no hidden faces
++ 10/11/2026 | - | Map editor: texture guesses, a live remap preview and better selections
+- eee07a0 |  | Map editor: texture guesses, a live remap preview and better selections
++ 10/11/2026 | - | Map editor guesses and selections: world shot, docs, test list and changelog
+- 636b103 |  | Map editor guesses and selections: world shot, docs, test list and changelog
++ 10/11/2026 | - | Beta season: a guaranteed shader in every Rare+ holocron, Beta kyber crystal odds
+- d7a349e |  | Beta season: a guaranteed shader in every Rare+ holocron, Beta kyber crystal odds
++ 10/11/2026 | - | JoF and Sith content: count the files tidied into GameData/assets
+- 3db375f |  | JoF and Sith content: count the files tidied into GameData/assets
++ 10/11/2026 | - | Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer's Low to Ultra
+- 08560d0 |  | Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer's Low to Ultra
++ 10/11/2026 | - | Holocron seasons: Beta holocrons' prizes one by one, the Beta loot page and the pity
+- 38ab2e2 |  | Holocron seasons: Beta holocrons' prizes one by one, the Beta loot page and the pity
++ 10/11/2026 | - | GIF tags: a blank tag spent once on a GIPHY GIF, played on walls
+- 42e3168 |  | GIF tags: a blank tag spent once on a GIPHY GIF, played on walls
++ 10/11/2026 | - | GIF tags: test list entry, changelog and credits
+- 2bbcc80 |  | GIF tags: test list entry, changelog and credits
++ 10/11/2026 | - | debug_panel: fold the acoustics fix into three change lines (the panel's limit)
+- fc9b0fb |  | debug_panel: fold the acoustics fix into three change lines (the panel's limit)
++ 10/11/2026 | - | Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
+- f683f43 |  | Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
++ 10/11/2026 | - | README: buttons for the site, downloads and launcher, and screenshots
+- 6bb008f |  | README: buttons for the site, downloads and launcher, and screenshots
++ 10/11/2026 | - | Sith cloud card: follow the launcher into assets/S
+- 8404e84 |  | Sith cloud card: follow the launcher into assets/S
++ 10/11/2026 | - | Sith cloud card: format the new test
+- 1451d9a |  | Sith cloud card: format the new test
++ 10/11/2026 | - | Load PK3s from GameData/assets and its subfolders
+- c8096b6 |  | Load PK3s from GameData/assets and its subfolders
++ 09/11/2026 | - | Your SJK page: identity site, identity link, the Videographer medal
+- 4d1c792 |  | Your SJK page: identity site, identity link, the Videographer medal
++ 09/11/2026 | - | 3D sound: the room echo sits under the sounds instead of over them
+- 5eb7ecb |  | 3D sound: the room echo sits under the sounds instead of over them
++ 09/11/2026 | - | +grapple's release lasts two commands; an emote's music waits for its decoder
+- a90b7df |  | +grapple's release lasts two commands; an emote's music waits for its decoder
++ 09/11/2026 | - | s_language voices; the strafe helper on jaPRO servers
+- 75bb655 |  | s_language voices; the strafe helper on jaPRO servers
++ 09/11/2026 | - | 3D sound rebuilt as SJK's own acoustics engine (s_spatial)
+- 12516cd |  | 3D sound rebuilt as SJK's own acoustics engine (s_spatial)
++ 09/11/2026 | - | Frame timings panel at the top right, movable in the HUD edit mode
+- 37f843f |  | Frame timings panel at the top right, movable in the HUD edit mode
++ 09/11/2026 | - | Dynamic-light shadows trace one ray per invocation: 0.38 -> 0.23 ms at 4K
+- d594dc7 |  | Dynamic-light shadows trace one ray per invocation: 0.38 -> 0.23 ms at 4K
++ 09/11/2026 | - | Test list: dlight shadow rays
+- 7e3501e |  | Test list: dlight shadow rays
++ 09/11/2026 | - | Ground HUD through toy cameras; amghost on oneself cheats in a box hunt
+- cc3ea44 |  | Ground HUD through toy cameras; amghost on oneself cheats in a box hunt
++ 09/11/2026 | - | Credits history: the map editor panel round
+- 990b58d |  | Credits history: the map editor panel round
 + 09/11/2026 | - | Map editor panel: shader pictures, tiles, Fill candidates, Lights page, things, brushes, copy and paste
 - 2a6e203 |  | Map editor panel: shader pictures, tiles, Fill candidates, Lights page, things, brushes, copy and paste
 + 09/11/2026 | - | Map editor panel: world shot, docs, test list and changelog for the pictures and new pages
@@ -2799,9 +2875,8 @@
 - cb6d7e1 |  | Document branch, commit and pull request rules
 
 = Bishop
-+ 04/11/2026 | - | Fix Linux startup with the shared main-thread stack allowance
++ 04/11/2026 | SJK #347 | Fix Linux startup after updating to 2026.1103.2
 - f664443 |  | Fix Linux startup with the shared main-thread stack allowance
-+ 04/11/2026 | - | Record Linux startup and stack-budget verification
 - c64ee84 |  | Record Linux startup and stack-budget verification
 + 05/10/2026 | JKR #127 | Apply server shader remaps with Tayst-compatible controls
 - 4a1327b |  | Apply server shader remaps with Tayst-compatible controls
@@ -3501,6 +3576,42 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 10/11/2026 | - | Forge: a Craft search for a held shader says it is held (hub report #305)
+- b6883a3 |  | Forge: a Craft search for a held shader says it is held (hub report #305)
++ 10/11/2026 | - | Forge: name held matches in the Craft intro while others list (hub report #305)
+- 8f8d50f |  | Forge: name held matches in the Craft intro while others list (hub report #305)
++ 10/11/2026 | SJK #405 | Disruptor beams leave the gun's tip (hub report #294)
+- a39e53b |  | Disruptor beams leave the gun's tip (hub report #294)
+- d69857b |  | Changelog: the beam fix's PR number
++ 10/11/2026 | SJK #407 | JK2 HUD: the selector bar opens behind the icons (hub report #301)
+- 44c0f37 |  | JK2 HUD: open the selector bar behind the icons (hub report #301)
+- 7402bb7 |  | Changelog: PR number for the JK2 selector bar
++ 10/11/2026 | - | Release 2026.1109.3 (Alpha)
+- a692047 |  | Release 2026.1109.3 (Alpha)
++ 10/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
+- 2d5ae54 |  | Credits: count pull requests merged as "Merge PR #N (Author): title" or "Merge PR #N"
++ 09/11/2026 | SJK #399 | Jedi Knight II HUD (cg_hudFiles 2)
+- 7b8cd0d |  | Jedi Knight II HUD (cg_hudFiles 2), pictures from EternalJK
+- b4b513e |  | Format menu_stage, which fails the CI formatting check on main
+- 09934d6 |  | HUD picker test: step past the Jedi Knight II row
++ 09/11/2026 | SJK #398 | SJK UI: typed slider values in a gold pill at full size
+- 4ba4405 |  | SJK UI: typed slider values in a gold pill at full size
+- da68cb9 |  | Format menu_stage/mod.rs
++ 09/11/2026 | SJK #396 | A boombox on the floor is hidden in a private duel (hub report #271)
+- ea391e9 |  | A boombox on the floor is hidden in a private duel (hub report #271)
++ 09/11/2026 | SJK #395 | A click that brings the window back no longer attacks (hub report #281)
+- 90bc932 |  | A click that brings the window back no longer attacks (hub report #281)
++ 09/11/2026 | SJK #394 | Console: a held key types again (hub report #282)
+- b993c4c |  | Console: a held key types again (hub report #282)
++ 09/11/2026 | SJK #393 | Chat: Left and Right change the chat button while nothing is typed (akr's idea)
+- feb73ef |  | Chat: Left and Right change the chat button while nothing is typed
+- 6fed5c7 |  | Chat: a test for the arrows on a whisper with a draft
++ 09/11/2026 | SJK #392 | Profile: turn the model in the main menu too, zoom it with the right button
+- 52787fb |  | Profile: turn the model in the main menu too, zoom it with the right button
++ 09/11/2026 | SJK #391 | Search fields: a double click selects the text (akr's idea)
+- bd1405d |  | Search fields: a double click selects the text (akr's idea)
++ 09/11/2026 | SJK #390 | MP camera: honour a changed camera damping (hub report #277)
+- b9520f1 |  | Honour a changed camera damping on the MP camera (hub report #277)
 + 09/11/2026 | SJK #369 | Collection > Banners: break a banner down for kyber shards (needs hub #18)
 - a0a6dfd |  | Collection > Banners: break a banner down for kyber shards
 - 11aa879 |  | Debug panel: name hub shared #18 for banner break down
@@ -3570,98 +3681,70 @@
 + 08/11/2026 | SJK #382 | Collection: the Toys page counts every toy (hub report #265)
 - 0d31712 |  | Collection: the Toys page counts every toy (hub report #265)
 + 04/11/2026 | SJK #360 | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
-- bb1b8a2 |  | Chat: whisperers list right above the name, darker, over the row's and feed's words
-+ 04/11/2026 | - | Vehicle HUD: speed and ammo beside the HP in each HUD style
-- c62bd68 |  | Vehicle HUD: speed and ammo beside the HP in each HUD style
-+ 04/11/2026 | - | Vehicle HUD: the turbo in each HUD style
-- abc7901 |  | Vehicle HUD: the turbo in each HUD style
-+ 04/11/2026 | - | Changelog: the vehicle HUD line under a new Unreleased, after release 2026.1103.2
-- 59d1eb8 |  | Changelog: the vehicle HUD line under a new Unreleased, after release 2026.1103.2
-+ 04/11/2026 | - | SJK classic HUD: three groups along the bottom, no background
-- daad930 |  | SJK classic HUD: three groups along the bottom, no background
-+ 04/11/2026 | - | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
 - 2691e44 |  | Chat: whisper recipient on its own line, step and pick between whisperers (Creo's idea)
-+ 04/11/2026 | - | Profile card: banner corners round with the card again
+- bb1b8a2 |  | Chat: whisperers list right above the name, darker, over the row's and feed's words
++ 04/11/2026 | SJK #351 | Vehicle HUD: speed, ammo and turbo in each style; new SJK classic HUD along the bottom
+- c62bd68 |  | Vehicle HUD: speed and ammo beside the HP in each HUD style
+- abc7901 |  | Vehicle HUD: the turbo in each HUD style
+- 59d1eb8 |  | Changelog: the vehicle HUD line under a new Unreleased, after release 2026.1103.2
+- daad930 |  | SJK classic HUD: three groups along the bottom, no background
++ 04/11/2026 | SJK #359 | Profile card and SJK Profile page: no cover for the neutral banner, round corners for a worn one
 - fe060ad |  | Profile card: banner corners round with the card again
-+ 04/11/2026 | - | Profile card and Profile page: no cover for the neutral banner
 - c2dc87d |  | Profile card and Profile page: no cover for the neutral banner
-+ 04/11/2026 | - | Graphics: sharpening slider (r_sharpen, Lex's idea)
++ 04/11/2026 | SJK #357 | Graphics: sharpening slider (r_sharpen, Lex's idea)
 - 02111e1 |  | Graphics: sharpening slider (r_sharpen, Lex's idea)
-+ 04/11/2026 | - | Console: alias command (Lex's idea)
++ 04/11/2026 | SJK #358 | Console: alias command (Lex's idea)
 - 7008b8a |  | Console: alias command (Lex's idea)
-+ 04/11/2026 | - | Server remaps per map: cg_serverRemapsMap, cg_remapsAllowedMaps (Lex's idea)
++ 04/11/2026 | SJK #354 | Server remaps per map (Lex's idea)
 - 14442dd |  | Server remaps per map: cg_serverRemapsMap, cg_remapsAllowedMaps (Lex's idea)
-+ 04/11/2026 | - | Collection: a click on Loadouts on Shaders opens the card (hub report #245)
++ 04/11/2026 | SJK #355 | Collection: a click on Loadouts on the Shaders tab opens the card (hub report #245)
 - 416f84b |  | Collection: a click on Loadouts on Shaders opens the card (hub report #245)
-+ 04/11/2026 | - | Emotes end when their player mounts a vehicle (hub report #247)
++ 04/11/2026 | SJK #352 | Emotes end when you mount a vehicle (hub report #247)
 - 4ad934a |  | Emotes end when their player mounts a vehicle (hub report #247)
-+ 04/11/2026 | - | Nameplates: an opacity setting for every style (cg_nameplateAlpha)
++ 04/11/2026 | SJK #353 | Nameplates: transparency setting (cg_nameplateAlpha)
 - 597b276 |  | Nameplates: an opacity setting for every style (cg_nameplateAlpha)
-+ 04/11/2026 | - | Fishing: a bite cue for players with the sound off
++ 04/11/2026 | SJK #350 | Fishing: a bite cue for players with the sound off
 - fecb270 |  | Fishing: a bite cue for players with the sound off
-+ 04/11/2026 | - | Changelog: PR #350
 - 73ed69f |  | Changelog: PR #350
-+ 04/11/2026 | - | Fishing: sell fished junk to the hub; the fish log on the card
++ 04/11/2026 | SJK #349 | Fishing: sell fished junk to the hub for credits
 - 5510433 |  | Fishing: sell fished junk to the hub; the fish log on the card
-+ 04/11/2026 | - | Junk: clippy's collapsed if and sort key
 - 61baac9 |  | Junk: clippy's collapsed if and sort key
-+ 04/11/2026 | - | Fishing junk: name the hub's PROTOCOL.md section as it is
 - c153257 |  | Fishing junk: name the hub's PROTOCOL.md section as it is
-+ 04/11/2026 | - | Changelog: PR #349
 - 6e1305d |  | Changelog: PR #349
-+ 04/11/2026 | - | Changelog: the credit as the others are
 - 28cdecf |  | Changelog: the credit as the others are
-+ 04/11/2026 | - | Fishing: the Sell junk button sells; fishing_log prints in the console
 - e5a7b04 |  | Fishing: the Sell junk button sells; fishing_log prints in the console
-+ 04/11/2026 | - | vid_restart force: reload the graphics with no setting changed
++ 04/11/2026 | SJK #341 | vid_restart force: reload the graphics with no setting changed (Blep's idea)
 - 22c06e1 |  | vid_restart force: reload the graphics with no setting changed
-+ 04/11/2026 | - | Copy a chat link with Ctrl+C
++ 04/11/2026 | SJK #342 | Copy a chat link with Ctrl+C (AngeloPapaya's idea)
 - b812f40 |  | Copy a chat link with Ctrl+C
-+ 04/11/2026 | - | Ragdoll: a scaled player falls at their size (hub report #223)
++ 04/11/2026 | SJK #345 | Ragdoll: a scaled player falls at their size (hub report #223)
 - dd636de |  | Ragdoll: a scaled player falls at their size (hub report #223)
-+ 04/11/2026 | - | Mute emote sounds in duels (s_muteEmotesInDuel, hub report #234)
++ 04/11/2026 | SJK #346 | Mute emote sounds in duels, s_muteEmotesInDuel (hub report #234)
 - 0845523 |  | Mute emote sounds in duels (s_muteEmotesInDuel, hub report #234)
-+ 04/11/2026 | - | Fix duel emote mute tests and help text length
 - 1a79a94 |  | Fix duel emote mute tests and help text length
-+ 03/11/2026 | - | Fishing toy, phase 1: a rod, a bucket and bites, anywhere
++ 03/11/2026 | SJK #278 | Fishing toy: a rod in the hand, bites anywhere, Echoes on the line (Sanji's idea)
 - 08fb696 |  | Fishing toy, phase 1: a rod, a bucket and bites, anywhere
-+ 03/11/2026 | - | Fishing: the rod in the hand, catches reeled in, a nicer pond
 - d65a751 |  | Fishing: the rod in the hand, catches reeled in, a nicer pond
-+ 03/11/2026 | - | Fishing: the pond in the game's own swamp textures, bigger
 - 1ad554a |  | Fishing: the pond in the game's own swamp textures, bigger
-+ 03/11/2026 | - | Fishing: on the Toys tab, the rod in first person, more bites
 - c192dcb |  | Fishing: on the Toys tab, the rod in first person, more bites
-+ 03/11/2026 | - | Fishing: four achievements, docs and changelog
 - ae75ab5 |  | Fishing: four achievements, docs and changelog
-+ 03/11/2026 | - | Achievements: Toys on a fifth band, First Bite
 - be2044a |  | Achievements: Toys on a fifth band, First Bite
-+ 03/11/2026 | - | Fishing: status entry, Sanji's credit
 - ae05887 |  | Fishing: status entry, Sanji's credit
-+ 03/11/2026 | - | Tests: the scared wait from the new bite times, the card's total from the catalogue
 - 7a2646b |  | Tests: the scared wait from the new bite times, the card's total from the catalogue
-+ 03/11/2026 | - | Fishing: twelve fish of their own, the last catch in the bucket
 - a94b48d |  | Fishing: twelve fish of their own, the last catch in the bucket
-+ 03/11/2026 | - | Fishing: a proper spinning rod
 - dcbb9b9 |  | Fishing: a proper spinning rod
-+ 03/11/2026 | - | Achievements: Old Whiskers hidden again after the merge
 - d764401 |  | Achievements: Old Whiskers hidden again after the merge
-+ 03/11/2026 | - | Re-run CI (the macOS job was cancelled before it started: no runner)
 - 33f255f |  | Re-run CI (the macOS job was cancelled before it started: no runner)
-+ 03/11/2026 | - | Re-run CI (the macOS job was not given a runner twice)
 - 93c283a |  | Re-run CI (the macOS job was not given a runner twice)
-+ 03/11/2026 | - | Draw switchable and animated lights' baked light (light styles)
++ 03/11/2026 | SJK #339 | Draw switchable and animated lights' baked light (light styles)
 - cfbeeec |  | Draw switchable and animated lights' baked light (light styles)
-+ 03/11/2026 | - | Changelog: the light styles line under Unreleased
 - 0dd242f |  | Changelog: the light styles line under Unreleased
-+ 03/11/2026 | - | Changelog: PR number for the light styles line (#339)
 - 73fa8bd |  | Changelog: PR number for the light styles line (#339)
-+ 03/11/2026 | - | Empower glow: cg_empowerEffect 3 hides it
++ 03/11/2026 | SJK #338 | Empower glow: cg_empowerEffect 3 hides it
 - e717442 |  | Empower glow: cg_empowerEffect 3 hides it
-+ 03/11/2026 | - | Wear an NPC's head|torso| skin instead of drawing it grey
++ 03/11/2026 | SJK #336 | Wear an NPC's head|torso| skin instead of drawing it grey
 - a4769a6 |  | Wear an NPC's head|torso| skin instead of drawing it grey
-+ 03/11/2026 | - | Changelog: PR number for the NPC skin line (#336)
 - b9a1bc0 |  | Changelog: PR number for the NPC skin line (#336)
-+ 03/11/2026 | - | Run CI again (macOS runner was not available)
 - 05f8a18 |  | Run CI again (macOS runner was not available)
 + 02/11/2026 | SJK #318 | Vehicle HUD per HUD style: vehicle HP only, in each style's own look
 - 84f1304 |  | Vehicle HUD per HUD style: hull only, in each style's own look

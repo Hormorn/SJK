@@ -1,7 +1,7 @@
 //! The `identity` console command: `identity` opens the Identity page, and its
-//! words set the player's bio and list who the hub knows on this server
-//! (`docs/identity.md`). There is no name to set: the hub takes the name the
-//! player plays under.
+//! words set the player's bio, list who the hub knows on this server, open the player's
+//! SJK page in the browser and join this key to an account there (`docs/identity.md`).
+//! There is no name to set: the hub takes the name the player plays under.
 
 use crate::player_identity;
 use sjk_identity::{Snapshot, Status};
@@ -10,9 +10,10 @@ use sjk_identity::{Snapshot, Status};
 pub(crate) const COMMAND: &str = "identity";
 /// Help text for completion and `cmdlist`.
 pub(crate) const HELP: &str =
-    "Your SJK identity: open its page; bio, key, adminkey and who subcommands";
+    "Your SJK identity: open its page; bio, key, adminkey, who, site and link subcommands";
 
-const USAGE: &str = "identity [bio <text> | key | adminkey | who [slot]]";
+const USAGE: &str =
+    "identity [bio <text> | key | adminkey | who [slot] | site | link <code> [confirm]]";
 /// The answer to `identity name`, which no longer exists.
 const NAME_FROM_GAME: &str =
     "Your SJK name is the name you play under: change it with /name <text>.";
@@ -32,6 +33,11 @@ pub(crate) enum Action {
     Who(Option<u8>),
     /// Set the bio at the hub.
     Bio(String),
+    /// Open the player's SJK page, signed in, in the browser.
+    Site,
+    /// Type a link code the SJK page made: first only whose account it joins; with
+    /// `confirm`, this key joins it.
+    Link { code: String, confirm: bool },
 }
 
 /// Read the command's words.
@@ -51,6 +57,22 @@ pub(crate) fn parse(args: &[String]) -> Result<Action, String> {
                 .map_err(|_| format!("who takes a client number, not \"{slot}\"")),
         },
         "bio" => Ok(Action::Bio(text())),
+        "site" | "page" => Ok(Action::Site),
+        "link" => {
+            let usage = || {
+                "usage: identity link <code> [confirm], with the code your SJK page made".to_owned()
+            };
+            let code = args
+                .get(1)
+                .and_then(|code| sjk_identity::site::code(code))
+                .ok_or_else(usage)?;
+            let confirm = match args.get(2).map(|word| word.to_ascii_lowercase()) {
+                None => false,
+                Some(word) if word == "confirm" => true,
+                Some(_) => return Err(usage()),
+            };
+            Ok(Action::Link { code, confirm })
+        }
         "name" => Err(NAME_FROM_GAME.to_owned()),
         _ => Err(format!("usage: {USAGE}")),
     }
@@ -173,6 +195,24 @@ impl crate::GpuState {
                 Some(snapshot) => Ok(who_lines(snapshot, slot)),
                 None => Err("Identity is off: turn cl_identity on.".to_owned()),
             },
+            Action::Site => {
+                if let Some(reason) = profile_blocker(snapshot.as_ref()) {
+                    return Err(reason.to_owned());
+                }
+                player_identity::with_service(sjk_identity::Service::site_sign_in);
+                Ok(vec!["Asking the hub for your sign-in link...".to_owned()])
+            }
+            Action::Link { code, confirm } => {
+                if let Some(reason) = profile_blocker(snapshot.as_ref()) {
+                    return Err(reason.to_owned());
+                }
+                player_identity::with_service(|service| service.site_link(code, confirm));
+                Ok(vec![if confirm {
+                    "Joining this key to that account...".to_owned()
+                } else {
+                    "Asking the hub whose account this code is...".to_owned()
+                }])
+            }
             Action::Bio(text) => {
                 if let Some(reason) = profile_blocker(snapshot.as_ref()) {
                     return Err(reason.to_owned());
@@ -207,6 +247,7 @@ mod tests {
             key_id: "0123456789abcdef".to_owned(),
             me: Some(Profile {
                 tag_cards: Vec::new(),
+                gif_tags: None,
                 credits: 0,
                 cards: Vec::new(),
                 keys: Vec::new(),
@@ -288,12 +329,14 @@ mod tests {
             log_answer: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),
@@ -303,6 +346,7 @@ mod tests {
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
             public_key: String::new(),
         }
     }
@@ -335,6 +379,49 @@ mod tests {
     }
 
     #[test]
+    fn site_and_link_codes() {
+        assert_eq!(parse(&words("site")), Ok(Action::Site));
+        assert_eq!(
+            parse(&words("link abcd-efgh")),
+            Ok(Action::Link {
+                code: "ABCD-EFGH".to_owned(),
+                confirm: false
+            })
+        );
+        assert_eq!(
+            parse(&words("link ABCDEFGH CONFIRM")),
+            Ok(Action::Link {
+                code: "ABCD-EFGH".to_owned(),
+                confirm: true
+            })
+        );
+        assert!(parse(&words("link")).is_err());
+        assert!(parse(&words("link ABC")).is_err());
+        assert!(parse(&words("link ABCD-EFGH yes")).is_err());
+    }
+
+    #[test]
+    fn site_answers_never_print_a_link_or_a_code() {
+        use sjk_identity::site::{Linked, SignInLink, SiteAnswer};
+        let signed = crate::identity_frame::site_lines(&Ok(SiteAnswer::SignIn(SignInLink {
+            url: "https://site.test/login/secret".to_owned(),
+            expires: 0,
+        })));
+        assert!(!signed.concat().contains("secret"));
+        let preview = crate::identity_frame::site_lines(&Ok(SiteAnswer::Link(Linked {
+            account: "Sol".to_owned(),
+            keys: None,
+        })))
+        .concat();
+        assert!(preview.contains("Sol") && preview.contains("confirm"));
+        let joined = crate::identity_frame::site_lines(&Ok(SiteAnswer::Link(Linked {
+            account: "Sol".to_owned(),
+            keys: Some(2),
+        })));
+        assert!(joined.concat().contains("2 keys"));
+    }
+
+    #[test]
     fn who_lists_slots_and_marks_verified_players() {
         let lines = who_lines(&snapshot(), None);
         assert_eq!(lines, [" 3  Fox  VERIFIED"], "no key id");
@@ -357,6 +444,7 @@ mod tests {
             "fedcba9876543210".to_owned(),
             Profile {
                 tag_cards: Vec::new(),
+                gif_tags: None,
                 credits: 0,
                 cards: Vec::new(),
                 keys: Vec::new(),

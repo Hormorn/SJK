@@ -34,7 +34,19 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 
 - Nameplates can move up or down with a new Settings > HUD slider, Nameplate height (`cg_nameplateOffset`) _(Hormorn, PR #401)_
 - The map editor's panel in game does what the page (`mapedit_web`) does: a picture of each texture in its lists, a tile view and a large preview beside what is drawn there now; Fill's nearby textures to choose from; a Lights page (add, recolour, move and delete lights, turn the map's lamps off or move them, with markers over the scene); boomboxes, mystery boxes and toys on Place; the invisible brushes' presets (B); and Ctrl+C, Ctrl+V of models and textures _(Sol)_
+- Walls stopping saber and blaster lights cost about 40 % less on the graphics card (0.38 to 0.23 ms a frame at 4K), with the same picture _(Sol)_
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_
+- Ground HUD (`cg_groundHud`): going limp in a ragdoll, or watching through Peek or the Hax, keeps it instead of bringing the normal HUD back _(Sol, after Kushina's report)_
+- Box hunt: ghosting yourself with JA+'s `amghost` during a chase counts as cheating, as a teleport does; ghosting someone else does not _(Sol, hub report #240, after Nib's report)_
+- Third person camera: `cg_thirdPersonCameraDamp` and `cg_thirdPersonTargetDamp` also work in the `ejk` camera style once moved off their defaults; at the defaults nothing changes _(Slash)_
+- SJK UI: typing a slider's value opens a small gold-edged field at the number's own size, instead of a red box whose digits shrink, and it takes only as many digits as the slider can use. _(Slash)_
+- The Jedi Knight II HUD: pick "Jedi Knight II" in Settings > HUD, or `cg_hudFiles 2` as in EternalJK. Its pictures are built in, with credit to EternalJK and Bucky _(Slash)_
+- A double click on the search field of the commands and cvars list, Settings or the server list selects its text, and Ctrl+C in the commands and cvars list copies the selected search _(Slash, akr's idea)_
+- Profile: drag the model to turn it in the main menu too, and drag with the right button to zoom _(Slash, after akr's idea)_
+- Chat: with nothing typed, the Left and Right arrows change the chat button (All, Team, SJK...), in Tab's order; with a draft they still move the caret _(Slash, akr's idea)_
+- Console: holding a key types it again and again _(Slash)_
+- Clicking the game window to bring it back no longer attacks _(Slash)_
+- A boombox standing on the floor is hidden during a private duel _(Slash)_
 
 ## 2026.1109.2 (Alpha) | 09/11/2026
 

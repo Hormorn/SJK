@@ -119,14 +119,28 @@ pub(crate) enum Source<'a> {
     Text,
     /// A menu list or menu file.
     Menus(&'a str),
+    /// EternalJK's Jedi Knight II HUD ([`frame::jk2`]), over the default list.
+    Jk2,
+}
+
+impl<'a> Source<'a> {
+    /// The menu list it reads; `None` for the text HUD.
+    pub(crate) fn list(&self) -> Option<&'a str> {
+        match *self {
+            Self::Text => None,
+            Self::Menus(list) => Some(list),
+            Self::Jk2 => Some(DEFAULT_LIST),
+        }
+    }
 }
 
 pub(crate) fn source(value: &str) -> Source<'_> {
     let value = value.trim();
     match value.parse::<i64>() {
-        // EternalJK reads 0 as the default list and 3/4 as its bundled
-        // elegance and JoF HUDs; 1 and 2 are its (and stock's) text HUDs.
+        // EternalJK reads 0 as the default list, 2 as its Jedi Knight II HUD
+        // and 3/4 as its bundled elegance and JoF HUDs; 1 is the text HUD.
         Ok(0) => Source::Menus(DEFAULT_LIST),
+        Ok(2) => Source::Jk2,
         Ok(3) => Source::Menus("ui/elegance_hud.txt"),
         Ok(4) => Source::Menus("ui/jof_hud.txt"),
         Ok(_) => Source::Text,
@@ -146,7 +160,7 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         FILES_CVAR,
         DEFAULT_LIST,
         CvarFlags::ARCHIVE,
-        "Game HUD menu list (ui/jahud.txt); 1 or 2 is the text HUD, 3/4 EternalJK's HUDs",
+        "Game HUD menu list (ui/jahud.txt); 1 is the text HUD, 2 the Jedi Knight II HUD, 3/4 EternalJK's HUDs",
     ))?;
     cvars.register(CvarDefinition::new(
         PACK_CVAR,
@@ -301,13 +315,11 @@ impl MenuHud {
         self.timers = Timers::default();
         self.gpu.unload();
         self.loaded = Loaded::None;
-        let list = match source(files) {
-            Source::Text => {
-                self.loaded = Loaded::Text;
-                crate::log::progress(format_args!("game HUD: text HUD (cg_hudFiles {files})"));
-                return;
-            }
-            Source::Menus(list) => list,
+        let hud = source(files);
+        let Some(list) = hud.list() else {
+            self.loaded = Loaded::Text;
+            crate::log::progress(format_args!("game HUD: text HUD (cg_hudFiles {files})"));
+            return;
         };
         // CG_LoadMenus falls back to the default list when a file is missing.
         let menus = read_menus(vfs, list)
@@ -320,8 +332,17 @@ impl MenuHud {
             ));
             return;
         }
+        if hud == Source::Jk2 {
+            frame::jk2::attach(&mut layout);
+        }
         let digits = layout.pictures.len() as u16;
         let mut largest = vec![0.0_f32; layout.pictures.len()];
+        if hud == Source::Jk2 {
+            let first = layout.pictures.len() - frame::jk2::PICTURE_COUNT;
+            for (index, side) in largest[first..].iter_mut().enumerate() {
+                *side = frame::jk2::largest(index);
+            }
+        }
         layout.for_each_piece(|piece| {
             if let Some(picture) = piece.picture {
                 let [_, _, w, h] = piece.rect;
@@ -545,7 +566,47 @@ pub(crate) fn readout(gpu: &GpuState, time: i32) -> Option<Readout> {
         power_duel: gametype == 4,
         fraglimit: info.integer("fraglimit").unwrap_or(0),
         time,
+        selector: selector(gpu, player, time),
     })
+}
+
+/// The most recent of the weapon, Force and inventory selectors still showing and
+/// its age in milliseconds, as `CG_DrawIconBackground` picks it. None on a vehicle
+/// (EternalJK draws no Jedi Knight II selector bar there) or an emplaced gun (whose
+/// weapon cannot be cycled).
+fn selector(
+    gpu: &GpuState,
+    player: &sjk_protocol::PlayerState,
+    time: i32,
+) -> Option<(frame::Selector, i32)> {
+    if player.vehicle_entity_num() != 0 {
+        return None;
+    }
+    let show = crate::weapon_select::SHOW.as_millis() as i32;
+    let weapon = gpu
+        .weapon_selected_at
+        .filter(|_| player.emplaced_index() == 0)
+        .map(|at| {
+            let age = at.elapsed().as_millis().min(i32::MAX as u128) as i32;
+            (frame::Selector::Weapon, age)
+        });
+    let other = gpu
+        .gameplay_input
+        .selection
+        .cycled_at()
+        .map(|(inventory, at)| {
+            let selector = if inventory {
+                frame::Selector::Inventory
+            } else {
+                frame::Selector::Force
+            };
+            (selector, time - at)
+        });
+    weapon
+        .into_iter()
+        .chain(other)
+        .filter(|&(_, age)| (0..=show).contains(&age))
+        .min_by_key(|&(_, age)| age)
 }
 
 /// Parse `list` and every menu file it loads or includes.
@@ -667,7 +728,7 @@ mod tests {
             Source::Menus("ui/elegance_hud.txt")
         );
         assert_eq!(source("1"), Source::Text);
-        assert_eq!(source("2"), Source::Text);
+        assert_eq!(source("2"), Source::Jk2);
         assert_eq!(source("3"), Source::Menus("ui/elegance_hud.txt"));
         assert_eq!(source("4"), Source::Menus("ui/jof_hud.txt"));
     }

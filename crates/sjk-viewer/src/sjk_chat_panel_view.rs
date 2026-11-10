@@ -209,9 +209,12 @@ fn lay(message: &ChatMessage, inputs: &Inputs<'_>, measure: &Measure<'_>, s: f32
     } else if drop {
         crate::terms::say("found a holocron.").into_owned()
     } else {
-        // A muted sender's GIF is never asked for: the text above says so instead.
+        // A muted sender's GIF is never asked for: the text above says so instead. An
+        // unverified sender's link stays as typed.
+        let silent = muted
+            || !crate::chat_gifs::plays_from(message.verified, message.staff, message.creator);
         let (text, id) =
-            crate::chat_gifs::for_message(&sjk_chat_look::message_text(&message.text), muted);
+            crate::chat_gifs::for_message(&sjk_chat_look::message_text(&message.text), silent);
         gif = id.as_ref().map(crate::chat_gifs::show);
         text
     };
@@ -1623,7 +1626,11 @@ impl Panel {
         // The message's GIF (none for a muted sender), on one row as Staff's buttons are:
         // one that shows can be made a favourite for the GIF picker and hidden on this PC;
         // a hidden one shown again.
-        if let Some(gif) = crate::chat_gifs::chosen_gif(&message.text, muted) {
+        if let Some(gif) = crate::chat_gifs::chosen_gif(
+            &message.text,
+            muted
+                || !crate::chat_gifs::plays_from(message.verified, message.staff, message.creator),
+        ) {
             let hidden = crate::chat_gifs::hidden::contains(&gif);
             let at = y + 84.0;
             let (hide_x, hide_width) = if hidden {
@@ -2067,7 +2074,16 @@ mod tests {
                 message(2, "aaaaaaaaaaaaaaaa", &format!("hi {shown}")),
                 message(3, "bbbbbbbbbbbbbbbb", failed),
                 message(4, "aaaaaaaaaaaaaaaa", "gg"),
+                message(
+                    7,
+                    "dddddddddddddddd",
+                    "https://giphy.com/gifs/PageGif04Unverified",
+                ),
             ]);
+            // Only verified senders' GIFs play: the last stays a link.
+            for message in state.messages.iter_mut().take(3) {
+                message.verified = true;
+            }
             let muted = ["cccccccccccccccc".to_owned()];
             let mut panel = Panel::new();
             panel.open(true);
@@ -2078,6 +2094,11 @@ mod tests {
             let (_, loading, _) = found(&texts, "Loading GIF");
             let (_, unavailable, _) = found(&texts, "GIF unavailable");
             let (_, gg, _) = found(&texts, "gg");
+            assert!(
+                texts
+                    .iter()
+                    .any(|(text, ..)| text.contains("PageGif04Unverified"))
+            );
             // Under its line, in the column, above the next message.
             assert!(loading.y > label.bottom(), "{loading:?} {label:?}");
             assert!(loading.x >= LIST_X * s - 0.5);

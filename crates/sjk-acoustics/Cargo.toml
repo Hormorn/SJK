@@ -1,0 +1,18 @@
+[package]
+name = "sjk-acoustics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glam.workspace = true
+sjk-audio.workspace = true
+sjk-bsp.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# Mounts the installed game's archives in the ignored retail measurement.
+sjk-vfs.workspace = true

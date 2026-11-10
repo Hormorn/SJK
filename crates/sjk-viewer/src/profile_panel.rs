@@ -32,6 +32,12 @@
 //! the arrows) sends the one picked at once; any other single emoji typed or pasted
 //! there (the system's emoji panel, Win+.) is sent the same way; Remove emoji takes it
 //! away. Everyone sees it at the right of the player's name.
+//!
+//! Change name (on the Profile screen) opens the name panel in the bio's place: a field
+//! holding the player's SJK name, which Save sends to the hub as their custom name
+//! (`sjk_identity::custom_name`'s rules; the hub refuses one another player holds). It
+//! is the name the hub, the SJK chat and cards show instead of the one worn in game
+//! (Sol, 10/11/2026: it used to open the Character tab's in-game Name field).
 
 use crate::achievements::Standing;
 use crate::avatars::picture::{PictureError, Prepared};
@@ -66,6 +72,8 @@ const BROWSE_TOKEN: u16 = 1_021;
 const EMOJI_TOKEN: u16 = 1_023;
 const REMOVE_EMOJI_TOKEN: u16 = 1_024;
 const NAME_TOKEN: u16 = 1_025;
+const NAME_FIELD_TOKEN: u16 = 1_026;
+const NAME_SAVE_TOKEN: u16 = 1_027;
 /// The emoji grid's first cell; the others follow.
 const EMOJI_CELL_TOKEN: u16 = 1_100;
 /// The emoji grid's columns.
@@ -110,9 +118,11 @@ enum Focus {
     UsePicture,
     RemovePicture,
     BioBack,
-    /// Change name (on the Profile screen only), which opens the Character tab's
-    /// Name field: the hub's name is the one worn in game.
+    /// Change name (on the Profile screen only), which opens the name panel.
     Name,
+    /// The name panel's field and its Save.
+    NameField,
+    NameSave,
     /// The Name emoji button, which opens the emoji panel.
     Emoji,
     /// The emoji panel's grid (its cursor is `emoji_cursor`) and Remove emoji.
@@ -130,6 +140,8 @@ pub(crate) enum Middle {
     Picture,
     /// The name emoji's grid.
     Emoji,
+    /// The custom SJK name's field.
+    Name,
 }
 
 /// A picture file being made ready on a worker thread.
@@ -159,8 +171,10 @@ pub(crate) enum PanelAction {
     },
     /// Show a tab of the Collection screen (on its own in the classic menus).
     Hub(HubTab),
-    /// Change name: the Profile screen's Character tab with its Name field open.
-    EditName,
+    /// Make this the player's custom SJK name at the hub.
+    SetName {
+        name: String,
+    },
     /// Open the Staff page.
     Staff,
     /// Send this PNG to the hub as the player's picture.
@@ -245,6 +259,13 @@ pub(crate) struct Panel {
     emoji_saving: Option<(String, Option<String>)>,
     /// What the emoji panel says last, and whether it is good news.
     emoji_message: Option<(String, bool)>,
+    /// The name being typed on the name panel, and the hub's display name.
+    name: String,
+    hub_name: String,
+    /// A name on its way and the service's notice before it was sent.
+    name_saving: Option<(String, Option<String>)>,
+    /// What the name panel says last, and whether it is good news.
+    name_message: Option<(String, bool)>,
     /// What the Profile screen's tabs put at the top ([`Mode::Hub`]).
     hub_header: crate::profile_hub::Header,
     epoch: Instant,
@@ -359,6 +380,10 @@ impl Panel {
             emoji_cursor: 0,
             emoji_saving: None,
             emoji_message: None,
+            name: String::new(),
+            hub_name: String::new(),
+            name_saving: None,
+            name_message: None,
             hub_header: crate::profile_hub::Header::default(),
             epoch: Instant::now(),
             #[cfg(test)]
@@ -432,6 +457,47 @@ impl Panel {
             .iter()
             .position(|choice| *choice == self.emoji)
             .unwrap_or(0);
+    }
+
+    /// Show the name panel in the bio's place, its field holding the hub's name.
+    pub(crate) fn show_name(&mut self) {
+        if self.ready.take().is_some() {
+            crate::avatars::set_preview(None);
+        }
+        self.reading = None;
+        self.middle = Middle::Name;
+        self.focus = Focus::NameField;
+        self.name_message = None;
+        self.name.clone_from(&self.hub_name);
+    }
+
+    /// Send the typed name as the custom SJK name, once it passes the rules; `notice`
+    /// is the service's last notice.
+    fn save_name(&mut self, notice: Option<String>) -> PanelAction {
+        if !self.writable {
+            self.name_message = Some((
+                "Your SJK name needs the SJK identity on and the SJK hub answering".to_owned(),
+                false,
+            ));
+            return PanelAction::None;
+        }
+        match sjk_identity::custom_name(&self.name) {
+            Ok(name) => {
+                self.name_saving = Some((name.clone(), notice));
+                self.name_message = Some(("Saving...".to_owned(), true));
+                PanelAction::SetName { name }
+            }
+            Err(error) => {
+                self.name_message = Some((error.to_owned(), false));
+                PanelAction::None
+            }
+        }
+    }
+
+    /// Say why a name could not be sent at all.
+    pub(crate) fn name_failed(&mut self, why: &str) {
+        self.name_saving = None;
+        self.name_message = Some((why.to_owned(), false));
     }
 
     /// Send `emoji` (one emoji, or empty to take it away) as the name emoji, once it
@@ -643,6 +709,7 @@ impl Panel {
         self.reading = None;
         self.picture_message = None;
         self.emoji_message = None;
+        self.name_message = None;
     }
 
     /// Take in a picture the worker finished reading, and the hub's answer to a change.
@@ -736,11 +803,28 @@ impl Panel {
         }
         if !self.writable {
             self.emoji_saving = None;
+            self.name_saving = None;
         }
         let Some(me) = me else {
             return;
         };
         self.emoji = sjk_identity::name_emoji::for_display(&me.emoji).to_owned();
+        self.hub_name.clone_from(&me.name);
+        if let Some((sent, notice_before)) = &self.name_saving {
+            let notice = inputs.snapshot.and_then(|snapshot| snapshot.notice.clone());
+            if *sent == me.name {
+                self.name_message = Some((
+                    "Saved. Everyone sees it in the SJK chat, on cards and on the hub.".to_owned(),
+                    true,
+                ));
+                self.name_saving = None;
+            } else if notice != *notice_before
+                && let Some(notice) = notice.filter(|notice| notice != "name saved")
+            {
+                self.name_message = Some((format!("Not saved: {notice}"), false));
+                self.name_saving = None;
+            }
+        }
         if let Some((sent, notice_before)) = &self.emoji_saving {
             let notice = inputs.snapshot.and_then(|snapshot| snapshot.notice.clone());
             if *sent == self.emoji {
@@ -909,6 +993,9 @@ impl Panel {
             (Middle::Emoji, _) => {
                 order.extend([Focus::EmojiGrid, Focus::RemoveEmoji, Focus::BioBack]);
             }
+            (Middle::Name, _) => {
+                order.extend([Focus::NameField, Focus::NameSave, Focus::BioBack]);
+            }
         }
         order.extend([Focus::Board, Focus::Unlockables, Focus::Holocrons]);
         order
@@ -933,7 +1020,11 @@ impl Panel {
                 PanelAction::None
             }
             Focus::Staff => PanelAction::Staff,
-            Focus::Name => PanelAction::EditName,
+            Focus::Name => {
+                self.show_name();
+                PanelAction::None
+            }
+            Focus::NameField | Focus::NameSave => self.save_name(notice),
             Focus::Emoji => {
                 self.show_emoji();
                 PanelAction::None
@@ -992,6 +1083,25 @@ impl Panel {
         };
         let typing = self.focus == Focus::Bio && self.writable;
         if typing && self.bio_key(key, event.text.as_deref(), event.repeat, shift, control) {
+            return PanelAction::None;
+        }
+        if self.focus == Focus::NameField && self.middle == Middle::Name {
+            match key {
+                KeyCode::Escape => return self.escape(),
+                KeyCode::Tab => self.step(!shift),
+                KeyCode::Enter | KeyCode::NumpadEnter => return self.activate(notice),
+                _ => {
+                    let _ = crate::text_entry::edit(
+                        &mut self.name,
+                        key,
+                        event.text.as_deref(),
+                        shift,
+                        control,
+                        sjk_identity::CUSTOM_NAME_MAX,
+                        true,
+                    );
+                }
+            }
             return PanelAction::None;
         }
         let grid = self.focus == Focus::EmojiGrid && self.middle == Middle::Emoji;
@@ -1078,8 +1188,17 @@ impl Panel {
                 self.pick_emoji(EMOJI_CHOICES[self.emoji_cursor], notice)
             }
             Some(NAME_TOKEN) if self.mode == Mode::Hub => {
-                self.focus = Focus::Name;
-                PanelAction::EditName
+                self.show_name();
+                PanelAction::None
+            }
+            Some(NAME_FIELD_TOKEN) if self.middle == Middle::Name => {
+                self.focus = Focus::NameField;
+                crate::text_entry::clicked(&self.name);
+                PanelAction::None
+            }
+            Some(NAME_SAVE_TOKEN) if self.middle == Middle::Name => {
+                self.focus = Focus::NameSave;
+                self.save_name(notice)
             }
             Some(STAFF_TOKEN) if self.staff => {
                 self.focus = Focus::Staff;
@@ -1141,6 +1260,8 @@ impl Panel {
             Focus::RemovePicture => REMOVE_TOKEN,
             Focus::BioBack => BIO_BACK_TOKEN,
             Focus::Name => NAME_TOKEN,
+            Focus::NameField => NAME_FIELD_TOKEN,
+            Focus::NameSave => NAME_SAVE_TOKEN,
             Focus::Emoji => EMOJI_TOKEN,
             Focus::EmojiGrid => EMOJI_CELL_TOKEN + self.emoji_cursor as u16,
             Focus::RemoveEmoji => REMOVE_EMOJI_TOKEN,
@@ -1164,6 +1285,7 @@ pub(crate) mod tests {
     pub(crate) fn me(bio: &str) -> Profile {
         Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),
@@ -1243,12 +1365,14 @@ pub(crate) mod tests {
             log_answer: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),
@@ -1258,6 +1382,7 @@ pub(crate) mod tests {
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
             public_key: String::new(),
         }
     }
@@ -1415,11 +1540,14 @@ pub(crate) mod tests {
         panel.open_as(true, Mode::Hub);
         panel.sync(&inputs(Some(&shot)));
         assert_eq!(panel.focus, Focus::Picture);
-        // Change name comes after the picture and opens the Character tab's Name
-        // field (hub report #202: the tab had no way to the name).
+        // Change name comes after the picture and opens the name panel (hub report
+        // #202: the tab had no way to the name).
         panel.step(true);
         assert_eq!(panel.focus, Focus::Name);
-        assert_eq!(panel.activate(None), PanelAction::EditName);
+        assert_eq!(panel.activate(None), PanelAction::None);
+        assert_eq!(panel.middle, Middle::Name);
+        assert_eq!(panel.escape(), PanelAction::None);
+        assert_eq!(panel.middle, Middle::Bio);
         panel.focus = Focus::Board;
         assert_eq!(panel.activate(None), PanelAction::Hub(HubTab::Achievements));
         panel.focus = Focus::Unlockables;
@@ -1432,6 +1560,45 @@ pub(crate) mod tests {
         alone.focus = Focus::Board;
         assert_eq!(alone.activate(None), PanelAction::Hub(HubTab::Achievements));
         assert!(!alone.order().contains(&Focus::Name));
+    }
+
+    /// Change name opens the name panel on the hub's name; Save sends the trimmed name
+    /// as the custom SJK name (an empty one is refused here) and says the hub's answer.
+    #[test]
+    fn change_name_sends_the_custom_name_and_says_the_hubs_answer() {
+        let shot = snapshot(Some(me("")), None);
+        let mut panel = Panel::new();
+        panel.open_as(true, Mode::Hub);
+        panel.sync(&inputs(Some(&shot)));
+        panel.focus = Focus::Name;
+        assert_eq!(panel.activate(None), PanelAction::None);
+        assert_eq!(
+            (panel.middle, panel.focus),
+            (Middle::Name, Focus::NameField)
+        );
+        assert_eq!(panel.name, shot.me.as_ref().unwrap().name);
+        panel.name = "   ".to_owned();
+        assert_eq!(panel.activate(None), PanelAction::None);
+        panel.name = "  ^5Vin  ".to_owned();
+        assert_eq!(
+            panel.activate(None),
+            PanelAction::SetName {
+                name: "^5Vin".to_owned()
+            }
+        );
+        let mut answered = shot.clone();
+        answered.me.as_mut().unwrap().name = "^5Vin".to_owned();
+        panel.sync(&inputs(Some(&answered)));
+        assert!(panel.name_message.as_ref().is_some_and(|(_, good)| *good));
+        // A refusal says why.
+        panel.name = "Taken".to_owned();
+        let _ = panel.activate(None);
+        answered.notice = Some("that name is taken".to_owned());
+        panel.sync(&inputs(Some(&answered)));
+        assert_eq!(
+            panel.name_message,
+            Some(("Not saved: that name is taken".to_owned(), false))
+        );
     }
 
     /// Browse... opens the file dialog on a worker thread, once while it is open; the

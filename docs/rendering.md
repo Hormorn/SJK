@@ -538,7 +538,10 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 
 | Cvar | Behavior |
 | --- | --- |
-| `r_dayNight` | Map-relative sun/sky atmosphere; default 1, applies after a [graphics reload](#graphics-reload) |
+| `r_dayNight` | Real-time lighting, the Solar Renderer's core (Settings "Real-time lighting", "Sun and sky" until 10/11/2026): a live sun, sky and lamps in place of the baked light, with the lamp cache, GI voxels, light buffer and model sun it installs; implies world sun shadows (the GI probes need the far cascade); default 1, applies after a [graphics reload](#graphics-reload) |
+| `r_bouncedLight` | With real-time lighting, light bounces through the GI probes (`gi_probes.rs`); 0 leaves the probes out (the voxel scene stays: lamp visibility needs it); default 1, applies after a graphics reload (10/11/2026) |
+| `r_lampShadows` | With real-time lighting, the nearest lamps' shadow maps (`lamp_shadows`); 0 leaves them out; default 1, applies after a graphics reload (10/11/2026) |
+| `r_daySky` | Without real-time lighting, the sky still shows `r_dayHour` turning with `r_dayMinutes` (the sky's day tint, as `r_dayClock` does for the PC's hour), and its night darkens the exposure (`day_live::night_tint` of the set hour); default 0, applies after a graphics reload (10/11/2026). World shot `solar_day_sky_without_live_light`: ground brightness 100, 79 and 64 of 255 at 12:00, 19:30 and 23:00 on ffa3 |
 | `r_liveLighting` | Lighting tier; default 0. Tier 1 retains world shadow casters between frames; tier 0 also uses available baked indirect light. Applies at map load |
 | `r_dayHour` | Solar hour; default 12 (noon, SJK); updated live when day/night resources are installed |
 | `r_dayMinutes` | Minutes per simulated day; 0 holds the hour |
@@ -564,6 +567,12 @@ first drawn) and keys only a later remap uses. Not measured on a GPU; compare th
 | `r_weatherFog` | Ground fog: 0 none, 1 the map's (default), 2 on every map with sky; live |
 | `r_clouds` | Volumetric clouds over open sky, 0 (default, under every graphics preset) or 1; live |
 | `r_weatherLightning` | Lightning in storms, 0 (default) or 1; live; renderer WEATHER tab. See [Weather](#weather) |
+| `r_weatherReflections` | What wet surfaces mirror: 0 (default) by the quality (ultra: everything, else the sky), 1 the sky's colour, 2 the world in puddles (ultra), 3 the world in every wet surface; live; renderer WEATHER tab |
+| `r_weatherPuddles` | Standing water on flat ground at ultra, 0 none to 2 flooded, default 1; live; renderer WEATHER tab |
+| `r_weatherRainOpacity` | The rain streaks' opacity, 0.25–2, default 1; live; renderer WEATHER tab |
+| `r_weatherHaze` | Falling weather's haze and the spray a downpour raises, 0–2, default 1; live; renderer WEATHER tab |
+| `r_weatherFogDensity` | The ground fog's thickness, 0.25–3, default 1; live; renderer WEATHER tab |
+| `r_weatherSnowCover` | Snow settles on what it falls on, 0 (default) or 1; live; renderer WEATHER tab |
 | `r_normalMapping` | Normal maps on lightmapped world surfaces (rend2 convention) and on models whose shader names one (`normalMap`); default 1 (rend2: 0), applies after a graphics reload |
 | `r_specularMapping` | Specular, roughness and metalness maps on the same surfaces; default 1 (rend2: 0), applies after a graphics reload |
 | `r_parallaxMapping` | Parallax from the height in `_nh`/`normalHeightMap` images; needs `r_normalMapping`; default 1 (at `r_parallaxStrength` 0.1; rend2: 0), applies after a graphics reload |
@@ -1676,7 +1685,8 @@ and wall within its radius that faced it was lit, whatever stood between.
   (the lamps' mapping): per direction, how far the light gets before the static triangles
   of the lamp visibility stop it, in 255ths of its reach (radius plus 8 units), and the
   normal of what stops it. Glass, grates and sky let it through, as for the lamps. The GPU
-  traces them (784 rays a light, 25,088 for a full list) and copies them into the
+  traces them (784 rays a light, 25,088 for a full list, one ray per invocation) and
+  copies them into the
   point-light uniform block after the CPU's part (58,208 bytes in all), so the programs
   read them without a new binding. A frame that traces none reads every light unshadowed.
 - **Receivers.** World surfaces, their material-map highlights and models lit per pixel
@@ -1696,7 +1706,18 @@ and wall within its radius that faced it was lit, whatever stood between.
 `r_dynamicLightShadows 0` lights through walls again for comparisons. `SJK_GPU_PHASES`
 times the trace as `dlight-shadows`. Unit tests follow the shaders' arithmetic in Rust on
 small scenes (a wall, a corner, stairs, a light just inside the face it hit) and validate
-the programs; nothing here has been rendered or timed on a GPU yet.
+the programs.
+
+Timed on 09/11/2026 off screen at 3840×2160 on mp/ffa3 under the renderer's defaults
+(`world_shot_dynamic_light_cost.rs`, `dynamic_light_shadow_cost`), the trace costs the same
+for 2 lights as for 32: it is bound by how long one ray takes, not by how many there are.
+Tracing two texels in a row per invocation took 0.38-0.39 ms; one texel each, packed in
+pairs through workgroup memory, takes 0.23 ms, with the same picture. Skipping lights the
+camera cannot see was tried and dropped: on this card it saved nothing, and mirrors,
+portals and probe captures would each have needed every light anyway. Depth writes left
+off for draws the depth prime already covers (to let the card reject hidden pixels
+before shading) saved 0.012 of `opaque`'s 0.53 ms, too little for a pipeline variant per
+path; `frame_section_cost` in the same file times every section to compare two builds.
 
 Not covered: baked lightmaps (`r_dayNight 0`) build no triangles, so dynamic lights pass
 walls there as in the original game; movers are not in the triangles, so a closed door lets
@@ -2330,7 +2351,8 @@ The same measurements in game, without a variable (Sol's request, 09/11/2026, to
 on the graphics settings; [frame_timings.rs](../crates/sjk-viewer/src/frame_timings.rs)).
 Both are off by default and live in Settings > HUD > Readouts:
 
-- `r_drawTimings` ("Frame timings"): a panel on the left of the screen, in the SJK
+- `r_drawTimings` ("Frame timings"): a panel at the top right of the screen (since
+  09/11/2026; the HUD edit mode moves it, `timings` in `cg_hudOffsets`), in the SJK
   UI's look in every menu style, over everything but the full-frame console, so it
   can be watched while settings change in the menus. 1 lists the graphics card's
   sections of the frame (GPU), 2 the processor's eight heaviest host phases (CPU)
@@ -4359,6 +4381,11 @@ stretched over 56 units of wall.
   are. The main view's effect rectangle takes them in (`effect_bounds.rs`); mirror and
   portal views draw them too.
 
+GIF tags (10/11/2026) take the chat's decoded GIF (`chat_gifs::wall`, at most 480
+pixels a side) into a square texture of their own, one level, the GIF centred on
+transparency, written again only when the animation reaches a new frame; they have no
+finish, so a one-texel outline stands in.
+
 Cost: one draw per tag on show with its picture ready, a few hundred vertices at most;
 Holo and Solar shade a few dozen operations a pixel (Solar three noise lookups and three
 flares) over the tags' own pixels only. Video memory: about 1.75 MB a tag and 7 MB a card
@@ -4628,8 +4655,8 @@ as bright in a 30-degree cone). Measured on 05/11/2026 (release, Windows, RTX 50
 | --- | --- |
 | 0 low | Near streaks, the original's fog sprites; clouds with 10 samples |
 | 1 medium | Splashes, volumetric fog with 10 samples a ray at most, wet surfaces; clouds 16 |
-| 2 high (default) | The far rain layer, fog 16, water running down slopes and walls; clouds 24 |
-| 3 ultra | More far rain and splashes, fog 24, puddles with rain rings that mirror the world; clouds 40 |
+| 2 high (default) | The far rain layer, fog 16, spray over the ground, water running down slopes and walls; clouds 24 |
+| 3 ultra | More far rain and splashes, fog 24, puddles with rain rings, every wet surface mirroring the world (`r_weatherReflections`); clouds 40 |
 
 **Wet surfaces** (`fragment_wet` in weather.wgsl, from `r_weatherQuality` 1). Rain
 wets what it falls on, in one full-screen pass drawn into the scene right after the
@@ -4709,6 +4736,51 @@ four views of a storm on `T2_Rogue` with and without the mirror. Measured on 08/
 5080, off-screen at 3840×2160 on `T2_Rogue` in a forced storm, `SJK_GPU_PHASES` marks
 `world-opaque`/`rain-wet`): 0.19–0.26 ms a frame at levels 1 and 2, 0.27–0.37 ms at 3,
 in GPU frames of 5.5–7.9 ms.
+
+**Looks of 09/11/2026** (Sol: "the rain, weather, fog to have more options to look even
+better (while keeping perfs in mind) and the water flowing on wall too, maybe with some
+reflection, smarter ways for it to happen"; `personal/weather-looks`):
+
+- *Uneven wet ground.* The ground is no longer one even film: a broad noise (the puddles'
+  1100-unit one) and the foot of higher ground beside a pixel (the cover's four columns,
+  `shelter` in weather.wgsl: a column whose floor stands 12 units or more above the point)
+  make it damp, glossy (film up to 0.42 instead of 0.22) or, at ultra, a puddle; water
+  gathers at the foot of walls and kerbs. `r_weatherPuddles` scales the standing water.
+- *Smarter running water.* Each rivulet starts a little under the wall's lip (8 to 160
+  units, from the column behind the face), widens by half towards the wall's foot where the
+  water has gathered, and the bottom 4 to 34 units of a wall are soaked darker and glossier
+  by the rain splashing off the ground.
+- *Reflections in every wet surface* (`r_weatherReflections` 3, the default at ultra). The
+  puddles' copy of the scene now carries up to four levels, each half the last
+  (`Mirror::encode_blur`); a wet street or wall marches a shorter, coarser ray (16 steps
+  from 4 units growing by 1.38, three halvings, `FILM_*`) and reads a softer level the
+  rougher its water and the farther it is, while a puddle keeps its sharp march. Its
+  strength is `clamp(1.4 F + 0.04, 0, 0.8)` times how much water lies there, so lit windows
+  and signs streak across a soaked street. A rivulet's surface leans across it, so it
+  mirrors a sliver of the world beside it. 2 keeps the world to the puddles, 1 the sky's
+  colour alone (no copy at all, as at high).
+- *Spray.* A downpour raises a thin spray over the ground it beats on (from high; thinning
+  to a third every 10 units, density `SPRAY_DENSITY` times the square of the rain's share
+  of a storm), worked out exactly along each pixel's ray over the floor where the ray ends
+  (`spray_over`), drifting in gusts through the noise. It shows where the view skims the
+  ground and costs one noise read per pixel in the fog's blend.
+- *Rain in waves.* The streaks thicken and thin in two trains (1100 and 430 units long, a
+  quarter turn apart) carried by the wind, up to half again as dense at full wind, a little
+  even in calm air in a storm (`rain_waves`).
+- *Settled snow* (`r_weatherSnowCover`, off). Snow settles in about 6 seconds on what faces
+  up under open sky, deeper in drifts (a 420-unit noise) and against walls, grainy, lit by
+  the overcast sky (`SNOW_TINT`); it melts away as fast once the snow stops. Drawn by the wet
+  pass, so it runs at every quality from low when the snow falls.
+- *Sliders*: `r_weatherRainOpacity` for the streaks, `r_weatherHaze` for the haze and spray,
+  `r_weatherFogDensity` for the ground fog.
+
+Measured on 09/11/2026 (release, Windows, RTX 5080, off-screen at 2560x1440 on `T2_Rogue`
+in a forced storm, `t2_rogue_storm_timing`, medians of 14 samples per view; main 1a485b087
+then the branch, one after the other): the wet pass `rain-wet` 0.13-0.14 ms -> 0.15-0.16 at
+high, 0.27-0.28 -> 0.36 at ultra with every wet surface mirroring, 0.29-0.30 with puddles
+alone and 0.18-0.20 with the sky alone; the effect pass `scene-pass` (fog, spray, rain)
+0.12-0.13 -> 0.15-0.16 at high. World shots `t2_rogue_wet_reflections` and
+`t2_rogue_snow_cover` (`world_shot_weather.rs`).
 
 **Forced weather** (`r_weatherForce`): 1 drizzle (`lightrain`), 2 rain with a
 random wind, 3 a storm (`heavyrain`, gusting wind), 4 snow with wind, in place of the
@@ -5194,7 +5266,12 @@ Academy draws it ([menu_hud.rs](../crates/sjk-viewer/src/menu_hud.rs)).
 the stock list loads `ui/hud.menu`, so a PK3 that replaces that file (a custom
 HUD pack) or a list naming other menus changes the HUD with no SJK-specific
 format. A nonzero integer selects the stock text-only HUD; as in EternalJK, `0`
-is the default list and `3`/`4` name `ui/elegance_hud.txt`/`ui/jof_hud.txt`. A
+is the default list, `2` is the Jedi Knight II HUD (`menu_hud/frame/jk2.rs`,
+EternalJK's pictures built into the client, drawn in place of the status menus,
+without its scrolling static; while a weapon, Force or inventory selector shows,
+its bar opens behind the icons from retail's `gfx/hud/background`, `_f` or `_i`
+between lit prongs and closes when it goes, as EternalJK's `CG_DrawIconBackground`,
+hub report 301) and `3`/`4` name `ui/elegance_hud.txt`/`ui/jof_hud.txt`. A
 missing list falls back to the default one, as `CG_LoadMenus` does; files
 without a `lefthud` or `righthud` menu leave the engine-drawn HUD in place.
 The text HUD's strings start where retail puts them, but SJK's vector font is

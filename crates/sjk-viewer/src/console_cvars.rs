@@ -519,6 +519,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
         CvarDefinition::new("s_volume", 0.5_f64, archive, "Effects volume"),
         CvarDefinition::new("s_musicVolume", 0.25_f64, archive, "Music volume"),
         CvarDefinition::new(
+            "s_language",
+            "english",
+            archive,
+            "Voice language: english, deutsch, francais or espanol (then snd_restart)",
+        ),
+        CvarDefinition::new(
             crate::audio::VOICE_VOLUME_CVAR,
             1.0_f64,
             archive,
@@ -560,7 +566,19 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             crate::audio::spatial::CVAR,
             false,
             archive,
-            "3D sound: heard from your head, muffled behind walls and doors, rooms ring",
+            "3D sound: heard from your head, muffled behind walls and doors, round corners, rooms ring",
+        ),
+        CvarDefinition::new(
+            crate::audio::spatial::HEADPHONES_CVAR,
+            true,
+            archive,
+            "3D sound through the head for headphones (0: panned for speakers)",
+        ),
+        CvarDefinition::new(
+            crate::audio::spatial::REVERB_CVAR,
+            crate::audio::spatial::DEFAULT_REVERB,
+            archive,
+            "3D sound: how loud rooms ring, 1 as traced (0 to 2, 0 none)",
         ),
         CvarDefinition::new(
             crate::weather::sound::CVAR,
@@ -1157,6 +1175,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             true,
             archive,
             "Other players' tags are seen (0: no tag but your own is drawn on this PC; SJK)",
+        ),
+        CvarDefinition::new(
+            crate::tags::GIF_SHOW_CVAR,
+            false,
+            archive,
+            "GIF tags are fetched from GIPHY and played on walls, yours and other players' (off by default; off, none is drawn or stuck on this PC; SJK)",
         ),
         CvarDefinition::new(
             crate::boombox::RANGE_CVAR,

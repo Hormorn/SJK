@@ -80,7 +80,123 @@ pub(super) fn build(panel: &mut Panel, ui: &mut MenuCanvas, viewport: [f32; 2]) 
     foot(ui, &frame, panel);
     keys(ui, &frame, panel);
     panel.scene_right = frame.point(SCENE_RIGHT, 0.0)[0];
+    scene_marks(ui, &frame, panel);
     ui.finish(panel.focus);
+}
+
+/// Over the scene: the box being drawn (holo, faintly filled) and the hover's tip, one
+/// line on navy glass under and right of the pointer, kept on the scene.
+fn scene_marks(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
+    let s = frame.s;
+    measure_label(ui, frame, panel);
+    if let Some([x0, y0, x1, y1]) = panel.scene.marquee {
+        let rect = Rect::new(x0, y0, x1 - x0, y1 - y0);
+        push(
+            ui,
+            DrawCommand::RoundedRect {
+                rect,
+                radius: 2.0 * s,
+                color: color::alpha(color::HOLO, 0.08),
+            },
+        );
+        push(
+            ui,
+            DrawCommand::Border {
+                rect,
+                radius: 2.0 * s,
+                width: 1.5 * s,
+                color: color::alpha(color::HOLO, 0.8),
+            },
+        );
+        return;
+    }
+    let (Some(tip), Some([x, y])) = (panel.scene.tip.as_deref(), panel.scene.at) else {
+        return;
+    };
+    let tip = wrap(tip, 56).next().unwrap_or(tip);
+    let width = (tip.chars().count() as f32 * 6.8 + 26.0) * s;
+    let height = 28.0 * s;
+    let left = (x + 18.0 * s)
+        .min(panel.scene_right - width - 8.0 * s)
+        .max(0.0);
+    // Under the pointer, or over it near the window's foot.
+    let bottom = frame.point(0.0, 1080.0)[1];
+    let top = if y + (22.0 + 28.0 + 8.0) * s > bottom {
+        y - (14.0 + 28.0) * s
+    } else {
+        y + 22.0 * s
+    };
+    let rect = Rect::new(left, top, width, height);
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect,
+            radius: 8.0 * s,
+            color: color::alpha(color::SPACE, 0.86),
+        },
+    );
+    push(
+        ui,
+        DrawCommand::Border {
+            rect,
+            radius: 8.0 * s,
+            width: 1.0 * s,
+            color: color::alpha(color::HOLO, 0.35),
+        },
+    );
+    text(
+        ui,
+        TextFamily::Body,
+        format_args!("{tip}"),
+        Rect::new(left + 12.0 * s, top + 4.0 * s, width - 16.0 * s, 20.0 * s),
+        14.0 * s,
+        color::TEXT,
+        FontWeight::Regular,
+        TextAlign::Start,
+    );
+}
+
+/// The measure's label over its line's middle: its length and deltas in gold on navy
+/// glass, kept on the scene.
+fn measure_label(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
+    let s = frame.s;
+    let Some(([x, y], words)) = &panel.measure.label else {
+        return;
+    };
+    let width = (words.chars().count() as f32 * 7.4 + 26.0) * s;
+    let height = 28.0 * s;
+    let left = (x - width * 0.5)
+        .min(panel.scene_right - width - 8.0 * s)
+        .max(0.0);
+    let top = (y - height - 10.0 * s).max(0.0);
+    let rect = Rect::new(left, top, width, height);
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect,
+            radius: 8.0 * s,
+            color: color::alpha(color::SPACE, 0.9),
+        },
+    );
+    push(
+        ui,
+        DrawCommand::Border {
+            rect,
+            radius: 8.0 * s,
+            width: 1.0 * s,
+            color: color::alpha(color::GOLD_BRIGHT, 0.6),
+        },
+    );
+    text(
+        ui,
+        TextFamily::Body,
+        format_args!("{words}"),
+        Rect::new(left + 12.0 * s, top + 4.0 * s, width - 16.0 * s, 20.0 * s),
+        15.0 * s,
+        color::GOLD_BRIGHT,
+        FontWeight::Semibold,
+        TextAlign::Start,
+    );
 }
 
 /// The fade from clear to dark under the column, full height.
@@ -388,6 +504,7 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 &[
                     (HIDE, if many { "Hide all" } else { "Remove" }, true),
                     (COPY, "Place a copy", !many),
+                    (DUPLICATE, "Duplicate", true),
                 ],
             );
         }
@@ -398,7 +515,9 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             y,
             &[
                 (HIDE, if many { "Hide all" } else { "Hide" }, true),
-                (HIDE_GROUP, "Hide whole model", soup && !many),
+                (HIDE_GROUP, "Whole model", soup && !many),
+                (SELECT_MORE, "More", true),
+                (SELECT_LESS, "Less", many),
             ],
         ),
         Picked::Entity => line(
@@ -417,6 +536,11 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 (LINK_PLANE, "Same plane", true),
                 (LINK_SURFACE, "Connected", true),
                 (FILL, "Fill", panel.facts.fill.is_some()),
+                (
+                    ALIGN,
+                    if panel.aligning { "Shaders" } else { "Align" },
+                    true,
+                ),
             ],
         ),
         Picked::Other => {}
@@ -425,6 +549,10 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         return;
     }
     y += BUTTON + 34.0;
+    if panel.aligning && matches!(selection.picked, Picked::Face | Picked::Sky) {
+        align_page(ui, frame, panel, y);
+        return;
+    }
     kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Draw another shader");
     let card_top = y - 10.0;
     y += 18.0;
@@ -499,13 +627,75 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             [
                 (REMAP, "Draw", panel.has_remap_target()),
                 (UNREMAP, "Draw nothing", true),
+                (SELECT_SHADER, "Same shader", true),
             ]
         } else {
             [
                 (REMAP, "Remap", panel.has_remap_target()),
                 (UNREMAP, "Remove remap", true),
+                (
+                    SELECT_SHADER,
+                    "Same shader",
+                    matches!(picked, Picked::Surface { .. }),
+                ),
             ]
         },
+    );
+}
+
+/// Selected's texture alignment of a drawn face (Align): how it lies now, then the
+/// shifts, turns, growths, flips, Fit and Reset, three rows of four, each one
+/// `mapedit_align` on every selected drawn face.
+fn align_page(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel, mut y: f32) {
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Lay the texture");
+    y += 22.0;
+    let drawn = panel.facts.align;
+    match drawn {
+        Some(align) => {
+            let words = align.describe();
+            let mut letters = words.chars();
+            let first = letters.next().map(|c| c.to_ascii_uppercase());
+            let words: String = first.into_iter().chain(letters).collect();
+            line(ui, frame, y, &words, color::TEXT);
+        }
+        None => line(
+            ui,
+            frame,
+            y,
+            "Drawn by no edit: Draw a shader on it first",
+            color::MUTED,
+        ),
+    }
+    y += 40.0;
+    for (row, steps) in ALIGN_STEPS.chunks(4).enumerate() {
+        let tokens: Vec<(u16, &str, bool)> = steps
+            .iter()
+            .enumerate()
+            .map(|(index, (label, _))| {
+                (
+                    ALIGN_STEP + (row * 4 + index) as u16,
+                    *label,
+                    drawn.is_some(),
+                )
+            })
+            .collect();
+        buttons(ui, frame, panel, y, &tokens);
+        y += BUTTON + GAP;
+    }
+    y += 6.0;
+    line(
+        ui,
+        frame,
+        y,
+        "Shift: a texel, a degree, a finer growth.",
+        color::MUTED,
+    );
+    line(
+        ui,
+        frame,
+        y + 24.0,
+        "Every selected drawn face, one step to undo.",
+        color::MUTED,
     );
 }
 
@@ -551,7 +741,11 @@ fn placed_set(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel, mut y: f32, mod
         frame,
         panel,
         y,
-        &[(HIDE, "Remove all", true), (GRAB, "Grab", false)],
+        &[
+            (HIDE, "Remove all", true),
+            (DUPLICATE, "Duplicate", true),
+            (GRAB, "Grab", false),
+        ],
     );
     y += BUTTON + GAP;
     buttons(
@@ -785,7 +979,7 @@ fn shader_tiles(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, y: f32, o
     for slot in 0..SHADER_TILES {
         let index = panel.shader_first + slot;
         let thumbnail = panel.shader_picture(index);
-        let share = panel.candidate_share(index);
+        let reason = panel.suggestion(index);
         let recent = (panel.candidate_rows..panel.candidate_rows + panel.recent_shader_rows)
             .contains(&index);
         let Some(shader) = panel.shown_shader(index) else {
@@ -822,7 +1016,7 @@ fn shader_tiles(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, y: f32, o
                 },
             );
         }
-        if let Some(share) = share {
+        if let Some(reason) = reason {
             push(
                 ui,
                 DrawCommand::RoundedRect {
@@ -834,10 +1028,10 @@ fn shader_tiles(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, y: f32, o
             text(
                 ui,
                 TextFamily::Body,
-                format_args!("{:.0} %", share * 100.0),
+                format_args!("{}", reason.band()),
                 frame.rect(x, top + TILE - 16.0, TILE, 16.0),
                 11.0 * s,
-                color::GOLD_BRIGHT,
+                reason_colour(reason),
                 FontWeight::Regular,
                 TextAlign::Center,
             );
@@ -981,7 +1175,8 @@ fn preview_card(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel, top: f32,
     );
 }
 
-/// What marks a shader row at its right: a Fill candidate's share (gold), else "Recent";
+/// What marks a shader row at its right: why it is suggested (a nearby share in gold,
+/// "same family" or "140 on map" in holo), else "Recent";
 /// a line under the last of each group.
 fn head_mark(ui: &mut MenuCanvas, frame: &Frame, top: f32, index: usize, panel: &Panel) {
     let s = frame.s;
@@ -991,14 +1186,14 @@ fn head_mark(ui: &mut MenuCanvas, frame: &Frame, top: f32, index: usize, panel: 
         100.0,
         20.0,
     );
-    if let Some(share) = panel.candidate_share(index) {
+    if let Some(reason) = panel.suggestion(index) {
         text(
             ui,
             TextFamily::Body,
-            format_args!("{:.0} % nearby", share * 100.0),
+            format_args!("{}", reason.mark()),
             rect,
             13.0 * s,
-            color::GOLD_BRIGHT,
+            reason_colour(reason),
             FontWeight::Regular,
             TextAlign::End,
         );
@@ -1009,6 +1204,14 @@ fn head_mark(ui: &mut MenuCanvas, frame: &Frame, top: f32, index: usize, panel: 
     }
     if let Some(index) = index.checked_sub(panel.candidate_rows) {
         recent_mark(ui, frame, top, index, panel.recent_shader_rows);
+    }
+}
+
+/// A suggestion's mark: gold for the nearby vote (Fill draws it on faces), holo else.
+fn reason_colour(reason: super::suggest::Reason) -> Color {
+    match reason {
+        super::suggest::Reason::Nearby(_) => color::GOLD_BRIGHT,
+        _ => color::HOLO,
     }
 }
 
@@ -1081,12 +1284,28 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     kit::search(
         ui,
         frame,
-        [COLUMN_X, y, COLUMN_WIDTH - switch - GAP, FIELD],
+        [COLUMN_X, y, COLUMN_WIDTH - 2.0 * (switch + GAP), FIELD],
         &panel.search,
         searching,
-        "Search the models",
+        "Search models",
         (!panel.search.is_empty()).then_some(panel.shown.len()),
         SEARCH,
+    );
+    // Placed and grabbed models stand along the surface: a gold pill while on.
+    kit::button(
+        ui,
+        frame,
+        [
+            COLUMN_X + COLUMN_WIDTH - 2.0 * switch - GAP,
+            y + 2.0,
+            switch,
+            BUTTON,
+        ],
+        "Surface",
+        panel.facts.on_surface,
+        true,
+        panel.focus == PLACE_SURFACE,
+        PLACE_SURFACE,
     );
     kit::button(
         ui,
@@ -1127,15 +1346,42 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         recent_mark(ui, frame, top, index, panel.recent_model_rows);
     }
     y += height + 12.0;
+    // Place, then copies of the selected placed models and every placed model selected.
+    let small = 100.0;
     kit::button(
         ui,
         frame,
-        [COLUMN_X, y, COLUMN_WIDTH, BUTTON],
+        [COLUMN_X, y, COLUMN_WIDTH - 2.0 * (small + GAP), BUTTON],
         "Place where you aimed",
         false,
         panel.chosen_model().is_some(),
         panel.focus == PLACE,
         PLACE,
+    );
+    kit::button(
+        ui,
+        frame,
+        [
+            COLUMN_X + COLUMN_WIDTH - 2.0 * small - GAP,
+            y,
+            small,
+            BUTTON,
+        ],
+        "Duplicate",
+        false,
+        panel.facts.placed.is_some() || panel.facts.models > 0,
+        panel.focus == DUPLICATE,
+        DUPLICATE,
+    );
+    kit::button(
+        ui,
+        frame,
+        [COLUMN_X + COLUMN_WIDTH - small, y, small, BUTTON],
+        "Select all",
+        false,
+        true,
+        panel.focus == SELECT_PLACED,
+        SELECT_PLACED,
     );
     y += BUTTON + 30.0;
     let set = panel.facts.models > 1;
@@ -1924,7 +2170,13 @@ fn key_lines<'a>(panel: &'a Panel, exit: &'a [&'a str]) -> Vec<Vec<Hint<'a>>> {
         ];
     }
     let typing = matches!(panel.focus, SEARCH | REMAP_FIELD);
-    let first: Vec<Hint<'a>> = if panel.facts.grabbing {
+    let first: Vec<Hint<'a>> = if panel.measure.on {
+        vec![
+            (&["Click"], "measure to"),
+            (&["M"], "stop"),
+            (&["Esc"], "stop"),
+        ]
+    } else if panel.facts.grabbing {
         vec![
             (&["Click"], "put down"),
             (&["Wheel"], "turn"),
@@ -1956,9 +2208,17 @@ fn key_lines<'a>(panel: &'a Panel, exit: &'a [&'a str]) -> Vec<Vec<Hint<'a>>> {
             (&["Esc"], "back"),
         ]
     } else {
-        vec![(&["G", "R", "T"], "gizmo"), (&["Esc"], "back")]
+        vec![
+            (&["G", "R", "T"], "gizmo"),
+            (&["Drag"], "box"),
+            (&["Esc"], "back"),
+        ]
     };
-    vec![first, second, vec![(&["Ctrl", "Z"], "undo"), leave]]
+    vec![
+        first,
+        second,
+        vec![(&["Ctrl", "Z"], "undo"), (&["F"], "frame"), leave],
+    ]
 }
 
 /// The cap of the key that leaves: the one bound to `mapedit`.
@@ -2068,6 +2328,20 @@ mod tests {
             ("fill", fill_panel()),
             ("lights", lights_panel()),
             ("things", things_panel()),
+            ("align", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Face));
+                panel.aligning = true;
+                panel.facts.align = Some(super::super::document::Align {
+                    shift: [8.0, 0.0],
+                    ..Default::default()
+                });
+                panel
+            }),
+            ("align undrawn", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Sky));
+                panel.aligning = true;
+                panel
+            }),
         ]
     }
 
@@ -2390,11 +2664,20 @@ mod tests {
         let place = tokens("place");
         assert!(place.contains(&SEARCH) && place.contains(&PLACE) && place.contains(&GRAB));
         assert!(place.contains(&MOVE_LEFT) && place.contains(&NEARER));
+        assert!(place.contains(&PLACE_SURFACE) && place.contains(&PLACE_THINGS));
         assert!(place.contains(&(MODEL_ROW + MODEL_ROWS as u16 - 1)));
         assert!(!place.contains(&(MODEL_ROW + MODEL_ROWS as u16)));
         let edits = tokens("edits");
         assert!(edits.contains(&(EDIT_ROW + EDIT_ROWS as u16 - 1)) && edits.contains(&DELETE));
         assert!(edits.contains(&UNDO) && edits.contains(&REDO));
+        // A face's Align swaps the shader list for the texture's steps.
+        assert!(tokens("face").contains(&ALIGN) && tokens("sky").contains(&ALIGN));
+        assert!(!tokens("surface").contains(&ALIGN));
+        let align = tokens("align");
+        assert!(align.contains(&ALIGN) && !align.contains(&REMAP_FIELD));
+        let last = ALIGN_STEP + ALIGN_STEPS.len() as u16 - 1;
+        assert!(align.contains(&ALIGN_STEP) && align.contains(&last));
+        assert!(!tokens("face").contains(&ALIGN_STEP));
     }
 
     #[test]
@@ -2474,9 +2757,15 @@ mod tests {
                 (false, true, tab.token()),
                 (false, false, SEARCH),
             ] {
-                for (exit_key, grabbing) in [("", false), ("F7", true), ("Backspace", false)] {
+                for (exit_key, grabbing, measuring) in [
+                    ("", false, false),
+                    ("F7", true, false),
+                    ("Backspace", false, false),
+                    ("Backspace", false, true),
+                ] {
                     let mut panel = Panel::default();
                     panel.facts.grabbing = grabbing;
+                    panel.measure.on = measuring;
                     panel.tab = tab;
                     panel.focus = focus;
                     panel.transforming = transforming;
@@ -2501,7 +2790,9 @@ mod tests {
         let exit = [exit_cap(&panel)];
         let lines = key_lines(&panel, &exit);
         let actions: Vec<&str> = lines.iter().flatten().map(|(_, action)| *action).collect();
-        for wanted in ["fly", "select", "add", "gizmo", "back", "leave", "undo"] {
+        for wanted in [
+            "fly", "select", "add", "gizmo", "back", "leave", "undo", "frame",
+        ] {
             assert!(actions.contains(&wanted), "{wanted}: {actions:?}");
         }
         assert!(lines.iter().flatten().any(|(caps, _)| caps == &["F7"]));

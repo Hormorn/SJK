@@ -8,6 +8,9 @@
 //! first camera: EternalJK's `CG_OffsetThirdPersonView` easing towards its ideal
 //! place behind the player with `cg_thirdPersonCameraDamp` and
 //! `cg_thirdPersonTargetDamp`, so it trails a moving or turning player a little.
+//! A damping cvar the player has moved off its default applies in `ejk` too, so
+//! `cg_thirdPersonCameraDamp 0` holds the camera still as in EternalJK (hub
+//! report #277).
 //! Range, height, angles, collision and vehicle framing are the same in both
 //! styles. A profile saved with the earlier default `sjk` moves to `ejk` once
 //! (`cg_cameraStyleDefaultVersion`, in the console's start); a style chosen
@@ -18,11 +21,16 @@ use crate::console::ViewerConsole;
 /// Archived cvar naming the camera style.
 pub(crate) const CVAR: &str = "cg_cameraStyle";
 
+/// Default of `cg_thirdPersonCameraDamp`.
+pub(crate) const DEFAULT_CAMERA_DAMP: f32 = 0.3;
+/// Default of `cg_thirdPersonTargetDamp`.
+pub(crate) const DEFAULT_TARGET_DAMP: f32 = 0.5;
+
 /// How the third-person camera follows the player.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum Style {
-    /// Locked at its ideal place behind the player: no camera or target
-    /// damping. SJK's default.
+    /// Locked at its ideal place behind the player, unless a damping cvar was
+    /// moved off its default. SJK's default.
     #[default]
     Ejk,
     /// Eases after the player with the damping cvars.
@@ -59,8 +67,20 @@ impl Style {
     pub(crate) fn damping(self, camera: f32, target: f32) -> (f32, f32) {
         match self {
             Self::Sjk => (camera, target),
-            Self::Ejk => (1.0, 1.0),
+            Self::Ejk => (
+                locked_unless_set(camera, DEFAULT_CAMERA_DAMP),
+                locked_unless_set(target, DEFAULT_TARGET_DAMP),
+            ),
         }
+    }
+}
+
+/// `value` if the player moved it off `default`, else 1, the locked camera.
+fn locked_unless_set(value: f32, default: f32) -> f32 {
+    if (value - default).abs() < 1e-4 {
+        1.0
+    } else {
+        value
     }
 }
 
@@ -94,6 +114,12 @@ mod tests {
         assert_eq!(Style::Sjk.damping(0.3, 0.5), (0.3, 0.5));
         assert_eq!(Style::Sjk.damping(0.0, 1.0), (0.0, 1.0));
         assert_eq!(Style::Ejk.damping(0.3, 0.5), (1.0, 1.0));
-        assert_eq!(Style::Ejk.damping(0.0, 0.0), (1.0, 1.0));
+    }
+
+    #[test]
+    fn ejk_honours_a_damping_the_player_changed() {
+        assert_eq!(Style::Ejk.damping(0.0, 0.5), (0.0, 1.0));
+        assert_eq!(Style::Ejk.damping(0.3, 0.8), (1.0, 0.8));
+        assert_eq!(Style::Ejk.damping(0.0, 0.0), (0.0, 0.0));
     }
 }

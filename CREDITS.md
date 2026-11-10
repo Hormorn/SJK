@@ -14,6 +14,8 @@ contributor's pull request: the credits page counts them on Sol's card
 includes:
 
 - the Sol JK name, README, credits and website;
+- the players' SJK page: sign-in from the game with the SJK key, joining keys,
+  video bounties and the Videographer medal (provisional art from Supporter's);
 - the SJK emblem, provided by Sol: in the classic menu's ring (in place of the
   retail logo video) and the SJK UI's holo ring, as the programs' and window's
   icons, and on the README, release notes and site;
@@ -141,6 +143,14 @@ includes:
   Mythical, always a saber shader (the ones not held first), a guaranteed Legendary or
   better every tenth crystal; the old kyber prism became the crystal and the Mythical
   holocron a faceted gold engram whose plates breathe round a glowing core;
+- holocron seasons (05/11/2026 design, built 10/11/2026): Beta holocrons of Rare and up
+  give a card with a rarity floor, a shader with a tier floor (Uncommon, Rare, Legendary;
+  Beta's own odds, and better Beta kyber crystal odds, 10/11/2026) and bonus rolls on top, with a pity (Legendary or better every 15, Mythical every 80) and card
+  faces not held yet; shown prize by prize, best last;
+- Forge fusion, the deal of the day and a wishlist (10/11/2026, Sol's request to make
+  crafting and the shop more used): duplicates of one tier fused into a shader of the next
+  not held yet, one offer a day at half price, and up to three wished shaders marked in the
+  shop with a card the day one is on offer;
 - the Legendary holocron's Sith pyramid sculpted anew (05/11/2026, art by Sol,
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
   the high-poly model, and normal maps on models whose shader names one (`normalMap`);
@@ -154,6 +164,8 @@ includes:
 - status bubbles (08/11/2026, Sol's idea): `cg_statusBalloons`, the chat bubble over an
   SJK player showing why it is up (dots lit in turn while typing, a pause sign in a menu
   or the console, a moon while alt-tabbed), its reason sent through the toy relay;
+- GIF tags (10/11/2026, Sol's idea): a Blank tag spent once by a verified player on a
+  GIPHY GIF, a tag that plays it on walls for good, opt-in (`cg_toyGifTags`);
 - tag collections (08/11/2026, Sol's decision): Alpha for SJK's own tags, Community for
   the ones players drew (Blep's EZ, Gonk and Geyon), each under its own heading in
   Collection > Tags;
@@ -441,10 +453,11 @@ includes:
   and livelier colour, live and off by default; since 08/11/2026 each player chooses it
   for their own model (`cg_toonModel`, the Character tab's Toon shading), synced through
   the hub look, and `r_toonModels`, on by default, shows those choices;
-- 3D sound (03/11/2026, after VisionJK's `v_spatial`, Blackwolf's idea): `s_spatial`
-  hears from the player's head, muffles sounds behind walls and shut doors and rings
-  the room round the player with a small reverb sized by rays, in SJK's own mixer,
-  off by default;
+- 3D sound (03/11/2026, after VisionJK's `v_spatial`, Blackwolf's idea; rebuilt
+  09/11/2026 as SJK's own acoustics engine): `s_spatial` hears from the player's head
+  through measured head filters, muffles sounds behind walls and shut doors by what
+  they are made of, brings them round corners and rings the room round the player
+  with its traced echo, off by default;
 - white edge on dark text (03/11/2026): `cg_darkTextOutline` rings black and other dark
   letters of nameplates and chat in a crisp white outline instead of the soft halo,
   off by default;
@@ -466,6 +479,14 @@ includes:
 - storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
   the game's own thunder after it, single gusts of wind heard as they rise, and rain
   running down walls and slopes in rivulets with drops along each slope's fall;
+- graphics presets in two families (10/11/2026): Vanilla, Vanilla Plus and the Solar
+  Renderer's Low to Ultra, rated green to red for the player's card with a recommended
+  pick, real-time lighting split into bounced light, lamp shadows and a time-of-day sky,
+  and named choices in place of sliders;
+- richer rain (09/11/2026): uneven wet streets with water gathering at walls, rivulets that
+  start under a wall's lip, spray and waves of rain in a downpour, the world mirrored in
+  every wet surface (`r_weatherReflections`), settled snow (`r_weatherSnowCover`) and
+  sliders for puddles, rain, haze and fog;
 - door and lift shadows on lamp light within a budget (09/11/2026, Sol's request): the
   lamp cache is baked again 16 chunks of 64×64 texels a frame at most, only where a
   mover's shadow changed, so `T2_Rancor` no longer spends 14 ms a frame on it;
@@ -793,7 +814,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 128 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 140 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1021,6 +1042,20 @@ asked before being peeked, told who watches, and can end it. His #206 (closed 25
 main had its own lazy card pictures) brought two pieces ported onto main: a picture the
 decoder panics on fails alone instead of stopping every later card picture, and card and
 medal pictures carry their own labels in `vram` and crash reports.
+- #390 MP camera: third person damping is honoured in the ejk style.
+- #391 A double click selects the search text in the cvar list, Settings and the server list.
+- #392 Profile: the model turns in the main menu too, the right button zooms it.
+- #393 Chat: Left and Right change the chat button while nothing is typed.
+- #394 Console: a held key types again.
+- #395 A click that brings the window back no longer attacks.
+- #396 A boombox on the floor is hidden in a private duel.
+- #398 SJK UI: a typed slider value opens a gold pill at the number's size.
+- #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK.
+- #403 The credits page counts the pull requests merged under older merge names.
+- #407 The Jedi Knight II HUD's selector bar opens behind the icons when the weapon, Force or
+  inventory selector shows, between lit prongs, as EternalJK draws it (hub report #301).
+- #405 Disruptor beams leave the gun's tip: another player's, yours in third person, and a
+  zoomed sniper shot, from the world gun's flash point as stock does (hub report #294).
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):
@@ -1052,7 +1087,9 @@ agreement): `boombox_place` stands SJK's boombox on the floor, its music quieter
 as VisionJK's does; SJK's code is its own.
 
 Blackwolf's VisionJK client and its 3D sound (`v_spatial`, Steam Audio) gave SJK the
-idea of its own 3D sound (`s_spatial`), built in SJK's mixer with his agreement.
+idea of its own 3D sound (`s_spatial`), built in SJK's mixer with his agreement; since
+09/11/2026 its acoustics also take VisionJK's table of what each shader is made of
+(`crates/sjk-acoustics/data/materials.txt`, GPL-2.0, with his approval).
 
 VisionJK's wet ground (`wet.frag`, GPL-2.0, with his approval) gave SJK's puddles their
 mirror (05/11/2026): the same screen-space march (32 steps from 2 units growing by 1.18,
@@ -1231,7 +1268,9 @@ coding assistant; such commits carry a `Co-Authored-By: Claude` trailer.
 
 OpenJK (`codemp`), EternalJK, JoF EJK and TaystJK/jaPRO are compatibility
 references for Jedi Academy behaviour; SJK reimplements that behaviour and does
-not include their code. The bundled Inter fonts keep their
+not include their code. The Jedi Knight II HUD's pictures
+(`crates/sjk-viewer/assets/hud/jk2`) are EternalJK's `hudfiles 2` graphics, by Bucky,
+used with Sol's approval. The bundled Inter fonts keep their
 [license](crates/sjk-viewer/assets/fonts/LICENSE.txt), the console font, JetBrains
 Mono by The JetBrains Mono Project Authors, keeps its
 [SIL Open Font License](crates/sjk-viewer/assets/fonts/JetBrainsMono-OFL.txt), the SJK UI's
@@ -1258,7 +1297,12 @@ manifest, hosts and checks, none of its code) and fetches JoF's files from JoF's
 repository (JoF Cloud and jofhub.eu) to each player who asks, the radial HUD is SJK's own take on TheRisqe's Radial HUD (none
 of its pictures included), the website's effects use
 the [Shaders](https://github.com/shader-effects-inc/shaders) library by Shader
-Effects Inc. under its [MIT license](site/assets/vendor/shaders/LICENSE), the
+Effects Inc. under its [MIT license](site/assets/vendor/shaders/LICENSE), the 3D sound
+hears through the KEMAR dummy head's impulse responses measured by Bill Gardner and
+Keith Martin at the MIT Media Lab (1994, free to use with credit,
+[KEMAR-README.txt](crates/sjk-audio/data/KEMAR-README.txt); turned into minimum-phase
+filters by `scripts/hrtf_kemar.py`) and follows the ideas of Valve's Steam Audio, none of
+its code, the
 credits' sign is the galactic credit's of the Star Wars setting, its outline after
 the one drawn on Wikipedia and redrawn by SJK from shapes, and other dependencies
 keep their respective licenses.

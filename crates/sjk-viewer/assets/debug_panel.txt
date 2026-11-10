@@ -24,6 +24,98 @@
 
 # ---- Console & chat ----
 
+[verified-gifs-pictures]
+area: Console & chat
+title: Only verified players' GIFs play; only they upload pictures
+change: An unverified sender's GIPHY link stays a link (chat box, docks, SJK chat page).
+change: The hub refuses a picture from a key that is not verified or staff.
+test: From an unverified key, post a GIPHY link: it shows as text on every client.
+test: From a verified key, the same link plays.
+test: Unverified, Profile > change picture > Use this picture: "Not sent: only players...".
+note: Needs the hub branch verified-pictures deployed for the picture rule.
+
+[change-sjk-name]
+area: Menus & settings
+title: Change name sets the SJK name
+change: SJK Profile tab > Change name opens "Your SJK name" in the bio's place.
+change: Save sends it to the hub as the custom name, shown instead of the worn one.
+test: Profile > SJK Profile > Change name: the field holds your hub name.
+test: Type a new name, Save: "Saved..."; the SJK chat and your card show it.
+test: Try another player's name: "Not saved: ..." with the hub's reason.
+
+[forge-shop]
+area: Menus & settings
+title: Forge fusion, deal of the day, wishlist
+change: Forge > Fuse (4): duplicates of one tier make a shader of the next you lack.
+change: Shop: the deal of the day (old price struck), wished and Beta offers marked.
+change: Wishlist of 3 (gift toggle); a card once a day when one is on offer; gold dots.
+test: Collection > Forge > Fuse: the proposal never takes a last copy; P proposes again.
+test: Click a card, + and -: the count stays at the fusion's; Fuse twice reveals the gain.
+test: T steps the tier; a tier without enough duplicates says how many more are needed.
+test: Shop: the deal shows its ribbon, "Was ..." struck and the halved price; buy it.
+test: Shaders card, Craft (W) and an offer: the gift toggle adds and takes off; 3 is full.
+test: Shop lists the wishlist; a dot on the Forge tab and Holocrons' Shop when one waits.
+test: Restart the same day: the wishlist card does not come back; it does the next day.
+note: Needs the hub branch forge-shop deployed; an older hub shows none of it.
+
+[holocron-seasons]
+area: Menus & settings
+title: Holocron seasons: Beta holocrons, guaranteed prizes, bonus rolls, pity
+change: A Beta holocron of Rare+ gives a floored card, a floored shader, and bonuses.
+change: Its prizes reveal one by one, the best last. Loot table: B shows the Beta page.
+test: debug_open mythical beta: card, shader, shards, second card, best last.
+test: debug_open rare beta: the Rare gives an Uncommon or better shader too.
+test: Holocrons tab > Loot table > B: the Beta page fits; B again, Esc back.
+test: Kyber crystal row > Loot table > B: the Beta crystal odds (Mythical 50/50).
+note: Live only once the hub branch beta-season is deployed and Beta opened (hub switch).
+
+[sjk-page]
+area: Menus & settings
+title: Your SJK page: identity site, identity link, video bounties
+change: identity site opens SJK's web page signed in with your key (no password).
+change: identity link <code> joins this key to the account that made the code on the page.
+change: Needs the hub with the site on (not deployed yet): test against a local hub.
+test: Local hub: serve --site-host localhost:8787 --site-dev; cl_hubUrl http://127.0.0.1:8787
+test: identity site: the browser opens the page signed in; the console never shows the link.
+test: On the page, Make a code; in another install, identity link <code> names your account.
+test: identity link <code> confirm: the page lists both keys; the code no longer works.
+test: Send a bounty video link; accept it on the panel; Claim the reward in game.
+note: Videographer medal art is provisional (Supporter's frame, blue ribbon, camera).
+
+[emote-music-waits]
+area: Audio
+title: An emote's music waits for its decoder (hub report #270)
+change: Music not decoded yet starts when it is, as far in as the song is by then.
+change: Before, it was dropped after 300 ms and the dance stayed silent.
+test: Right after a map change or a join, watch a player dance: the music is heard.
+test: Start and stop your own emote: its sound starts at once and stops with it.
+test: A synced emote still plays in step with its leader.
+
+[grapple-release]
+area: Input
+title: +grapple lets go of the hook every time (hub report #238)
+change: On JA+ servers the release's +use lasts two commands instead of one.
+test: bind g +grapple on a JoF server: hook and let go about 100 times, it always lets go.
+test: Hooking again right after letting go still fires.
+
+[voice-language]
+area: Audio
+title: s_language: French, German and Spanish voices (hub report #289)
+change: s_language francais, deutsch or espanol (or french, german, spanish) picks the voices.
+change: A voice the language lacks stays English, as in retail.
+test: s_language francais, snd_restart: Kyle's and players' voices are French.
+test: s_language english, snd_restart: English voices again.
+test: Weapons, sabers and menu sounds stay the same in every language.
+
+[strafe-helper-japro]
+area: HUD
+title: Strafe helper on jaPRO servers, by movement style (hub report #283)
+change: cg_strafeHelper was off on every jaPRO server; it now uses your style's physics.
+change: Nothing is drawn in Siege style, as in JoF EJK.
+test: On a jaPRO server: strafehelper 1, strafe-jump in JKA style: the lines show.
+test: /move cpm: the lines still show and sit at CPM's angles; /move siege: none.
+test: On a JoF or stock server the helper looks as before.
+
 [rgb-model-colour]
 area: Rendering & effects
 title: RGB models (char_color) show the colour as in retail, not pale
@@ -32,6 +124,40 @@ change: so 128 is half brightness again and dark colours stay dark (female Twi'l
 test: Character page: pick an RGB model, set a dark colour (60 30 30): stage shows dark red.
 test: Online, look at a player on an RGB model: colour matches what they see in EJK.
 test: Force shells (protect, absorb) and pickups look as before.
+
+[mapedit-ingame-fly-align-measure]
+area: Menus & settings
+title: Map editor: fly-to, F frame, texture alignment, caulk preview, measure, grow
+change: Double click an edit, thing, light or lamp (or F on the selection): the camera glides there.
+change: Align on a drawn caulk face shifts, turns, scales, flips, fits its texture; caulk previews.
+change: Place > Surface stands models along walls and slopes; M measures; Ctrl + - I grow/shrink.
+test: mapedit, Edits: double click a placed model's row: the view glides to it, body stays put.
+test: Click a wall, fly away, F: the view comes back to frame it, same direction.
+test: Draw a texture on a caulk face, Align: Left, Turn left, Bigger, Fit move it; Ctrl+Z undoes.
+test: An older client (main before this) loads that map's edits and shows the face unaligned.
+test: Click another caulk face, rest the pointer on a list row: the face shows it; move off: gone.
+test: Place > Surface on, aim at a wall, Place: the model sticks out of the wall; on a slope leans.
+test: Grab it with Surface on: it follows walls and floors, turning to each.
+test: M, click two points: a gold line and "N u dx dy dz"; a third click starts again; Esc stops.
+test: Click a floor surface, Ctrl and +: its neighbours join; Ctrl and -: the edge leaves.
+test: Select placed models, Ctrl+I: the other placed models are selected instead.
+
+[mapedit-ingame-guesses-selections]
+area: Menus & settings
+title: Map editor: texture guesses, live preview, hover, box select, Same shader, Ctrl+D
+change: Every shader list starts with Suggested rows (nearby, same family, on map); resting on one
+change: previews it on the map. Hover outline and tip, box select (drag), Same shader, Ctrl+D copies.
+change: A click on a physics clip or trigger now selects what is behind it.
+test: mapedit, click a wall: the list starts with rows marked "% nearby", "same family", "on map".
+test: Rest the pointer on one: the wall (and every wall of its shader) shows it; move off: back.
+test: Remap after a preview: one Ctrl+Z takes it back; the preview alone saves nothing.
+test: Move over the scene: faint white dots and a tip ("Surface: ...") follow the pointer.
+test: Drag on the scene: a box selects what it covers; Shift+drag adds, Ctrl+drag removes.
+test: Ctrl+click a selected surface: it leaves the selection.
+test: Same shader: every surface of that shader is selected (the answer says how many).
+test: Select a placed model, Ctrl+D: a copy 16 units to the right, selected; G moves it.
+test: Place > Select all: every placed model is selected.
+test: duel6: click a physics clip wall: the wall or caulk behind is selected, not "Hidden face".
 
 [mapedit-ingame-pictures-lights]
 area: Menus & settings
@@ -49,6 +175,12 @@ test: Place > Things: Your boombox, click the floor: it stands there; Remove tak
 test: Edits > Invisible brushes Caulk (or B): caulk, nodraw and invisible walls show; Off hides.
 test: Select a placed model, Ctrl+C, point elsewhere, Ctrl+V: a copy with its turn and scale.
 test: Close the panel (mapedit): no cost left; reopen: the pictures load again.
+[chat-arrow-tabs]
+area: Console & chat
+title: Left and Right change chat button while nothing is typed
+change: With an empty chat line the Left and Right arrows go through the chat buttons in Tab's order.
+test: Open the chat, press Right and Left: All, Team, SJK and the rest change, round at each end.
+test: Type some text: Left and Right move the caret and the button stays.
 
 [lamp-cache-budget]
 area: Rendering & effects
@@ -391,7 +523,7 @@ change: Idea from VisionJK's v_spatial (Blackwolf); SJK's own, no Steam Audio.
 test: Settings > Sound > 3D sound on. A player shooting behind a wall: duller, then clear in view.
 test: Close a door between you and a sound: muffled. Walk outside: little reverb; a hall rings.
 test: Third person: turning the camera does not change what is muffled. Off: sounds as before.
-note: Not heard in game yet. soundinfo / s_spatial 0 to compare.
+note: Replaced 09/11 by the acoustics engine, see [acoustics] below.
 
 [join-stack-overflow]
 area: Gameplay
@@ -4736,6 +4868,13 @@ test: With no skin, retail and RGB blades look exactly as before.
 note: Needs the hub's unlocks and asset packs (SJK-hub #2 and #3), not deployed when merged.
 note: Not run in a game against the deployed hub; the sounds have not been heard yet.
 
+[disruptor-beam-tip]
+area: Rendering & effects
+title: Disruptor beams leave the gun's tip (Slash, PR #405, hub #294)
+change: Another player's beam, yours in third person and a zoomed shot start at the gun's flash.
+test: Watch another player fire the disruptor: the beam leaves their barrel, not their chest.
+test: Fire in third person, then zoomed in: the beam starts at the gun, not where it was before.
+
 # ---- Audio ----
 
 [saber-toggle-spam]
@@ -4794,6 +4933,19 @@ test: Turn round with a sound running: it moves to the other ear.
 test: Fire at a wall on your left: the impact plays mostly in the left ear.
 
 # ---- Gameplay ----
+
+[gif-tags]
+area: Gameplay
+title: GIF tags: a blank tag spent once on a GIPHY GIF that plays on walls
+change: Blank tag (Rare, drops as other tags): its card pastes a GIPHY link, Make twice.
+change: GIF tags are opt-in: cg_toyGifTags 0 by default (card switch, Settings).
+change: Needs the hub's gif-tags branch (not deployed yet): test against a local hub.
+test: Local hub, your key verified and holding tag_blank; cl_hubUrl http://127.0.0.1:8787
+test: Collection > Tags > Blank: GIF tags on, copy a giphy.com link, Paste link: it plays.
+test: Make, Make again: the blank goes, the GIF tag shows under GIF tags; Choose it.
+test: toy_tag on a wall: the GIF plays there; cg_toyGifTags 0: it goes, sticking refused.
+test: A second client with GIF tags on sees it; with them off it does not, nor hears it.
+note: Unverified key or old hub: the card says why Make waits.
 
 [wall-grab-lock]
 area: Gameplay
@@ -9235,6 +9387,31 @@ test: Switch presets: Volumetric clouds stays as you set it; a new profile has i
 test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
 test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
 
+[solar-renderer]
+area: Menus & settings
+title: Graphics presets: Vanilla / Vanilla Plus / Solar Renderer Low-Ultra, rated for your PC
+change: Six presets; marks green to red by the card's VRAM; Recommended row picks the best green.
+change: Sun and sky is Real-time lighting; Bounced light, Lamp shadows, Time-of-day sky split off.
+change: Named dropdowns: shadow softness/resolution/distance, texture detail, day length, weather.
+test: Settings > Graphics: preset list shows six with coloured dots; yours green up to Ultra.
+test: Recommended for this PC: sets the green pick; old SJK profile reads Vanilla Plus.
+test: Solar Low and Medium on a big map: loads and looks right without bounce/lamp shadows.
+test: Vanilla Plus + Time-of-day sky + hour 20: sky turns to dusk after vid_restart.
+test: Classic+ menus: GRAPHICS panels show the new rows and the preset list.
+
+[weather-looks]
+area: Rendering & effects
+title: Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
+change: Wet ground in patches, water at wall feet; rivulets start under the lip, widen down.
+change: Spray and rain waves in a downpour; r_weatherReflections 1 sky, 2 puddles, 3 all.
+change: Sliders: r_weatherPuddles, RainOpacity, Haze, FogDensity; r_weatherSnowCover (off).
+test: T2_Rogue, r_weatherForce 3, r_weatherQuality 3: lit windows streak across the wet street.
+test: r_weatherReflections 1/2/3: sky only, puddles only, every wet surface. FPS stays close.
+test: Walls in rain: rivulets begin under the top, wider low down, wall foot darker.
+test: Look along the street in the storm: a low spray drifts over the ground, no halo.
+test: r_weatherForce 4 + Settings > Snow settles: snow lies in drifts within ~6 s, melts off.
+test: Each slider moves its look live; 0 haze clears the air.
+
 [japlus-mode]
 area: Gameplay
 title: SJK's server as a JA+ server (g_mod japlus), step 1: identity, settings, movement
@@ -9521,6 +9698,13 @@ test: Confirm: shards rise, counts fall, a worn last copy comes off the saber.
 test: Escape stops picking. A locked shader cannot be picked.
 note: Needs hub shared #16 deployed; without it the Select chip does not show.
 
+[forge-craft-held-search]
+area: Menus & settings
+title: Forge Craft search names a held shader (Slash, hub #305)
+change: Craft lists only shaders you lack; a search for a held one now says it is yours already.
+test: Forge > Craft, / and a held shader's full name: the empty list says Yours already.
+test: Search a word that also finds shaders you lack: the intro names the held ones.
+
 [malachor-rose-300]
 area: Rendering & effects
 title: Malachor Rose blade 300 (Creyon, #378, after Foshin's idea)
@@ -9579,3 +9763,132 @@ change: A row under Ignore server caps; both rows say Heimdall may kick you.
 test: Settings > Display: Fresh command stamps under Ignore server caps, help in two lines.
 test: Turn both on, join JoF at 142 FPS: help_tickrate says 7 ms steps, no restart asked.
 note: Both on = the timing of 2026.1028.1 that #385 asked for (closed as a duplicate).
+
+[ground-hud-toy-cameras]
+area: HUD
+title: Ground HUD stays during ragdoll, Peek and Hax
+change: A toy that borrows the camera no longer swaps the ground HUD for the normal HUD.
+test: Set cg_groundHud 1 in third person on a server and go limp (toy_ragdoll).
+test: The numbers stay at your feet and the normal status HUD does not appear.
+test: In the free camera the normal HUD still shows, as before.
+
+[box-hunt-amghost]
+area: Gameplay
+title: Box hunt: amghost on yourself is cheating
+change: A JA+ admin who sends amghost on themselves during a chase is out (hub report #240).
+test: As a logged-in JA+ admin in a box hunt, send amghost: you are out or blow up.
+test: amghost <another player's number> changes nothing for your hunt.
+note: A player already a ghost before the chase began is not caught; the client cannot see it.
+
+[dlight-shadow-rays]
+area: Rendering & effects
+title: Saber and blaster light shadows cost about 40 % less on the GPU
+change: The walls-stop-lights trace does one ray per GPU thread: 0.38 -> 0.23 ms at 4K.
+test: r_drawTimings 1 in a saber fight: dlight-shadows reads lower than before.
+test: Saber light next to a wall: the wall still stops it, shadows look as before.
+
+[timings-panel-top-right]
+area: HUD
+title: Frame timings panel at the top right, movable in the HUD edit mode
+change: r_drawTimings draws its panel from the top right corner; hud_edit outlines and drags it.
+test: r_drawTimings 1: the panel is at the top right, clear of the kill feed in a fight.
+test: hud_edit in a game: Frame timings is outlined; drag it, leave, it stays there.
+test: Right-click it in hud_edit (or hud_edit reset timings): back to the top right.
+
+[acoustics]
+area: Audio
+title: 3D sound rebuilt: measured head, walls by material, corners, room echo
+change: s_spatial now: sounds all round the head (front, back, up, down) through a KEMAR head.
+change: Walls muffle by material per band; a hidden sound comes round a corner or doorway.
+change: Room echo traced from its walls; 09/11 fix: well under the sounds (was clipping), ~1 s.
+test: Headphones, s_spatial 1: a player circling you sounds behind you when behind.
+test: Close a door between you and a sound: muffled; open it: heard from the doorway.
+test: Small room vs big hall vs outside: short ring, long ring, almost none.
+test: Settings > Sound: 3D sound for headphones off pans; room echo 0 to 2 changes the ring.
+test: After the fix: the echo sits behind the sounds, nothing distorts; say if too dry or too wet.
+note: Sol 09/11: first try loud and unreadable. Fix not heard yet.
+
+[camera-damp-ejk]
+area: Rendering & effects
+title: cg_thirdPersonCameraDamp and TargetDamp work in the ejk camera style
+change: Each damping cvar moved off its default (0.3 camera, 0.5 target) now applies in ejk too.
+test: cg_cameraStyle ejk, defaults: the camera stays locked to the player as before.
+test: cg_thirdPersonCameraDamp 0: the camera holds still and looks at the player, as in EternalJK.
+test: cg_cameraStyle sjk: unchanged.
+
+[search-double-click]
+area: Menus & settings
+title: A double click selects a search field's text (akr's idea, #391)
+change: Commands and cvars list, Settings, server list. Ctrl+C in the list copies a selected search.
+test: Type in each search, double click: the text is selected; a single click drops it.
+test: Commands and cvars list: double click, Ctrl+C, paste elsewhere: the search text.
+
+[profile-turn-zoom]
+area: Menus & settings
+title: Profile: turn the model in the main menu, right drag zooms (akr's idea, #392)
+change: Over the menu map the first drag moves the model into the live preview, which can turn.
+test: Main menu, SJK UI, Character and Force: drag turns the model, right drag zooms it.
+test: In game, Profile: the same. Reopen the screen: turn and zoom are reset.
+
+[console-held-key]
+area: Console & chat
+title: Console: a held key types again (report #282)
+change: The console's typing branch dropped every key repeat.
+test: Open the console, hold a letter: it repeats.
+test: Hold a dead key: the accent arms only once. History keys repeat as before.
+
+[focus-click-no-attack]
+area: Input
+title: A click that brings the window back no longer attacks (report #281)
+change: The press within 250 ms of getting focus, and its release, stop before the game bindings.
+test: In game, alt-tab away, click the window: no attack. Click again: it attacks.
+test: With a menu open, the click that brings the window back still reaches the menu.
+
+[boombox-private-duel]
+area: Gameplay
+title: A boombox on the floor is hidden in a private duel (report #271)
+change: No floor boxes are drawn while the viewed player is in a private duel.
+test: Place a boombox, start a private duel: the box is gone, the music is unchanged.
+test: End the duel: the box is back. A box on a shoulder stays.
+
+[slider-gold-pill]
+area: Menus & settings
+title: SJK UI: typed slider values in a gold pill at full size (#398)
+change: Replaces the small red box. It widens left when needed and limits the digits to the slider's.
+test: Settings, type a value on a slider: dark gold-edged pill, same size as the number.
+test: An invalid value turns the edge ember. Classic+ keeps its own look.
+
+[jk2-hud]
+area: HUD
+title: Jedi Knight II HUD: cg_hudFiles 2 (#399)
+change: Settings > HUD lists Jedi Knight II, with a preview. cg_hudFiles 1 is still the text HUD.
+test: Settings > HUD: pick Jedi Knight II. Health, armor, Force and ammo draw and drain.
+test: Low health blinks. On a wide screen the corners keep to their edges.
+
+[jk2-hud-selector]
+area: HUD
+title: JK2 HUD: selector bar opens behind the icons (Slash, PR #407, hub #301)
+change: cg_hudFiles 2: the weapon, Force and item bars open a background between lit prongs.
+test: cg_hudFiles 2, change weapon: the bar opens, the prongs glow yellow and move in.
+test: Cycle Force (blue) and items (light blue); the bar closes after 1.4 s, grey prongs stay.
+
+[assets-folder]
+area: Menus & settings
+title: GameData/assets folder for PK3s, subfolders included
+change: PK3s in GameData/assets and below load as if in base, sorted by file name.
+test: Move a custom model's PK3 to assets/personal: it is still in the Profile after fs_restart.
+test: Move a map PK3 to assets/jof: Create game lists it and the local server starts on it.
+test: assetbrowser lists assets/personal/name.pk3, and disabling it takes effect.
+test: With GameData/assets/S/base there, sith.downloads names that folder, a base copy is kept.
+
+[jof-check-assets]
+area: Menus & settings
+title: JoF content finds files tidied into GameData/assets
+change: A JoF or Sith file anywhere under GameData/assets counts as already in the game folder.
+test: With JoF PK3s moved to assets/jof, jof.downloads lists them as in the game folder.
+
+[credits-pr-count]
+area: Menus & settings
+title: Credits count the pull requests of older merge names (#403)
+change: Merges named "Merge PR #N (Author): title" or "Merge PR #N" count as pull requests.
+test: Main menu > Credits: Slash's card shows 138 pull requests, Sol's 32.

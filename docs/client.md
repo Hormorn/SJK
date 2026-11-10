@@ -45,6 +45,17 @@ Enter, Space or a click toggles it. Choices save immediately and apply at
 `EternalJK` packs, including disabled packs, and protects retail
 `base/assets0.pk3` through `assets3.pk3` from disabling.
 
+PK3s can be tidied away from `base` into `GameData/assets` and any subfolders under it
+(`assets/jof`, `assets/personal`). Create the folder yourself; every PK3 in it and below it
+loads as if it were in `base`, sorted by file name among `base`'s, so moving a pack there
+changes nothing about which pack wins. The folder holds PK3s only: loose files are not
+read, links are not followed, and the four retail archives stay in `base`. The client,
+the local server (its maps and configs), the material generator and the check for packs
+already owned before a download all see them; server downloads and JoF content keep
+their own places, and the Sith cloud uses `assets/S` once the SJK Launcher has made it
+([Sith cloud](sith-cloud.md#where-the-files-go)). In `fs_disabledPaks` such a pack is named by its own folder
+(`jof/name.pk3`), and a pack directly in `assets` as `assets/name.pk3`.
+
 `fs_restart` mounts the installed game files again without restarting SJK
 ([fs_restart.rs](../crates/sjk-viewer/src/fs_restart.rs)), as the original game's
 `FS_Restart` searched its paths again: PK3s added or changed since the start, and the
@@ -1413,7 +1424,7 @@ their choice.
 
 | Value | Camera |
 | --- | --- |
-| `ejk` (default, MP camera) | Sits at its ideal place every frame: no camera or target damping, whatever the damping cvars say. |
+| `ejk` (default, MP camera) | Sits at its ideal place every frame, unless `cg_thirdPersonCameraDamp` or `cg_thirdPersonTargetDamp` is moved off its default (0.3, 0.5): the changed one then applies, so `cg_thirdPersonCameraDamp 0` holds the camera still. |
 | `sjk` (SP camera) | Eases towards its ideal place with `cg_thirdPersonCameraDamp` and `cg_thirdPersonTargetDamp`, as described above, so it trails a moving or turning player a little. |
 
 An unknown value selects `ejk`. `ejk` became the default on 08/10/2026 (Sol's
@@ -1777,48 +1788,130 @@ the camera's axes.
 ## 3D sound
 
 `s_spatial` (Settings > Sound, 3D sound; off by default, archived; Sol's, 03/11/2026,
-after the idea of VisionJK's `v_spatial` by Blackwolf) gives the sounds of the level
-three things the 2003 mixer lacks, in SJK's own mixer (no Steam Audio, no library):
+after the idea of VisionJK's `v_spatial` by Blackwolf, rebuilt 09/11/2026 as SJK's own
+engine to the level of Steam Audio's) gives the sounds of the level what the 2003 mixer
+lacks. It is SJK's own Rust code ([sjk-acoustics](../crates/sjk-acoustics/src/lib.rs)
+and the mixer's [spatial_fx.rs](../crates/sjk-audio/src/spatial_fx.rs)): it follows the
+ideas of Valve's Steam Audio and of VisionJK, with none of their code and no library to
+install.
+
+| Cvar | Default | Meaning |
+|------|---------|---------|
+| `s_spatial` | 0 | 3D sound on |
+| `s_spatialHeadphones` | 1 | through the head, for headphones (Settings: "3D sound for headphones"); 0 panned left and right, for speakers |
+| `s_spatialReverb` | 1 | how loud rooms ring, 0 to 2 (Settings: "3D sound room echo"); 0 traces no room |
 
 - **Hearing from the head.** The listener is the player's predicted origin raised to
   the camera's height, kept between crouching and standing eye height (12 to 36 units),
   so in first person the eyes and in third person the head, not the camera circling it;
-  left and right stay the camera's. A camera more than 160 units from that point (a
-  spectator, the drone, the free camera) or no predicted player puts it back at the
-  camera, as VisionJK's `S_SpatialHearing` does.
-- **Occlusion.** About 15 times a second the render thread traces from that point to the
-  world sounds heard in the last 8 seconds (48 at most, 16 a tick, three point rays each:
-  straight, 24 units higher, 24 units to the side), against the map's solid brushes and
-  the doors and lifts where they are shown (`LocalPrediction::presented_solids`, each
-  tried only when the ray crosses its box). The share of rays blocked is the source's
-  occlusion, 0 to 1; a wall within 16 units of the sound is the one it is on (an impact)
-  and does not count, and sources past 2000 units are not traced. The mixer glides each
-  voice and loop toward it over about 50 ms and blends the sound with itself through a
-  one-pole lowpass at 700 Hz and 0.45 of the gain, so a fully occluded sound is quieter
-  and dull. The player's own, listener-relative and global sounds are never occluded.
-- **Reverb.** 32 rays round the hearing point (a Fibonacci sphere, 8 a tick, so a new
-  room every quarter second) measure the room: the share that meets a wall within 2048
-  units (not the sky) and their mean distance give a size (64 units a cupboard, 1024 a
-  hall) and a wet level (at most 0.6, less the more open), which a small Schroeder
-  reverb in the mixer (four combs and two allpasses an ear, Freeverb's lengths) glides
-  to over 0.4 s. Its input is a send (a fixed buffer of 4096 frames in the mixer)
-  that only voices and loops placed in the world and fading with distance feed, the
-  player's own placed sounds included; menu cues, the announcer, listener-relative and
-  global sounds and the music stay dry. Out of a map the room is dry.
+  the head turns as the camera does (its forward, right and up). A camera more than 160
+  units from that point (a spectator, the drone, the free camera) or no predicted player
+  puts it back at the camera, as VisionJK's `S_SpatialHearing` does.
+- **Through the head** ([hrtf.rs](../crates/sjk-audio/src/hrtf.rs),
+  [binaural.rs](../crates/sjk-audio/src/binaural.rs)). Each sound placed in the world is
+  filtered for each ear by the head-related impulse responses of a KEMAR dummy head
+  measured at the MIT Media Lab (Gardner and Martin, 1994, the diffuse-field equalized
+  set, free to use with credit; `scripts/hrtf_kemar.py` makes
+  `crates/sjk-audio/data/hrtf_kemar.bin`, 98 KB): 368 directions of the right half, the
+  left half mirrored, each a 64-tap minimum-phase filter per ear and the delay the far
+  ear hears it later (up to about 30 samples, 0.7 ms). A direction between measured ones
+  blends the two nearest on each of the two nearest rings of elevation; a change of
+  direction crosses over within the 128-frame block, so a moving sound never clicks.
+  So a sound is in front, behind, above or below, not only left or right. With
+  `s_spatialHeadphones 0` it is panned as the old mixer pans, with everything else
+  below. A sound within 8 units of the head, and the player's own, play in both ears as
+  before.
+- **What is in the way** ([direct.rs](../crates/sjk-acoustics/src/direct.rs)). 20 times
+  a second for each world sound heard in the last 8 seconds (64 at most): rays from the
+  head to 12 points round it (16 units out; points the sound itself cannot see, under
+  the floor it stands on, do not count) give the share in sight; along the straight
+  line each wall entered takes its material's share per band (low under 500 Hz, mid,
+  high over 4 kHz), and the hidden share is heard through them. A sound hidden from the
+  head looks for a way round one corner: 20 rays from it and 20 from the head, and
+  points along them the other end sees. The shortest such way, when it carries more
+  than the walls, is heard from that point (the doorway, the corridor's end), quieter
+  by the longer way (1/r) and duller the more it bends (3, 7 and 12 dB at a right
+  angle in the three bands). Nothing is baked: a door shut or open counts as it is
+  shown, and a sound two rooms away comes through the walls only. A wall within 12
+  units of the sound is the one it is on (an impact) and does not count, and sounds
+  past 2500 units are not traced. A sound inside a door's or lift's box (where the game
+  puts their sounds) is moved out of it toward the listener first, as VisionJK does.
+  The mixer glides each sound's three band gains there over about 50 ms through a
+  three-band split (two second-order lowpasses, the bands adding back up to the sound).
+- **The room** ([room.rs](../crates/sjk-acoustics/src/room.rs)). On its own thread, every
+  0.12 s or after resting as long as the last pass took: 2048 rays from the head (a
+  Fibonacci sphere turned anew each pass) followed for 24 walls. At each wall its
+  material swallows its share per band, a fifth more whatever it is (`FURNISHED`: the
+  game's rooms are bare boxes, which rang 2 to 3 s) and the air a little of the highs.
+  The finished response is turned down to 0.015 of its traced energy and to at most 0.04
+  (`WET`, `LOUDEST`; 1 is a sound 128 units away in the open): traced as physics has it,
+  the rooms of mp/ffa3 and mp/ffa5 rang 8 to 11 dB louder than the sounds themselves and
+  the mix clipped. The share the wall
+  scatters reaches the head straight from there when nothing is between (diffuse rain),
+  the rest mirrors on, and a mirrored ray passing within 48 units of the head is heard
+  too. What arrives is kept in 5 ms bins per band and per ear, each ear getting what the
+  head's filters give that direction, so a wall on the left rings in the left ear first.
+  Where a tenth of the rays have run out of walls the decay before is carried on; passes
+  within 48 units of each other are averaged (the newest weighs 0.35). Fixed
+  band-limited noise per ear shaped by that table is the impulse response, cut 60 dB
+  down, at most 3 s, as loud as a sound 128 units away in the open. The mixer convolves
+  the mono mix of the sounds placed in the world (the player's own placed sounds
+  included; menu cues, the announcer, listener-relative and global sounds and the music
+  stay dry) with each ear's response, uniformly partitioned in 128-frame blocks
+  ([convolver.rs](../crates/sjk-audio/src/convolver.rs), one block of delay), and a new
+  response crosses over from the old in 16 blocks (46 ms). The sky swallows a ray; out
+  of a map, or with `s_spatialReverb 0`, the room is dry.
 
-Only numbers cross to the audio thread, on the usual command queue
-(`AudioCommand::SpatialEffects`, `SourceOcclusion`, `Reverb`;
-[audio_spatial.rs](../crates/sjk-viewer/src/audio_spatial.rs), the mixer's side in
-[spatial_fx.rs](../crates/sjk-audio/src/spatial_fx.rs)). No behaviour is keyed to a
-sound's file name and no material is read. Every table is fixed: the tick, the mixer
-and the reverb allocate nothing (checked with `assert_no_alloc`). Off, nothing is
-traced or sent and the mixer takes its plain path, its output bit for bit what it was
-(`switched_off_the_mix_is_bit_identical_whatever_was_measured`). Measured on Windows
-11 in release (`spatial_mix_cost`, ignored test), a 128-frame block with 128 voices and
-32 loops busy took about 23 us off and 53 us on, against its 2.9 ms of playback. Unit
-tests: the hearing point, occlusion from rays and its glide, muffling, loops, the room
-from its rays, the reverb bounded and dying away, a larger room ringing longer. Not yet
-heard in a game.
+**The level's walls** ([scene.rs](../crates/sjk-acoustics/src/scene.rs),
+[bvh.rs](../crates/sjk-acoustics/src/bvh.rs)). When a level loads, the acoustics' thread
+takes every side of a solid brush (`brush_side_polygon`) and every solid curve (its
+collision grid, `Bsp::patch_collision_grid`) as triangles in a bounding volume
+hierarchy (binned surface-area splits, 4 triangles a leaf); each brush model (`*1`...) is
+a tree of its own, placed each frame where the game shows it
+(`LocalPrediction::presented_solids`, turned as collision turns it). Each triangle has a
+material ([material.rs](../crates/sjk-acoustics/src/material.rs)): VisionJK's table of
+shader names and materials first (`crates/sjk-acoustics/data/materials.txt`, 1459
+shaders, by Blackwolf, GPL-2.0, used with his agreement), then the material the level's
+shader names (`MATERIAL_MASK` of its surface flags), else a plain wall; a side not drawn
+(caulk) is what its brush's drawn sides are made of, and the sky swallows everything.
+The numbers per material (absorption and transmission per band, scattering) are SJK's
+own, after common published absorption tables, and game-friendly: hard surfaces swallow
+a few times more than bare ones (a level is furnished, not a sealed concrete box ringing
+for seconds), and walls let more through than real ones (concrete 0.18, 0.06 and 0.02 of
+the amplitude in the three bands).
+
+**Threads.** `sjk-acoustics-direct` builds a level's walls and then traces the sounds;
+`sjk-acoustics-room` traces the room, with 2 threads of its own for a pass. The render
+thread fills their snapshot in place each frame (no allocation once its lists have
+grown) and forwards what comes back on the usual command queue
+(`AudioCommand::SourceAcoustics`, `RoomResponse`, `SpatialHeadphones`, `ReverbGain`;
+[audio_spatial.rs](../crates/sjk-viewer/src/audio_spatial.rs)). A response the mixer no
+longer uses goes back to the decode worker to be freed: the audio thread allocates and
+frees nothing (checked with `assert_no_alloc`). Switched off, the threads stop, nothing
+is traced or sent and the mixer takes its plain path, its output bit for bit what it
+was (`switched_off_the_mix_is_bit_identical_whatever_was_measured`). No behaviour is
+keyed to a sound's file name.
+
+**Measured** on Windows 11 in release, 09/11/2026 (Ryzen 9 5900X class desktop):
+
+- The mixer (`spatial_mix_cost`, ignored test), a 128-frame block (2.9 ms of playback)
+  with the listener turning every block (every filter crossing over) and a 3 s room:
+  32 voices and 32 loops 326 us (off 15 us), 128 voices and 32 loops 715 us (off 23 us).
+  About 4 us a sound placed in the world, the room about 70 us.
+- The acoustics (`retail_levels`, ignored test reading the installed game): mp/ffa3's
+  walls in about 60 ms, mp/ffa5's 64070 triangles in 58 ms, mp/duel1 3 ms; a room pass
+  of 2048 rays and 24 walls 1 to 30 ms on 2 threads, 48 sounds' straight ways and
+  corners about 2 ms (20 times a second: about 4 % of one core).
+
+Unit tests: the head's filters (a sound on the right louder and sooner in the right ear,
+straight ahead alike, smooth between directions), a block of filtering the same as two
+halves, the band split, the convolution against a direct sum and its crossover, the
+mixer off bit for bit and with speakers the old panning, walls gliding in and taking the
+highs, voices started behind a wall, loops through the head, only world sounds ringing,
+the tree's rays against trying every triangle, a doorway heard from its side and a
+sealed wall through concrete, a hall ringing longer than a cupboard, a wall on the left
+ringing in the left ear, the open sky dry. **Not yet heard in a game**: the strengths
+(walls, corners, the room's loudness) are first choices, to be tuned by ear.
 
 ## Weather sounds
 
@@ -1892,6 +1985,12 @@ the HUD (`cg_drawHud`), following `cg_hudScale`. Unit tests: the bearing, the ri
 filters, the fade and falloff, the arc's place and scale.
 
 ## Voice volume
+
+`s_language` (console only, default `english`) picks the voices as retail does:
+`deutsch`, `francais` or `espanol` (and `german`, `french`, `spanish`) reads a path's
+`chars` as `chr_d`, `chr_f` or `chr_e`, the folders in `assets0.pk3`, and a voice the
+language lacks stays English (`snd_mem.cpp`). Sounds already loaded change at the next
+`snd_restart`.
 
 `s_volumeVoice` (Settings > Sound, Voice volume; 0 to 1, default 1) is the loudness of
 voices: every sound on the voice channels (`CHAN_VOICE`, `CHAN_VOICE_ATTEN`,
@@ -2246,6 +2345,18 @@ with a `width` or `height` as `WP_ROCKET_LAUNCHER`, so before 03/11/2026 the AT-
 red laser (`atst_laser`, 8 by 8) burst in a rocket's explosion instead of
 `atst/wall_impact` (Kushina's report). A weapon without `impactFX` keeps the carrier's.
 
+A disruptor beam (`EV_DISRUPTOR_MAIN_SHOT`, `EV_DISRUPTOR_SNIPER_SHOT`) starts at the
+shooter's gun, not at the server's muzzle point in `origin2` (`cg_event.c:2805-2860`):
+the local first-person shooter's at the view gun's `tag_flash` of the last frame
+(`cg.lastFPFlashPoint`), anyone else's, and the local player's in third person, at
+their world gun's flash bolt as last drawn (`CG_GetClientWeaponMuzzleBoltPoint`,
+[world_muzzles.rs](../crates/sjk-viewer/src/world_muzzles.rs)). A gun not drawn on
+the last frame keeps the server muzzle. Stock keeps the view gun's last flash point
+while the gun is hidden, so a zoomed sniper shot started where the gun was before
+zooming in; SJK uses the server muzzle then. Before 10/11/2026 SJK started every
+beam but the local first-person one at the server muzzle, in front of the chest
+(hub report #294).
+
 A destroyed vehicle (`EF_DEAD`, until it blows up: the AT-ST's `explosionDelay` is 2.45
 s) burns: `effects/ships/dest_burning.efx` at its origin every 50 ms, as the dead branch
 of `CG_VehicleEffects` plays it, animals excepted
@@ -2352,10 +2463,18 @@ of VIDEO is gone (10/10/2026). The groups are:
 
 | Tab | Settings |
 | --- | --- |
-| IMAGE | HDR scene and exposure, eye adaptation (`r_autoExposure`) and its range in EV, filmic tone curve, bloom, dynamic glow (`r_DynamicGlow` 0-3), No glow on sabers (`r_dynamicGlowNoSabers`) and the glow's blur style (`r_dynamicGlowStyle`), FXAA, supersampling (`r_superSample`), render scale (`r_renderScale`, also in the SJK UI's Simple Display; see [Render scale](rendering.md#render-scale-and-supersampling)), soft particles, ambient occlusion (`r_ssao`), sunbeam dust (`r_dustMotes`), per-pixel model lighting, toon models (`r_toonModels`) and toon on my model (`cg_toonModel`, see [Toon models](rendering.md#toon-models)), reflection probes (`r_cubeMapping`), floor mirrors (`r_floorReflections`), normal and specular maps (`r_normalMapping`, `r_specularMapping`), parallax mapping (`r_parallaxMapping`) and its depth (`r_parallaxStrength`), emission maps (`r_emissiveMaps`), their strength (`r_emissionStrength`) and glow halo (`r_emissiveGlow`) |
-| LIGHTING | Sun and sky (`r_dayNight`), live lighting tier, time of day, time of day from the PC's clock (`r_dayClock`), day length, sunlight brightness, ambient fill and its corner shading, indirect boost, emission-map lights (`r_emissiveLights`), light shafts (`r_volumetrics`) and their clarity |
-| SHADOWS | World and character sun shadows, shadow resolution, sharp and close cascade distances, filter taps, slit closing, contact shadows |
-| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`), volumetric clouds (`r_clouds`) and lightning in storms (`r_weatherLightning`); see [Weather](rendering.md#weather) |
+| IMAGE | HDR scene and exposure, eye adaptation (`r_autoExposure`) and its range in EV, filmic tone curve, bloom, dynamic glow (`r_DynamicGlow` 0-3), No glow on sabers (`r_dynamicGlowNoSabers`) and the glow's blur style (`r_dynamicGlowStyle`), FXAA, sharpening, supersampling (`r_superSample`: Off, 2x, 3x), render scale (`r_renderScale`, also in the SJK UI's Simple Display; see [Render scale](rendering.md#render-scale-and-supersampling)); *Textures*: texture detail (`r_picmip`: Full, Half, Quarter, Eighth), largest texture, compression; *Effects*: soft particles, light flares, ambient occlusion (`r_ssao`), per-pixel model lighting, toon models (`r_toonModels`) and toon on my model (`cg_toonModel`, see [Toon models](rendering.md#toon-models)); *Materials*: normal and specular maps (`r_normalMapping`, `r_specularMapping`), parallax mapping (`r_parallaxMapping`) and its depth (`r_parallaxStrength`), emission maps (`r_emissiveMaps`), their strength (`r_emissionStrength`) and glow halo (`r_emissiveGlow`), reflection probes (`r_cubeMapping`), floor mirrors (`r_floorReflections`) |
+| LIGHTING (Solar Renderer lighting) | Real-time lighting (`r_dayNight`), bounced light (`r_bouncedLight`), lamp shadows (`r_lampShadows`), live lighting (`r_liveLighting`: Baked bounce, Live with casters kept, All live), sunlight brightness, ambient fill and its corner shading, indirect boost, emission-map lights (`r_emissiveLights`), glowing lamp light; *Light shafts*: light shafts (`r_volumetrics`), their clarity, sunbeam dust (`r_dustMotes`: Off, Light, Full); *Time of day*: time-of-day sky (`r_daySky`), time of day, the PC's clock (`r_dayClock`), day length (`r_dayMinutes`: holds still, 10 or 30 minutes, 1 or 24 hours) |
+| SHADOWS | World and character sun shadows, shadow resolution (Low 512 to Ultra 4096), shadow softness (`r_sunShadowTaps`: Hard 4 to Softest 32), sharp and close cascade distances (Short to Very long), slit closing, contact shadows |
+| WEATHER | Weather (`r_weather`), its density (`r_weatherDensity`: Light, Original, Double, Triple, Quadruple), quality (`r_weatherQuality`), forced weather (`r_weatherForce`), ground fog (`r_weatherFog`), volumetric clouds (`r_clouds`), lightning in storms (`r_weatherLightning`), wet reflections (`r_weatherReflections`), puddles, rain visibility, haze and spray, ground fog thickness (`r_weatherPuddles`, `r_weatherRainOpacity`, `r_weatherHaze`, `r_weatherFogDensity`) and settled snow (`r_weatherSnowCover`); see [Weather](rendering.md#weather) |
+
+Since 10/11/2026 (Sol: "make more dropdowns when it makes sense with explicit settings more
+than sliders") the settings whose numbers are steps of a few known costs are dropdowns of
+named choices (`CHOICE_NAMES` in [help.rs](../crates/sjk-viewer/src/settings/help.rs)): a
+value set from the console between them still shows as its number. The SJK UI's Graphics
+page puts sub-headings inside the tabs (`GRAPHICS_SUBHEADINGS` in
+[groups.rs](../crates/sjk-viewer/src/settings/groups.rs)): Textures, Effects, Materials,
+Light shafts, Time of day and Rain looks.
 
 Rows marked "(reload)" are read only when the graphics start and apply after a
 [graphics reload](#graphics-reload); "(next map)" applies when a map loads; the
@@ -2377,75 +2496,106 @@ See [catalog.rs](../crates/sjk-viewer/src/settings/catalog.rs).
 The first row of VIDEO, of [First setup](#first-setup) (under Graphics), of the SJK
 UI's Graphics (Advanced, under Quality) and of Simple's Graphics (under Preset) is
 the graphics preset ([graphics_quality.rs](../crates/sjk-viewer/src/graphics_quality.rs)),
-a dropdown of three presets (Sol's request, 16/10/2026; until then a Renderer row,
-Vanilla or SJK (alpha), and an SJK quality row of four levels, from 12/10/2026):
+a dropdown of six presets in two families (Sol's request, 10/11/2026; three presets from
+16/10/2026, Vanilla style, SJK (recommended) and Experimental; before them a Renderer row
+and an SJK quality row of four levels):
 
-- **Vanilla style**: the original game's look at the most frames per second, every
-  SJK extra off, as EternalJK draws it with its defaults (the level called EJK from
-  10/10/2026, Ultra low before, then Vanilla). See [Vanilla style and
-  EternalJK](#vanilla-style-and-eternaljk).
-- **SJK (recommended)**: Sol's own setup (as Sol had it on 16/10/2026): SJK's image
-  (HDR, bloom, dynamic glow, FXAA, ambient occlusion, per-pixel model lighting,
-  emission maps and their halo) over the maps' baked lighting, without the sun,
-  shadows, reflections, material maps, light shafts or weather extras. A new
-  profile (no `config.cfg` when SJK starts, applied in
-  [app_launch.rs](../crates/sjk-viewer/src/app_launch.rs)) starts on it, and
-  Backspace on the row returns to it.
-- **Experimental**: everything the SJK renderer draws (sun and sky, sun shadows,
-  reflection probes, floor mirrors, normal, specular and parallax maps, light
-  shafts, the richest weather), still in alpha. Its values are the renderer cvars'
-  registered defaults, the [default visual profile](rendering.md#default-visual-profile)
-  the renderer was tuned for (the former High).
+- **Vanilla**: the maps' own baked lighting.
+  - *Vanilla*: the original game's look at the most frames per second, every SJK extra
+    off, as EternalJK draws it with its defaults (Vanilla style until 10/11/2026, EJK and
+    Ultra low before). See [Vanilla and EternalJK](#vanilla-and-eternaljk).
+  - *Vanilla Plus*: Sol's own setup (as Sol had it on 16/10/2026): SJK's image (HDR,
+    bloom, dynamic glow, FXAA, ambient occlusion, per-pixel model lighting, emission maps
+    and their halo) over the maps' baked lighting (SJK (recommended) until 10/11/2026). A
+    new profile (no `config.cfg` when SJK starts, applied in
+    [app_launch.rs](../crates/sjk-viewer/src/app_launch.rs)) starts on it, and Backspace
+    on the row returns to it.
+- **Solar Renderer**: SJK's own renderer with its real-time lighting (`r_dayNight`): a
+  live sun, sky and lamps light the map in place of its baked light; still in alpha.
+  - *Low*: everything it can leave out left out: no ambient occlusion, soft particles,
+    material maps, bounced light, lamp shadows, character shadows or light shafts,
+    shadow maps of 512 with 4 taps.
+  - *Medium*: bounced light, normal and specular maps, character shadows, low light
+    shafts, emission-map lights, medium weather.
+  - *High*: everything at the quality the renderer was tuned for (Experimental until
+    10/11/2026). Its values are the renderer cvars' registered defaults, the
+    [default visual profile](rendering.md#default-visual-profile).
+  - *Ultra*: High with 4096 shadow maps, 24 taps, a sharp cascade twice as deep, triple
+    weather density and ultra weather.
+
+Profiles saved on the presets of 16/10/2026 read as their new names (a test pins it):
+the settings the Solar Renderer alone reads (bounced light, lamp shadows, the sharp
+cascade's depth) keep their defaults in the Vanilla family, where they change nothing.
+
+**Ratings and the recommendation.** Each preset in the list carries a coloured mark for
+this PC: green runs smoothly, yellow well, orange is heavy, red too heavy
+(`Level::rating`). It compares the card's own video memory
+([video_memory.rs](../crates/sjk-viewer/src/video_memory.rs), DXGI on Windows) with what
+the preset wants (`WANTS_MIB`: 1, 2, 3, 4, 6 and 8 GB from Vanilla to Ultra, from the VRAM
+measurements in [rendering.md](rendering.md#gpu-memory)): 1.25 times it or more is green,
+as much yellow, seven tenths orange, less red; Vanilla is never worse than yellow. Video
+memory stands in for the card's class; frame rates are not measured. A card SJK cannot
+read is taken as 4 GB. The row under the preset, **Recommended for this PC**, shows and
+sets the richest preset rated green (Vanilla when none is, Vanilla Plus where the card is
+not known); its name carries "(recommended)" in the list, the list reaches further left
+than other lists so it fits, and the detail column of both rows names the card's memory
+and the pick in its colour. The `graphicsrecommended` command (and `graphicsquality
+recommended`) sets it. The small-card lightening at start ([video_memory.rs](../crates/sjk-viewer/src/video_memory.rs))
+is unchanged: under 3.5 GB, the untouched Vanilla Plus becomes Vanilla once.
 
 The volumetric clouds (`r_clouds`, Settings > Graphics > WEATHER, "Volumetric clouds") are
 no preset's (Sol, 05/11/2026): off by default and left as the player sets them under every
 preset, so choosing a preset never turns them on or off. Until then Experimental turned them
 on; the release that changed it asks players once on its what's-new card (`= r_clouds
-reset`), starting from off.
+reset`), starting from off. So is the time-of-day sky (`r_daySky`), a player's choice.
 
-While the settings are not Vanilla style's, the detail column of every renderer
-setting carries the alpha warning in gold ([sjk-ui.md](sjk-ui.md#settings)).
+While the settings are a Solar Renderer preset's or nearest one, the detail column of
+every renderer setting carries the alpha warning in gold ([sjk-ui.md](sjk-ui.md#settings));
+until 10/11/2026 it showed whenever they were not Vanilla style's.
 
 The preset is not saved on its own: the row shows whichever preset the settings
 match, and Custom once one of them has been changed on its own; stepping (Left,
 Right) from Custom starts at the preset the settings are nearest, and a step stops
-at either end. A renderer setting's row reads its value in the preset in use (or,
-for Custom, the nearest) as its default (`graphics_quality::row_default`), so a
-preset's rows do not carry the changed dot, a row changed on its own does, and its
-Backspace leads back to the preset. The `graphicsquality` command names the preset,
-or sets it with `graphicsquality vanilla|sjk|experimental` (a preset's name works
-too; `ejk` and `ultralow` still name Vanilla style). Profiles on one of the former
-levels read Experimental (High) or Custom (Performance, Balanced, Ultra).
+at either end (the six are one row, Vanilla to Solar Ultra). A renderer setting's row
+reads its value in the preset in use (or, for Custom, the nearest) as its default
+(`graphics_quality::row_default`), so a preset's rows do not carry the changed dot, a
+row changed on its own does, and its Backspace leads back to the preset. The
+`graphicsquality` command names the preset, or sets it with `graphicsquality
+vanilla|vanillaplus|low|medium|high|ultra|recommended` (a preset's name works too, with
+or without "Solar"; the old names `ejk`, `ultralow`, `Vanilla style`, `sjk` and
+`experimental` still work).
 
-| Setting | Vanilla style | SJK (recommended) | Experimental |
-| --- | --- | --- | --- |
-| HDR scene, bloom, FXAA, per-pixel model lighting | off | on | on |
-| Soft particles | off | off | on |
-| Ambient occlusion (`r_ssao`) | off | on | on |
-| Dynamic glow (`r_DynamicGlow`) | off | on | on |
-| Light flares (`r_flares`) | off | on | on |
-| Sunbeam dust (`r_dustMotes`) | 0 | 0 | 1 |
-| Reflection probes, floor mirrors | off | off | on |
-| Normal, specular and parallax maps | off | off | on |
-| Emission maps and their halo | off | on | on |
-| Sun and sky (`r_dayNight`) | off | off | on |
-| Emission-map lights (`r_emissiveLights`) | 0 | 0 | 1 |
-| Light shafts (`r_volumetrics`) | 0 | 0 | 3 |
-| World and character sun shadows | off | off | on |
-| Shadow resolution | 1024 | 1024 | 2048 |
-| Shadow filter taps | 8 | 8 | 16 |
-| Weather density | 1 | 1 | 2 |
-| Weather quality | 0 | 0 | 2 |
-| Volumetric clouds | off | off | on |
+| Setting | Vanilla | Vanilla Plus | Solar Low | Solar Medium | Solar High | Solar Ultra |
+| --- | --- | --- | --- | --- | --- | --- |
+| HDR scene, bloom, FXAA, per-pixel model lighting, dynamic glow, light flares, emission maps and halo | off | on | on | on | on | on |
+| Soft particles | off | off | off | on | on | on |
+| Ambient occlusion (`r_ssao`) | off | on | off | on | on | on |
+| Sunbeam dust (`r_dustMotes`) | off | off | off | off | full | full |
+| Reflection probes, floor mirrors, parallax maps | off | off | off | off | on | on |
+| Normal and specular maps | off | off | off | on | on | on |
+| Real-time lighting (`r_dayNight`) | off | off | on | on | on | on |
+| Bounced light (`r_bouncedLight`) | (on) | (on) | off | on | on | on |
+| Lamp shadows (`r_lampShadows`) | (on) | (on) | off | off | on | on |
+| Emission-map lights (`r_emissiveLights`) | 0 | 0 | 0 | 1 | 1 | 1 |
+| Light shafts (`r_volumetrics`) | off | off | off | low | high | high |
+| World sun shadows | off | off | on | on | on | on |
+| Character sun shadows | off | off | off | on | on | on |
+| Shadow resolution | (1024) | (1024) | 512 | 1024 | 2048 | 4096 |
+| Shadow softness (taps) | (8) | (8) | 4 | 8 | 16 | 24 |
+| Sharp shadow distance | (1024) | (1024) | 512 | 1024 | 1024 | 2048 |
+| Weather density | 1 | 1 | 1 | 2 | 2 | 3 |
+| Weather quality | low | low | low | medium | high | ultra |
 
-### Vanilla style and EternalJK
+Values in brackets do nothing there (no real-time lighting, no sun shadows).
 
-Vanilla style follows EternalJK's defaults on its default renderer, `rd-eternaljk`
+### Vanilla and EternalJK
+
+Vanilla follows EternalJK's defaults on its default renderer, `rd-eternaljk`
 (built from `codemp/rd-vanilla`; JoF EJK's `cl_main.cpp` `DEFAULT_RENDER_LIBRARY`),
 surveyed on 26/10/2026 (Sol's request) from JoF EJK's `rd-vanilla/tr_init.cpp`,
 `shared/sdl/sdl_window.cpp` and `cgame/cg_xcvar.h`:
 
-| EternalJK default | SJK under Vanilla style |
+| EternalJK default | SJK under Vanilla |
 | --- | --- |
 | `r_DynamicGlow 0` | Off (the preset) |
 | `r_flares 0` | Off (the preset; SJK's own default is 1) |
@@ -2463,14 +2613,14 @@ draws the maps' lighting in its own way. Vertical sync (`r_swapInterval`) and th
 window are left to the player, as for every preset. Sol's own JoF EJK profile differs
 from these defaults: rd-vulkan with dynamic glow and 8x multisampling.
 
-Under Vanilla style and SJK (recommended), with no sun, light shafts or sun shadows,
+Under Vanilla and Vanilla Plus, with no sun, light shafts or sun shadows,
 a map loads without building its lamps (see [rendering](rendering.md#default-visual-profile)), which no pass reads there.
 
 The `renderer` command keeps the former Renderer row's switch: `renderer vanilla`
 keeps the player's values of every setting in the table (`r_ultraLowRestore`,
-archived, its name from before the renames) before applying Vanilla style;
-`renderer sjk` puts them back, custom values included, or SJK (recommended) when
-Vanilla style was picked as a preset and nothing was kept. The [low-FPS
+archived, its name from before the renames) before applying Vanilla;
+`renderer sjk` puts them back, custom values included, or Vanilla Plus when
+Vanilla was picked as a preset and nothing was kept. The [low-FPS
 help](#low-fps-help) offers the same switch. Like the preset, it needs a [graphics
 reload](#graphics-reload) for the lighting to change. Everything else is left as the
 player set it: the FPS cap, vertical sync, resolution, supersampling and render scale
@@ -3345,7 +3495,9 @@ and PM, each behind its own setting in Settings > Chat (`cg_chatTabTeam`,
 `cg_chatTabPm` 0): a channel switched off (0) leaves the row and Tab skips it, but its
 key still opens it; since 03/11/2026 (Sol's request) Not in Tab (2) keeps the button
 while Tab skips it, so a player keeps Team or Admin clickable out of the cycle (Tab
-from a channel it skips goes on to the next one it stops on). The clan chats' keys are
+from a channel it skips goes on to the next one it stops on). With nothing typed, and
+no modifier held, Left and Right walk the same cycle backwards and forwards (since
+09/11/2026, akr's idea); with a draft they move the caret. The clan chats' keys are
 `messagemode7` (JoF) and `messagemode8` (S). Admin sends `amsay`, which only the
 server's admins read (JoF EJK `Cmd_Amsay_f`, `SAY_ADMIN`; they see it as `<Admin>`), and
 shows only on JA+ and jaPRO servers; its key is `messagemode6` (Controls > Admin chat, no
@@ -3536,8 +3688,7 @@ crouch over left, back and right, each lit while it is held.
   a floor line, crouch an arrow down from a ceiling), dim while released and bright
   while held.
 
-Not covered: jaPRO's race mode moving the keys as no score line does (SJK draws no
-strafe guides on jaPRO servers either), and the guess's floor trace sees only the
+Not covered: jaPRO's race mode moving the keys as no score line does, and the guess's floor trace sees only the
 map, not movers or players under the followed player. Riding a vehicle hides them,
 where JoF keeps them when the vehicle has no HUD menu of its own.
 
@@ -3599,8 +3750,10 @@ ranges, so a larger graph does not show a longer history.
 
 ## Strafe helper
 
-`cg_strafeHelper` draws guides for strafe-jumping with JKA's movement physics, as
-JAPRO-derived clients do; its options are bits, listed and toggled by the
+`cg_strafeHelper` draws guides for strafe-jumping, as JAPRO-derived clients do, with
+JKA's movement physics or, on a jaPRO server, those of the player's movement style
+(`CG_StrafeHelper`'s table, `sjk_mod_japro::movement_styles::guide_physics`; nothing in
+Siege style); its options are bits, listed and toggled by the
 `strafehelper` command (`strafehelper 1` switches the lines style on). Two styles
 are drawn, one at a time (the command switches between them as JoF EJK's does):
 
@@ -3827,8 +3980,8 @@ original Jedi Academy HUD, or a custom HUD pack that replaces `ui/hud.menu`),
 or SJK's own `classic` or `radial` layout. The default is `game`, the classic
 HUD, and a saved `cg_hudStyle` is kept (but the retired `modern`, see
 [Menu style](#menu-style)). `cg_hudFiles`
-names the menu list, `ui/jahud.txt` by default; `1` gives the text-only HUD and
-EternalJK's `3`/`4` name its elegance and JoF HUD lists when those files are
+names the menu list, `ui/jahud.txt` by default; `1` gives the text-only HUD, `2` the
+Jedi Knight II HUD with its pictures built in, and EternalJK's `3`/`4` name its elegance and JoF HUD lists when those files are
 installed. `cg_hudPack` names the PK3 whose HUD to use when several replace
 `ui/hud.menu` (`assets1.pk3` is the original); empty, the one installed last
 wins, as in the game. See [game-data HUD](rendering.md#game-data-hud) for what
@@ -3886,7 +4039,9 @@ unit on both axes, right and down positive), an element left out being where its
 puts it: `vitals` (health and armour), `force` (Force and saber style, and the radial
 look's ammo, which sits in its right pill), `weapon` (weapon name and ammo), `timer`,
 `vote`, `jetpack`, `vehicle`, `selection` (the weapon, Force and inventory selectors),
-`flags` (CTF flags and team scores) and `follow` (the followed player's name)
+`flags` (CTF flags and team scores), `follow` (the followed player's name) and
+`timings` (the frame timings panel, `r_drawTimings`, kept from the screen's top right
+corner so it stays there on any width)
 ([placement.rs](../crates/sjk-viewer/src/hud/placement.rs)). The layouts' widgets move
 in the layout pass, the rest by moving what they drew
 (`sjk_ui::DrawList::translate_from`); with the game-data HUD, `vitals` moves its left
@@ -6232,6 +6387,26 @@ sees it there.
   the same map. `cg_toyTags 0` hides other players' tags on this PC; a muted or blocked
   player's never show.
 
+- **GIF tags** (Sol's decisions, 10/11/2026): the **Blank tag** (`tag_blank`, Rare, Alpha)
+  drops from holocrons as the other tags do, always Normal, and is never stuck itself
+  ("A blank tag takes a GIF first"). Its card in Collection > Tags makes a GIF tag:
+  **Paste link** reads a GIPHY link from the clipboard (the chat's rules,
+  [hub-chat.md](hub-chat.md#gifs-from-giphy)) and shows its GIF as it will play;
+  **Make**, pressed twice, asks the hub (`POST /v1/tags/gif`) to spend one blank tag on
+  it, for good. Verified players only (the hub's rule; the card says why it waits: a hub
+  before GIF tags, not verified, GIF tags off, no blank). The GIF tags made stand under
+  their own heading, each playing its GIF, and are chosen as any tag: `cg_tag gif:<id>`,
+  no finish. They never trade, break down or craft; spare blank tags do, as any tag's
+  copies. A GIF GIPHY removes is a tag lost: its card says so, nothing is given back.
+  Staff can take a GIF tag away (undoable).
+- **GIF tags are opt-in** (`cg_toyGifTags`, off by default; the switch on a GIF tag's or
+  the blank's card, Settings > Gameplay "Show GIF tags"): off, no GIF tag is fetched,
+  drawn or stuck on this PC, the own included, and their sprays are not heard. On, each
+  client fetches the GIF from GIPHY itself, as chat GIFs are (the chat's cache, its
+  limits and its trusted sources, whatever `cl_sjkChatGifs` says), and a GIF the player
+  hid in chat never shows on a wall either. Classic tags stay on (`cg_toyTags 1`, now in
+  Settings too as "Show others' tags").
+
 A tag is a lasting decal with a slot of its own per player
 ([decal_store.rs](../crates/sjk-viewer/src/decal_store.rs)): projected once when it
 changes (as impact marks are, over corners and patches), kept until it goes, never pushed
@@ -7862,7 +8037,8 @@ A key pressed with the console open still types: the console keeps the keyboard,
 command starting with w, a, s or d types as it should, and changing direction needs the
 console closed. See [console_move.rs](../crates/sjk-viewer/src/console_move.rs). `+grapple` is
 EternalJK's name for `+button12`, the JA+/JaPRO grapple hook; on a JA+ server
-releasing it also taps `+use`, as EternalJK does. See
+releasing it also presses `+use` for two user commands (EternalJK's `-use` comes a
+frame or more later), so one command the server skips does not leave the hook held. See
 [input.rs](../crates/sjk-viewer/src/input.rs).
 
 `flipkick` is JoF EJK's flip-kick bind: one press starts a run of jump taps, jump

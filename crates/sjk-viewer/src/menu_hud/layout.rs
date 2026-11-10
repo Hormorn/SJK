@@ -25,6 +25,10 @@ pub(crate) enum Side {
     Right,
     /// The middle of the screen: the vehicle HUD at the bottom centre.
     Centre,
+    /// The whole width: x and width scale with the screen's width rather than
+    /// its height, as retail stretches every picture (the Jedi Knight II HUD's
+    /// selector background, which reaches between its edge-kept prongs).
+    Stretch,
 }
 
 /// One drawable piece: a rectangle in the 640x480 screen, the edge it keeps
@@ -122,6 +126,9 @@ pub(crate) struct Layout {
     pub(crate) saber_styles: [Option<Piece>; 8],
     /// `swoopvehiclehud`, the vehicle HUD.
     pub(crate) vehicle: Option<VehiclePieces>,
+    /// The first of the Jedi Knight II pictures when this is that HUD
+    /// ([`super::frame::jk2`]), which then draws the status HUD.
+    pub(crate) jk2: Option<u16>,
     /// Shader names, indexed by [`Piece::picture`].
     pub(crate) pictures: Vec<String>,
 }

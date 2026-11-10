@@ -793,7 +793,9 @@ impl GpuState {
         if let Some(menu) = self.client_menu.as_mut() {
             menu.set_stage_tintable(&actor.model, actor.tintable);
         }
-        let tinted = actor.instance.with_model_color([rgb[0], rgb[1], rgb[2], 255]);
+        let tinted = actor
+            .instance
+            .with_model_color([rgb[0], rgb[1], rgb[2], 255]);
         if actor.instance.entity_color == tinted.entity_color {
             return;
         }

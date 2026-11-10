@@ -279,6 +279,9 @@ mod lamp_light;
 mod notes;
 
 #[cfg(test)]
+#[path = "world_shot_dynamic_light_cost.rs"]
+mod dynamic_light_cost;
+#[cfg(test)]
 #[path = "world_shot_movers.rs"]
 mod movers;
 
@@ -458,6 +461,8 @@ mod render_scale_shots;
 mod scene_views_shots;
 #[path = "world_shot_sharpen.rs"]
 mod sharpen_shots;
+#[path = "world_shot_solar_presets.rs"]
+mod solar_preset_shots;
 #[cfg(test)]
 #[path = "world_shot_tags.rs"]
 mod tags_shots;
@@ -1301,6 +1306,7 @@ mod tests {
         };
         let me = sjk_identity::Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),
@@ -1403,12 +1409,14 @@ Found the fog bug, ask me about it!"
             log_answer: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),
@@ -1418,6 +1426,7 @@ Found the fog bug, ask me about it!"
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
             public_key: String::new(),
         };
         let standings = crate::achievements::ALL
@@ -1528,6 +1537,7 @@ like this one.",
     fn duel6_sjk_staff() {
         let profile = |key: &str, name: &str| sjk_identity::Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),

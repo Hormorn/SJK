@@ -519,6 +519,7 @@ the SJK team gives them.
 | Contributor | `early_contributor` | Contributed to SJK's code. | no |
 | Bug Hunter | `bug_hunter` | Found bugs that got fixed. | no (since 21/10/2026: bug hunting is rewarded with holocrons) |
 | Supporter | `supporter` | Donated to SJK's development (more than 1 euro on Ko-fi, since 13/10/2026; [sjk.md](sjk.md#donations)): given by the hub itself when the Ko-fi message holds the donor's key id, else by the SJK team. | no |
+| Videographer | `videographer` | Filmed SJK's features for its videos: the hub counts one more each time the SJK team accepts a video sent for a video bounty ([Your SJK page](#your-sjk-page), since 09/11/2026). Its art is provisional. | yes, once per accepted video |
 
 Tester and Contributor were called Early Tester and Early Contributor until 27/10/2026
 (Sol's decision): the names lost "Early" and their texts "in its early days", since the
@@ -857,8 +858,13 @@ on the hub, in the SJK UI's look in every menu style:
 - who they are: the hub name with its colours, Verified by the SJK team or not yet,
   the date the key was registered (`Member since`) and up to three other
   names worn (the switch, the key and the hub are on the Identity page, in Settings,
-  Network, since 09/10/2026); on the Profile screen Change name opens the Character
-  tab's Name field, since the hub name is the `name` worn in game;
+  Network, since 09/10/2026); on the Profile screen Change name opens the name panel in
+  the bio's place (10/11/2026, Sol: it used to open the Character tab's in-game Name
+  field): a field holding the hub name, whose Save sends it as the custom SJK name
+  (`PUT /v1/profile` `{"name"}`, `sjk_identity::custom_name`: trimmed, 1 to 24
+  characters, a letter or digit once colour codes are dropped; the hub refuses one
+  another key holds, `name_taken`), shown on the hub, in the SJK chat and on cards
+  instead of the name worn;
 - their record, from the achievement counts kept on this PC (players defeated, saber
   kills, best streak, duels won, flags captured, maps and servers played, time
   played) and the last four achievements unlocked;
@@ -938,7 +944,10 @@ on screen. A bio is plain text: nothing in it is ever a link or markup.
 ## Pictures
 
 A player may show a small square picture beside their name (08/10/2026, Sol's
-request). The hub's side is `PROTOCOL.md`, "Pictures", in Sol-Vulpes/SJK-hub: the
+request). Since 10/11/2026 (Sol) only verified players, staff and the creator may
+upload one: the hub refuses anyone else with 403 `not_verified`, which the picture
+panel shows as "Not sent: only players the SJK team verified may show a picture".
+Pictures uploaded before stay until staff take them down. The hub's side is `PROTOCOL.md`, "Pictures", in Sol-Vulpes/SJK-hub: the
 client needs a hub with it, or profiles carry no `avatar` and the stand-ins show.
 
 **Choosing one.** The picture panel's **Browse...** (09/10/2026, Sol's request) opens
@@ -1489,6 +1498,31 @@ presence lists, its own holocron drops and looks in the feed, and on the Staff p
 and what is kept per key on this PC (the medal and holocron pop-ups' seen lists) keeps
 using it. When staff unlink the key this PC uses, the client registers it again at
 once.
+
+## Your SJK page
+
+Since 09/11/2026: SJK's web page for players, which the hub serves on a site of its own.
+There is no password: the player's SJK key is their account, and the private key never
+leaves the game.
+
+- `identity site` asks the hub for a one-use sign-in link (it works once, for 10
+  minutes) and opens it in the browser, signed in. The link is never printed: it signs
+  in whoever opens it.
+- Joining keys: each SJK install has its own key. On the page, Make a code shows a link
+  code (working once, for 15 minutes); in SJK on the other computer, `identity link
+  <code>` asks the hub whose account it is and says that everything this key holds
+  moves there; `identity link <code> confirm` joins it (the hub's usual merge,
+  [Players with several keys](#players-with-several-keys)). The code is made on the
+  page and typed in the game, never the other way round: a code the game showed could
+  be read on a stream and typed by someone else first. A staff key cannot join another
+  account.
+- Video bounties: the SJK team posts what to film and its reward. A signed-in player
+  sends a link to the original file, or uploads it (straight from the browser to SJK's
+  video storage, MP4, WebM, MOV or MKV), ticking that SJK may use the video and credit
+  them. An accepted video's reward waits in Contributor rewards, claimed in the game
+  as any reward, and counts one more Videographer medal. The hub lists open bounties at
+  `GET /v1/bounties`; an announcement can link to the page with `open:site`
+  ([ui_links.rs](../crates/sjk-viewer/src/ui_links.rs)).
 
 ## Settings and commands
 

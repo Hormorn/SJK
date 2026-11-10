@@ -10,11 +10,12 @@ impl crate::GpuState {
         right: glam::Vec3,
     ) {
         if let Some(audio) = audio {
-            // `s_spatial`: heard from the player's head, panned by the camera's axes.
+            // `s_spatial`: heard from the player's head, turned as the camera is.
             let hearing = self.audio_hearing_point(audio.spatial_enabled());
-            audio.listener(hearing, forward, right, glam::Vec3::Z, glam::Vec3::ZERO);
+            let up = right.cross(forward).normalize_or(glam::Vec3::Z);
+            audio.listener(hearing, forward, right, up, glam::Vec3::ZERO);
             audio.sync_gains(self.console.as_ref());
-            self.spatial_audio_frame(audio, hearing, right);
+            self.spatial_audio_frame(audio, hearing, [forward, right, up]);
             #[cfg(feature = "mod-jof")]
             {
                 let dialogue = self
@@ -36,6 +37,33 @@ impl crate::GpuState {
             }
             audio.end_frame();
         }
+    }
+}
+
+/// The command starting an emote's sound `offset` in. Without a voice to line up with it
+/// waits for its decoder as a boombox track does, and starts as far in as the song is by
+/// then: as a `Play` it was given up after a game event's 300 ms, so music still decoding
+/// (a map's sounds ahead of it) left that whole dance silent (hub report #270).
+fn emote_start(
+    handle: SoundHandle,
+    request: PlayRequest,
+    offset: std::time::Duration,
+    align: Option<u8>,
+    now: Instant,
+) -> AudioCommand {
+    match align {
+        Some(align) => AudioCommand::PlayFrom(
+            handle,
+            request,
+            (offset.as_secs_f64() * f64::from(crate::audio_output::SAMPLE_RATE)) as usize,
+            Some(SourceId(u32::from(align))),
+        ),
+        None => AudioCommand::PlayTrack(
+            handle,
+            request,
+            u64::try_from(offset.as_millis()).unwrap_or(u64::MAX),
+            now,
+        ),
     }
 }
 
@@ -181,6 +209,9 @@ impl GameAudio {
                 .unwrap_or(0.5) as f32,
         ));
         self.output.show = console.and_then(|c| c.bool_cvar("s_show")).unwrap_or(false);
+        if let Some(language) = console.and_then(|c| c.text_cvar(assets::LANGUAGE_CVAR).ok()) {
+            assets::set_voice_language(language);
+        }
         self.allow_dynamic = console
             .and_then(|c| c.bool_cvar("s_allowDynamicMusic"))
             .unwrap_or(true);
@@ -220,6 +251,13 @@ impl GameAudio {
         self.output.spatial.enabled = console
             .and_then(|console| console.bool_cvar(spatial::CVAR))
             .unwrap_or(false);
+        self.output.spatial.headphones = console
+            .and_then(|console| console.bool_cvar(spatial::HEADPHONES_CVAR))
+            .unwrap_or(true);
+        self.output.spatial.reverb = console
+            .and_then(|console| console.float_cvar(spatial::REVERB_CVAR))
+            .unwrap_or(spatial::DEFAULT_REVERB)
+            .clamp(0.0, 2.0) as f32;
         self.weather_sounds = console
             .and_then(|console| console.bool_cvar(crate::weather::sound::CVAR))
             .unwrap_or(false);
@@ -390,32 +428,21 @@ impl GameAudio {
         if self.mute.silences(source, None) {
             return;
         }
-        if offset.is_zero() && align.is_none() {
-            match origin {
-                Some(origin) => self.play_on_channel(path, VOLUME, origin, source, EMOTE_CHANNEL),
-                None => self.play_local(path, VOLUME, source, EMOTE_CHANNEL),
-            }
-            return;
-        }
         let Some(handle) = self.find_handle(path) else {
             return;
         };
-        let samples = (offset.as_secs_f64() * f64::from(crate::audio_output::SAMPLE_RATE)) as usize;
-        self.output.send(AudioCommand::PlayFrom(
-            handle,
-            PlayRequest {
-                origin,
-                source,
-                channel: EMOTE_CHANNEL,
-                volume: VOLUME,
-                attenuation: match origin {
-                    Some(_) => sjk_client::legacy_sound_attenuation(EMOTE_CHANNEL.0),
-                    None => sjk_audio::Attenuation::None,
-                },
+        let request = PlayRequest {
+            origin,
+            source,
+            channel: EMOTE_CHANNEL,
+            volume: VOLUME,
+            attenuation: match origin {
+                Some(_) => sjk_client::legacy_sound_attenuation(EMOTE_CHANNEL.0),
+                None => sjk_audio::Attenuation::None,
             },
-            samples,
-            align.map(|slot| SourceId(u32::from(slot))),
-        ));
+        };
+        self.output
+            .send(emote_start(handle, request, offset, align, Instant::now()));
     }
 
     /// Stop the emote sound player `slot` plays.
@@ -743,6 +770,39 @@ mod listener_tests {
             .map(|_| source.next().unwrap().abs())
             .fold(0.0_f32, f32::max);
         assert!(loudest < 1e-4, "still heard at {loudest}");
+    }
+
+    /// Hub report #270: an emote's music waits for its decoder.
+    #[test]
+    fn an_emotes_music_waits_for_its_decoder() {
+        let request = PlayRequest {
+            origin: None,
+            source: SourceId(1),
+            channel: EMOTE_CHANNEL,
+            volume: 1.0,
+            attenuation: sjk_audio::Attenuation::None,
+        };
+        let now = Instant::now();
+        let second = std::time::Duration::from_secs(1);
+        assert!(matches!(
+            emote_start(
+                SoundHandle(1),
+                request,
+                std::time::Duration::ZERO,
+                None,
+                now
+            ),
+            AudioCommand::PlayTrack(_, _, 0, _)
+        ));
+        assert!(matches!(
+            emote_start(SoundHandle(1), request, second, None, now),
+            AudioCommand::PlayTrack(_, _, 1000, _)
+        ));
+        // A follower lines up with its leader's voice.
+        assert!(matches!(
+            emote_start(SoundHandle(1), request, second, Some(3), now),
+            AudioCommand::PlayFrom(_, _, _, Some(SourceId(3)))
+        ));
     }
 
     /// Hub report #234 (Groark): with `s_muteEmotesInDuel` on, an emote playing falls

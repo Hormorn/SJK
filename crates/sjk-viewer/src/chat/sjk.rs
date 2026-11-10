@@ -41,8 +41,10 @@ impl ChatOverlay {
             (None, None) => crate::sjk_chat_look::message_text(&message.text),
         };
         // A message's GIPHY link reads "GIF", its GIF under it (`chat/feed_gif.rs`).
+        // Only a verified sender's (or staff's) GIF plays (`chat_gifs::plays_from`).
+        let plays = crate::chat_gifs::plays_from(message.verified, message.staff, message.creator);
         let (body, emojis, gif) = if drop.is_none() && official.is_none() {
-            self.with_gif(body)
+            self.with_gif(body, plays)
         } else {
             (body, Vec::new(), None)
         };
@@ -426,7 +428,7 @@ mod tests {
     use super::*;
     use sjk_identity::ChatState;
     use std::collections::VecDeque;
-    use winit::keyboard::{Key, KeyCode, NamedKey, SmolStr};
+    use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, SmolStr};
 
     fn message(id: u64, text: &str) -> ChatMessage {
         ChatMessage {
@@ -539,6 +541,36 @@ mod tests {
         assert!(channel(&chat) == Channel::Global);
         chat.activate(interaction::SJK);
         assert!(channel(&chat) == Channel::Sjk);
+    }
+
+    fn arrow(chat: &mut ChatOverlay, key: KeyCode, named: NamedKey) {
+        chat.edit_key(key, &Key::Named(named), None);
+    }
+
+    #[test]
+    fn the_arrows_walk_the_chat_buttons_while_nothing_is_typed() {
+        let mut chat = ChatOverlay::new();
+        chat.open(false);
+        arrow(&mut chat, KeyCode::ArrowRight, NamedKey::ArrowRight);
+        assert!(channel(&chat) == Channel::Team);
+        arrow(&mut chat, KeyCode::ArrowLeft, NamedKey::ArrowLeft);
+        assert!(channel(&chat) == Channel::Global);
+        // Round to the last button and back.
+        arrow(&mut chat, KeyCode::ArrowLeft, NamedKey::ArrowLeft);
+        assert!(channel(&chat) == Channel::Sjk);
+        arrow(&mut chat, KeyCode::ArrowRight, NamedKey::ArrowRight);
+        assert!(channel(&chat) == Channel::Global);
+        // A held modifier leaves the buttons alone.
+        chat.modifiers = ModifiersState::SHIFT;
+        arrow(&mut chat, KeyCode::ArrowRight, NamedKey::ArrowRight);
+        assert!(channel(&chat) == Channel::Global);
+        chat.modifiers = ModifiersState::empty();
+        // With a draft the arrows move the caret and the button stays.
+        chat.input.as_mut().unwrap().insert("hi");
+        arrow(&mut chat, KeyCode::ArrowLeft, NamedKey::ArrowLeft);
+        assert!(channel(&chat) == Channel::Global);
+        let input = chat.input.as_ref().unwrap();
+        assert_eq!(input.edit.cursor(&input.text), 1);
     }
 
     #[test]

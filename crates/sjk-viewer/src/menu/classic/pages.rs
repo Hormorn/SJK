@@ -331,7 +331,7 @@ const GRAPHICS: [Slot; 11] = {
         list_row(
             Entry::RenderLighting,
             "LIGHTING",
-            "Sun and sky, live lighting, fill light and light shafts",
+            "The Solar Renderer's real-time lighting, light shafts and the time of day",
             233.0,
         ),
         list_row(

@@ -427,13 +427,13 @@ fn slider(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel, row: usize, top: f3
         NUMBER_WIDTH,
         26.0,
     );
-    ui.hit_region(value_token, number);
-    match panel.numeric.as_ref().filter(|edit| edit.row == row) {
-        Some(edit) => {
-            ui.set_family(TextFamily::Display);
-            edit.draw(ui, number, 1.4 * s);
-            ui.set_family(TextFamily::Body);
-        }
+    let edit = panel.numeric.as_ref().filter(|edit| edit.row == row);
+    ui.hit_region(
+        value_token,
+        edit.map_or(number, |edit| edit.sjk_field(number, s)),
+    );
+    match edit {
+        Some(edit) => edit.draw_sjk(ui, number, s),
         None => {
             let ink = if focused {
                 color::TEXT

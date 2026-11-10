@@ -227,6 +227,7 @@ impl Panel {
             Middle::Bio => self.bio_column(&page, body, style),
             Middle::Picture => self.picture_column(&page, &who),
             Middle::Emoji => self.emoji_column(&page, &who),
+            Middle::Name => self.name_column(&page),
         }
         self.right_column(&page, inputs);
         self.keys(&frame);
@@ -359,8 +360,8 @@ impl Panel {
         } else {
             format!("Name emoji {}", self.emoji)
         };
-        // On the Profile screen, Change name first: it opens the Character tab's Name
-        // field, the name the hub shows being the one worn in game.
+        // On the Profile screen, Change name first: it opens the name panel, the custom
+        // SJK name the hub shows instead of the one worn in game.
         let mut x = LEFT_X;
         if self.mode == Mode::Hub {
             kit::button(
@@ -370,7 +371,7 @@ impl Panel {
                 "Change name",
                 false,
                 true,
-                self.focus == Focus::Name,
+                self.focus == Focus::Name || self.middle == Middle::Name,
                 NAME_TOKEN,
             );
             x += 162.0;
@@ -1030,6 +1031,97 @@ impl Panel {
         );
     }
 
+    /// The name panel: the custom SJK name's field, what it is for, Save and Done.
+    fn name_column(&mut self, frame: &Frame) {
+        let s = frame.s;
+        kit::heading(
+            &mut self.ui,
+            frame,
+            MIDDLE_X,
+            TOP + 20.0,
+            MIDDLE_WIDTH,
+            "Your SJK name",
+        );
+        let field = [MIDDLE_X, BIO_TOP, MIDDLE_WIDTH, kit::CONTROL_HEIGHT];
+        let focused = self.focus == Focus::NameField;
+        let caret = focused && (self.epoch.elapsed().as_millis() / 500).is_multiple_of(2);
+        kit::field(
+            &mut self.ui,
+            frame,
+            field,
+            format_args!("{}{}", self.name, if caret { "|" } else { "" }),
+            focused,
+            false,
+        );
+        self.ui.hit_region(
+            NAME_FIELD_TOKEN,
+            frame.rect(field[0], field[1], field[2], field[3]),
+        );
+        let mut y = BIO_TOP + kit::CONTROL_HEIGHT + 14.0;
+        for line in [
+            "Shown in the SJK chat, on cards and on the hub instead of the name you wear in",
+            "game. Colour codes (^1 to ^9) work. At most 24 characters, and no one else's.",
+        ] {
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{line}"),
+                frame.rect(MIDDLE_X, y, MIDDLE_WIDTH, 24.0),
+                16.0 * s,
+                color::MUTED,
+                FontWeight::Regular,
+                TextAlign::Start,
+            );
+            y += 24.0;
+        }
+        y += 10.0;
+        let message = match &self.name_message {
+            Some(message) => Some(message.clone()),
+            None if !self.writable => Some((
+                "Your SJK name needs the SJK identity on and the SJK hub answering".to_owned(),
+                false,
+            )),
+            None => None,
+        };
+        if let Some((message, good)) = message {
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{}", cut(&message, 80)),
+                frame.rect(MIDDLE_X, y, MIDDLE_WIDTH, 24.0),
+                16.0 * s,
+                if good {
+                    color::GOLD_BRIGHT
+                } else {
+                    color::EMBER
+                },
+                FontWeight::Regular,
+                TextAlign::Start,
+            );
+        }
+        let buttons_y = y + 36.0;
+        kit::button(
+            &mut self.ui,
+            frame,
+            [MIDDLE_X, buttons_y, 160.0, 46.0],
+            "Save",
+            true,
+            self.writable && self.name_saving.is_none(),
+            self.focus == Focus::NameSave,
+            NAME_SAVE_TOKEN,
+        );
+        kit::button(
+            &mut self.ui,
+            frame,
+            [MIDDLE_X + MIDDLE_WIDTH - 130.0, buttons_y, 130.0, 46.0],
+            "Done",
+            false,
+            true,
+            self.focus == Focus::BioBack,
+            BIO_BACK_TOKEN,
+        );
+    }
+
     /// The medals (on its own only: the Collection has them), the achievements and the
     /// collection.
     fn right_column(&mut self, frame: &Frame, inputs: &Inputs<'_>) {
@@ -1290,6 +1382,7 @@ impl Panel {
             Focus::RemovePicture => "remove picture",
             Focus::BioBack => "back to your bio",
             Focus::Name => "change your name",
+            Focus::NameField | Focus::NameSave => "save your name",
             Focus::Emoji => "choose an emoji",
             Focus::EmojiGrid => "use this emoji",
             Focus::RemoveEmoji => "remove emoji",
@@ -1364,6 +1457,7 @@ mod tests {
     fn full_profile() -> Profile {
         Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),

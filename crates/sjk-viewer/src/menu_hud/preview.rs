@@ -91,12 +91,16 @@ pub(crate) fn plan(
         });
     }
     let view = pack_view(vfs, &choice.pack).unwrap_or_else(|| vfs.clone());
-    let kind = match source(&choice.files) {
-        Source::Text => Kind::Text,
-        Source::Menus(list) => {
+    let hud = source(&choice.files);
+    let kind = match hud.list() {
+        None => Kind::Text,
+        Some(list) => {
             let mut layout = Layout::resolve(&read_menus(&view, list)?);
             if !layout.is_usable() {
                 return None;
+            }
+            if hud == Source::Jk2 {
+                super::frame::jk2::attach(&mut layout);
             }
             let digits = layout.pictures.len() as u16;
             layout
@@ -106,6 +110,9 @@ pub(crate) fn plan(
                 .pictures
                 .iter()
                 .map(|name| {
+                    if let Some(additive) = super::frame::jk2::additive(name) {
+                        return Some((name.clone(), additive));
+                    }
                     if name.eq_ignore_ascii_case(WHITE_PICTURE) {
                         return Some((WHITE_PICTURE.to_owned(), false));
                     }
@@ -215,6 +222,9 @@ pub(crate) fn render_with(
 }
 
 fn decode(vfs: &VirtualFileSystem, path: &str) -> Option<RgbaImage> {
+    if super::frame::jk2::additive(path).is_some() {
+        return super::frame::jk2::decode(path);
+    }
     if path == WHITE_PICTURE {
         return Some(RgbaImage::from_pixel(8, 8, Rgba([255; 4])));
     }

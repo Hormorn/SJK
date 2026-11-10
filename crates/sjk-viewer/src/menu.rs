@@ -577,6 +577,10 @@ impl ClientMenu {
         if self.holocron_shot {
             return None;
         }
+        // Dragged, the model has left the stage for its own preview, while the screen shows.
+        if self.preview_model().is_some() {
+            return None;
+        }
         let stage = self.backdrop.as_ref()?.stage()?;
         Some((stage, self.player.stage_model()))
     }
@@ -1429,13 +1433,6 @@ impl ClientMenu {
     /// Turn the player screen to page `index` (Character, Saber, Force).
     pub(crate) fn show_player_hub_page(&mut self, index: usize) {
         self.player.show_page(index);
-    }
-
-    /// The Profile screen's Character tab with its Name field open for typing.
-    pub(crate) fn edit_player_hub_name(&mut self) {
-        if self.player_hub_shown() {
-            self.player.open_name_field();
-        }
     }
 
     /// Whether a field of the Profile screen's player pages takes the keys, so Tab

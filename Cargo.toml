@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/sjk-acoustics",
     "crates/sjk-bsp",
     "crates/sjk-dedicated",
     "crates/sjk-audio",
@@ -42,6 +43,7 @@ rust-version = "1.88"
 version = "0.1.0"
 
 [workspace.dependencies]
+sjk-acoustics = { path = "crates/sjk-acoustics" }
 sjk-bsp = { path = "crates/sjk-bsp" }
 sjk-audio = { path = "crates/sjk-audio" }
 sjk-client = { path = "crates/sjk-client" }

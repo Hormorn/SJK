@@ -247,7 +247,9 @@ them (the `OWN_MOVES` table: JA+'s `amtele` in the forms that move the sender, w
 beams the player about 2 seconds late). The client keeps the last 16 reliable commands it
 released to the server with when each left (`sjk_client::sent_commands`). `PM_NOCLIP`
 counts after the player's own `noclip` on that map, and SJK's own fake noclip
-(`fakenoclip`, the free camera) always. The map's teleporters, a spawn after dying,
+(`fakenoclip`, the free camera) always. So does JA+'s `amghost` on the player themselves, sent
+during the chase (hub report #240; a ghost shows in nothing the client receives, so a player
+ghosted before the chase began is not caught). The map's teleporters, a spawn after dying,
 spectating or following someone, and an admin moving the player (`amtele <player> ...`, a
 bring) are not cheats; nor is the player's own `amtele <slot> ...` moving someone else. A
 hunter caught is out as one killed is (`cheat`; the others read "is out for cheating").

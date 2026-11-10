@@ -27,6 +27,7 @@ fontdue = "0.9.3"
 # Glyphs beyond the code-page atlases, outlined on demand (`text/wide.rs`).
 ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] }
 getrandom = { version = "0.3.4", features = ["std"] }
+sjk-acoustics.workspace = true
 sjk-bsp.workspace = true
 sjk-audio.workspace = true
 sjk-client.workspace = true

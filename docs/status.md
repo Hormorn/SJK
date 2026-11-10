@@ -1,3 +1,88 @@
+## Verified-only pictures and GIFs, Change name sets the SJK name
+
+10/11/2026, `personal/verified-pictures-name` (Sol: "we don't accept profile pictures from
+unverified people no more + we don't play their gifs in chat. Also fix the change name in
+the SJK profile"). Hub branch `verified-pictures` refuses `PUT /v1/avatar` from a key that
+is not verified, staff or the creator (403 `not_verified`); it must be deployed for the
+picture rule to hold (the client has no check of its own). Client: `chat_gifs::plays_from`
+keeps an unverified sender's GIF link as text in the chat box, docks and SJK chat page;
+the SJK Profile tab's Change name opens a name panel that sends `PUT /v1/profile {"name"}`
+(the old route to the Character tab's Name field is gone). Existing pictures of unverified
+players stay up. Untested in game.
+
+## Forge fusion, deal of the day, wishlist (10/11/2026)
+
+10/11/2026, client `personal/forge-shop` based on `main` `c10f6aab7`, against the hub branch
+`forge-shop` built at the same time (Sol: "make crafting and the shop more relevant, people
+barely use it"; live then: 7 shop purchases ever, 38 crafts, a median of 148 kyber shards
+against a Legendary's 600). The Forge gains **Fuse** (duplicates of one tier for a shader of
+the next the player lacks, proposed from the biggest piles, never a last copy), the Shop
+marks the **deal of the day** (its struck table price), wished offers and Beta offers, and a
+**wishlist** of three shaders is kept from the Shaders tab, Craft and the offers, with a
+card once a shop day when a wished shader is on offer and a gold dot on the Forge tab, the
+Shop and Fuse chips and the Holocrons tab's Shop button while something waits there
+([cards.md](cards.md#fusion-deal-of-the-day-wishlist), [sjk-ui.md](sjk-ui.md#collection)).
+Each part hides against a hub that does not send it. Verified: `cargo test -p sjk-identity
+-p sjk-viewer` (wire parsing with and without the new fields, the fake hub's fuse and
+wishlist requests, the proposal and checks, the wishlist's limit, the dot's conditions, the
+card once a day, layout fits at 1920x1080, 3840x2160, 1440x1080 and 2560x1080), clippy on
+both crates, and the startup stack check. Not verified: nothing was tried in a running
+client nor against a deployed hub; the wire is the agreed contract, not a captured answer.
+
+## Map editor: texture guesses and better selections
+
+10/11/2026, `personal/mapedit-ingame-3`, based on `main` `e8f685997` (Sol: "further improve
+the in game editor with textures guesses, better selections and just whatever you can think
+of"). Every selection's shader list starts with Suggested rows: the nearby vote (Fill's on
+faces, asked by the surfaces' own triangles on drawn surfaces), the same name family in the
+folder, and the map's most used textures, each with why
+([map-edits.md](map-edits.md#texture-guesses-and-selections)); resting on a row previews the
+remap on the selected surfaces without writing anything. The hover outlines what is under
+the pointer with a tip; a drag draws a box selecting surfaces, seen caulk faces and placed
+models (Shift adds, Ctrl takes out); Ctrl+click takes one out; `mapedit_select shader|placed`
+and `mapedit_duplicate` (Ctrl+D) are new. Fixed: the face pick took a physics clip for a
+hidden face (now told by the `trans` flag, read at its real bit 0x80000000, which the cover
+test and the vote also had wrong), and a pick tests only the surfaces whose bounds the ray
+meets. Not built: grow and shrink, invert, normal-aligned placing, measuring, fly-to; the
+browser editor has none of these yet. Verification: below in map-edits.md's Limits.
+
+## Holocron seasons: the Beta tables
+
+10/11/2026, client `personal/holocron-seasons` and hub branch `beta-season` (Sol: "build what
+you can build, decisions later"). The 05/11 design ([cards.md](cards.md#seasons)) is built,
+behind the hub's Beta switch, which stays off: a Beta holocron of Rare or better gives a
+card with a rarity floor and its credits, a shader with a tier floor (Rare holocron
+Uncommon, Legendary Rare, Mythical Legendary; Beta's own odds, Sol 10/11) and bonus rolls on
+top, and Beta kyber crystals get their own better odds; pity 15/80 per person over Beta openings; Legendary and Mythical ones pick
+card faces not held yet; opening a Beta holocron needs the Beta release. The client shows a
+Beta holocron's prizes one by one, best last, has a Beta page on the loot table (B), the
+guarantee and pity on a Beta holocron's hover card, and `debug_open <tier> beta`.
+Verified on Windows 11: the hub's tests (the floors, the bonus shares with banners off, the
+pity's run and raise, a Beta Mythical's prizes, an Alpha holocron unchanged, a Beta Uncommon
+counted, fresh faces, the release gate, the status answer) and the client's (the wire, the
+reveal order, the rehearsal, the Beta page's lines and fit). Not verified: in a running
+client, or against a deployed hub. Not deployed; no changelog line until Beta opens.
+## GIF tags
+
+10/11/2026, `personal/gif-tags`, based on `main` `9c92344ab` (Sol's idea: a blank tag
+dropped as the others, spent once on a GIPHY link, a tag that plays that GIF on walls
+forever; verified players only, a GIF GIPHY deletes is a tag lost, opt-in with GIF tags
+off by default and classic tags on). The client side of [Tag](client.md#tag): the blank
+tag in the catalogue, `gif:<id>` tag ids, the profile's `gif_tags` and `POST /v1/tags/gif`
+in `sjk-identity`, the blank's card (Paste link, Make on a second press), a GIF tags
+heading, `cg_toyGifTags` (the card's switch and Settings, with "Show others' tags" for
+`cg_toyTags`), and GIF tags animated on walls by the tags' pass from the chat's GIF cache
+([rendering](rendering.md#tags)). Needs the hub's `gif-tags` branch (deployed first);
+on an older hub the blank tag shows but cannot be spent and no GIF tag is offered.
+Verified on Windows 11: unit tests (GIF tag ids, holdings from the profile, the blank
+never stuck, the own GIF tag going when the hub takes it, the card's reasons, the wall's
+parts, the settings' help), the world shots `duel6_sjk_collection_gif_tags` (looked at: the
+GIF tag's card and tile playing, the blank's card with a GIF pasted and Make pressed once)
+and `duel6_tags_on_walls_and_floor` (a GIF tag on a wall, two frames apart, looked at),
+fmt, clippy and the viewer's tests. Not verified: in a running client against the hub
+(the clipboard, a real GIPHY GIF on a wall, other players seeing it, the spray), and the
+Toys tab has no Tag row (the switches are on the Tags card and in Settings).
+
 ## Map editor panel: the page's tools in game, and texture pictures
 
 09/11/2026, `personal/mapedit-ingame-2`, based on `main` `aeb7b1c4` (Sol: "I need all the
@@ -879,6 +964,28 @@ test), mixing and the render thread's tick allocate nothing, and the mixer took 
 53 us a block on against 23 us off with every voice and loop busy (release, 2.9 ms
 budget). Not verified: heard in a game; the strengths (muffling, reverb level) are
 first guesses to tune by ear.
+
+09/11/2026, `personal/acoustics`, based on `main` `13e2e2d0`: Sol heard the first version
+and found it far from VisionJK's Steam Audio one, and asked for that level in SJK's own
+Rust (no Steam Audio code or library). Rebuilt: measured head filters (MIT KEMAR) per
+sound, materials per band through walls, a way round one corner, and the room's echo
+traced with 2048 rays into each ear's impulse response and convolved, on the new
+[sjk-acoustics](../crates/sjk-acoustics/src/lib.rs) threads. Verified on Windows 11: fmt,
+workspace build, tests and Clippy (no new warning); off, the mix is bit for bit the plain
+one; the audio thread allocates nothing; mixer cost 326 us a block with 64 sounds and a
+3 s room while turning (release, 2.9 ms budget); mp/ffa3, mp/ffa5 and mp/duel1 build and
+trace from the installed game (`retail_levels`). Not verified: heard in a game, and
+therefore every strength (walls, corners, how loud and long rooms ring); macOS and Linux
+builds.
+
+09/11/2026, `personal/acoustics`: Sol heard it: loud and unreadable. Measured with
+`retail_levels`: the rooms of mp/ffa3 and mp/ffa5 rang with 1 to 4 times the energy of a
+sound 128 units away (which reaches each ear at about 0.3), for 2 to 3 s, on every sound
+including the player's own saber hum, and the mix clipped. Now every wall takes a fifth
+more and the response is turned down (0.01 to 0.03 of that sound on those maps, 10 to
+15 dB under it, ringing about 1 s). A new test holds a sound through the head to the
+loudness of the panned one (0.5 to 1.05 of its energy over six directions). Not
+verified: heard in a game.
 
 ## Heimdall's time nudge kicks at low frame rates
 
@@ -2767,7 +2874,7 @@ camera (`cg_cameraStyle ejk`, the locked default) and SP camera (`sjk`, the ease
 EJK and SJK before; only the names changed, the cvar values stay
 ([client.md](client.md#camera-style)). The Vanilla style graphics preset follows a survey
 of EternalJK's defaults on its default renderer (rd-eternaljk, rd-vanilla's code;
-[client.md](client.md#vanilla-style-and-eternaljk)): it now turns light flares off too
+[client.md](client.md#vanilla-and-eternaljk)): it now turns light flares off too
 (`r_flares 0`, a new Light flares row in Graphics > Image; SJK's default stays 1), dynamic
 glow stays off; everything else already matched or has no counterpart in SJK's renderer.
 A profile set to Vanilla style before reads Custom until the preset is picked again. Not

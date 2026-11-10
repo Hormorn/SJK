@@ -32,6 +32,8 @@
 github: Sol-Vulpes
 role: Creator and developer of Sol JK
 did: Sol JK itself: its name, emblem, website, releases and self-updates
+did: Your SJK page: sign-in from the game, joining keys, video bounties
+did: The assets folder: PK3s tidied into subfolders of your own, outside base
 did: The classic menus and classic+, the settings and search, the retail-look console
 did: The SJK UI, Sol JK's own menus over the live map
 did: SJK's icon art: the quick wheels' and the settings' icons
@@ -74,6 +76,9 @@ did: The card pack: a holocron's card comes with its credits and a few kyber sha
 did: A card on the holocron strip shows as its credits, the card tucked in a corner
 did: The shop in kyber shards, and holocrons bought with credits
 did: Kyber crystals: a reward for every achievement, always a saber shader
+did: Holocron seasons: Beta holocrons with guaranteed prizes, bonus rolls and a pity
+did: Beta season: a guaranteed shader in every Rare+ holocron, better Beta crystal odds
+did: Forge fusion, a deal of the day in the shop, and a wishlist of three shaders
 did: Fourteen more achievements, a secret one among them, and Surveyor retired
 did: Achievements announced with their kyber crystal once the SJK hub unlocks them
 did: The Mythical holocron's engram: gold plates breathing round a glowing core
@@ -150,6 +155,7 @@ did: The Sith cloud on the same card, with the SJK hub naming both collections' 
 did: Automatic updates for JoF content and the Sith cloud: opt in, hourly, for the groups you mark
 did: The News panel: release recaps and announcements in one, with links into the game, pictures and switches
 did: Sharp tags drawn in a pass of their own, Holo and Solar tags, and the credits cards as tags
+did: GIF tags: a blank tag spent once on a GIPHY GIF that plays on walls, opt in
 did: The Toy Master: toys hidden on maps to find, each a secret achievement
 did: Mythical shader parts: the Sun's and the Spectral's effects, each switched on or off
 did: The Sun's orbiting glints, circling its blade below the tip
@@ -210,12 +216,15 @@ did: Collection marks: worn, favourite, locked and New saber shaders, the lock h
 did: Toon models: cartoon-style banded shading with a bright rim, an option off by default
 did: Toon shading by choice: each player picks it for their own model, everyone sees it
 did: 3D sound: sounds muffled behind walls and doors, rooms that ring (after VisionJK)
+did: 3D sound rebuilt as SJK's own acoustics: a measured head, walls by material, corners, traced room echo
 did: White edge on dark text: black names and chat in a white outline, an option
 did: Weather in map edits: rain, storms, snow, fog and wind kept for a map, synced to every player
 did: Rain and wind sounds: the game's own loops, as strong as the weather, quieter under a roof
 did: Puddles that mirror the world at ultra weather quality (after VisionJK)
 did: Lighter rain and fog: the fog at half size, about three times cheaper, glowing towards the sun
 did: Lightning in storms with thunder and gusts, and rain running down walls and slopes
+did: Wet streets that mirror the city, spray, rain in waves and settling snow
+did: Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer, rated for your PC
 did: JA+ server mode: SJK's server runs as a JA+ 2.4 B7 server with g_mod japlus (after VisionJK)
 did: JA+ server mode: its emotes, grappling hook and admins, who log in with their SJK key (after VisionJK)
 did: Lights in map edits: lights added, moved and recoloured for every player, map lamps turned off or moved
@@ -393,7 +402,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 128 merged pull requests
+role: Contributor: 140 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -524,6 +533,18 @@ did: #364 Mining's rubble sells to the hub, under the junk's cap
 did: #365 The Quests toy: social quests won as an Echo
 did: #376 Chroma shader blades take a pale custom colour
 did: #369 Banners break down for kyber shards
+did: #390 MP camera: third person damping is honoured in the ejk style
+did: #391 A double click selects the search text in the cvar list, Settings and the server list
+did: #392 Profile: the model turns in the main menu too, the right button zooms it
+did: #393 Chat: Left and Right change the chat button while nothing is typed
+did: #394 Console: a held key types again
+did: #395 A click that brings the window back no longer attacks
+did: #396 A boombox on the floor is hidden in a private duel
+did: #398 SJK UI: a typed slider value opens a gold pill at the number's size
+did: #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK
+did: #403 The credits page counts the pull requests merged under older merge names
+did: #407 The Jedi Knight II HUD's selector bar opens behind the icons
+did: #405 Disruptor beams leave the gun's tip, for every player and when zoomed
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]
@@ -541,6 +562,7 @@ role: Contributor: 1 merged pull request
 did: #333 JA+ dual jump attack: feet lift only over a player ahead, as the server does
 did: Inspiration: VisionJK's boombox, standing on the floor, gave SJK's boombox its place on the floor (boombox_place)
 did: VisionJK's 3D sound (v_spatial), the idea behind SJK's 3D sound (s_spatial)
+did: VisionJK's table of what each shader is made of (GPL-2.0, with his approval), for the 3D sound's walls
 did: VisionJK's puddle mirror (wet.frag), the march SJK's puddles mirror the world with
 did: VisionJK's web admin page (GPL-2.0, with his approval) draws the map in SJK's browser map editor (mapedit_web)
 did: VisionJK's rebuild of the JA+ 2.4 B7 server module, the reference for SJK's JA+ server mode (g_mod japlus)
@@ -687,6 +709,16 @@ role: JoF's launcher and its repository, which SJK's JoF content reads
 did: SJK reads the launcher's manifest and hosts and checks files as it does; it includes none of its code
 link: https://github.com/JoFKypdurron/jof-launcher
 
+[MIT Media Lab KEMAR measurements]
+role: The dummy head the 3D sound hears through
+did: Head-related impulse responses of a KEMAR dummy head by Bill Gardner and Keith Martin (1994)
+link: https://sound.media.mit.edu/resources/KEMAR.html
+
+[Valve's Steam Audio]
+role: The ideas SJK's own 3D sound acoustics follow
+did: Ray-traced room echo, sound through walls and round corners; SJK includes none of its code
+link: https://github.com/ValveSoftware/steam-audio
+
 [JKAdmin by Lixsl]
 role: The web admin panel VisionJK's page grew from
 did: By way of VisionJK, its map view is the base of the drawing in SJK's browser map editor (mapedit_web)
@@ -697,7 +729,7 @@ did: SJK Menu and SJK HUD are traced from the JoF HD Fonts & Icons pack (author 
 
 [OpenJK, EternalJK, JoF EJK, TaystJK and jaPRO]
 role: References for how Jedi Academy behaves
-did: SJK reimplements their behaviour and includes none of their code
+did: SJK reimplements their behaviour; the only thing taken from them is the Jedi Knight II HUD's pictures, EternalJK's hudfiles 2 graphics by Bucky
 link: https://github.com/JACoders/OpenJK
 link: https://github.com/eternalcodes/EternalJK
 

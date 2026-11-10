@@ -89,7 +89,8 @@ All 32 workspace crates are listed in [Cargo.toml](../Cargo.toml).
 | [sjk-effect](../crates/sjk-effect/src/lib.rs) | Raven effect definitions |
 | [sjk-nav](../crates/sjk-nav/src/lib.rs) | Navigation graphs and queries with game-supplied world access |
 | [sjk-icarus](../crates/sjk-icarus/src/lib.rs) | Script interpretation with host-provided game operations |
-| [sjk-audio](../crates/sjk-audio/src/lib.rs) | Sound storage, spatialization and mixing |
+| [sjk-audio](../crates/sjk-audio/src/lib.rs) | Sound storage, spatialization and mixing, the 3D sound's head filters and convolution |
+| [sjk-acoustics](../crates/sjk-acoustics/src/lib.rs) | The 3D sound's acoustics: the level's walls as a ray-traced mesh, what reaches the listener from each sound, the room's echo ([client.md](client.md#3d-sound)) |
 | [sjk-ui](../crates/sjk-ui/src/lib.rs) | Retained widgets, layout, input and draw commands |
 | [sjk-shell](../crates/sjk-shell/src/lib.rs) | Cvars, bindings and command processing |
 | [sjk-mod](../crates/sjk-mod/src/lib.rs) | The interface client mods are written against ([mods.md](mods.md)) |

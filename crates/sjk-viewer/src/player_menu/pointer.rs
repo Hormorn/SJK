@@ -33,6 +33,10 @@ impl PlayerMenu {
                 ..
             }
         );
+        // The router's drags do not say which button: the model's turn area asks.
+        if let InputEvent::PointerPress { button, .. } = event {
+            self.turn.zooming = button == sjk_ui::PointerButton::Secondary;
+        }
         let Some(event) = self.canvas.pointer(event) else {
             return PlayerMenuResult::None;
         };

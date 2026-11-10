@@ -293,7 +293,7 @@ mod tests {
         let mut console =
             crate::console::ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
         let mut state = State::default();
-        Level::Sjk.apply(&mut console);
+        Level::VanillaPlus.apply(&mut console);
         assert!(!state.vanilla(&console));
         let read = state.vanilla;
         assert!(!state.vanilla(&console));

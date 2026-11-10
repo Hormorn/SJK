@@ -19,8 +19,8 @@ fn every_light_gets_a_tile_and_the_copy_ends_at_the_block() {
     assert_eq!(planned(5, true), 5);
     assert_eq!(planned(5, false), 0);
     assert_eq!(planned(MAX_POINT_LIGHTS + 3, true), MAX_POINT_LIGHTS as u32);
-    // 392 words a tile, one invocation each.
-    assert_eq!(workgroups(7), [7, 7, 1]);
+    // 784 texels a tile, one invocation each.
+    assert_eq!(workgroups(7), [13, 7, 1]);
     assert_eq!(copy_bytes(1), 16 + 1568);
     assert_eq!(
         SHADOW_HEADER_OFFSET + copy_bytes(MAX_POINT_LIGHTS as u32),

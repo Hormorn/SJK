@@ -361,6 +361,9 @@ pub struct Snapshot {
     /// The kyber crystals' odds and the person's pity counter, as the hub last sent them
     /// with the progress; `None` before, or from a hub older than crystals (21/10/2026).
     pub kyber: Option<crate::wire::KyberTables>,
+    /// The Beta season's tables and the person's holocron pity, as the hub last sent them
+    /// with the progress; `None` before, or from a hub older than seasons (10/11/2026).
+    pub seasons: Option<crate::wire::SeasonTables>,
     /// The SJK team's open requests for the player's logs (oldest first), as the hub
     /// last listed them, without the ones the player answered: the game asks the
     /// player about each ([`Service::answer_logs`]).
@@ -393,6 +396,9 @@ pub struct Snapshot {
     /// Why the last change of a mark failed (in the player's words), by its count: the
     /// marks are read again from the hub then.
     pub mark_refusal: Option<(u64, String)>,
+    /// Why the last change of the wishlist failed (in the player's words), by its count
+    /// (10/11/2026): the wishlist is read again from the hub then.
+    pub wishlist_refusal: Option<(u64, String)>,
     /// The player's trades with other players, as the hub last listed them
     /// ([`Service::trade_with`], 22/10/2026); `None` before the first read.
     pub trades: Option<TradesState>,
@@ -419,6 +425,9 @@ pub struct Snapshot {
     /// What became of the last news picture uploaded ([`Service::upload_news_image`]):
     /// its serial, and the picture or why it was refused.
     pub news_image: Option<(u64, Result<crate::news::NewsImage, String>)>,
+    /// What became of the last players' site request ([`Service::site_sign_in`],
+    /// [`Service::site_link_code`]).
+    pub site: Option<crate::site::SiteOutcome>,
 }
 
 /// The player's trades with other players, as last read (`crate::trades`).
@@ -563,6 +572,10 @@ pub enum Trade {
     ShatterMany,
     /// A shader made with kyber shards.
     Craft,
+    /// Duplicates of one tier fused into a shader of the next (hubs whose economy says
+    /// `fuse`, 10/11/2026): the outcome's `id` is the shader gained, its `copies` the
+    /// duplicates that went.
+    Fuse,
     /// One of the shop's offers bought (with kyber shards since 17/10/2026).
     Buy,
     /// A holocron bought with credits; the outcome's `id` is its tier.
@@ -603,6 +616,9 @@ pub enum TagTrade {
     Shatter(crate::wire::TagCopy),
     /// Two copies given for a tag not held yet.
     Craft([crate::wire::TagCopy; 2]),
+    /// A blank tag spent on a GIPHY GIF, by its id (10/11/2026): the GIF tag made is
+    /// told as [`TagOutcome::crafted`], its id `gif:<giphy>`.
+    Gif(String),
 }
 
 /// What became of a tag copies request.
@@ -729,6 +745,12 @@ pub struct ReportOutcome {
 }
 
 impl Snapshot {
+    /// What a service not started yet for `identity` shows: its key, and nothing known of
+    /// the hub (10/11/2026, for a viewer's pages and tests built from a fresh snapshot).
+    pub fn blank(identity: &Identity) -> Self {
+        Self::new(identity)
+    }
+
     fn new(identity: &Identity) -> Self {
         let key_id = identity.key_id();
         Self {
@@ -783,12 +805,14 @@ impl Snapshot {
             reveal: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),
@@ -798,6 +822,7 @@ impl Snapshot {
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
         }
     }
 
@@ -854,6 +879,8 @@ enum Command {
     SetBanner(String),
     /// The name emoji to show at the right of the player's name, empty for none.
     SetEmoji(String),
+    /// The custom SJK name, shown instead of the name worn in game.
+    SetName(String),
     /// The counts the client keeps for its achievements, by id.
     Achievements(BTreeMap<String, u64>),
     /// A staff request.
@@ -992,6 +1019,7 @@ enum Command {
     ShatterTag(crate::wire::TagCopy),
     /// Give two tag copies for a new tag.
     CraftTags([crate::wire::TagCopy; 2]),
+    MakeGifTag(String),
     /// The feed relayed a holocron drop of the player's own key.
     OwnDrop,
     /// The viewer wants fresh holocron progress.
@@ -1012,6 +1040,10 @@ enum Command {
     ShatterMany(Vec<(String, u32)>, bool),
     /// Craft this shader with shards.
     Craft(String),
+    /// Fuse these duplicates (each id once per copy) into a shader of the next tier.
+    Fuse(Vec<String>),
+    /// Replace the wishlist with these shader ids.
+    Wishlist(Vec<String>),
     /// Set or clear a collection mark on this shader.
     Mark(String, crate::wire::Mark, bool),
     /// Read the shop's day.
@@ -1038,6 +1070,10 @@ enum Command {
     Announce(AnnounceRequest),
     /// A news picture for an announcement: its bytes and type.
     UploadNewsImage(Vec<u8>, &'static str),
+    /// A sign-in link for the players' site.
+    SiteSignIn,
+    /// A link code the players' site made, typed by the player; joined when confirmed.
+    SiteLink(String, bool),
     Stop,
 }
 
@@ -1321,6 +1357,11 @@ fn tag_refusal(error: &HubError) -> String {
             "finishes_differ" => "Both copies must be of the same finish.",
             "tiers_differ" => "Both copies must be of the same tier.",
             "nothing_new" => "You already have every tag of that tier in that finish.",
+            "not_verified" => "GIF tags are for verified players.",
+            "bad_gif" => "That is not a GIPHY GIF link.",
+            "gif_tag_held" => "You already have a GIF tag of that GIF.",
+            "no_blank_tag" => "You have no blank tag left.",
+            "gif_tags_full" => "You have as many GIF tags as the hub keeps.",
             "opening_staff_only" => "Shards and the shop open with holocrons: soon.",
             "client_update_required" => return update_notice(message),
             _ => return message.clone(),
@@ -1345,6 +1386,29 @@ fn mark_at_once(snapshot: &mut Snapshot, id: &str, mark: crate::wire::Mark, on: 
         return false;
     }
     snapshot.marks_revision += 1;
+    true
+}
+
+/// Show `ids` as the wishlist in `snapshot` before (or as) the hub answers, the shop's
+/// offers marked wished to match; whether it changed anything (nothing while the hub
+/// keeps no wishlist, [`crate::wire::EconomyTables::wishlist`] `None`).
+fn wishlist_at_once(snapshot: &mut Snapshot, ids: &[String]) -> bool {
+    let Some(list) = snapshot
+        .economy
+        .as_mut()
+        .and_then(|economy| economy.wishlist.as_mut())
+    else {
+        return false;
+    };
+    if list.as_slice() == ids {
+        return false;
+    }
+    ids.clone_into(list);
+    if let Some(shop) = snapshot.shop.as_mut() {
+        for offer in &mut shop.day.offers {
+            offer.wished = ids.contains(&offer.id);
+        }
+    }
     true
 }
 
@@ -1872,6 +1936,7 @@ impl Worker {
             Command::SetBio(bio) => self.set_bio(&bio),
             Command::SetBanner(id) => self.set_banner(&id),
             Command::SetEmoji(emoji) => self.set_emoji(&emoji),
+            Command::SetName(name) => self.set_custom_name(&name),
             Command::Achievements(counts) => self.counts = counts,
             Command::Staff(request) => self.staff(&request),
             Command::StaffQuery(query) => self.staff_query(&query),
@@ -2026,6 +2091,7 @@ impl Worker {
             Command::Play(play) => self.play.add(&play),
             Command::ShatterTag(copy) => self.tag_trade(TagTrade::Shatter(copy)),
             Command::CraftTags(copies) => self.tag_trade(TagTrade::Craft(copies)),
+            Command::MakeGifTag(giphy) => self.tag_trade(TagTrade::Gif(giphy)),
             Command::OwnDrop => self.own_drop(now),
             Command::RefreshHolocrons => self.holocrons_soon(now),
             Command::MenuOpened => self.menu_opened(now),
@@ -2038,6 +2104,8 @@ impl Worker {
                 self.shop_trade(Trade::ShatterMany, "", &items, last)
             }
             Command::Craft(id) => self.trade(Trade::Craft, &id),
+            Command::Fuse(ids) => self.fuse(&ids),
+            Command::Wishlist(ids) => self.set_wishlist(&ids, now),
             Command::Mark(id, mark, on) => self.set_mark(&id, mark, on, now),
             Command::ReadShop => self.read_shop(now),
             Command::Buy(id) => self.trade(Trade::Buy, &id),
@@ -2055,6 +2123,8 @@ impl Worker {
             Command::ClaimReward(id) => self.claim_reward(id, now),
             Command::Announce(request) => self.announce(&request),
             Command::UploadNewsImage(bytes, mime) => self.upload_news_image(&bytes, mime),
+            Command::SiteSignIn => self.site_ask(None),
+            Command::SiteLink(code, confirm) => self.site_ask(Some((code, confirm))),
             Command::Stop => self.release(),
         }
         self.publish_feed();
@@ -2351,6 +2421,8 @@ impl Worker {
                     let credits = answer.bought.balance;
                     (answer.bought.price, 0, Some(credits), None, answer.profile)
                 }),
+                // A fusion has its own request ([`Self::fuse`]).
+                Trade::Fuse => Err(HubError::Protocol("a fusion is asked with fuse".to_owned())),
             },
             _ => Err(self.not_connected()),
         };
@@ -2427,6 +2499,16 @@ impl Worker {
                 TagTrade::Craft(copies) => hub
                     .craft_tags(&self.identity, copies)
                     .map(|answer| (0, Some(answer.crafted), answer.profile)),
+                TagTrade::Gif(giphy) => hub.make_gif_tag(&self.identity, giphy).map(|answer| {
+                    let made = crate::wire::TagCrafted {
+                        id: answer.made.id,
+                        name: "GIF tag".to_owned(),
+                        tier: String::new(),
+                        finish: "normal".to_owned(),
+                        gave: Vec::new(),
+                    };
+                    (0, Some(made), answer.profile)
+                }),
             },
             _ => Err(self.not_connected()),
         };
@@ -2455,6 +2537,93 @@ impl Worker {
                 },
             });
         });
+    }
+
+    /// Fuse the duplicates `ids` names (each shader once per copy): the outcome goes in
+    /// [`Snapshot::trade`] (its `id` the shader gained, its `copies` how many went), the
+    /// profile after it in [`Snapshot::me`], and the shop read last marks the shader
+    /// gained as held.
+    fn fuse(&mut self, ids: &[String]) {
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.fuse_unlocks(&self.identity, ids),
+            _ => Err(self.not_connected()),
+        };
+        // What is held changed meanwhile: the own profile is read again at once.
+        if matches!(&outcome, Err(HubError::Rejected { code, .. })
+                if matches!(code.as_str(), "not_held" | "not_a_duplicate" | "comes_with_card"))
+        {
+            self.due_profile = self.due_profile.min(Instant::now());
+        }
+        self.update(|snapshot| {
+            let serial = snapshot.trade.as_ref().map_or(1, |last| last.serial + 1);
+            snapshot.trade = Some(match outcome {
+                Ok(answer) => {
+                    let gained = answer.crafted.id;
+                    let used: u32 = if answer.used.is_empty() {
+                        ids.len() as u32
+                    } else {
+                        answer.used.iter().map(|used| used.copies).sum()
+                    };
+                    if let Some(shop) = snapshot.shop.as_mut() {
+                        shop.day.shards = answer.profile.shards;
+                        shop.day.credits = answer.profile.credits;
+                        for offer in shop
+                            .day
+                            .offers
+                            .iter_mut()
+                            .filter(|offer| offer.id == gained)
+                        {
+                            offer.owned = true;
+                        }
+                    }
+                    snapshot.set_me(answer.profile);
+                    TradeOutcome {
+                        serial,
+                        trade: Trade::Fuse,
+                        id: gained,
+                        amount: 0,
+                        copies: used,
+                        message: String::new(),
+                    }
+                }
+                Err(error) => TradeOutcome {
+                    serial,
+                    trade: Trade::Fuse,
+                    id: String::new(),
+                    amount: 0,
+                    copies: 0,
+                    message: trade_refusal(&error),
+                },
+            });
+        });
+    }
+
+    /// Replace the wishlist at the hub with `ids` (the snapshot shows it already,
+    /// [`Service::set_wishlist`]): the hub's answer replaces it; a refusal is told in
+    /// [`Snapshot::wishlist_refusal`] and the economy (with the hub's wishlist) is read
+    /// again soon.
+    fn set_wishlist(&mut self, ids: &[String], now: Instant) {
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.set_wishlist(&self.identity, ids),
+            _ => Err(self.not_connected()),
+        };
+        match outcome {
+            Ok(answer) => {
+                if let Some(list) = answer.wishlist {
+                    self.update(|snapshot| {
+                        wishlist_at_once(snapshot, &list);
+                    });
+                }
+            }
+            Err(error) => {
+                let words = trade_refusal(&error);
+                self.update(|snapshot| {
+                    let serial = snapshot.wishlist_refusal.as_ref().map_or(1, |(n, _)| n + 1);
+                    snapshot.wishlist_refusal = Some((serial, words));
+                });
+                self.holocrons_soon(now);
+            }
+        }
     }
 
     /// Set or clear `mark` on shader `id` at the hub (the snapshot shows the change
@@ -2593,6 +2762,32 @@ impl Worker {
                 } else {
                     "emoji saved".to_owned()
                 });
+            }
+            Err(error) => snapshot.notice = Some(error.to_string()),
+        });
+    }
+
+    fn set_custom_name(&mut self, name: &str) {
+        let name = match crate::wire::custom_name(name) {
+            Ok(name) => name,
+            Err(error) => {
+                self.update(|snapshot| snapshot.notice = Some(error.to_owned()));
+                return;
+            }
+        };
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.set_name(&self.identity, &name),
+            _ => {
+                self.update(|snapshot| {
+                    snapshot.notice = Some("not connected to the hub".to_owned())
+                });
+                return;
+            }
+        };
+        self.update(|snapshot| match outcome {
+            Ok(profile) => {
+                snapshot.set_me(profile);
+                snapshot.notice = Some("name saved".to_owned());
             }
             Err(error) => snapshot.notice = Some(error.to_string()),
         });
@@ -3055,6 +3250,33 @@ impl Worker {
         });
     }
 
+    /// Ask the hub for a sign-in link to the players' site, or type a link code (and
+    /// join with its `confirm`); the answer arrives in [`Snapshot::site`].
+    fn site_ask(&mut self, link: Option<(String, bool)>) {
+        use crate::site::SiteAnswer;
+        let joined = link.as_ref().is_some_and(|(_, confirm)| *confirm);
+        let result = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => {
+                let answer = match &link {
+                    Some((code, confirm)) => hub
+                        .site_link(&self.identity, code, *confirm)
+                        .map(SiteAnswer::Link),
+                    None => hub.site_sign_in(&self.identity).map(SiteAnswer::SignIn),
+                };
+                answer.map_err(|error| crate::site::refusal(&error))
+            }
+            _ => Err(self.not_connected().to_string()),
+        };
+        // This key is another person's now: read the profile again at once.
+        if joined && result.is_ok() {
+            self.due_profile = self.due_profile.min(Instant::now());
+        }
+        self.update(|snapshot| {
+            let serial = snapshot.site.as_ref().map_or(1, |last| last.serial + 1);
+            snapshot.site = Some(crate::site::SiteOutcome { serial, result });
+        });
+    }
+
     /// Read the player's trades if it is due.
     fn keep_trades(&mut self, now: Instant) {
         if now >= self.due_trades && self.read_trades(now) {
@@ -3219,6 +3441,7 @@ impl Worker {
                     }
                     if state.kyber.is_some() {
                         snapshot.kyber.clone_from(&state.kyber);
+                        snapshot.seasons.clone_from(&state.seasons);
                     }
                     // A hub that keeps marks sends them every time (none: an empty list);
                     // one that keeps none leaves them out.
@@ -4663,6 +4886,12 @@ impl Service {
         let _ = self.commands.send(Command::CraftTags(copies));
     }
 
+    /// Spend a blank tag on GIPHY GIF `giphy` for a GIF tag (verified players, hubs whose
+    /// profiles list `gif_tags`): what came of it arrives in [`Snapshot::tag_trade`].
+    pub fn make_gif_tag(&self, giphy: String) {
+        let _ = self.commands.send(Command::MakeGifTag(giphy));
+    }
+
     /// Ask for fresh holocron progress ([`Snapshot::holocrons`]); read at most once
     /// every 30 seconds, for a page that shows it as it opens.
     pub fn refresh_holocrons(&self) {
@@ -4722,6 +4951,29 @@ impl Service {
         let _ = self.commands.send(Command::Craft(id.to_owned()));
     }
 
+    /// Fuse duplicates into a shader of the next tier the player lacks (hubs whose economy
+    /// says [`crate::wire::FUSE_ABILITY`], 10/11/2026): `ids` names each shader once per
+    /// copy given, all of one tier, as many as the economy's `fuse` says. What came of it
+    /// arrives in [`Snapshot::trade`] ([`Trade::Fuse`], its `id` the shader gained), and
+    /// the profile after it.
+    pub fn fuse(&self, ids: Vec<String>) {
+        let _ = self.commands.send(Command::Fuse(ids));
+    }
+
+    /// Replace the player's wishlist with `ids` (distinct saber shaders, at most
+    /// [`crate::wire::WISHLIST_MAX`]; a hub whose economy sends `wishlist`, 10/11/2026).
+    /// The snapshot's economy shows it at once; the hub's answer replaces it, and a refusal
+    /// reads the hub's back ([`Snapshot::wishlist_refusal`] says why). Nothing while the
+    /// hub keeps no wishlist, or for a list over the limit.
+    pub fn set_wishlist(&self, ids: Vec<String>) {
+        if ids.len() > crate::wire::WISHLIST_MAX {
+            return;
+        }
+        if wishlist_at_once(&mut lock(&self.snapshot), &ids) {
+            let _ = self.commands.send(Command::Wishlist(ids));
+        }
+    }
+
     /// Set (`on`) or clear collection mark `mark` on shader `id` (a hub whose economy says
     /// [`crate::wire::MARKS_ABILITY`], 29/10/2026). [`Snapshot::marks`] shows the change at
     /// once; the hub's answer replaces it, and a refusal puts the hub's marks back
@@ -4749,6 +5001,19 @@ impl Service {
     /// creator.
     pub fn announce(&self, request: AnnounceRequest) {
         let _ = self.commands.send(Command::Announce(request));
+    }
+
+    /// Ask for a one-use link that signs the browser in to the players' site; it
+    /// arrives in [`Snapshot::site`].
+    pub fn site_sign_in(&self) {
+        let _ = self.commands.send(Command::SiteSignIn);
+    }
+
+    /// Type a link code the players' site made: without `confirm` the hub only names
+    /// the account; with it this key joins that account. The answer arrives in
+    /// [`Snapshot::site`].
+    pub fn site_link(&self, code: String, confirm: bool) {
+        let _ = self.commands.send(Command::SiteLink(code, confirm));
     }
 
     /// Upload a news picture (a PNG or JPEG, `mime`) for an announcement: the hub's id
@@ -4837,6 +5102,12 @@ impl Service {
     /// away.
     pub fn set_emoji(&self, emoji: String) {
         let _ = self.commands.send(Command::SetEmoji(emoji));
+    }
+
+    /// Set the player's custom SJK name at the hub ([`crate::wire::custom_name`]),
+    /// shown instead of the name worn in game.
+    pub fn set_custom_name(&self, name: String) {
+        let _ = self.commands.send(Command::SetName(name));
     }
 
     /// Make `png` (cropped and scaled to [`crate::avatar::SIZE`] square) the player's
@@ -5290,6 +5561,7 @@ mod tests {
     fn profile(name: &str) -> Profile {
         Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             key_id: "0123456789abcdef".to_owned(),
             key: String::new(),
             name: name.to_owned(),
@@ -5400,6 +5672,8 @@ mod tests {
                     credits: 40,
                     unlock: None,
                     shards: 0,
+                    extra: Vec::new(),
+                    pity: None,
                 })
                 .collect();
             let mut profile = profile("Sol");
@@ -5495,6 +5769,46 @@ mod tests {
         ) -> Result<crate::wire::CraftAnswer, HubError> {
             self.record(format!("craft {id}"))?;
             Err(refused(409, "not_enough_shards"))
+        }
+        fn fuse_unlocks(
+            &mut self,
+            _: &Identity,
+            ids: &[String],
+        ) -> Result<crate::wire::FuseAnswer, HubError> {
+            self.record(format!("fuse {}", ids.join(",")))?;
+            // Copies of a shader the fake hub does not hold twice are refused.
+            if ids.iter().any(|id| id == "saber_last") {
+                return Err(refused(409, "not_a_duplicate"));
+            }
+            let mut profile = profile("Sol");
+            profile.shards = 45;
+            Ok(crate::wire::FuseAnswer {
+                crafted: crate::wire::Crafted {
+                    id: "saber_aurora".to_owned(),
+                    name: "Aurora blade".to_owned(),
+                    count: 1,
+                    cost: 0,
+                    balance: 45,
+                },
+                used: vec![crate::wire::FuseUsed {
+                    id: "saber_tidal".to_owned(),
+                    copies: ids.len() as u32,
+                }],
+                profile,
+            })
+        }
+        fn set_wishlist(
+            &mut self,
+            _: &Identity,
+            ids: &[String],
+        ) -> Result<crate::wire::WishlistAnswer, HubError> {
+            self.record(format!("wishlist {}", ids.join(",")))?;
+            if ids.iter().any(|id| id == "saber_unknown") {
+                return Err(refused(400, "bad_ids"));
+            }
+            Ok(crate::wire::WishlistAnswer {
+                wishlist: Some(ids.to_vec()),
+            })
         }
         fn trades(&mut self, _: &Identity) -> Result<crate::trades::TradesAnswer, HubError> {
             *self.trade_reads.lock().unwrap() += 1;
@@ -5601,6 +5915,9 @@ mod tests {
                     price: 30,
                     bought: false,
                     owned: false,
+                    deal: false,
+                    wished: false,
+                    edition: None,
                 }],
                 next: 1_791_003_600,
                 server_time: 1_791_000_000,
@@ -6260,6 +6577,7 @@ mod tests {
             loot: Vec::new(),
             economy: None,
             kyber: None,
+            seasons: None,
             marks: None,
             catchup: None,
             activity: None,
@@ -6941,6 +7259,86 @@ mod tests {
                 .filter(|line| line.starts_with("history"))
                 .eq(["history None", "history Some(20)", "history None"].iter())
         );
+    }
+
+    #[test]
+    fn duplicates_fuse_and_the_shop_follows() {
+        let fake = Fake::default();
+        let t0 = Instant::now();
+        let (mut worker, snapshot) = worker(&fake, t0);
+        worker.handle(Command::Configure(on("https://hub")), t0);
+        worker.tick(t0);
+        worker.handle(Command::ReadShop, t0);
+        let ids = vec!["saber_tidal".to_owned(); 3];
+        worker.handle(Command::Fuse(ids), t0);
+        assert!(
+            fake.log()
+                .iter()
+                .any(|line| line == "fuse saber_tidal,saber_tidal,saber_tidal")
+        );
+        let fused = lock(&snapshot).trade.clone().unwrap();
+        assert!(fused.done());
+        assert_eq!(
+            (fused.trade, fused.id.as_str(), fused.copies, fused.amount),
+            (Trade::Fuse, "saber_aurora", 3, 0)
+        );
+        // The shader gained is held now: its offer says so.
+        let shop = lock(&snapshot).shop.clone().unwrap();
+        assert!(shop.day.offers[0].owned && !shop.day.offers[0].bought);
+        assert_eq!(lock(&snapshot).me.as_ref().map(|me| me.shards), Some(45));
+        // A refusal is said in the player's words, and the profile read again.
+        worker.handle(Command::Fuse(vec!["saber_last".to_owned(); 3]), t0);
+        let refused = lock(&snapshot).trade.clone().unwrap();
+        assert_eq!(
+            (refused.trade, refused.message.as_str()),
+            (
+                Trade::Fuse,
+                "That is your last one: only duplicates can be shattered."
+            )
+        );
+        assert!(refused.id.is_empty());
+    }
+
+    /// The wishlist (10/11/2026): nothing is sent to a hub that keeps none; one that keeps
+    /// it shows the change at once, the offers following, and a refusal says why.
+    #[test]
+    fn the_wishlist_changes_at_once_and_only_on_a_hub_that_keeps_one() {
+        let fake = Fake::default();
+        let t0 = Instant::now();
+        let (mut worker, snapshot) = worker(&fake, t0);
+        worker.handle(Command::Configure(on("https://hub")), t0);
+        worker.tick(t0);
+        worker.handle(Command::ReadShop, t0);
+        let service_snapshot = Arc::clone(&snapshot);
+        let ids = vec!["saber_aurora".to_owned()];
+        // No economy (or none with a wishlist): nothing changes, nothing goes.
+        assert!(!wishlist_at_once(&mut lock(&service_snapshot), &ids));
+        lock(&snapshot).economy = Some(crate::wire::EconomyTables {
+            wishlist: Some(Vec::new()),
+            ..Default::default()
+        });
+        assert!(wishlist_at_once(&mut lock(&service_snapshot), &ids));
+        assert!(
+            !wishlist_at_once(&mut lock(&service_snapshot), &ids),
+            "no change"
+        );
+        assert!(lock(&snapshot).shop.clone().unwrap().day.offers[0].wished);
+        worker.handle(Command::Wishlist(ids), t0);
+        assert!(
+            fake.log()
+                .iter()
+                .any(|line| line == "wishlist saber_aurora")
+        );
+        assert_eq!(
+            lock(&snapshot)
+                .economy
+                .as_ref()
+                .and_then(|economy| economy.wishlist.clone()),
+            Some(vec!["saber_aurora".to_owned()])
+        );
+        worker.handle(Command::Wishlist(vec!["saber_unknown".to_owned()]), t0);
+        let refusal = lock(&snapshot).wishlist_refusal.clone().unwrap();
+        assert_eq!(refusal.0, 1, "the refusal is told");
     }
 
     #[test]

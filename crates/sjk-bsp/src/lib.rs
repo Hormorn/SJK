@@ -18,6 +18,7 @@ mod validation;
 pub use fog::{Fog, FogVolume};
 use validation::*;
 mod brush_winding;
+pub use brush_winding::PatchCollisionGrid;
 mod leaf_links;
 mod light_grid;
 mod light_styles;

@@ -707,12 +707,14 @@ mod tests {
             log_answer: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),
@@ -722,6 +724,7 @@ mod tests {
             claim: None,
             announce: None,
             news_image: None,
+            site: None,
             public_key: String::new(),
         }
     }
@@ -739,6 +742,7 @@ mod tests {
     fn me(name: &str, bio: &str) -> Profile {
         Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),

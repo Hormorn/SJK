@@ -90,7 +90,7 @@ impl ViewerConsole {
         let opened = crate::cards::rehearsal::parse(args)?;
         let shown: Vec<_> = opened
             .iter()
-            .filter_map(super::holocrons_panel::opening::Prize::of)
+            .flat_map(super::holocrons_panel::opening::Prize::all)
             .collect();
         let count = shown.len();
         if !self.holocrons_panel.is_open() {

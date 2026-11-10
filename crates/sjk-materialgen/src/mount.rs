@@ -1,7 +1,7 @@
 //! Finding and mounting the player's game data the way the client does, and
 //! the default output location.
 
-use sjk_vfs::{VfsError, VirtualFileSystem, pk3_search_order};
+use sjk_vfs::{VfsError, VirtualFileSystem, assets_folders, pk3_search_order_merged};
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -174,7 +174,8 @@ pub fn is_inside(path: &Path, directory: &Path) -> bool {
     path == directory || path.starts_with(&format!("{directory}/"))
 }
 
-/// Mount `GameData/base`, then `GameData/<fs_game>`, then every `SJK_CONTENT`
+/// Mount `GameData/base` (with the PK3s of `GameData/assets` and its subfolders),
+/// then `GameData/<fs_game>`, then every `SJK_CONTENT`
 /// directory, as the client does (loose files below each directory's pk3s,
 /// pk3s in Quake 3 order; `SJK_CONTENT` pk3s below its loose files). Archives
 /// named `exclude` (the tool's own earlier output) and every other generated pack
@@ -188,40 +189,45 @@ pub fn mount_game_data(
     let mut vfs = VirtualFileSystem::new();
     let mut excluded = Vec::new();
     let mut hidden = Vec::new();
-    let mut mount_pk3s = |vfs: &mut VirtualFileSystem, directory: &Path| -> Result<(), VfsError> {
-        for archive in pk3_search_order(directory)? {
-            let name = archive
-                .file_name()
-                .map(|name| name.to_string_lossy().to_ascii_lowercase());
-            if name.as_deref() == Some(exclude.to_ascii_lowercase().as_str()) {
-                excluded.push(archive);
-                continue;
-            }
-            match vfs.mount_pk3(&archive) {
-                Ok(id) if is_generated(vfs, id) => {
-                    hidden.push(id);
+    let mut mount_pk3s =
+        |vfs: &mut VirtualFileSystem, folders: &[PathBuf]| -> Result<(), VfsError> {
+            for archive in pk3_search_order_merged(folders)? {
+                let name = archive
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_ascii_lowercase());
+                if name.as_deref() == Some(exclude.to_ascii_lowercase().as_str()) {
                     excluded.push(archive);
+                    continue;
                 }
-                Ok(_) => {}
-                Err(error) => eprintln!("warning: skipping {}: {error}", archive.display()),
+                match vfs.mount_pk3(&archive) {
+                    Ok(id) if is_generated(vfs, id) => {
+                        hidden.push(id);
+                        excluded.push(archive);
+                    }
+                    Ok(_) => {}
+                    Err(error) => eprintln!("warning: skipping {}: {error}", archive.display()),
+                }
             }
-        }
-        Ok(())
-    };
+            Ok(())
+        };
     for game in std::iter::once("base").chain(fs_game.filter(|game| !game.is_empty())) {
         let directory = game_data.join(game);
         if !directory.is_dir() {
             continue;
         }
         vfs.mount_directory(&directory)?;
-        mount_pk3s(&mut vfs, &directory)?;
+        let mut folders = vec![directory];
+        if game == "base" {
+            folders.extend(assets_folders(game_data));
+        }
+        mount_pk3s(&mut vfs, &folders)?;
     }
     for directory in env::var_os("SJK_CONTENT")
         .iter()
         .flat_map(env::split_paths)
         .filter(|directory| directory.is_dir())
     {
-        mount_pk3s(&mut vfs, &directory)?;
+        mount_pk3s(&mut vfs, std::slice::from_ref(&directory))?;
         vfs.mount_directory(&directory)?;
     }
     Ok((vfs.without_mounts(&hidden), excluded))

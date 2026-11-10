@@ -234,14 +234,36 @@ impl Simple {
 /// The rows Graphics leads with, before the renderer's tabs: the graphics
 /// preset and the two effects the original game had (impact marks, player
 /// shadows).
-const GRAPHICS_LEAD: &[&str] = &[crate::graphics_quality::ROW_NAME, "cg_marks", "cg_shadows"];
+const GRAPHICS_LEAD: &[&str] = &[
+    crate::graphics_quality::ROW_NAME,
+    crate::graphics_quality::RECOMMEND_COMMAND,
+    "cg_marks",
+    "cg_shadows",
+];
+
+/// Headings inside the renderer tabs on the Graphics page, each over the row it names
+/// (the tabs' own names head their first rows).
+const GRAPHICS_SUBHEADINGS: &[(&str, &str)] = &[
+    (
+        crate::world_materials::filtering::mips::PICMIP_CVAR,
+        "Textures",
+    ),
+    ("r_softParticles", "Effects"),
+    ("r_normalMapping", "Materials"),
+    ("r_volumetrics", "Light shafts"),
+    (
+        crate::world_materials::shadows::day::live::SKY_CVAR,
+        "Time of day",
+    ),
+    (crate::weather::REFLECTIONS_CVAR, "Rain looks"),
+];
 
 /// The renderer tabs [`Group::Graphics`] gathers after [`GRAPHICS_LEAD`], each
 /// under its heading.
 fn graphics_tabs() -> [(&'static str, &'static [Setting]); 4] {
     [
         ("Image", RENDER_IMAGE),
-        ("Lighting", RENDER_LIGHTING),
+        ("Solar Renderer lighting", RENDER_LIGHTING),
         ("Shadows", RENDER_SHADOWS),
         ("Weather", RENDER_WEATHER),
     ]
@@ -412,6 +434,8 @@ impl Group {
                 "cg_remaps",
                 crate::monitor::SHOW_CVAR,
                 crate::banana::SHOW_CVAR,
+                crate::tags::SHOW_CVAR,
+                crate::tags::GIF_SHOW_CVAR,
                 crate::toy_sight::ILLUMINATE,
                 crate::toy_sight::CARDBOARD_BOX,
                 crate::toy_sight::RAGDOLL,
@@ -651,6 +675,7 @@ impl Group {
             ],
             Self::Simple(Simple::Graphics) => &[
                 crate::graphics_quality::ROW_NAME,
+                crate::graphics_quality::RECOMMEND_COMMAND,
                 crate::weather::CVAR,
                 "r_DynamicGlow",
                 "cg_marks",
@@ -824,14 +849,22 @@ impl Group {
     /// sub-headings.
     pub(super) fn lines(self) -> Vec<super::Line> {
         if self == Self::Graphics {
-            let mut lines = Vec::with_capacity(self.rows().len() + 5);
+            let mut lines = Vec::with_capacity(self.rows().len() + 5 + GRAPHICS_SUBHEADINGS.len());
             lines.push(super::Line::Heading(GRAPHICS_LEAD_HEADING));
             lines.extend((0..GRAPHICS_LEAD.len()).map(super::Line::Row));
             let mut row = GRAPHICS_LEAD.len();
             for (heading, tab) in graphics_tabs() {
                 lines.push(super::Line::Heading(heading));
-                lines.extend((row..row + tab.len()).map(super::Line::Row));
-                row += tab.len();
+                for setting in tab {
+                    if let Some((_, sub)) = GRAPHICS_SUBHEADINGS
+                        .iter()
+                        .find(|(cvar, _)| cvar.eq_ignore_ascii_case(setting.cvar))
+                    {
+                        lines.push(super::Line::Heading(sub));
+                    }
+                    lines.push(super::Line::Row(row));
+                    row += 1;
+                }
             }
             return lines;
         }
@@ -1156,9 +1189,21 @@ mod tests {
             .collect();
         assert_eq!(
             headings,
-            ["Quality", "Image", "Lighting", "Shadows", "Weather"]
+            [
+                "Quality",
+                "Image",
+                "Textures",
+                "Effects",
+                "Materials",
+                "Solar Renderer lighting",
+                "Light shafts",
+                "Time of day",
+                "Shadows",
+                "Weather",
+                "Rain looks",
+            ]
         );
-        assert_eq!(lines.len(), rows.len() + 5);
+        assert_eq!(lines.len(), rows.len() + 5 + GRAPHICS_SUBHEADINGS.len());
         // Every row once, in order.
         let shown: Vec<usize> = lines
             .iter()

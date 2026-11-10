@@ -187,7 +187,10 @@ impl ClientMenu {
             FAVOURITE_TOKEN => self.browser.toggle_selected_favorite(),
             BACK_TOKEN => return self.close_browser(),
             JOIN_TOKEN => return self.join_selected(),
-            FILTER_TOKEN => self.filter_editing = true,
+            FILTER_TOKEN => {
+                self.filter_editing = true;
+                crate::text_entry::clicked(self.browser.filter_text());
+            }
             31 => {
                 self.password_target = None;
                 self.password.clear();

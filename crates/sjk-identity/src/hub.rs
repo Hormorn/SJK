@@ -395,6 +395,25 @@ pub trait Hub: Send {
             "this hub client does not read rewards".to_owned(),
         ))
     }
+    /// A one-use link that signs the browser in to the players' site
+    /// (`POST /v1/site/sign-in`, 09/11/2026).
+    fn site_sign_in(&mut self, _identity: &Identity) -> Result<crate::site::SignInLink, HubError> {
+        Err(HubError::Protocol(
+            "this hub client has no players' site".to_owned(),
+        ))
+    }
+    /// Type a link code the players' site made (`POST /v1/site/link`, 09/11/2026): the
+    /// account it joins this key to, and with `confirm` the key joins it.
+    fn site_link(
+        &mut self,
+        _identity: &Identity,
+        _code: &str,
+        _confirm: bool,
+    ) -> Result<crate::site::Linked, HubError> {
+        Err(HubError::Protocol(
+            "this hub client has no players' site".to_owned(),
+        ))
+    }
     /// Claim reward `id` (`POST /v1/rewards/claim`, 25/10/2026): the hub grants it and
     /// answers the person's profile and rewards after it.
     fn claim_reward(
@@ -461,6 +480,13 @@ pub trait Hub: Send {
     fn set_emoji(&mut self, _identity: &Identity, _emoji: &str) -> Result<Profile, HubError> {
         Err(HubError::Protocol(
             "this hub client does not send name emoji".to_owned(),
+        ))
+    }
+    /// Set the identity's custom SJK name ([`crate::wire::custom_name`], checked),
+    /// shown instead of the name worn in game; the hub answers with the key's profile.
+    fn set_name(&mut self, _identity: &Identity, _name: &str) -> Result<Profile, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not send names".to_owned(),
         ))
     }
     /// The PNG of `version` of `key_id`'s picture, as the hub serves it.
@@ -591,6 +617,31 @@ pub trait Hub: Send {
         ))
     }
 
+    /// Fuse duplicates into a shader of the next tier the person lacks (`POST
+    /// /v1/unlocks/fuse`, 10/11/2026, hubs whose economy says `fuse`): `ids` names each
+    /// shader once per copy given, all of one tier.
+    fn fuse_unlocks(
+        &mut self,
+        _identity: &Identity,
+        _ids: &[String],
+    ) -> Result<crate::wire::FuseAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not fuse shaders".to_owned(),
+        ))
+    }
+
+    /// Replace the person's wishlist with `ids`, up to three saber shaders (`PUT
+    /// /v1/shop/wishlist`, 10/11/2026, hubs whose economy sends `wishlist`).
+    fn set_wishlist(
+        &mut self,
+        _identity: &Identity,
+        _ids: &[String],
+    ) -> Result<crate::wire::WishlistAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not keep wishlists".to_owned(),
+        ))
+    }
+
     /// Break one copy of a tag down into kyber shards (`POST /v1/tags/shatter`,
     /// 03/11/2026, hubs whose economy says `tag_copies`).
     fn shatter_tag(
@@ -612,6 +663,18 @@ pub trait Hub: Send {
     ) -> Result<crate::wire::TagCraftAnswer, HubError> {
         Err(HubError::Protocol(
             "this hub client does not craft tags".to_owned(),
+        ))
+    }
+
+    /// Spend a blank tag on GIPHY GIF `giphy`, a GIF tag for good (`POST /v1/tags/gif`,
+    /// 10/11/2026, verified players on hubs whose profiles list `gif_tags`).
+    fn make_gif_tag(
+        &mut self,
+        _identity: &Identity,
+        _giphy: &str,
+    ) -> Result<crate::wire::GifTagAnswer, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not make GIF tags".to_owned(),
         ))
     }
 
@@ -1786,6 +1849,11 @@ impl Hub for HttpHub {
         parse(self.send(Some(identity), "PUT", "/v1/profile", Some(body))?)
     }
 
+    fn set_name(&mut self, identity: &Identity, name: &str) -> Result<Profile, HubError> {
+        let body = json!({ "name": name });
+        parse(self.send(Some(identity), "PUT", "/v1/profile", Some(body))?)
+    }
+
     fn set_achievements(
         &mut self,
         identity: &Identity,
@@ -2052,6 +2120,34 @@ impl Hub for HttpHub {
         )?)
     }
 
+    fn fuse_unlocks(
+        &mut self,
+        identity: &Identity,
+        ids: &[String],
+    ) -> Result<crate::wire::FuseAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/unlocks/fuse",
+            Some(json!({ "ids": ids })),
+        )?)
+    }
+
+    fn set_wishlist(
+        &mut self,
+        identity: &Identity,
+        ids: &[String],
+    ) -> Result<crate::wire::WishlistAnswer, HubError> {
+        let answer = self.send(
+            Some(identity),
+            "PUT",
+            "/v1/shop/wishlist",
+            Some(json!({ "ids": ids })),
+        )?;
+        // An answer without the list (or none at all) keeps the list sent.
+        Ok(serde_json::from_value(answer).unwrap_or_default())
+    }
+
     fn shatter_tag(
         &mut self,
         identity: &Identity,
@@ -2075,6 +2171,19 @@ impl Hub for HttpHub {
             "POST",
             "/v1/tags/craft",
             Some(json!({ "copies": copies })),
+        )?)
+    }
+
+    fn make_gif_tag(
+        &mut self,
+        identity: &Identity,
+        giphy: &str,
+    ) -> Result<crate::wire::GifTagAnswer, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/tags/gif",
+            Some(json!({ "giphy": giphy })),
         )?)
     }
 
@@ -2109,6 +2218,24 @@ impl Hub for HttpHub {
 
     fn rewards(&mut self, identity: &Identity) -> Result<crate::news::Rewards, HubError> {
         parse(self.send(Some(identity), "GET", "/v1/rewards", None)?)
+    }
+
+    fn site_sign_in(&mut self, identity: &Identity) -> Result<crate::site::SignInLink, HubError> {
+        parse(self.send(Some(identity), "POST", "/v1/site/sign-in", Some(json!({})))?)
+    }
+
+    fn site_link(
+        &mut self,
+        identity: &Identity,
+        code: &str,
+        confirm: bool,
+    ) -> Result<crate::site::Linked, HubError> {
+        parse(self.send(
+            Some(identity),
+            "POST",
+            "/v1/site/link",
+            Some(json!({ "code": code, "confirm": confirm })),
+        )?)
     }
 
     fn claim_reward(

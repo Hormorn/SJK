@@ -24,6 +24,12 @@ both know which files came from the Sith cloud, and only those are ever removed
 (a pick taken back, or a file the server no longer lists). Files a player put in
 `base` by hand are never touched.
 
+The SJK Launcher puts new files in `GameData/assets/S/base` by default, for a Sol JK
+that reads the [assets folder](client.md) (its Settings can turn that off). SJK's card
+follows: while that folder exists its files go there too, the record is the one beside
+it (`assets/S/sjk-jof-content.json`), and a file already in `base` with the server's
+MD5 is used as it is, never fetched twice. EternalJK does not read the assets folder.
+
 ## The server
 
 The server (`sith-cloud`, kept in the SJK Launcher's repository) serves a folder of PK3s over HTTP: `/manifest.json` in JoF's manifest

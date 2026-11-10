@@ -18,6 +18,12 @@
 //! the card of a dropped tag held twice or more offers Break down (one copy of the finish
 //! shown into kyber shards) and Craft (two spare copies of its tier and finish for a tag
 //! not held yet), each on a second press, with the hub's answer under them.
+//!
+//! Since 10/11/2026 (Sol's decisions, GIF tags) the player's GIF tags follow under their
+//! own heading, each playing its GIF, and the card has a GIF tags switch
+//! (`cg_toyGifTags`, off by default) where a GIF tag's or the blank tag's finishes would
+//! be. The blank tag's card makes one: Paste link reads a GIPHY link from the clipboard
+//! and shows its GIF; Make, pressed twice, spends one blank tag on it for good ([`GifCard`]).
 
 use super::view::LEFT_X;
 use super::*;
@@ -50,6 +56,44 @@ const _: () = assert!(TAG_BASE as usize + MAX_ENTRIES <= 8_200);
 const _: () = assert!(crate::tags::CATALOGUE.len() < MAX_ENTRIES);
 /// The heading of the credits cards' part of the wall (the tags' are their collections').
 const CARDS_HEAD: &str = "Credits cards";
+/// The heading of the player's GIF tags.
+const GIFS_HEAD: &str = "GIF tags";
+
+/// The GIF tags part of the card (10/11/2026), as the last frame worked it out.
+#[derive(Clone, Debug, Default)]
+pub(super) struct GifCard {
+    /// `cg_toyGifTags` is on.
+    pub(super) on: bool,
+    /// The hub makes GIF tags (its profiles list `gif_tags`).
+    hub: bool,
+    /// The hub verified the player.
+    verified: bool,
+    /// The GIPHY GIF pasted for the blank tag.
+    link: Option<crate::chat_gifs::GifId>,
+    /// Make was pressed once for `link`.
+    confirm: bool,
+    /// Why the last paste found no GIF.
+    paste_said: Option<&'static str>,
+    /// The hub's last answer to a Make, in words, and whether it worked.
+    said: Option<(String, bool)>,
+}
+
+impl GifCard {
+    /// Why the blank tag cannot be spent now, holding `blanks`; `None` when it can.
+    fn why_not(&self, blanks: u32) -> Option<&'static str> {
+        if !self.hub {
+            Some("This SJK hub does not make GIF tags yet.")
+        } else if !self.verified {
+            Some("GIF tags are for verified players.")
+        } else if !self.on {
+            Some("Turn GIF tags on first: the switch above.")
+        } else if blanks == 0 {
+            Some("You have no blank tag: holocrons drop them.")
+        } else {
+            None
+        }
+    }
+}
 
 /// A tag copies button of the card.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -134,6 +178,8 @@ impl Tools {
 pub(super) enum Entry {
     Tag(&'static crate::tags::Tag),
     Card(String),
+    /// A GIF tag the player made, by its id (`gif:<giphy>`).
+    Gif(String),
 }
 
 impl Entry {
@@ -141,8 +187,13 @@ impl Entry {
     pub(super) fn id(&self) -> &str {
         match self {
             Self::Tag(tag) => tag.id,
-            Self::Card(id) => id,
+            Self::Card(id) | Self::Gif(id) => id,
         }
+    }
+
+    /// Whether it is the blank tag.
+    fn is_blank(&self) -> bool {
+        matches!(self, Self::Tag(tag) if tag.id == crate::tags::BLANK)
     }
 }
 
@@ -276,6 +327,7 @@ impl Panel {
         self.tag_chosen().is_some_and(|(entry, held)| {
             let finish = self.tag_finish_shown(held);
             held.copies > 0
+                && crate::tags::stickable(entry.id())
                 && !(entry.id() == picked(inputs) && finish.id == picked_finish(inputs, held))
         })
     }
@@ -284,7 +336,7 @@ impl Panel {
     /// `toy_tag`. One the player lacks is not picked; `toy_tag` would refuse it.
     pub(super) fn choose_tag(&self) -> PanelAction {
         match self.tag_chosen() {
-            Some((entry, held)) if held.copies > 0 => {
+            Some((entry, held)) if held.copies > 0 && crate::tags::stickable(entry.id()) => {
                 PanelAction::ChooseTag(entry.id().to_owned(), self.tag_finish_shown(held).id)
             }
             _ => PanelAction::None,
@@ -322,6 +374,13 @@ impl Panel {
         }
     }
 
+    /// Show GIF `id` on the blank tag's card as if its link was pasted, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn paste_gif_for_shot(&mut self, id: crate::chat_gifs::GifId) {
+        self.tag_gif.link = Some(id);
+        self.tag_gif.confirm = true;
+    }
+
     /// Break down or Craft on the card: the first press asks, the second sends.
     pub(super) fn press_tag_tool(&mut self, tool: Tool) -> PanelAction {
         let Some((entry, held)) = self.tag_chosen() else {
@@ -348,6 +407,53 @@ impl Panel {
             self.tag_confirm = Some(wanted);
             PanelAction::None
         }
+    }
+
+    /// The blank tag's Paste link: the GIPHY GIF of the link on the clipboard, shown on
+    /// the card; a clipboard without one says so.
+    pub(super) fn paste_gif_link(&mut self) {
+        let blanks = self
+            .tag_chosen()
+            .filter(|(entry, _)| entry.is_blank())
+            .map_or(0, |(_, held)| held.copies);
+        if self.tag_gif.why_not(blanks).is_some() {
+            return;
+        }
+        let pasted = crate::console::clipboard::paste().unwrap_or_default();
+        let link = crate::chat_gifs::link::parse(pasted.trim()).filter(|id| !id.is_url());
+        self.tag_gif.confirm = false;
+        self.tag_gif.said = None;
+        match link {
+            Some(id) => {
+                self.tag_gif.link = Some(id);
+                self.tag_gif.paste_said = None;
+            }
+            None => {
+                self.tag_gif.paste_said =
+                    Some("The clipboard holds no GIPHY link: copy one from giphy.com.");
+            }
+        }
+    }
+
+    /// The blank tag's Make: the first press asks, the second spends a blank tag on the
+    /// GIF pasted.
+    pub(super) fn press_make_gif_tag(&mut self) -> PanelAction {
+        let blanks = self
+            .tag_chosen()
+            .filter(|(entry, _)| entry.is_blank())
+            .map_or(0, |(_, held)| held.copies);
+        let Some(link) = self.tag_gif.link.clone() else {
+            return PanelAction::None;
+        };
+        if self.tag_gif.why_not(blanks).is_some() {
+            return PanelAction::None;
+        }
+        if !self.tag_gif.confirm {
+            self.tag_gif.confirm = true;
+            return PanelAction::None;
+        }
+        self.tag_gif.confirm = false;
+        PanelAction::MakeGifTag(link.as_str().to_owned())
     }
 
     /// The wheel over the Tags tab: the wall a line up or down.
@@ -395,7 +501,14 @@ impl Panel {
         };
         let cards = crate::tags::tag_cards(me);
         let room = MAX_ENTRIES - crate::tags::CATALOGUE.len();
-        let parts = wall_parts(cards.len().min(room));
+        let cards_shown = cards.len().min(room);
+        let gifs: Vec<String> = crate::tags::gif_tags(me)
+            .unwrap_or_default()
+            .iter()
+            .map(|tag| crate::tags::gif_tag_id(&tag.id))
+            .take(room - cards_shown)
+            .collect();
+        let parts = wall_parts(cards_shown, gifs.len());
         self.tag_entries = crate::tags::COLLECTIONS
             .iter()
             .flat_map(|collection| {
@@ -404,8 +517,10 @@ impl Panel {
                     .filter(|tag| tag.collection == collection.id)
             })
             .map(Entry::Tag)
-            .chain(cards.into_iter().take(room).map(Entry::Card))
+            .chain(cards.into_iter().take(cards_shown).map(Entry::Card))
+            .chain(gifs.into_iter().map(Entry::Gif))
             .collect();
+        self.follow_gif_card(inputs, me);
         self.tag_held = self
             .tag_entries
             .iter()
@@ -420,11 +535,10 @@ impl Panel {
                 .filter(|held| held.copies > 0)
                 .count()
         };
-        let (tags_owned, cards_owned) = (owned(0..tags), owned(tags..total));
-        let held = if total > tags {
+        let (tags_owned, cards_owned) = (owned(0..tags), owned(tags..tags + cards_shown));
+        let held = if cards_shown > 0 {
             format!(
-                "{tags_owned} of {tags} tags and {cards_owned} of {} credits cards held",
-                total - tags
+                "{tags_owned} of {tags} tags and {cards_owned} of {cards_shown} credits cards held"
             )
         } else {
             format!("{tags_owned} of {tags} held")
@@ -436,10 +550,10 @@ impl Panel {
                  toy_tag (the quick wheel's Toys, or a key)."
             ),
         };
-        let heading = if total > tags {
-            format!("{tags} tags, {} cards", total - tags)
+        let heading = if cards_shown > 0 {
+            format!("{tags} tags, {cards_shown} cards")
         } else {
-            format!("{total} tags")
+            format!("{tags} tags")
         };
         self.lead(frame, &heading, &line);
         self.tag = self.tag.min(total - 1);
@@ -495,8 +609,12 @@ impl Panel {
         let finish = self.tag_finish_shown(held).id;
         self.tag_tools = match &entry {
             Entry::Tag(tag) => Tools::of(tag, finish, unlocks, inputs.snapshot),
-            Entry::Card(_) => Tools::default(),
+            Entry::Card(_) | Entry::Gif(_) => Tools::default(),
         };
+        // A link pasted, and its second press, wait only on the blank tag's card.
+        if !entry.is_blank() {
+            self.tag_gif.confirm = false;
+        }
         // A press waits only for the tag and finish it was for.
         if self
             .tag_confirm
@@ -506,6 +624,115 @@ impl Panel {
             self.tag_confirm = None;
         }
         self.tag_card(frame, &entry, held, in_use_here);
+    }
+
+    /// What the GIF tags part of the card knows this frame: the switch, the hub's and the
+    /// player's leave, and the hub's last answer to a Make (a GIF tag made clears the
+    /// link it was made from).
+    fn follow_gif_card(&mut self, inputs: &Inputs<'_>, me: Option<&sjk_identity::Profile>) {
+        let gif = &mut self.tag_gif;
+        gif.on = inputs.gif_tags;
+        gif.hub = crate::tags::gif_tags(me).is_some();
+        gif.verified = me.is_some_and(|me| me.verified);
+        let outcome = inputs
+            .snapshot
+            .and_then(|snapshot| snapshot.tag_trade.as_ref())
+            .filter(|outcome| matches!(outcome.trade, sjk_identity::TagTrade::Gif(_)));
+        gif.said =
+            outcome.map(|outcome| (crate::tag_copies::outcome_words(outcome), outcome.done()));
+        if let Some(outcome) = outcome
+            && let sjk_identity::TagTrade::Gif(made) = &outcome.trade
+            && outcome.done()
+            && gif.link.as_ref().is_some_and(|link| link.as_str() == made)
+        {
+            gif.link = None;
+            gif.confirm = false;
+        }
+    }
+
+    /// The card's GIF tags switch over `[x, y, width, height]`, where the finishes stand
+    /// on another tag's card.
+    fn tag_gif_switch(&mut self, frame: &Frame, rect: [f32; 4]) {
+        let on = self.tag_gif.on;
+        let label = if on {
+            "GIF tags: on"
+        } else {
+            "GIF tags: off (press to turn them on)"
+        };
+        kit::button(
+            &mut self.ui,
+            frame,
+            rect,
+            label,
+            false,
+            true,
+            on,
+            TAG_GIF_SWITCH_TOKEN,
+        );
+    }
+
+    /// The blank tag's card under its lines: why it cannot be spent, or the link pasted
+    /// and the second press, or the hub's answer; then Paste link and Make at its foot
+    /// (`blanks`: the blank tags held).
+    fn tag_blank_maker(&mut self, frame: &Frame, x: f32, y: f32, width: f32, blanks: u32) {
+        let s = frame.s;
+        let gif = self.tag_gif.clone();
+        let why = gif.why_not(blanks);
+        let (words, colour) = match (&why, &gif.said, &gif.link) {
+            (Some(why), _, _) => ((*why).to_owned(), color::QUIET),
+            (None, _, Some(_)) if gif.confirm => (
+                "Press Make again: one blank tag becomes this GIF tag, for good.".to_owned(),
+                color::GOLD_BRIGHT,
+            ),
+            (None, Some((said, true)), None) => (said.clone(), color::TEXT),
+            (None, Some((said, false)), _) => (said.clone(), color::alpha(color::GOLD, 0.9)),
+            (None, _, Some(_)) => (
+                "That GIF, as it will play on walls. Make spends one blank tag.".to_owned(),
+                color::TEXT,
+            ),
+            (None, _, None) => (
+                gif.paste_said
+                    .unwrap_or("Copy a GIPHY link (giphy.com), then Paste link.")
+                    .to_owned(),
+                color::MUTED,
+            ),
+        };
+        text(
+            &mut self.ui,
+            TextFamily::Body,
+            format_args!("{words}"),
+            frame.rect(x, y, width, 22.0),
+            15.0 * s,
+            colour,
+            FontWeight::Regular,
+            TextAlign::Start,
+        );
+        let bottom = CARD_BOTTOM - CARD_PAD - 48.0;
+        let button = (width - 12.0) * 0.5;
+        kit::button(
+            &mut self.ui,
+            frame,
+            [x, bottom, button, 48.0],
+            "Paste link",
+            false,
+            why.is_none(),
+            false,
+            TAG_GIF_PASTE_TOKEN,
+        );
+        kit::button(
+            &mut self.ui,
+            frame,
+            [x + button + 12.0, bottom, button, 48.0],
+            if gif.confirm {
+                "Again to make"
+            } else {
+                "Make GIF tag"
+            },
+            true,
+            why.is_none() && gif.link.is_some(),
+            gif.confirm,
+            TAG_GIF_MAKE_TOKEN,
+        );
     }
 
     /// The card's tag copies row at `y` (03/11/2026): Break down and Craft, the second
@@ -747,6 +974,7 @@ impl Panel {
         size: f32,
     ) {
         let texture = match entry {
+            Entry::Gif(id) => crate::tags::gif_id(id).and_then(|gif| self.gif_texture(&gif)),
             Entry::Tag(tag) => crate::tag_icons::texture(tag.id).map(|texture| (texture, 1.0)),
             Entry::Card(id) => crate::cards::faces::current().find(id).map(|(index, _)| {
                 (
@@ -792,6 +1020,29 @@ impl Panel {
         }
     }
 
+    /// Whether GIF tag `entry`'s GIF could not be had (GIPHY removed it) though GIF tags
+    /// are on and the player did not hide it.
+    fn gif_lost(&self, entry: &Entry) -> bool {
+        let Entry::Gif(id) = entry else {
+            return false;
+        };
+        crate::tags::gif_id(id).is_some_and(|gif| {
+            !crate::chat_gifs::hidden::contains(&gif)
+                && crate::chat_gifs::show_tag_preview(&gif) == crate::chat_gifs::Shown::Unavailable
+        })
+    }
+
+    /// GIF `id`'s texture of the moment and its shape (width over height), while GIF tags
+    /// are on and it is loaded.
+    fn gif_texture(&self, id: &crate::chat_gifs::GifId) -> Option<(sjk_ui::TextureId, f32)> {
+        match crate::chat_gifs::show_tag_preview(id) {
+            crate::chat_gifs::Shown::Ready { texture, size } => {
+                Some((texture, size[0].max(1) as f32 / size[1].max(1) as f32))
+            }
+            _ => None,
+        }
+    }
+
     /// The chosen entry on its card: large, in the finish shown, its name, tier (or a
     /// card's kind and colour) and how it is got, its finishes and Choose (`held`: what the
     /// player holds of it; `in_use`: the finish `toy_tag` sticks it in, when it is the
@@ -825,6 +1076,7 @@ impl Panel {
         let kind = match entry {
             Entry::Tag(tag) => format!("{} tag  ·  {tone_name}", tag.collection().name),
             Entry::Card(_) => format!("Card tag  ·  {tone_name}"),
+            Entry::Gif(_) => "GIF tag  ·  yours for good".to_owned(),
         };
         text(
             &mut self.ui,
@@ -855,11 +1107,11 @@ impl Panel {
         // A tag's picture is a 128-pixel atlas cell: no larger, or it blurs. A card's is
         // its full picture.
         let art = match entry {
-            Entry::Tag(_) => 224.0_f32.min(width),
+            Entry::Tag(_) | Entry::Gif(_) => 224.0_f32.min(width),
             Entry::Card(_) => 300.0_f32.min(width),
         };
         let art_height = match entry {
-            Entry::Tag(_) => art,
+            Entry::Tag(_) | Entry::Gif(_) => art,
             Entry::Card(_) => art / crate::cards::faces::ART_ASPECT,
         };
         super::view::glow(
@@ -873,7 +1125,20 @@ impl Panel {
         let alpha = if count > 0 { 1.0 } else { 0.4 };
         let art_rect = [CARD_X + (CARD_WIDTH - art) * 0.5, y, art, art];
         let shown = [art_rect[0], y, art, art_height];
-        self.tag_picture(frame, entry, [art_rect[0], y, art, art_height], alpha, 30.0);
+        // The blank tag shows the GIF pasted for it, as it will play.
+        let pasted = self
+            .tag_gif
+            .link
+            .clone()
+            .filter(|_| entry.is_blank() && self.tag_gif.on)
+            .map(|link| Entry::Gif(crate::tags::gif_tag_id(link.as_str())));
+        self.tag_picture(
+            frame,
+            pasted.as_ref().unwrap_or(entry),
+            [art_rect[0], y, art, art_height],
+            alpha,
+            30.0,
+        );
         // The finish shown, over the picture as it lies on a wall.
         let kind = match finish.index {
             1 => Some(sjk_ui::ShineKind::Holo),
@@ -892,24 +1157,45 @@ impl Panel {
             );
         }
         y += art_height + 18.0;
-        // The finishes: a chip each, the one shown ringed, the ones not held dimmed.
-        self.tag_finish_chips(frame, [x, y, width, 40.0], held, finish);
+        let gif_like = entry.is_blank() || matches!(entry, Entry::Gif(_));
+        if gif_like {
+            // A GIF tag has no finish: its place is the GIF tags switch's.
+            self.tag_gif_switch(frame, [x, y, width, 40.0]);
+        } else {
+            // The finishes: a chip each, the one shown ringed, the ones not held dimmed.
+            self.tag_finish_chips(frame, [x, y, width, 40.0], held, finish);
+        }
         y += 52.0;
-        let held_line = match count {
-            0 => "You do not hold it yet.".to_owned(),
-            1 => "Yours.".to_owned(),
-            count => format!("Yours, {count} copies."),
+        let held_line = match (entry, count) {
+            (Entry::Gif(_), _) if self.tag_gif.on && self.gif_lost(entry) => {
+                "GIPHY no longer has this GIF: the tag is lost.".to_owned()
+            }
+            (_, 0) => "You do not hold it yet.".to_owned(),
+            (_, 1) => "Yours.".to_owned(),
+            (_, count) => format!("Yours, {count} copies."),
         };
         let how = match entry {
+            Entry::Tag(tag) if entry.is_blank() => format!(
+                "{} Spend it once on a GIPHY GIF: a GIF tag, yours for good.",
+                tag.how_to_get()
+            ),
             Entry::Tag(tag) => format!("{} {}", tag.how_to_get(), tag.collection().about),
             Entry::Card(_) => {
                 "A credits card: stick the copies you hold, in their finishes.".to_owned()
             }
+            Entry::Gif(_) => {
+                "Made from a blank tag. It plays on walls for players with GIF tags on.".to_owned()
+            }
+        };
+        let foot = if gif_like {
+            "Verified players only. A GIF GIPHY removes is a tag lost."
+        } else {
+            PROPOSE
         };
         for (words, colour) in [
             (how, color::TEXT),
             (held_line, color::MUTED),
-            (PROPOSE.to_owned(), color::QUIET),
+            (foot.to_owned(), color::QUIET),
         ] {
             text(
                 &mut self.ui,
@@ -924,6 +1210,11 @@ impl Panel {
             y += 30.0;
         }
         self.tag_tools_row(frame, x, y + 4.0, width);
+        if entry.is_blank() {
+            // A blank tag is never stuck: its foot makes a GIF tag instead.
+            self.tag_blank_maker(frame, x, CARD_BOTTOM - CARD_PAD - 84.0, width, count);
+            return;
+        }
         let in_use_here = in_use == Some(finish.id);
         let label = if in_use_here {
             "In use"
@@ -1086,8 +1377,8 @@ fn finish_badge(
 }
 
 /// The wall's parts: each collection's heading and how many tags it holds, then the
-/// `cards` credits cards'.
-fn wall_parts(cards: usize) -> Vec<(&'static str, usize)> {
+/// `cards` credits cards' and the `gifs` GIF tags'.
+fn wall_parts(cards: usize, gifs: usize) -> Vec<(&'static str, usize)> {
     crate::tags::COLLECTIONS
         .iter()
         .map(|collection| {
@@ -1097,7 +1388,7 @@ fn wall_parts(cards: usize) -> Vec<(&'static str, usize)> {
                 .count();
             (collection.heading, held)
         })
-        .chain([(CARDS_HEAD, cards)])
+        .chain([(CARDS_HEAD, cards), (GIFS_HEAD, gifs)])
         .collect()
 }
 
@@ -1118,6 +1409,11 @@ fn entry_words(entry: &Entry) -> (String, String, Color) {
             ),
             None => (id.clone(), "Card".to_owned(), color::QUIET),
         },
+        Entry::Gif(_) => (
+            "GIF".to_owned(),
+            "GIF tag".to_owned(),
+            crate::unlockables::Rarity::Rare.colour(),
+        ),
     }
 }
 
@@ -1146,13 +1442,14 @@ mod tests {
     /// The tags stand under their collections, Alpha then Community, then the cards.
     #[test]
     fn the_tags_stand_under_their_collections() {
-        let parts = wall_parts(2);
+        let parts = wall_parts(2, 0);
         assert_eq!(
             parts,
             [
                 ("Alpha collection", crate::tags::CATALOGUE.len() - 3),
                 ("Community collection", 3),
                 (CARDS_HEAD, 2),
+                (GIFS_HEAD, 0),
             ]
         );
         let heads: Vec<_> = lines(&parts)
@@ -1185,6 +1482,21 @@ mod tests {
             lines(&[(TAGS_HEAD, 3), (CARDS_HEAD, 0)]),
             [Line::Head(TAGS_HEAD), Line::Row(0, 3)]
         );
+    }
+
+    /// A blank tag is spent (10/11/2026) only on a hub that makes GIF tags, by a verified
+    /// player with GIF tags on who holds one; each lack says why.
+    #[test]
+    fn the_blank_tag_is_spent_only_when_everything_allows_it() {
+        let mut card = GifCard::default();
+        assert!(card.why_not(1).unwrap().contains("does not make GIF tags"));
+        card.hub = true;
+        assert_eq!(card.why_not(1), Some("GIF tags are for verified players."));
+        card.verified = true;
+        assert!(card.why_not(1).unwrap().starts_with("Turn GIF tags on"));
+        card.on = true;
+        assert!(card.why_not(0).unwrap().contains("no blank tag"));
+        assert_eq!(card.why_not(1), None);
     }
 
     /// The wall scrolls: from the last first line everything fits, and the arrows bring
