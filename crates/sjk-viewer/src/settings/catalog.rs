@@ -819,7 +819,7 @@ pub(super) const HUD: &[Setting] = &[
         cvar: "cg_nameplateOffset",
         kind: ValueKind::Float {
             min: -100.0,
-            max: 100.0,
+            max: 40.0,
             step: 5.0,
         },
     },
