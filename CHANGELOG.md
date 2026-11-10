@@ -34,6 +34,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 
 = r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
 
+- Saber swings sound different again: each swing picks one of the stock swing sounds (or the saber's own) at random as in base, instead of each player hearing the same one on every swing; saber hits, blocks and footsteps vary the same way _(Slash, hub report #303, after jof'mg.perso's report)_
 - GIF tags: a new Rare Blank tag drops from holocrons; verified players spend it once on a GIPHY link for a tag that plays that GIF on walls, theirs for good (a GIF GIPHY removes is a tag lost). GIF tags are off until you turn them on (`cg_toyGifTags`, on the tag's card or Settings > Gameplay) _(Sol)_
 - PK3s no longer have to sit in `base`: make a `GameData/assets` folder and sort them into subfolders as you like (`assets/jof`, `assets/personal`), every one loads as if it were in `base` _(Sol)_
 - The Sith cloud card follows the SJK Launcher into `assets/S` and doesn't fetch a file you already have in `base` _(Sol)_
