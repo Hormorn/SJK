@@ -28,6 +28,7 @@ pub(crate) mod align;
 pub(crate) mod clip;
 pub(crate) mod document;
 pub(crate) mod editor;
+pub(crate) mod face_preview;
 pub(crate) mod faces;
 pub(crate) mod fly;
 pub(crate) mod fly_to;
@@ -90,6 +91,10 @@ pub(crate) struct State {
     /// Where each shown face's mesh lies in the shared buffers, so a new alignment is
     /// written over its corners in place ([`FaceSlot`]).
     face_slots: Vec<FaceSlot>,
+    /// Which face each of [`Self::faces`] draws (brush, side).
+    face_keys: Vec<[u32; 2]>,
+    /// The preview on caulk and nodraw faces ([`face_preview`]).
+    pub(crate) face_preview: Option<face_preview::FacePreview>,
     /// The remap edits applied now (from, to): what a remap preview stands over and goes
     /// back to ([`preview`]).
     pub(crate) remaps: Vec<(String, String)>,
@@ -249,6 +254,12 @@ impl State {
             ])
         }));
         Some(entities)
+    }
+
+    /// How many shown faces' meshes are kept to align in place (the world shots).
+    #[cfg(test)]
+    pub(crate) fn face_slot_count(&self) -> usize {
+        self.face_slots.len()
     }
 
     /// Move placed edit `id` where it is drawn, without saving (`mapedit_grab`).
@@ -603,6 +614,7 @@ impl GpuState {
                             normal,
                             to.clone(),
                             *align,
+                            [*brush, *side],
                         ));
                     }
                 }
@@ -627,17 +639,22 @@ impl GpuState {
             .map(<[String]>::to_vec)
             .unwrap_or_default();
         self.weather.set_edit(&weather);
-        self.map_edits.faces = shown_faces
+        let (drawn, keys): (Vec<_>, Vec<_>) = shown_faces
             .into_iter()
-            .filter_map(|(variant, polygon, normal, to, align)| {
+            .filter_map(|(variant, polygon, normal, to, align, key)| {
                 let origin = faces::centre(&polygon);
                 let mesh = self.face_mesh(variant, &polygon, normal, origin, &to, &align)?;
                 Some((
-                    mesh,
-                    ActorInstance::new(origin, [0.0, 0.0, 0.0, 1.0], [1.0; 3]),
+                    (
+                        mesh,
+                        ActorInstance::new(origin, [0.0, 0.0, 0.0, 1.0], [1.0; 3]),
+                    ),
+                    key,
                 ))
             })
-            .collect();
+            .unzip();
+        self.map_edits.faces = drawn;
+        self.map_edits.face_keys = keys;
         self.static_models.set_hidden(props.clone());
         let before = std::mem::take(&mut self.map_edits.applied.surfaces);
         for &surface in before.difference(&surfaces) {
@@ -650,6 +667,7 @@ impl GpuState {
         self.map_edits.placed = placed;
         // A remap preview the panel drew is gone with these.
         self.map_edits.panel.preview.dropped();
+        self.map_edit_face_preview_off();
         self.map_edits.remaps.clone_from(&remaps);
         if let Some(vfs) = self.vfs.clone() {
             let refused = self.world_materials.set_edit_remaps(
@@ -803,10 +821,25 @@ impl GpuState {
                 group.push(placed.instance);
             }
         }
-        for (mesh, instance) in &self.map_edits.faces {
+        // A face under the preview is drawn by the preview alone.
+        let previewed = self
+            .map_edits
+            .face_preview
+            .as_ref()
+            .filter(|preview| preview.instance.is_some())
+            .map_or(&[][..], |preview| preview.faces.as_slice());
+        for ((mesh, instance), key) in self.map_edits.faces.iter().zip(&self.map_edits.face_keys) {
+            if previewed.contains(key) {
+                continue;
+            }
             if let Some(group) = self.object_groups.get_mut(*mesh) {
                 group.push(*instance);
             }
+        }
+        if let Some((mesh, instance)) = self.map_edit_face_preview_instance()
+            && let Some(group) = self.object_groups.get_mut(mesh)
+        {
+            group.push(instance);
         }
     }
 }

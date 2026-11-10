@@ -307,6 +307,30 @@ pub(crate) fn vertices(
         .collect()
 }
 
+/// The triangles of the face `polygon` (corners in order, `normal` out of its brush) as a
+/// fan of indices from `base`, wound as the map's drawn faces are (clockwise seen from the
+/// front), so a shader culling back faces shows it on the side its normal points to.
+pub(crate) fn fan_indices(polygon: &[[f32; 3]], normal: [f32; 3], base: u32) -> Vec<u32> {
+    if polygon.len() < 3 {
+        return Vec::new();
+    }
+    let corner = |i: usize| Vec3::from_array(polygon[i]);
+    let reversed = (corner(1) - corner(0))
+        .cross(corner(2) - corner(0))
+        .dot(Vec3::from_array(normal))
+        > 0.0;
+    (2..polygon.len() as u32)
+        .flat_map(|corner| {
+            let (b, c) = if reversed {
+                (corner, corner - 1)
+            } else {
+                (corner - 1, corner)
+            };
+            [base, base + b, base + c]
+        })
+        .collect()
+}
+
 /// Append the face `polygon` (corners in order, `normal` out of its brush) drawn with
 /// `shader` to `scene`, its positions relative to `origin` (where it is lit from), its
 /// texture laid as `align` lays it on a `size` (width, height) texture.
@@ -327,23 +351,9 @@ pub(crate) fn append(
     scene
         .vertices
         .extend(vertices(polygon, normal, origin, size, align));
-    // Wound as the map's drawn faces are (clockwise seen from the front), so a shader
-    // culling back faces shows it on the side its normal points to.
-    let corner = |i: usize| Vec3::from_array(polygon[i]);
-    let reversed = (corner(1) - corner(0))
-        .cross(corner(2) - corner(0))
-        .dot(Vec3::from_array(normal))
-        > 0.0;
-    for corner in 2..polygon.len() as u32 {
-        let (b, c) = if reversed {
-            (corner, corner - 1)
-        } else {
-            (corner - 1, corner)
-        };
-        scene
-            .indices
-            .extend([vertex_base, vertex_base + b, vertex_base + c]);
-    }
+    scene
+        .indices
+        .extend(fan_indices(polygon, normal, vertex_base));
     let material = scene.materials.len();
     scene.materials.push(ViewerMaterial {
         shader: shader.to_owned(),
@@ -409,7 +419,8 @@ pub(crate) fn fit(
                 (low.min(value), high.max(value))
             });
         let extent = high - low;
-        if !(extent > 1e-3) {
+        // (A NaN extent, from a broken polygon, is no extent either.)
+        if extent.is_nan() || extent <= 1e-3 {
             continue;
         }
         let sign = if align.scale[axis] < 0.0 { -1.0 } else { 1.0 };

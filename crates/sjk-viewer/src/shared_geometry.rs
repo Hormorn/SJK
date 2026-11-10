@@ -115,6 +115,30 @@ impl SharedGeometry {
         fits
     }
 
+    /// Write `indices` (into the shared vertex buffer, already rebased) over those from
+    /// `base`, when they lie in what was appended (the map editor's face preview). Whether
+    /// they did.
+    pub(crate) fn write_indices(
+        &self,
+        queue: &crate::frame_queue::FrameQueue,
+        base: u32,
+        indices: &[u32],
+    ) -> bool {
+        let fits = u32::try_from(indices.len())
+            .ok()
+            .and_then(|count| base.checked_add(count))
+            .is_some_and(|end| end <= self.index_count)
+            && indices.iter().all(|index| *index < self.vertex_count);
+        if fits && !indices.is_empty() {
+            queue.write_buffer(
+                &self.index_buffer,
+                u64::from(base) * 4,
+                bytemuck::cast_slice(indices),
+            );
+        }
+        fits
+    }
+
     /// Upload the load-time scene.
     pub(crate) fn upload(device: &wgpu::Device, vertices: &[GpuVertex], indices: &[u32]) -> Self {
         let vertex_capacity = room(vertices.len() as u32, LEAST_VERTICES);

@@ -931,8 +931,16 @@ impl Panel {
         } else {
             &self.facts.fill_candidates
         };
-        let kin =
-            own_shader.map_or_else(Vec::new, |own| super::suggest::family(own, &self.shaders));
+        // A caulk or nodraw face's own shader is a tool's: its family (caulk_water,
+        // caulk_lava...) is nothing to draw on it.
+        let on_face = self
+            .facts
+            .selection
+            .as_ref()
+            .is_some_and(|selection| selection.picked == Picked::Face);
+        let kin = own_shader
+            .filter(|_| !on_face)
+            .map_or_else(Vec::new, |own| super::suggest::family(own, &self.shaders));
         let shaders = &self.shaders;
         let suggestions =
             super::suggest::merge(own_shader, nearby, &kin, &self.facts.map_usage, |shader| {
