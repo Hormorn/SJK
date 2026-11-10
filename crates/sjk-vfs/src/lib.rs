@@ -5,7 +5,9 @@ mod path;
 mod pk3_directory;
 mod pk3_fingerprint;
 pub use cache_identity::AssetCacheIdentity;
-pub use pk3_directory::{pk3_search_order, pk3_search_order_merged};
+pub use pk3_directory::{
+    ASSETS_DIRECTORY, assets_folders, pk3_search_order, pk3_search_order_merged,
+};
 
 pub use path::{VirtualPath, VirtualPathError};
 

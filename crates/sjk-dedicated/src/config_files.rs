@@ -45,12 +45,9 @@ impl ConfigFiles {
         let game_data = self.game_data.clone()?;
         if self.archives.is_none() {
             let mut files = VirtualFileSystem::new();
-            let _ = files.mount_pk3_directory_with_warnings(
-                game_data.join("base"),
-                |archive, error| {
-                    eprintln!("skipping {}: {error}", archive.display());
-                },
-            );
+            let _ = files.mount_base_pk3s_with_warnings(&game_data, |archive, error| {
+                eprintln!("skipping {}: {error}", archive.display());
+            });
             self.archives = Some(files);
         }
         if let Some(Ok(Some(asset))) = self.archives.as_ref().map(|files| files.read(name)) {

@@ -33,6 +33,7 @@ github: Sol-Vulpes
 role: Creator and developer of Sol JK
 did: Sol JK itself: its name, emblem, website, releases and self-updates
 did: Your SJK page: sign-in from the game, joining keys, video bounties
+did: The assets folder: PK3s tidied into subfolders of your own, outside base
 did: The classic menus and classic+, the settings and search, the retail-look console
 did: The SJK UI, Sol JK's own menus over the live map
 did: SJK's icon art: the quick wheels' and the settings' icons
