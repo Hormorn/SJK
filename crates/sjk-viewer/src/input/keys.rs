@@ -189,6 +189,15 @@ impl HeldKeys {
             .any(|slot| slot.is_some_and(|(held, _)| held == code))
     }
 
+    /// The name `code` was pressed under, while it is held.
+    pub(crate) fn name(&self, code: KeyCode) -> Option<KeyName> {
+        self.slots
+            .iter()
+            .flatten()
+            .find(|(held, _)| *held == code)
+            .map(|(_, name)| *name)
+    }
+
     /// Forget `code` and return the name it was pressed under.
     pub(crate) fn release(&mut self, code: KeyCode) -> Option<KeyName> {
         self.slots
