@@ -2065,7 +2065,12 @@ saber shader the Shaders tab, the Forge and the trade window list carries its ma
   chosen a second (`shader_marks::Look`, `LOOK_MS`; Sol's decision, 29/10/2026). Resting the pointer never chooses a shader (31/10/2026;
   hovering chose one before), so it never sees one either. Turning to another tab or closing the page
   sees the shader chosen only if it had already stayed its second; Mark all seen (N) sees
-  them all. Nothing is New
+  them all. After the Shaders tab's headline (10/11/2026; "21 new" was cut and the
+  sticker ran into "owned", measured without the letter spacing): the New sticker and a
+  round "?", gold while a shader is New and quiet once none is, then Mark all seen ("All
+  seen" when the full label would reach the view switches). A click on "?" opens the New
+  note over the page, on a darker fill than a hover card: how many shaders are New and
+  what New means; another click anywhere, Escape or another tab closes it. Nothing is New
   while the debug collectibles show.
 
 The marks are read again only when what they come from changes (the hub's marks, the

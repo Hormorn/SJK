@@ -834,3 +834,13 @@ fn stage_scrims(canvas: &mut crate::menu_widgets::MenuCanvas, viewport: [f32; 2]
         space(0.86),
     );
 }
+
+/// How wide `words` are drawn in the display family at `size` (frame pixels): the
+/// player's text size, `widen` (Inter in place of the families) and the letter spacing
+/// (`ui_letterSpacing`), which labels measured without it overflowed (10/11/2026).
+pub(super) fn label_width(words: &str, size: f32, widen: f32) -> f32 {
+    let style = crate::text::style::current();
+    let size = size * style.scale;
+    let tracking = style.tracking * size * words.chars().count() as f32;
+    (crate::text::display_width(words, size) * widen + tracking).max(0.0)
+}

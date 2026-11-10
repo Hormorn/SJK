@@ -176,9 +176,32 @@ pub(crate) fn place(anchor: [f32; 4], size: [f32; 2]) -> [f32; 2] {
     [x, y]
 }
 
+/// The card's fill.
+const FILL: Color = Color::new(0.04, 0.06, 0.12, 0.97);
+/// A note's fill: darker than a hover card's, for reading a while (10/11/2026).
+const NOTE_FILL: Color = Color::new(0.015, 0.022, 0.05, 0.99);
+
 /// Draw `card` beside `anchor` (window pixels, the thing's pointer area), faded in to
 /// `alpha`.
 pub(crate) fn draw(canvas: &mut MenuCanvas, frame: &Frame, anchor: Rect, card: &Card, alpha: f32) {
+    draw_filled(canvas, frame, anchor, card, alpha, FILL);
+}
+
+/// Draw `card` as a note a click opened beside `anchor` (window pixels): as a hover
+/// card, over everything, on a darker fill.
+pub(crate) fn draw_note(canvas: &mut MenuCanvas, frame: &Frame, anchor: Rect, card: &Card) {
+    draw_filled(canvas, frame, anchor, card, 1.0, NOTE_FILL);
+}
+
+/// Draw `card` beside `anchor` on `fill`, faded in to `alpha`.
+fn draw_filled(
+    canvas: &mut MenuCanvas,
+    frame: &Frame,
+    anchor: Rect,
+    card: &Card,
+    alpha: f32,
+    fill: Color,
+) {
     let s = frame.s;
     let anchor = [
         (anchor.x - frame.origin[0]) / s,
@@ -207,7 +230,7 @@ pub(crate) fn draw(canvas: &mut MenuCanvas, frame: &Frame, anchor: Rect, card: &
         DrawCommand::RoundedRect {
             rect: frame.rect(x, y, size[0], size[1]),
             radius: 12.0 * s,
-            color: Color::new(0.04, 0.06, 0.12, 0.97),
+            color: fill,
         },
     );
     push(

@@ -21,7 +21,7 @@
 //! shows one edition alone ([`crate::editions`]: Alpha, the blades before Creyon's round,
 //! and Beta, from it on), and the tiers' counts follow it.
 
-use super::view::{LEAD_Y, LEFT_X, RIGHT_X, SABER_AREA};
+use super::view::{LEAD_Y, LEFT_X, RIGHT_X, SABER_AREA, label_width};
 use super::*;
 use crate::menu::sjk::{Frame, color, kit, text};
 use crate::menu_widgets::TextFamily;
@@ -879,34 +879,62 @@ impl Panel {
         }
     }
 
-    /// How many shaders are New, after the headline (`headline`'s words), and Mark all
-    /// seen beside it (N), while there is one.
+    /// After the headline (`headline`'s words): the New sticker and a "?" chip, gold while
+    /// a shader is New and quiet once none is; a click on "?" opens the note saying how
+    /// many are New and what New means ([`Panel::new_note`], 10/11/2026: "21 new" was
+    /// cut and the sticker ran into the headline). Mark all seen (N) beside them while
+    /// one is New, "All seen" when the full label would reach the view switches.
     fn new_count(&mut self, frame: &Frame, headline: &str) {
         let count = self.marks.new_count();
-        if count == 0 {
-            return;
-        }
+        let lit = count > 0;
         let s = frame.s;
-        let k = text_scale();
-        let x = LEFT_X + crate::text::display_width(headline, 30.0) * k * self.widen + 18.0;
+        let x = LEFT_X + label_width(headline, 30.0, self.widen) + 14.0;
         let y = LEAD_Y + 5.0;
-        let sticker = marks_view::new_sticker(&mut self.ui, frame, [x, y], 26.0);
-        let words = format!("{count} new");
-        let words_x = x + sticker + 10.0;
-        let words_width = crate::text::display_width(&words, 20.0) * k * self.widen + 8.0;
+        let sticker = marks_view::new_sticker_lit(&mut self.ui, frame, [x, y], 26.0, lit);
+        // The "?" chip.
+        let note_x = x + sticker + 6.0;
+        let note = frame.rect(note_x, y - 1.0, 28.0, 28.0);
+        let open = self.new_note;
+        let hovered = self.ui.token_hovered(NEW_NOTE_TOKEN) || open;
+        let tint = if lit { color::GOLD } else { color::HOLO };
+        let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
+            rect: note,
+            radius: 14.0 * s,
+            color: color::alpha(tint, if hovered { 0.18 } else { 0.06 }),
+        });
+        let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
+            rect: note,
+            radius: 14.0 * s,
+            width: 1.2 * s,
+            color: color::alpha(tint, if hovered { 1.0 } else { 0.55 }),
+        });
         text(
             &mut self.ui,
             TextFamily::Display,
-            format_args!("{words}"),
-            frame.rect(words_x, y - 1.0, words_width, 28.0),
-            20.0 * s,
-            color::GOLD_BRIGHT,
+            format_args!("?"),
+            frame.rect(note_x, y + 1.0, 28.0, 24.0),
+            18.0 * s,
+            if lit {
+                color::GOLD_BRIGHT
+            } else {
+                color::MUTED
+            },
             FontWeight::Semibold,
-            TextAlign::Start,
+            TextAlign::Center,
         );
-        let label = "Mark all seen";
-        let width = crate::text::display_width(label, 15.0) * k * self.widen + 30.0;
-        let rect = frame.rect(words_x + words_width + 8.0, y - 1.0, width, 28.0);
+        self.ui.hit_region(NEW_NOTE_TOKEN, note);
+        if !lit {
+            return;
+        }
+        let seen_x = note_x + 28.0 + 6.0;
+        let room = SWITCH_X - 10.0 - seen_x;
+        let full = label_width("Mark all seen", 15.0, self.widen) + 30.0;
+        let (label, width) = if full <= room {
+            ("Mark all seen", full)
+        } else {
+            ("All seen", label_width("All seen", 15.0, self.widen) + 30.0)
+        };
+        let rect = frame.rect(seen_x, y - 1.0, width, 28.0);
         let hovered = self.ui.token_hovered(SEEN_ALL_TOKEN);
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
             rect,
@@ -923,13 +951,29 @@ impl Panel {
             &mut self.ui,
             TextFamily::Display,
             format_args!("{label}"),
-            frame.rect(words_x + words_width + 8.0, y + 3.0, width, 22.0),
+            frame.rect(seen_x, y + 3.0, width, 22.0),
             15.0 * s,
             color::GOLD_BRIGHT,
             FontWeight::Semibold,
             TextAlign::Center,
         );
         self.ui.hit_region(SEEN_ALL_TOKEN, rect);
+    }
+
+    /// The New note's card: how many shaders are New and what New means.
+    pub(super) fn new_note_card(&self) -> crate::menu::sjk::hover::Card {
+        let count = self.marks.new_count();
+        let mut card = hover::mark_card(hover::MarkToken::SeenAll, &self.marks, None)
+            .expect("Mark all seen has a card");
+        card.title = match count {
+            0 => "No new shaders".to_owned(),
+            1 => "1 new shader".to_owned(),
+            count => format!("{count} new shaders"),
+        };
+        if count == 0 {
+            card.colour = color::MUTED;
+        }
+        card
     }
 
     /// Scroll the wall or the list a line up (`up`) or down; the shader chosen stays in

@@ -18,6 +18,17 @@ impl Panel {
             // The card asking covers the page: nothing under it answers the pointer.
             return;
         }
+        // The New note a click opened stands over the page in place of a hover card.
+        if self.tab != Tab::Shaders || self.finishers_shown {
+            self.new_note = false;
+        }
+        if self.new_note
+            && let Some(anchor) = self.ui.rect_for(NEW_NOTE_TOKEN)
+        {
+            let card = self.new_note_card();
+            hover::draw_note(&mut self.ui, frame, anchor, &card);
+            return;
+        }
         let now = Instant::now();
         self.hover.follow(self.ui.hovered(), now);
         let Some((token, alpha)) = self.hover.showing(now) else {

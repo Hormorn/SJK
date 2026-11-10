@@ -7,7 +7,7 @@
 //! page asks before the last copy, every duplicate or the shaders picked go.
 
 use super::forge::*;
-use super::view::{LEFT_X, RIGHT_X, left_lines};
+use super::view::{LEFT_X, RIGHT_X, label_width, left_lines};
 use super::*;
 use crate::menu::sjk::{Frame, color, kit, text};
 use crate::menu_widgets::TextFamily;
@@ -215,11 +215,11 @@ impl Panel {
                 Section::Break if self.forge.spare.0 > 0 => Some(self.forge.spare.0.to_string()),
                 _ => None,
             };
-            let label_width = display_label_width(section.label(), 24.0, self.widen);
-            let badge_width = badge.as_ref().map_or(0.0, |badge| {
-                display_label_width(badge, 15.0, self.widen) + 22.0
-            });
-            let width = label_width + badge_width + 56.0;
+            let label_room = label_width(section.label(), 24.0, self.widen);
+            let badge_width = badge
+                .as_ref()
+                .map_or(0.0, |badge| label_width(badge, 15.0, self.widen) + 22.0);
+            let width = label_room + badge_width + 56.0;
             let rect = frame.rect(x, SECTION_Y, width, SECTION_HEIGHT);
             let radius = SECTION_HEIGHT * 0.5 * s;
             if lit {
@@ -252,14 +252,14 @@ impl Panel {
                 &mut self.ui,
                 TextFamily::Display,
                 format_args!("{}", section.label()),
-                frame.rect(x + 28.0, SECTION_Y + 10.0, label_width + 8.0, 28.0),
+                frame.rect(x + 28.0, SECTION_Y + 10.0, label_room + 8.0, 28.0),
                 24.0 * s,
                 ink,
                 FontWeight::Semibold,
                 TextAlign::Start,
             );
             if let Some(badge) = badge {
-                let bx = x + 28.0 + label_width + 10.0;
+                let bx = x + 28.0 + label_room + 10.0;
                 let bw = badge_width - 10.0;
                 let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
                     rect: frame.rect(bx, SECTION_Y + 13.0, bw, 22.0),
@@ -350,7 +350,7 @@ impl Panel {
         ];
         for (token, words, label, colour, shard) in columns {
             // Measured as drawn (letter spacing too), so a sum is never cut ("5...").
-            let width = display_label_width(&words, size, self.widen);
+            let width = label_width(&words, size, self.widen);
             let mark_width = if shard {
                 crate::cards::shard::width(mark_height)
             } else {
@@ -2688,16 +2688,6 @@ fn token_mark(token: u16) -> hover::MarkToken {
         PADLOCK_TOKEN => hover::MarkToken::Lock,
         _ => hover::MarkToken::Favourites,
     }
-}
-
-/// How wide `words` are drawn in the display family at `size` (frame pixels): the
-/// player's text size, `widen` (Inter in place of the families) and the letter spacing
-/// (`ui_letterSpacing`), which a chip's label overflowed without.
-fn display_label_width(words: &str, size: f32, widen: f32) -> f32 {
-    let style = crate::text::style::current();
-    let size = size * style.scale;
-    let tracking = style.tracking * size * words.chars().count() as f32;
-    (crate::text::display_width(words, size) * widen + tracking).max(0.0)
 }
 
 /// How wide `words` are in the body family at `size` (frame pixels), near enough for a
