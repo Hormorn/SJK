@@ -36,7 +36,12 @@ const CREST: f32 = 28.0;
 /// width, height), the nameplate's bottom this far over its foot. Showcase current set
 /// opens it; the plate stood over the model's head before, which moves, and ran into the
 /// row of tabs.
-const SHOWCASE_CARD: [f32; 4] = [LEFT_X, 336.0, 3.0 * PLACE + 2.0 * PLACE_GAP, 300.0];
+const SHOWCASE_CARD: [f32; 4] = [
+    LEFT_X - 8.0,
+    PLACES_TOP - 8.0,
+    3.0 * PLACE + 2.0 * PLACE_GAP + 16.0,
+    PLACE + 100.0,
+];
 const SHOWCASE_FOOT: f32 = 56.0;
 /// Showcase current set's row over Style, and the button's height.
 const SHOWCASE_ROW: f32 = 56.0;

@@ -141,8 +141,13 @@ impl Hover {
 
 /// The lines of `card` as drawn, each with its colour, at the player's text size.
 fn laid(card: &Card) -> Vec<(&str, Color, bool)> {
-    let scale = crate::text::style::current().scale.max(0.5);
-    let chars = (LINE_CHARS / scale).floor().max(12.0) as usize;
+    let style = crate::text::style::current();
+    let scale = style.scale.max(0.5);
+    // The letter spacing widens every character by `tracking` of the size, against a
+    // character's advance of about half the size (10/11/2026: with `ui_letterSpacing`
+    // the lines ran past the card and were cut, "made with ky...").
+    let spaced = 1.0 + 2.0 * style.tracking.max(0.0);
+    let chars = (LINE_CHARS / (scale * spaced)).floor().max(12.0) as usize;
     let mut out = Vec::new();
     for (index, line) in card.lines.iter().enumerate() {
         for (part, words) in wrap(&line.words, chars).enumerate() {
