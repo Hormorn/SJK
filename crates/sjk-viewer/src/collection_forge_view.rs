@@ -330,7 +330,6 @@ impl Panel {
         };
         let s = frame.s;
         let size = 40.0;
-        let scale = crate::text::style::current().scale * self.widen;
         let mark_height = 34.0;
         let mut right = RIGHT_X;
         let columns = [
@@ -350,7 +349,8 @@ impl Panel {
             ),
         ];
         for (token, words, label, colour, shard) in columns {
-            let width = crate::text::display_width(&words, size) * scale;
+            // Measured as drawn (letter spacing too), so a sum is never cut ("5...").
+            let width = display_label_width(&words, size, self.widen);
             let mark_width = if shard {
                 crate::cards::shard::width(mark_height)
             } else {
@@ -385,7 +385,7 @@ impl Panel {
                 &mut self.ui,
                 TextFamily::Display,
                 format_args!("{words}"),
-                frame.rect(right - width - 4.0, BALANCE_Y - 2.0, width + 4.0, 50.0),
+                frame.rect(right - width - 8.0, BALANCE_Y - 2.0, width + 8.0, 50.0),
                 size * s,
                 colour,
                 FontWeight::Semibold,

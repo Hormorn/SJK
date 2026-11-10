@@ -1913,7 +1913,8 @@ for the run.
   chip whose hover card says what the section is ("84 saber shaders you lack, made with
   kyber shards: 50 within reach."), once a line under the chips that ran into the
   search field; at the top right
-  the player's kyber shards and credits large, each mark and sum over its word, with how
+  the player's kyber shards and credits large, each mark and sum over its word (each sum
+  measured with the letter spacing too, 10/11/2026: "5 698" read "5..."), with how
   each is earned in its hover card. Tab and Shift+Tab (or 1, 2, 3) change section, the
   arrows choose, Enter or Space presses the chosen thing's button, the pointer chooses by
   resting and acts by a click; Ctrl+Tab and Escape as on every tab.
