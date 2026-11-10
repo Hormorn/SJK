@@ -176,6 +176,9 @@ pub(crate) struct Editor {
     current: Option<u32>,
     /// `mapedit_grab`: the current placed model follows the crosshair.
     grabbing: bool,
+    /// `mapedit_surface`: models placed and grabbed stand along the surface's normal
+    /// ([`super::on_surface`]).
+    on_surface: bool,
 }
 
 impl Default for Editor {
@@ -185,6 +188,7 @@ impl Default for Editor {
             scope: Scope::AllServers,
             current: None,
             grabbing: false,
+            on_surface: false,
         }
     }
 }
@@ -203,6 +207,11 @@ impl Editor {
     /// Where new edits apply.
     pub(crate) fn scope(&self) -> Scope {
         self.scope
+    }
+
+    /// Whether models placed and grabbed stand along the surface's normal.
+    pub(crate) fn on_surface(&self) -> bool {
+        self.on_surface
     }
 
     /// Make placed edit `id` the one the placed model's controls act on.
@@ -282,6 +291,10 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: lay the texture of the selected drawn faces: shift <s t> texels, scale <s t> (factors; negative flips), rotate <degrees>, fit, reset, or set <shift s t> <scale s t> <degrees>",
     ),
     (
+        "mapedit_surface",
+        "Map editor: models placed and grabbed stand along the surface under the pointer (its normal their up), or upright as before (on|off; alone: the other way)",
+    ),
+    (
         "mapedit_frame",
         "Map editor: glide the camera to frame the selection (F), or the point x y z [radius] given; the body stays where it is",
     ),
@@ -330,6 +343,8 @@ pub(crate) fn is_command(name: &str) -> bool {
 pub(super) struct Aim {
     pub(super) target: EditTarget,
     pub(super) hit: Vec3,
+    /// The normal of the surface at [`Self::hit`].
+    pub(super) normal: Vec3,
     /// The view's forward when the selection was made: a placed model faces it.
     pub(super) forward: Vec3,
     pub(super) summary: String,
@@ -469,6 +484,16 @@ impl GpuState {
             "mapedit_select" => self.map_edit_select_command(args),
             "mapedit_duplicate" => self.map_edit_duplicate(args),
             "mapedit_frame" => self.map_edit_frame_command(args),
+            "mapedit_surface" => {
+                let on = toggled(self.map_edits.editor.on_surface, args)
+                    .map_err(|_| "usage: mapedit_surface [on|off]".to_owned())?;
+                self.map_edits.editor.on_surface = on;
+                Ok(vec![if on {
+                    "Placed and grabbed models stand along the surface under the pointer".into()
+                } else {
+                    "Placed and grabbed models stand upright".into()
+                }])
+            }
             "mapedit_align" => self.map_edit_align(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_weather" => self.map_edit_weather(args),
@@ -764,10 +789,11 @@ impl GpuState {
             .world_notes
             .waiting_selection()
             .ok_or("Nothing under the crosshair")?;
-        let (hit, _) = selection.aim();
+        let (hit, normal) = selection.aim();
         Ok(Aim {
             target: selection.edit_target(),
             hit,
+            normal,
             forward: selection.forward(),
             summary: selection.summary(),
         })
@@ -933,9 +959,13 @@ impl GpuState {
         // Facing the view the selection was made from (the browser editor's when the
         // page selected).
         let yaw = yaw_of(aim.forward) + 180.0;
-        let angles = angles
-            .unwrap_or([0.0, yaw, 0.0])
-            .map(|a| a.rem_euclid(360.0));
+        // Along the surface met, when placing on surfaces (`mapedit_surface`).
+        let standing = if self.map_edits.editor.on_surface {
+            super::on_surface::surface_angles(aim.normal, yaw)
+        } else {
+            [0.0, yaw, 0.0]
+        };
+        let angles = angles.unwrap_or(standing).map(|a| a.rem_euclid(360.0));
         self.world_notes.cancel_selection();
         let kind = Kind::Place {
             model: model.clone(),
@@ -1074,12 +1104,17 @@ impl GpuState {
             return;
         };
         let point = eye + forward * hit.distance;
-        let angles = self
+        let mut angles = self
             .map_edits
             .placed
             .iter()
             .find(|placed| placed.id == id)
             .map_or([0.0; 3], |placed| placed.angles);
+        if editor.on_surface {
+            // Its own heading, laid along the surface under the pointer.
+            let heading = super::on_surface::heading_of(angles);
+            angles = super::on_surface::surface_angles(hit.normal, heading);
+        }
         self.map_edits
             .preview_placement(id, point.to_array(), angles);
     }

@@ -78,6 +78,8 @@ pub(crate) const NEARER: u16 = 37;
 /// page): place one where the next click meets the floor, the toy's kind and escort,
 /// remove the chosen one.
 pub(crate) const PLACE_THINGS: u16 = 82;
+/// Place: models placed and grabbed stand along the surface (`mapedit_surface`).
+pub(crate) const PLACE_SURFACE: u16 = 81;
 pub(crate) const PLACE_MODELS: u16 = 83;
 pub(crate) const THING_BOOMBOX: u16 = 84;
 pub(crate) const THING_BOX: u16 = 85;
@@ -454,6 +456,8 @@ pub(crate) enum Action {
     Frame,
     /// A step of the selected faces' texture alignment (`mapedit_align`).
     Align(super::align::Step),
+    /// Place's Surface switch (`mapedit_surface`).
+    OnSurface,
     /// A double click on a row: glide the camera to what it names.
     FlyTo(FlyTarget),
 }
@@ -584,6 +588,8 @@ pub(crate) struct Facts {
     pub(crate) brushes: Option<BrushPreset>,
     /// How the newest selected face's texture lies, when an edit draws it.
     pub(crate) align: Option<super::document::Align>,
+    /// Models placed and grabbed stand along the surface (`mapedit_surface`).
+    pub(crate) on_surface: bool,
 }
 
 /// What the panel's facts were read for ([`Panel`]'s `seen`): the document's revision,
@@ -1516,6 +1522,7 @@ impl Panel {
             SELECT_PLACED => return Some(Action::SelectPlaced),
             DUPLICATE => return Some(Action::Duplicate),
             TILES => self.toggle_tiles(),
+            PLACE_SURFACE => return Some(Action::OnSurface),
             ALIGN => self.aligning = !self.aligning,
             step if (ALIGN_STEP..ALIGN_STEP + ALIGN_STEPS.len() as u16).contains(&step) => {
                 return Some(Action::Align(ALIGN_STEPS[usize::from(step - ALIGN_STEP)].1));
@@ -2219,6 +2226,10 @@ impl GpuState {
                 }
             },
             Action::Frame => ("mapedit_frame", vec![]),
+            Action::OnSurface => {
+                let on = !self.map_edits.editor.on_surface();
+                ("mapedit_surface", text(&[if on { "on" } else { "off" }]))
+            }
             Action::Align(step) => ("mapedit_align", super::align::words(step)),
             Action::FlyTo(target) => match self.map_edit_fly_target(target) {
                 Ok((centre, radius)) => {
@@ -2623,6 +2634,7 @@ impl GpuState {
             creator,
             brushes,
             align,
+            on_surface: state.editor.on_surface(),
         };
         let vfs = self.vfs.clone();
         let panel = &mut self.map_edits.panel;

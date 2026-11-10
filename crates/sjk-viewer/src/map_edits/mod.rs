@@ -35,6 +35,7 @@ pub(crate) mod gizmo;
 pub(crate) mod lights;
 pub(crate) mod linked;
 pub(crate) mod nearby;
+pub(crate) mod on_surface;
 pub(crate) mod panel;
 pub(crate) mod panel_lights;
 mod panel_view;

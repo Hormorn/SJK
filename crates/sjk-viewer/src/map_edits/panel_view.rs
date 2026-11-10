@@ -1238,12 +1238,28 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     kit::search(
         ui,
         frame,
-        [COLUMN_X, y, COLUMN_WIDTH - switch - GAP, FIELD],
+        [COLUMN_X, y, COLUMN_WIDTH - 2.0 * (switch + GAP), FIELD],
         &panel.search,
         searching,
         "Search the models",
         (!panel.search.is_empty()).then_some(panel.shown.len()),
         SEARCH,
+    );
+    // Placed and grabbed models stand along the surface: a gold pill while on.
+    kit::button(
+        ui,
+        frame,
+        [
+            COLUMN_X + COLUMN_WIDTH - 2.0 * switch - GAP,
+            y + 2.0,
+            switch,
+            BUTTON,
+        ],
+        "Surface",
+        panel.facts.on_surface,
+        true,
+        panel.focus == PLACE_SURFACE,
+        PLACE_SURFACE,
     );
     kit::button(
         ui,
@@ -2596,6 +2612,7 @@ mod tests {
         let place = tokens("place");
         assert!(place.contains(&SEARCH) && place.contains(&PLACE) && place.contains(&GRAB));
         assert!(place.contains(&MOVE_LEFT) && place.contains(&NEARER));
+        assert!(place.contains(&PLACE_SURFACE) && place.contains(&PLACE_THINGS));
         assert!(place.contains(&(MODEL_ROW + MODEL_ROWS as u16 - 1)));
         assert!(!place.contains(&(MODEL_ROW + MODEL_ROWS as u16)));
         let edits = tokens("edits");
