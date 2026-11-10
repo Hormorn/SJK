@@ -471,7 +471,9 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             y,
             &[
                 (HIDE, if many { "Hide all" } else { "Hide" }, true),
-                (HIDE_GROUP, "Hide whole model", soup && !many),
+                (HIDE_GROUP, "Whole model", soup && !many),
+                (SELECT_MORE, "More", true),
+                (SELECT_LESS, "Less", many),
             ],
         ),
         Picked::Entity => line(

@@ -80,6 +80,10 @@ pub(crate) const NEARER: u16 = 37;
 pub(crate) const PLACE_THINGS: u16 = 82;
 /// Place: models placed and grabbed stand along the surface (`mapedit_surface`).
 pub(crate) const PLACE_SURFACE: u16 = 81;
+/// Selected, on surfaces: select one ring more, or one less (`mapedit_select grow`,
+/// `shrink`).
+pub(crate) const SELECT_MORE: u16 = 48;
+pub(crate) const SELECT_LESS: u16 = 49;
 pub(crate) const PLACE_MODELS: u16 = 83;
 pub(crate) const THING_BOOMBOX: u16 = 84;
 pub(crate) const THING_BOX: u16 = 85;
@@ -458,6 +462,8 @@ pub(crate) enum Action {
     Align(super::align::Step),
     /// Place's Surface switch (`mapedit_surface`).
     OnSurface,
+    /// Grow, shrink or invert the selection (`mapedit_select grow|shrink|invert`).
+    Ring(super::select_grow::Ring),
     /// A double click on a row: glide the camera to what it names.
     FlyTo(FlyTarget),
 }
@@ -1523,6 +1529,8 @@ impl Panel {
             DUPLICATE => return Some(Action::Duplicate),
             TILES => self.toggle_tiles(),
             PLACE_SURFACE => return Some(Action::OnSurface),
+            SELECT_MORE => return Some(Action::Ring(super::select_grow::Ring::Grow)),
+            SELECT_LESS => return Some(Action::Ring(super::select_grow::Ring::Shrink)),
             ALIGN => self.aligning = !self.aligning,
             step if (ALIGN_STEP..ALIGN_STEP + ALIGN_STEPS.len() as u16).contains(&step) => {
                 return Some(Action::Align(ALIGN_STEPS[usize::from(step - ALIGN_STEP)].1));
@@ -1718,6 +1726,21 @@ impl Panel {
                 if !control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
             {
                 return Some(Action::Frame);
+            }
+            // Blender's Select More, Less and Invert: Ctrl with + (or =), - and I.
+            KeyCode::Equal
+            | KeyCode::NumpadAdd
+            | KeyCode::Minus
+            | KeyCode::NumpadSubtract
+            | KeyCode::KeyI
+                if control && !event.repeat && !matches!(self.focus, SEARCH | REMAP_FIELD) =>
+            {
+                use super::select_grow::Ring;
+                return Some(Action::Ring(match key {
+                    KeyCode::Equal | KeyCode::NumpadAdd => Ring::Grow,
+                    KeyCode::KeyI => Ring::Invert,
+                    _ => Ring::Shrink,
+                }));
             }
             KeyCode::Delete if self.is_edit_row(self.focus) && !event.repeat => {
                 return Some(Action::Delete);
@@ -2226,6 +2249,14 @@ impl GpuState {
                 }
             },
             Action::Frame => ("mapedit_frame", vec![]),
+            Action::Ring(ring) => (
+                "mapedit_select",
+                text(&[match ring {
+                    super::select_grow::Ring::Grow => "grow",
+                    super::select_grow::Ring::Shrink => "shrink",
+                    super::select_grow::Ring::Invert => "invert",
+                }]),
+            ),
             Action::OnSurface => {
                 let on = !self.map_edits.editor.on_surface();
                 ("mapedit_surface", text(&[if on { "on" } else { "off" }]))
@@ -2279,7 +2310,9 @@ impl GpuState {
             Action::Remap if ok && self.world_notes.edit_selection_len() <= 1 => {
                 panel.remap.clear();
             }
-            Action::Link(_) | Action::SelectShader if ok => panel.show(Tab::Selected),
+            Action::Link(_) | Action::SelectShader | Action::Ring(_) if ok => {
+                panel.show(Tab::Selected);
+            }
             _ => {}
         }
     }

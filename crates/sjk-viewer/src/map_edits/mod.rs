@@ -43,6 +43,7 @@ pub(crate) mod pictures;
 pub(crate) mod preview;
 pub(crate) mod recent;
 pub(crate) mod select;
+pub(crate) mod select_grow;
 pub(crate) mod suggest;
 pub(crate) mod web;
 

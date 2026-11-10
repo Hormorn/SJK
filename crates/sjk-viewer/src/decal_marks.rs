@@ -188,6 +188,45 @@ impl DecalSurfaces {
         ))
     }
 
+    /// For each surface of `of`, the other surfaces sharing a corner with it (an eighth of
+    /// a unit apart is the same corner) among those `joins` accepts and not hidden, each
+    /// once: one ring of the map editor's grow (`mapedit_select grow`).
+    pub(crate) fn touching(&self, of: &[usize], joins: impl Fn(usize) -> bool) -> Vec<Vec<usize>> {
+        let key =
+            |index: u32| self.positions[index as usize].map(|axis| (axis * 8.0).round() as i32);
+        let corners = |surface: usize| {
+            let range = self.ranges.get(surface).cloned().unwrap_or(0..0);
+            self.indices[range.start as usize..range.end as usize]
+                .iter()
+                .map(move |&index| key(index))
+        };
+        let wanted: std::collections::HashSet<[i32; 3]> =
+            of.iter().flat_map(|&surface| corners(surface)).collect();
+        let mut by_corner: std::collections::HashMap<[i32; 3], Vec<usize>> = Default::default();
+        for other in 0..self.ranges.len() {
+            if self.hidden[other] || !joins(other) {
+                continue;
+            }
+            for corner in corners(other).filter(|corner| wanted.contains(corner)) {
+                let list = by_corner.entry(corner).or_default();
+                if list.last() != Some(&other) {
+                    list.push(other);
+                }
+            }
+        }
+        of.iter()
+            .map(|&surface| {
+                let mut found: Vec<usize> = corners(surface)
+                    .flat_map(|corner| by_corner.get(&corner).into_iter().flatten().copied())
+                    .filter(|&other| other != surface)
+                    .collect();
+                found.sort_unstable();
+                found.dedup();
+                found
+            })
+            .collect()
+    }
+
     /// `surface` and the surfaces touching it, through shared corners, among those
     /// `joins` accepts, nearest first and at most `limit`: the pieces a compiled model
     /// (a `misc_model` the map compiler merged into the world) is left as.
@@ -573,5 +612,67 @@ mod tag_surface_tests {
         assert!(unfit(flag), "a waving flag");
         let poster = "textures/a/poster\n{\npolygonOffset\n{\nmap textures/a/poster\n}\n}\n";
         assert!(unfit(poster), "a decal laid on a wall");
+    }
+}
+
+#[cfg(test)]
+impl DecalSurfaces {
+    /// Surfaces made of the triangles given, one list a surface, for tests.
+    pub(crate) fn from_triangles(surfaces: &[Vec<[[f32; 3]; 3]>]) -> Self {
+        let mut decal = Self {
+            positions: Vec::new(),
+            normals: Vec::new(),
+            indices: Vec::new(),
+            ranges: Vec::new(),
+            hidden: vec![false; surfaces.len()],
+            no_tags: vec![false; surfaces.len()],
+            bounds: Vec::new(),
+        };
+        for triangles in surfaces {
+            let start = decal.indices.len() as u32;
+            let mut low = Vec3::splat(f32::MAX);
+            let mut high = Vec3::splat(f32::MIN);
+            for triangle in triangles {
+                for corner in triangle {
+                    decal.indices.push(decal.positions.len() as u32);
+                    decal.positions.push(*corner);
+                    decal.normals.push([0.0, 0.0, 1.0]);
+                    low = low.min(Vec3::from_array(*corner));
+                    high = high.max(Vec3::from_array(*corner));
+                }
+            }
+            decal.ranges.push(start..decal.indices.len() as u32);
+            decal.bounds.push((low, high));
+        }
+        decal
+    }
+}
+
+#[cfg(test)]
+mod touching_tests {
+    use super::*;
+
+    /// Three floor tiles in a row and one apart: each touches its neighbours through
+    /// shared corners, the far one none; a hidden or refused surface is no neighbour.
+    #[test]
+    fn surfaces_touch_through_shared_corners() {
+        let tile = |x: f32| {
+            vec![
+                [[x, 0.0, 0.0], [x + 64.0, 0.0, 0.0], [x + 64.0, 64.0, 0.0]],
+                [[x, 0.0, 0.0], [x + 64.0, 64.0, 0.0], [x, 64.0, 0.0]],
+            ]
+        };
+        let mut surfaces =
+            DecalSurfaces::from_triangles(&[tile(0.0), tile(64.0), tile(128.0), tile(512.0)]);
+        assert_eq!(
+            surfaces.touching(&[1, 3], |_| true),
+            vec![vec![0, 2], vec![]]
+        );
+        assert_eq!(
+            surfaces.touching(&[0], |other| other != 1),
+            vec![Vec::<usize>::new()]
+        );
+        surfaces.hidden[2] = true;
+        assert_eq!(surfaces.touching(&[1], |_| true), vec![vec![0]]);
     }
 }

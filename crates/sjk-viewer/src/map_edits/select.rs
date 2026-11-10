@@ -345,7 +345,7 @@ impl crate::GpuState {
     }
 
     /// Whether drawn surface `index` is drawn as the sky (no edit's: its sky side is).
-    fn map_edit_sky_surface(&self, index: usize) -> bool {
+    pub(super) fn map_edit_sky_surface(&self, index: usize) -> bool {
         self.bsp
             .render()
             .surfaces()
@@ -355,7 +355,7 @@ impl crate::GpuState {
     }
 
     /// Placed edits `ids` drawn now, as selections.
-    fn map_edit_placed_selections(&mut self, map: &str, ids: &[u32]) -> Vec<Selection> {
+    pub(super) fn map_edit_placed_selections(&mut self, map: &str, ids: &[u32]) -> Vec<Selection> {
         if ids.is_empty() {
             return Vec::new();
         }
@@ -386,7 +386,16 @@ impl crate::GpuState {
         &mut self,
         args: &[String],
     ) -> Result<Vec<String>, String> {
-        let usage = "usage: mapedit_select shader|placed [add|remove]";
+        let usage = "usage: mapedit_select shader|placed [add|remove] | grow|shrink|invert";
+        let ring = match args {
+            [what] if what == "grow" => Some(super::select_grow::Ring::Grow),
+            [what] if what == "shrink" => Some(super::select_grow::Ring::Shrink),
+            [what] if what == "invert" => Some(super::select_grow::Ring::Invert),
+            _ => None,
+        };
+        if let Some(ring) = ring {
+            return self.map_edit_ring(ring).map(|line| vec![line]);
+        }
         let (what, combine) = match args {
             [what] => (what.as_str(), Combine::Replace),
             [what, how] => (
