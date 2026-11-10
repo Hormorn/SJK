@@ -87,14 +87,14 @@ pub(crate) fn stepped(align: &Align, step: Step, fitted: impl FnOnce() -> Align)
     let mut next = *align;
     match step {
         Step::Shift(by) => {
-            for axis in 0..2 {
-                next.shift[axis] = (next.shift[axis] + by[axis]).clamp(-ALIGN_SHIFT, ALIGN_SHIFT);
+            for (shift, by) in next.shift.iter_mut().zip(by) {
+                *shift = (*shift + by).clamp(-ALIGN_SHIFT, ALIGN_SHIFT);
             }
         }
         Step::Scale(by) => {
-            for axis in 0..2 {
-                let scaled = next.scale[axis] * by[axis];
-                next.scale[axis] =
+            for (scale, by) in next.scale.iter_mut().zip(by) {
+                let scaled = *scale * by;
+                *scale =
                     scaled.signum() * scaled.abs().clamp(*ALIGN_SCALE.start(), *ALIGN_SCALE.end());
             }
         }

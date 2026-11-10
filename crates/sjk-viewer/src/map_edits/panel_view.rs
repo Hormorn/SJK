@@ -1287,7 +1287,7 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         [COLUMN_X, y, COLUMN_WIDTH - 2.0 * (switch + GAP), FIELD],
         &panel.search,
         searching,
-        "Search the models",
+        "Search models",
         (!panel.search.is_empty()).then_some(panel.shown.len()),
         SEARCH,
     );

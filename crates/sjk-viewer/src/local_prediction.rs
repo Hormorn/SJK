@@ -840,8 +840,10 @@ mod fake_noclip_tests {
     #[test]
     fn a_flight_is_put_where_the_editor_says_and_a_walk_is_not() {
         let mut prediction = prediction();
-        let mut state = MovementState::default();
-        state.velocity = [300.0, 0.0, 0.0];
+        let state = MovementState {
+            velocity: [300.0, 0.0, 0.0],
+            ..MovementState::default()
+        };
         prediction.predictor = Some(Predictor::from_state(state, MovementConfig::default()));
         prediction.view_height = 36.0;
         let eye = Vec3::new(100.0, -50.0, 200.0);

@@ -117,7 +117,8 @@ impl GpuState {
                     .iter()
                     .map(|value| format!("{value:.2}"))
                     .collect();
-                self.map_edit_command("mapedit_measure", &words)
+                // The panel's own click: the editor is on (as `mapedit_measure x y z`).
+                self.map_edit_measure(&words)
             }
             None => Err("Nothing there to measure to".into()),
         };

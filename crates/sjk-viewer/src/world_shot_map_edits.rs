@@ -392,6 +392,22 @@ fn duel6_map_editor_suggestions_hover_and_box() {
         );
         assert!(count > 1, "the box selects several things");
         println!("{}", shoot(&mut gpu, 6, "map-editor-box").display());
+        // Again, the map's side index built now: what each later box costs.
+        gpu.map_edit_pointer(InputEvent::PointerPress {
+            position: from,
+            button: PointerButton::Primary,
+        });
+        gpu.map_edit_pointer(InputEvent::PointerMove(to));
+        let started = std::time::Instant::now();
+        gpu.map_edit_pointer(InputEvent::PointerRelease {
+            position: to,
+            button: PointerButton::Primary,
+        });
+        println!(
+            "box again: {} in {:?}",
+            gpu.map_edits.panel.status,
+            started.elapsed()
+        );
         // The path again, and the pointer resting on its first suggested row.
         gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 1010.0]));
         let _ = frame(&mut gpu, 4);
@@ -1277,5 +1293,323 @@ fn added_light_drawn() {
             )
             .display()
         );
+    });
+}
+
+/// The in-game editor's fourth round over duel6 (10/11/2026): a caulk wall drawn with a
+/// wall shader, its texture turned and grown (`mapedit_align`, the panel's Align page,
+/// no new mesh); another caulk wall previewed with the shader under the pointer (the one
+/// preview mesh) and put back; the measure tool between two clicks; F framing the
+/// selection (the camera glides back from the wall); a model placed on the wall along its
+/// normal (`mapedit_surface`); and a floor surface grown by a ring.
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_map_editor_align_preview_measure_and_fly() {
+    use sjk_ui::{InputEvent, PointerButton, Vec2};
+    on_big_stack(|| {
+        let Some((mut gpu, _profile)) = open("maps/mp/duel6.bsp", [1920, 1080], None, &[]) else {
+            return;
+        };
+        if let Some(console) = gpu.console.as_mut() {
+            console.close_for_connection();
+        }
+        let walls = seen_caulk_walls(&gpu, 2);
+        let [first, second] = walls.as_slice() else {
+            panic!("duel6: two caulk walls seen from open space");
+        };
+        let (brush, side, shader, centre, eye) = first.clone();
+        // The first wall drawn with the wall shader, seen a little from the side.
+        let normal = (eye - centre).normalize();
+        let eye = centre + normal * 160.0 + normal.cross(Vec3::Z).normalize_or_zero() * 60.0;
+        let (yaw, pitch) = look(eye.to_array(), centre.to_array());
+        aim(&mut gpu, eye.to_array(), yaw, pitch);
+        let _ = frame(&mut gpu, 20);
+        // What Fill would draw there: a plain texture of the walls round it.
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 540.0]));
+        let target = gpu
+            .shot_map_edit_fill_suggestion()
+            .expect("a texture round the wall");
+        println!("first wall drawn as {target}");
+        gpu.world_notes.cancel_selection();
+        gpu.close_map_edit_panel();
+        let mut document = Document::new("mp/duel6", 1);
+        document.unpublished = true;
+        document.add(
+            Kind::ShowFace {
+                brush: brush as u32,
+                side: side as u32,
+                shader: shader.clone(),
+                to: target.clone(),
+                align: crate::map_edits::document::Align::default(),
+            },
+            None,
+        );
+        gpu.shot_map_edits(Some(document));
+        let _ = frame(&mut gpu, 30);
+        // Compared without the selection's shade over the face.
+        let plain = frame(&mut gpu, 8);
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 540.0]));
+        let _ = frame(&mut gpu, 4);
+        let meshes = gpu.object_meshes.len();
+        for words in [
+            &["rotate", "45"][..],
+            &["scale", "2", "2"],
+            &["shift", "16", "0"],
+        ] {
+            let answer = gpu.shot_map_edit_run("mapedit_align", words);
+            println!("align {words:?}: {answer:?}");
+            assert!(answer.is_ok(), "{answer:?}");
+        }
+        // Applied as the game applies a changed document (the shots' world does not look
+        // the document up itself).
+        let aligned_document = gpu.map_edits.document.clone();
+        gpu.shot_map_edits(aligned_document);
+        gpu.map_edits.panel.aligning = true;
+        gpu.map_edits.panel.stale();
+        println!("{}", shoot(&mut gpu, 8, "map-editor-align").display());
+        gpu.world_notes.cancel_selection();
+        gpu.close_map_edit_panel();
+        let aligned = frame(&mut gpu, 8);
+        let (_, changed) = changed_pixels(&plain, &aligned, 50);
+        println!(
+            "{}",
+            sheet(
+                &[plain.clone(), aligned.clone()],
+                2,
+                960,
+                "map-editor-align-before-after"
+            )
+            .display()
+        );
+        println!(
+            "align: {:.0} % of the middle changed, {meshes} meshes before, {} after, {} face slots",
+            changed * 100.0,
+            gpu.object_meshes.len(),
+            gpu.map_edits.face_slot_count()
+        );
+        assert!(changed > 0.2, "the wall's texture turned and grew");
+        assert_eq!(gpu.object_meshes.len(), meshes, "aligning made no new mesh");
+        // Fit, then the second wall previewed with the first row under the pointer.
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 540.0]));
+        let fitted = gpu.shot_map_edit_run("mapedit_align", &["fit"]);
+        println!("fit: {fitted:?}");
+        let fitted_document = gpu.map_edits.document.clone();
+        gpu.shot_map_edits(fitted_document);
+        gpu.map_edits.panel.aligning = false;
+        let (_, _, _, centre_2, eye_2) = second.clone();
+        let (yaw, pitch) = look(eye_2.to_array(), centre_2.to_array());
+        aim(&mut gpu, eye_2.to_array(), yaw, pitch);
+        let _ = frame(&mut gpu, 10);
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 540.0]));
+        let undrawn = frame(&mut gpu, 8);
+        println!(
+            "second wall: {:?}",
+            gpu.map_edits
+                .panel
+                .facts
+                .selection
+                .as_ref()
+                .map(|s| &s.name)
+        );
+        let row = gpu
+            .map_edits
+            .panel
+            .shader_list
+            .expect("the shader list is drawn");
+        let meshes = gpu.object_meshes.len();
+        let at = Vec2::new(row.x + row.width * 0.5, row.y + 8.0 + 17.0);
+        gpu.map_edit_pointer(InputEvent::PointerMove(at));
+        let _ = frame(&mut gpu, 2);
+        std::thread::sleep(crate::map_edits::preview::SETTLE * 2);
+        let previewed = frame(&mut gpu, 6);
+        let shown = gpu.map_edits.panel.preview.shown.clone();
+        let (_, changed) = changed_pixels(&undrawn, &previewed, 200);
+        println!(
+            "face preview: {shown:?}, {:.0} % of the middle changed",
+            changed * 100.0
+        );
+        assert!(shown.is_some(), "the face is previewed");
+        assert!(
+            gpu.map_edits
+                .face_preview
+                .as_ref()
+                .is_some_and(|preview| preview.instance.is_some()),
+            "the preview mesh draws"
+        );
+        assert!(changed > 0.2, "the caulk wall shows the row's texture");
+        assert!(
+            gpu.object_meshes.len() <= meshes + 1,
+            "one preview mesh at most"
+        );
+        println!(
+            "{}",
+            shoot(&mut gpu, 4, "map-editor-face-preview").display()
+        );
+        // Off the list, then off the scene (no hover outline either).
+        gpu.map_edit_pointer(InputEvent::PointerMove(Vec2::new(520.0, 360.0)));
+        let _ = frame(&mut gpu, 2);
+        gpu.map_edit_pointer(InputEvent::PointerLeave);
+        let gone = frame(&mut gpu, 4);
+        let (_, left) = changed_pixels(&undrawn, &gone, 200);
+        println!(
+            "face preview gone: {:.1} % of the middle differs",
+            left * 100.0
+        );
+        // (The selection's shade moves from frame to frame, so pixels alone do not tell.)
+        assert!(
+            gpu.map_edits
+                .face_preview
+                .as_ref()
+                .is_some_and(|preview| preview.instance.is_none()),
+            "the preview mesh is no longer drawn"
+        );
+        println!(
+            "{}",
+            sheet(
+                &[undrawn, previewed, gone],
+                3,
+                640,
+                "map-editor-face-preview-sheet"
+            )
+            .display()
+        );
+        assert!(gpu.map_edits.panel.preview.shown.is_none());
+        // Measure from the wall's middle to a point beside it.
+        let measured = gpu.shot_map_edit_run("mapedit_measure", &["on"]);
+        assert!(measured.is_ok());
+        for point in [Vec2::new(960.0, 540.0), Vec2::new(700.0, 760.0)] {
+            gpu.map_edit_pointer(InputEvent::PointerPress {
+                position: point,
+                button: PointerButton::Primary,
+            });
+            gpu.map_edit_pointer(InputEvent::PointerRelease {
+                position: point,
+                button: PointerButton::Primary,
+            });
+        }
+        let _ = frame(&mut gpu, 3);
+        let label = gpu.map_edits.panel.measure.label.clone();
+        println!("measure: {label:?}, {}", gpu.map_edits.panel.status);
+        assert!(label.is_some(), "the measure reads");
+        println!("{}", shoot(&mut gpu, 4, "map-editor-measure").display());
+        let _ = gpu.shot_map_edit_run("mapedit_measure", &["off"]);
+        // F: frame the selection from twice as far.
+        let far = centre_2 + (eye_2 - centre_2) * 4.0;
+        let (yaw, pitch) = look(far.to_array(), centre_2.to_array());
+        aim(&mut gpu, far.to_array(), yaw, pitch);
+        let _ = frame(&mut gpu, 4);
+        // The inspection camera of a map seen without a server (a walk, as exploring,
+        // refuses: it falls with gravity), and a world the editor's frame runs in.
+        gpu.resident.stop_walking();
+        gpu.is_menu_world = false;
+        let framed = gpu.shot_map_edit_run("mapedit_frame", &[]);
+        println!("frame: {framed:?}");
+        assert!(framed.is_ok(), "{framed:?}");
+        let mut glide = Vec::new();
+        let started = std::time::Instant::now();
+        while started.elapsed()
+            < crate::map_edits::fly::GLIDE + std::time::Duration::from_millis(50)
+        {
+            gpu.shot_glide();
+            let image = frame(&mut gpu, 1);
+            if glide.len() < 6 && started.elapsed().as_millis() as usize > glide.len() * 80 {
+                glide.push(image);
+            }
+        }
+        gpu.shot_glide();
+        println!("{}", sheet(&glide, 3, 640, "map-editor-glide").display());
+        let (middle, radius) = gpu
+            .map_edit_selection_sphere()
+            .expect("the selection's extent");
+        let distance = gpu.camera_position.distance(middle);
+        let forward = Vec3::new(
+            gpu.camera_pitch.cos() * gpu.camera_yaw.cos(),
+            gpu.camera_pitch.cos() * gpu.camera_yaw.sin(),
+            gpu.camera_pitch.sin(),
+        );
+        let ahead = (middle - gpu.camera_position).normalize().dot(forward);
+        println!(
+            "framed from {distance:.0} units (the selection {radius:.0} round), ahead {ahead:.4}"
+        );
+        assert!(gpu.map_edits.fly.glide.is_none(), "the glide ended");
+        assert!(ahead > 0.999, "the selection's middle is straight ahead");
+        assert!(
+            (distance - (radius / 0.52f32.tan()).clamp(64.0, 6000.0)).abs() < 2.0,
+            "stepped back by its size"
+        );
+        println!("{}", shoot(&mut gpu, 4, "map-editor-framed").display());
+        // A model placed on the wall along its normal.
+        let (_, prop) = crate::static_models::spawns(&gpu.bsp)
+            .into_iter()
+            .next()
+            .expect("duel6 places props");
+        let (yaw, pitch) = look(eye.to_array(), centre.to_array());
+        aim(&mut gpu, eye.to_array(), yaw, pitch);
+        let _ = frame(&mut gpu, 6);
+        gpu.shot_map_edit_panel(Tab::Place, Some([960.0, 540.0]));
+        let _ = gpu.shot_map_edit_run("mapedit_surface", &["on"]);
+        let placed = gpu.shot_map_edit_run("mapedit_place", &[prop.model.as_str()]);
+        println!("on surface: {placed:?}");
+        assert!(placed.is_ok(), "{placed:?}");
+        let angles = gpu
+            .map_edits
+            .document
+            .as_ref()
+            .and_then(|document| {
+                document
+                    .edits
+                    .iter()
+                    .rev()
+                    .find_map(|edit| match &edit.kind {
+                        Kind::Place { angles, .. } => Some(*angles),
+                        _ => None,
+                    })
+            })
+            .expect("a placed model");
+        let up = crate::map_edits::gizmo::axes_of(angles)[2];
+        println!("placed up {up:?} on a wall of normal {normal:?}");
+        let placed_document = gpu.map_edits.document.clone();
+        gpu.shot_map_edits(placed_document);
+        assert!(up.dot(normal) > 0.99, "it stands out of the wall");
+        println!("{}", shoot(&mut gpu, 8, "map-editor-on-surface").display());
+        // The model taken back (one step to undo), out of the way.
+        let undone = gpu.shot_map_edit_run("mapedit_undo", &[]);
+        println!("undo: {undone:?}");
+        let undone_document = gpu.map_edits.document.clone();
+        gpu.shot_map_edits(undone_document);
+        // A floor surface grown by a ring: the floor under the first wall's eye, clicked.
+        let floor = gpu
+            .decal_surfaces
+            .ray_hit(eye, Vec3::NEG_Z, 2048.0)
+            .map(|hit| eye - Vec3::Z * hit.distance)
+            .expect("a floor under the eye");
+        let floor_eye = floor + normal * 120.0 + Vec3::Z * 160.0;
+        let (yaw, pitch) = look(floor_eye.to_array(), floor.to_array());
+        aim(&mut gpu, floor_eye.to_array(), yaw, pitch);
+        let _ = frame(&mut gpu, 6);
+        gpu.shot_map_edit_panel(Tab::Selected, Some([960.0, 540.0]));
+        let _ = frame(&mut gpu, 2);
+        println!(
+            "grow from: {:?}",
+            gpu.map_edits
+                .panel
+                .facts
+                .selection
+                .as_ref()
+                .map(|s| &s.name)
+        );
+        let before = gpu.world_notes.edit_selection_len();
+        let grown = gpu.shot_map_edit_run("mapedit_select", &["grow"]);
+        let after = gpu.world_notes.edit_selection_len();
+        println!("grow: {grown:?} ({before} -> {after})");
+        assert!(grown.is_ok() && after > before, "the ring joins");
+        let shrunk = gpu.shot_map_edit_run("mapedit_select", &["shrink"]);
+        println!(
+            "shrink: {shrunk:?} ({after} -> {})",
+            gpu.world_notes.edit_selection_len()
+        );
+        let _ = gpu.shot_map_edit_run("mapedit_select", &["grow"]);
+        gpu.map_edits.panel.stale();
+        println!("{}", shoot(&mut gpu, 6, "map-editor-grown").display());
     });
 }

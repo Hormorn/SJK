@@ -319,11 +319,19 @@ impl GpuState {
     /// Whether the editor's camera can be put somewhere: the free camera's flight in a
     /// live game, or the inspection camera of a map seen without a server; not a walk
     /// (exploring) nor the player's own view, which move by the game's rules.
-    fn map_edit_camera_movable(&self) -> bool {
+    fn map_edit_camera_movable(&self) -> Result<(), &'static str> {
         if self.live_session.is_some() {
-            return self.free_camera_active() && self.local_prediction.fake_noclip();
+            return (self.free_camera_active() && self.local_prediction.fake_noclip())
+                .then_some(())
+                .ok_or("Fly-to moves the free camera only, which is off");
         }
-        !self.resident.exploring() && self.demo_session.is_none() && !self.is_menu_world
+        if self.resident.exploring() {
+            return Err("Fly-to moves the free camera only: not while walking a map");
+        }
+        if self.demo_session.is_some() || self.is_menu_world {
+            return Err("Fly-to moves the editor's camera only: not in a demo or the menu");
+        }
+        Ok(())
     }
 
     /// Glide the editor's camera to frame a target of `radius` about `centre` ([`frame`]),
@@ -332,11 +340,13 @@ impl GpuState {
         if !centre.is_finite() || !radius.is_finite() {
             return Err("Nowhere to fly to".into());
         }
-        if !self.map_edit_camera_movable() {
-            return Err(self.map_edits.fly.refused.clone().map_or_else(
-                || "Fly-to moves the free camera only: not while walking".to_owned(),
-                |why| format!("{why}: no fly-to"),
-            ));
+        if let Err(why) = self.map_edit_camera_movable() {
+            return Err(self
+                .map_edits
+                .fly
+                .refused
+                .clone()
+                .map_or_else(|| why.to_owned(), |refused| format!("{refused}: no fly-to")));
         }
         let from = self.map_edit_view_pose();
         let forward = Vec3::new(
@@ -376,6 +386,12 @@ impl GpuState {
         if done {
             self.map_edits.fly.glide = None;
         }
+    }
+
+    /// The world shots: one step of a fly-to's glide (their frames run no editor frame).
+    #[cfg(test)]
+    pub(crate) fn shot_glide(&mut self) {
+        self.map_edit_glide_frame();
     }
 
     /// Once a frame: the flight's speed to the predictor while the editor is on (Shift
