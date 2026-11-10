@@ -2738,9 +2738,15 @@ impl Panel {
     }
 }
 
+/// The Locked features chip's height and red, and its words' lighter red (10/11/2026).
+const LOCKED_CHIP: f32 = 36.0;
+const LOCKED_RED: sjk_ui::Color = sjk_ui::Color::new(0.92, 0.26, 0.28, 1.0);
+const LOCKED_RED_TEXT: sjk_ui::Color = sjk_ui::Color::new(1.0, 0.5, 0.5, 1.0);
+
 impl Panel {
     /// The padlock chip of the chosen shader's locked extras, its right end at `[right,
-    /// y]`: gold, breathing as the tier frames do (still with `ui_rarityEffects` off),
+    /// y]` (the "Parts" line's top): red and taller than the line so it is not missed
+    /// (10/11/2026), breathing as the tier frames do (still with `ui_rarityEffects` off),
     /// lit while its note shows. Keeps the note's card (`Panel::locked_card`).
     fn locked_chip(
         &mut self,
@@ -2752,28 +2758,29 @@ impl Panel {
         use crate::menu::sjk::hover::{Card, Line};
         let s = frame.s;
         let label = format!("{}  Locked features ({})", symbols::LOCK, extras.list.len());
-        let width = label_width(&label, 15.0, self.widen) + 30.0;
-        let rect = frame.rect(right - width, y, width, 26.0);
+        let width = label_width(&label, 16.0, self.widen) + 34.0;
+        let top = y - 7.0;
+        let rect = frame.rect(right - width, top, width, LOCKED_CHIP);
         let pulse = rarity_fx::breath_pulse(seconds);
         let lit = self.locked_note || self.ui.token_hovered(LOCKED_NOTE_TOKEN);
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
             rect,
-            radius: 13.0 * s,
-            color: color::alpha(color::GOLD, if lit { 0.2 } else { 0.06 + 0.06 * pulse }),
+            radius: LOCKED_CHIP * 0.5 * s,
+            color: color::alpha(LOCKED_RED, if lit { 0.28 } else { 0.12 + 0.08 * pulse }),
         });
         let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
             rect,
-            radius: 13.0 * s,
-            width: 1.2 * s,
-            color: color::alpha(color::GOLD, if lit { 1.0 } else { 0.5 + 0.45 * pulse }),
+            radius: LOCKED_CHIP * 0.5 * s,
+            width: 1.6 * s,
+            color: color::alpha(LOCKED_RED, if lit { 1.0 } else { 0.6 + 0.4 * pulse }),
         });
         text(
             &mut self.ui,
             TextFamily::Display,
             format_args!("{label}"),
-            frame.rect(right - width, y + 2.0, width, 22.0),
-            15.0 * s,
-            color::alpha(color::GOLD_BRIGHT, 0.75 + 0.25 * pulse),
+            frame.rect(right - width, top + 6.0, width, LOCKED_CHIP - 12.0),
+            16.0 * s,
+            color::alpha(LOCKED_RED_TEXT, 0.82 + 0.18 * pulse),
             FontWeight::Semibold,
             TextAlign::Center,
         );
@@ -2793,7 +2800,7 @@ impl Panel {
         )));
         self.locked_card = Some(Card {
             title: "Locked features".to_owned(),
-            colour: color::GOLD_BRIGHT,
+            colour: LOCKED_RED_TEXT,
             lines,
         });
     }
