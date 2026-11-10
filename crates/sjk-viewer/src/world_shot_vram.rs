@@ -291,8 +291,8 @@ fn low_end_vram_audit() {
         for map in maps.split(',').chain([empty.as_str()]) {
             for (level, name) in [
                 (Level::Vanilla, "vanilla"),
-                (Level::Sjk, "sjk"),
-                (Level::Experimental, "experimental"),
+                (Level::VanillaPlus, "sjk"),
+                (Level::SolarHigh, "experimental"),
             ] {
                 for (picmip, compression) in picmips.iter().flat_map(|picmip| {
                     compressions
@@ -385,7 +385,7 @@ fn card_faces_vram_audit() {
         use crate::graphics_quality::{Level, preset_cvars};
         let game_data = std::env::var("JKA_GAME_DATA").expect("JKA_GAME_DATA");
         let directory = std::path::Path::new(&game_data).join("SJK").join("assets");
-        let mut cvars = preset_cvars(Level::Sjk);
+        let mut cvars = preset_cvars(Level::VanillaPlus);
         cvars.push((crate::world_materials::filtering::mips::PICMIP_CVAR, "2"));
         cvars.push((crate::menu_pictures::CVAR, "1"));
         let map = crate::menu_pictures::menu_map("maps/mp/duel6.bsp", true);

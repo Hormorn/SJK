@@ -723,13 +723,15 @@ impl PanelPlace {
     /// `token_base` plus its index. It opens upward when the panel's box has
     /// no room under the row. `scroll` is the first label's place in the
     /// whole list and the list's length: a list longer than `labels` shows a
-    /// thumb on its right edge.
+    /// thumb on its right edge. A label `marks` gives a colour has a dot of it before
+    /// it (the graphics presets' rating for this PC).
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn dropdown(
         &self,
         canvas: &mut MenuCanvas,
         slot: usize,
         labels: &[&str],
+        marks: &[Option<Color>],
         highlighted: usize,
         current: usize,
         token_base: u16,
@@ -782,12 +784,30 @@ impl PanelPlace {
                 DETAIL_TEXT
             };
             let line = geometry.text * 1.25;
+            let indent = if marks.iter().any(Option::is_some) {
+                let side = 3.6;
+                if let Some(Some(mark)) = marks.get(index) {
+                    let _ = canvas.draw_list_mut().push(DrawCommand::RoundedRect {
+                        rect: self.place.rect([
+                            row[0] + 4.0,
+                            row[1] + (row_height - side) * 0.5,
+                            side,
+                            side,
+                        ]),
+                        radius: side * 0.5 * s,
+                        color: *mark,
+                    });
+                }
+                side + 2.0
+            } else {
+                0.0
+            };
             canvas.text_fmt_aligned(
                 format_args!("{}", view::Sentence(label)),
                 self.place.rect([
-                    row[0] + 6.0,
+                    row[0] + 6.0 + indent,
                     row[1] + (row_height - line) * 0.5,
-                    row[2] - 12.0,
+                    row[2] - 12.0 - indent,
                     line,
                 ]),
                 geometry.text * s,

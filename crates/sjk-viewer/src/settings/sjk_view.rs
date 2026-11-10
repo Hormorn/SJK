@@ -548,6 +548,9 @@ impl SettingsMenu {
         }
     }
 
+    /// How much wider than its field the graphics preset list is (frame pixels).
+    const PRESET_LIST_EXTRA: f32 = 150.0;
+
     /// Where the open list lies (frame pixels), when its row is among the
     /// lines shown, `lines`: under the row's field, or over it when it would
     /// pass `bottom` first.
@@ -564,7 +567,13 @@ impl SettingsMenu {
         } else {
             (middle - kit::CONTROL_HEIGHT * 0.5 - 6.0 - height).max(ROWS_TOP)
         };
-        Some([CONTROL_RIGHT - FIELD_WIDTH, y, FIELD_WIDTH, height])
+        // The graphics presets' names are long ("Solar Renderer: Medium (recommended)"):
+        // their list reaches further left than the field.
+        let width = match self.rows().get(dropdown.row).map(|row| row.kind()) {
+            Some(ValueKind::Quality) => FIELD_WIDTH + Self::PRESET_LIST_EXTRA,
+            _ => FIELD_WIDTH,
+        };
+        Some([CONTROL_RIGHT - width, y, width, height])
     }
 
     /// The open list, last so it takes the pointer over the rows, above
@@ -597,15 +606,20 @@ impl SettingsMenu {
             .iter()
             .map(|pick| Self::pick_label(cvar, *pick))
             .collect();
+        let marks: Vec<_> = dropdown.picks[shown.clone()]
+            .iter()
+            .map(|pick| Self::pick_mark(*pick))
+            .collect();
         let highlighted = dropdown.highlighted.wrapping_sub(shown.start);
         let current = dropdown.current.wrapping_sub(shown.start);
         let scroll = (shown.start, dropdown.picks.len());
-        kit::list(
+        kit::list_marked(
             &mut self.ui,
             frame,
             rect,
             LIST_ROW,
             &labels,
+            &marks,
             highlighted,
             current,
             DROPDOWN_BASE,
@@ -685,6 +699,30 @@ impl SettingsMenu {
                 y += 30.0;
             }
             y += 22.0;
+        }
+        if [
+            crate::graphics_quality::ROW_NAME,
+            crate::graphics_quality::RECOMMEND_COMMAND,
+        ]
+        .contains(&setting.cvar)
+        {
+            // What this PC's card is and runs, in the recommended preset's colour.
+            let pick = crate::graphics_quality::recommended();
+            let colour = pick.rating(crate::graphics_quality::card_mib()).color();
+            for line in wrap(&crate::graphics_quality::card_words(), 44).take(5) {
+                text(
+                    &mut self.ui,
+                    TextFamily::Body,
+                    format_args!("{line}"),
+                    frame.rect(DETAIL_X, y, DETAIL_WIDTH, 28.0),
+                    17.0 * s,
+                    colour,
+                    FontWeight::Regular,
+                    TextAlign::Start,
+                );
+                y += 28.0;
+            }
+            y += 18.0;
         }
         if self.alpha && renderer_setting(setting.cvar) {
             for line in wrap(help::ALPHA_WARNING, 44).take(5) {

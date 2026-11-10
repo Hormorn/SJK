@@ -24,7 +24,18 @@ pub(crate) struct Settings {
     /// Keep the static casters of the view cascades between frames (`r_liveLighting` 1 and
     /// below): fits that do not turn with the camera, a little coarser, drawn rarely.
     pub(crate) held: bool,
+    /// With real-time lighting, the nearest lamps cast shadows from their own shadow maps
+    /// (`r_lampShadows`).
+    pub(crate) lamp_shadows: bool,
+    /// With real-time lighting, light bounces off walls and floors through the GI probes
+    /// (`r_bouncedLight`); without it the bounce is the sky's ambient alone.
+    pub(crate) bounce: bool,
 }
+
+/// `r_lampShadows`: lamps cast shadows under real-time lighting.
+pub(crate) const LAMP_SHADOWS_CVAR: &str = "r_lampShadows";
+/// `r_bouncedLight`: light bounces off surfaces under real-time lighting (GI probes).
+pub(crate) const BOUNCE_CVAR: &str = "r_bouncedLight";
 impl Settings {
     /// Read the startup registry, including archived configuration values.
     pub(crate) fn sample(console: Option<&crate::console::ViewerConsole>) -> Self {
@@ -49,6 +60,14 @@ impl Settings {
             volumetrics,
             day,
             held: super::day::realtime_tier(console) <= 1,
+            lamp_shadows: console
+                .and_then(|c| c.integer_cvar(LAMP_SHADOWS_CVAR))
+                .unwrap_or(1)
+                != 0,
+            bounce: console
+                .and_then(|c| c.integer_cvar(BOUNCE_CVAR))
+                .unwrap_or(1)
+                != 0,
             distance: console
                 .and_then(|c| c.integer_cvar("r_sunShadowDistance"))
                 .unwrap_or(1024)
@@ -76,6 +95,16 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
             "r_actorSunShadows",
             1,
             "Opaque actor sun shadows on diffuse world; vid_restart applies it",
+        ),
+        (
+            LAMP_SHADOWS_CVAR,
+            1,
+            "With real-time lighting (r_dayNight), the nearest lamps cast shadows; vid_restart applies it",
+        ),
+        (
+            BOUNCE_CVAR,
+            1,
+            "With real-time lighting (r_dayNight), light bounces off walls and floors (GI probes); vid_restart applies it",
         ),
         (
             "r_worldSunShadows",

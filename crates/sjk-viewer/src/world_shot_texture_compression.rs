@@ -27,7 +27,7 @@ fn maps() -> Vec<String> {
 
 /// The SJK (recommended) preset, whose frames repeat from run to run, with `extra`.
 fn cvars<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
-    let mut cvars = preset_cvars(Level::Sjk);
+    let mut cvars = preset_cvars(Level::VanillaPlus);
     cvars.extend_from_slice(extra);
     cvars
 }

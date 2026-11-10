@@ -493,7 +493,7 @@ impl super::Runtime {
             self.forge.format,
             settings.day.sky(),
         );
-        if !settings.day.enabled && settings.day.pc_clock {
+        if !settings.day.enabled && (settings.day.pc_clock || settings.day.sky) {
             self.sky.follow_day_clock(
                 queue,
                 [settings.day.hour, settings.day.minutes],

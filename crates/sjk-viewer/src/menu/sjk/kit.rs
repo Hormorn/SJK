@@ -723,13 +723,17 @@ pub(crate) fn pips(
 /// choice `i` answers to `token_base + i`. `scroll` is the first label's place
 /// in the whole list and the list's length: a list longer than `labels` shows
 /// a thumb on its right edge, which answers to `bar_token` for dragging.
+///
+/// A label that `marks` gives a colour has a mark before it (the graphics presets'
+/// rating for this PC); the labels of a list with marks are indented past them.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn list(
+pub(crate) fn list_marked(
     canvas: &mut MenuCanvas,
     frame: &Frame,
     rect: [f32; 4],
     row: f32,
     labels: &[&str],
+    marks: &[Option<Color>],
     highlighted: usize,
     current: usize,
     token_base: u16,
@@ -737,6 +741,12 @@ pub(crate) fn list(
     bar_token: u16,
 ) {
     let [x, y, width, height] = rect;
+    // Marked lists indent their labels past the mark.
+    let indent = if marks.iter().any(Option::is_some) {
+        18.0
+    } else {
+        0.0
+    };
     let s = frame.s;
     push(
         canvas,
@@ -790,11 +800,24 @@ pub(crate) fn list(
             (false, true) => color::GOLD_BRIGHT,
             (false, false) => color::MUTED,
         };
+        if let Some(Some(mark)) = marks.get(index) {
+            pill(
+                canvas,
+                frame,
+                [x + 18.0, top + row * 0.5 - 5.0, 10.0, 10.0],
+                *mark,
+            );
+        }
         text(
             canvas,
             TextFamily::Body,
             format_args!("{}", crate::menu::classic::view::Sentence(label)),
-            frame.rect(x + 20.0, top + (row - 24.0) * 0.5, width - 56.0, 24.0),
+            frame.rect(
+                x + 20.0 + indent,
+                top + (row - 24.0) * 0.5,
+                width - 56.0 - indent,
+                24.0,
+            ),
             17.0 * s,
             colour,
             FontWeight::Regular,

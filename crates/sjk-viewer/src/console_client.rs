@@ -276,6 +276,10 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
         crate::graphics_quality::RENDERER_COMMAND,
         crate::graphics_quality::RENDERER_HELP,
     ),
+    (
+        crate::graphics_quality::RECOMMEND_COMMAND,
+        crate::graphics_quality::RECOMMEND_HELP,
+    ),
     ("cmd", "Forward arguments as a reliable server command"),
     (
         "copyServerIP",
@@ -1304,6 +1308,10 @@ impl crate::GpuState {
             crate::graphics_quality::RENDERER_COMMAND => {
                 let console = self.console.as_mut().ok_or("Console unavailable")?;
                 return crate::graphics_quality::renderer_command(console, args);
+            }
+            crate::graphics_quality::RECOMMEND_COMMAND => {
+                let console = self.console.as_mut().ok_or("Console unavailable")?;
+                return crate::graphics_quality::recommend_command(console);
             }
             crate::menu::first_setup::COMMAND
                 if args.first().is_some_and(|arg| {
