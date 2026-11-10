@@ -188,6 +188,45 @@ impl DecalSurfaces {
         ))
     }
 
+    /// For each surface of `of`, the other surfaces sharing a corner with it (an eighth of
+    /// a unit apart is the same corner) among those `joins` accepts and not hidden, each
+    /// once: one ring of the map editor's grow (`mapedit_select grow`).
+    pub(crate) fn touching(&self, of: &[usize], joins: impl Fn(usize) -> bool) -> Vec<Vec<usize>> {
+        let key =
+            |index: u32| self.positions[index as usize].map(|axis| (axis * 8.0).round() as i32);
+        let corners = |surface: usize| {
+            let range = self.ranges.get(surface).cloned().unwrap_or(0..0);
+            self.indices[range.start as usize..range.end as usize]
+                .iter()
+                .map(move |&index| key(index))
+        };
+        let wanted: std::collections::HashSet<[i32; 3]> =
+            of.iter().flat_map(|&surface| corners(surface)).collect();
+        let mut by_corner: std::collections::HashMap<[i32; 3], Vec<usize>> = Default::default();
+        for other in 0..self.ranges.len() {
+            if self.hidden[other] || !joins(other) {
+                continue;
+            }
+            for corner in corners(other).filter(|corner| wanted.contains(corner)) {
+                let list = by_corner.entry(corner).or_default();
+                if list.last() != Some(&other) {
+                    list.push(other);
+                }
+            }
+        }
+        of.iter()
+            .map(|&surface| {
+                let mut found: Vec<usize> = corners(surface)
+                    .flat_map(|corner| by_corner.get(&corner).into_iter().flatten().copied())
+                    .filter(|&other| other != surface)
+                    .collect();
+                found.sort_unstable();
+                found.dedup();
+                found
+            })
+            .collect()
+    }
+
     /// `surface` and the surfaces touching it, through shared corners, among those
     /// `joins` accepts, nearest first and at most `limit`: the pieces a compiled model
     /// (a `misc_model` the map compiler merged into the world) is left as.
@@ -252,55 +291,108 @@ impl DecalSurfaces {
         let mut nearest: Option<RayHit> = None;
         let inverse = direction.recip();
         for surface in 0..self.ranges.len() {
-            // The surface's box first: missed, or entered beyond the nearest hit, skip it.
-            if let Some(&(low, high)) = self.bounds.get(surface) {
-                let pad = Vec3::splat(0.01);
-                let a = (low - pad - origin) * inverse;
-                let b = (high + pad - origin) * inverse;
-                let near = a.min(b).max_element().max(0.0);
-                let far = a.max(b).min_element();
-                if far < near
-                    || near > reach
-                    || nearest.as_ref().is_some_and(|hit| hit.distance < near)
-                {
-                    continue;
-                }
-            }
-            for triangle in self.triangles(surface) {
-                let [a, b, c] = triangle.map(|index| Vec3::from_array(self.positions[index]));
-                // Moeller-Trumbore.
-                let (edge1, edge2) = (b - a, c - a);
-                let p = direction.cross(edge2);
-                let determinant = edge1.dot(p);
-                if determinant.abs() < 1e-8 {
-                    continue;
-                }
-                let inverse = 1.0 / determinant;
-                let s = origin - a;
-                let u = s.dot(p) * inverse;
-                if !(0.0..=1.0).contains(&u) {
-                    continue;
-                }
-                let q = s.cross(edge1);
-                let v = direction.dot(q) * inverse;
-                if v < 0.0 || u + v > 1.0 {
-                    continue;
-                }
-                let distance = edge2.dot(q) * inverse;
-                if distance <= 0.0
-                    || distance > reach
-                    || nearest.as_ref().is_some_and(|hit| hit.distance <= distance)
-                {
-                    continue;
-                }
-                nearest = Some(RayHit {
-                    surface,
-                    distance,
-                    normal: self.triangle_normal(triangle),
-                });
-            }
+            self.surface_hit(surface, origin, direction, inverse, reach, &mut nearest);
         }
         nearest
+    }
+
+    /// The surfaces whose boxes `keep` accepts (low, high), with how far `eye` is from
+    /// each box, nearest first: the only surfaces a bundle of rays from `eye` through one
+    /// part of the view can meet (the map editor's box, [`Self::ray_hit_among`]).
+    pub(crate) fn candidates(
+        &self,
+        eye: Vec3,
+        keep: impl Fn(Vec3, Vec3) -> bool,
+    ) -> Vec<(f32, usize)> {
+        let mut candidates: Vec<(f32, usize)> = self
+            .bounds
+            .iter()
+            .enumerate()
+            .filter(|(surface, (low, high))| {
+                !self.hidden.get(*surface).copied().unwrap_or(false) && keep(*low, *high)
+            })
+            .map(|(surface, (low, high))| (eye.clamp(*low, *high).distance(eye), surface))
+            .collect();
+        candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
+        candidates
+    }
+
+    /// [`Self::ray_hit`] among `candidates` only ([`Self::candidates`], made from the
+    /// ray's `origin`): as the nearest hit is found, the boxes farther than it are not
+    /// looked at.
+    pub(crate) fn ray_hit_among(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        reach: f32,
+        candidates: &[(f32, usize)],
+    ) -> Option<RayHit> {
+        let mut nearest: Option<RayHit> = None;
+        let inverse = direction.recip();
+        for &(least, surface) in candidates {
+            if least > reach || nearest.as_ref().is_some_and(|hit| hit.distance < least) {
+                break;
+            }
+            self.surface_hit(surface, origin, direction, inverse, reach, &mut nearest);
+        }
+        nearest
+    }
+
+    /// Surface `surface`'s triangle the ray meets nearer than `nearest` within `reach`,
+    /// into `nearest`; its box first (missed, or entered beyond the nearest hit: skipped).
+    fn surface_hit(
+        &self,
+        surface: usize,
+        origin: Vec3,
+        direction: Vec3,
+        inverse: Vec3,
+        reach: f32,
+        nearest: &mut Option<RayHit>,
+    ) {
+        if let Some(&(low, high)) = self.bounds.get(surface) {
+            let pad = Vec3::splat(0.01);
+            let a = (low - pad - origin) * inverse;
+            let b = (high + pad - origin) * inverse;
+            let near = a.min(b).max_element().max(0.0);
+            let far = a.max(b).min_element();
+            if far < near || near > reach || nearest.as_ref().is_some_and(|hit| hit.distance < near)
+            {
+                return;
+            }
+        }
+        for triangle in self.triangles(surface) {
+            let [a, b, c] = triangle.map(|index| Vec3::from_array(self.positions[index]));
+            // Moeller-Trumbore.
+            let (edge1, edge2) = (b - a, c - a);
+            let p = direction.cross(edge2);
+            let determinant = edge1.dot(p);
+            if determinant.abs() < 1e-8 {
+                continue;
+            }
+            let inverse = 1.0 / determinant;
+            let s = origin - a;
+            let u = s.dot(p) * inverse;
+            if !(0.0..=1.0).contains(&u) {
+                continue;
+            }
+            let q = s.cross(edge1);
+            let v = direction.dot(q) * inverse;
+            if v < 0.0 || u + v > 1.0 {
+                continue;
+            }
+            let distance = edge2.dot(q) * inverse;
+            if distance <= 0.0
+                || distance > reach
+                || nearest.as_ref().is_some_and(|hit| hit.distance <= distance)
+            {
+                continue;
+            }
+            *nearest = Some(RayHit {
+                surface,
+                distance,
+                normal: self.triangle_normal(triangle),
+            });
+        }
     }
 
     /// The triangles of one BSP surface, at most `limit` (`world_notes`'s highlight).
@@ -573,5 +665,112 @@ mod tag_surface_tests {
         assert!(unfit(flag), "a waving flag");
         let poster = "textures/a/poster\n{\npolygonOffset\n{\nmap textures/a/poster\n}\n}\n";
         assert!(unfit(poster), "a decal laid on a wall");
+    }
+}
+
+#[cfg(test)]
+impl DecalSurfaces {
+    /// Surfaces made of the triangles given, one list a surface, for tests.
+    pub(crate) fn from_triangles(surfaces: &[Vec<[[f32; 3]; 3]>]) -> Self {
+        let mut decal = Self {
+            positions: Vec::new(),
+            normals: Vec::new(),
+            indices: Vec::new(),
+            ranges: Vec::new(),
+            hidden: vec![false; surfaces.len()],
+            no_tags: vec![false; surfaces.len()],
+            bounds: Vec::new(),
+        };
+        for triangles in surfaces {
+            let start = decal.indices.len() as u32;
+            let mut low = Vec3::splat(f32::MAX);
+            let mut high = Vec3::splat(f32::MIN);
+            for triangle in triangles {
+                for corner in triangle {
+                    decal.indices.push(decal.positions.len() as u32);
+                    decal.positions.push(*corner);
+                    decal.normals.push([0.0, 0.0, 1.0]);
+                    low = low.min(Vec3::from_array(*corner));
+                    high = high.max(Vec3::from_array(*corner));
+                }
+            }
+            decal.ranges.push(start..decal.indices.len() as u32);
+            decal.bounds.push((low, high));
+        }
+        decal
+    }
+}
+
+#[cfg(test)]
+mod touching_tests {
+    use super::*;
+
+    /// Three floor tiles in a row and one apart: each touches its neighbours through
+    /// shared corners, the far one none; a hidden or refused surface is no neighbour.
+    #[test]
+    fn surfaces_touch_through_shared_corners() {
+        let tile = |x: f32| {
+            vec![
+                [[x, 0.0, 0.0], [x + 64.0, 0.0, 0.0], [x + 64.0, 64.0, 0.0]],
+                [[x, 0.0, 0.0], [x + 64.0, 64.0, 0.0], [x, 64.0, 0.0]],
+            ]
+        };
+        let mut surfaces =
+            DecalSurfaces::from_triangles(&[tile(0.0), tile(64.0), tile(128.0), tile(512.0)]);
+        assert_eq!(
+            surfaces.touching(&[1, 3], |_| true),
+            vec![vec![0, 2], vec![]]
+        );
+        assert_eq!(
+            surfaces.touching(&[0], |other| other != 1),
+            vec![Vec::<usize>::new()]
+        );
+        surfaces.hidden[2] = true;
+        assert_eq!(surfaces.touching(&[1], |_| true), vec![vec![0]]);
+    }
+
+    /// Rays among the candidates meet what a ray over every surface meets, nearest first,
+    /// and a box the candidates leave out is never met.
+    #[test]
+    fn rays_among_candidates_meet_what_every_surface_meets() {
+        let floor = |z: f32, x: f32| {
+            vec![
+                [[x, -64.0, z], [x + 64.0, -64.0, z], [x + 64.0, 64.0, z]],
+                [[x, -64.0, z], [x + 64.0, 64.0, z], [x, 64.0, z]],
+            ]
+        };
+        // three floors under the eye, stacked, and one off to the side
+        let surfaces = DecalSurfaces::from_triangles(&[
+            floor(-64.0, -32.0),
+            floor(-128.0, -32.0),
+            floor(-32.0, -32.0),
+            floor(-32.0, 512.0),
+        ]);
+        let eye = Vec3::ZERO;
+        let all = surfaces.candidates(eye, |_, _| true);
+        assert_eq!(
+            all.iter().map(|(_, s)| *s).collect::<Vec<_>>()[..3],
+            [2, 0, 1]
+        );
+        for direction in [
+            Vec3::NEG_Z,
+            Vec3::new(0.3, 0.2, -1.0).normalize(),
+            Vec3::new(8.0, 0.0, -0.5).normalize(),
+        ] {
+            let every = surfaces.ray_hit(eye, direction, 4096.0).map(|h| h.surface);
+            let among = surfaces
+                .ray_hit_among(eye, direction, 4096.0, &all)
+                .map(|h| h.surface);
+            assert_eq!(every, among, "{direction}");
+        }
+        let near_only = surfaces.candidates(eye, |low, _| low.x < 100.0);
+        assert!(near_only.iter().all(|(_, s)| *s != 3));
+        let side = Vec3::new(8.0, 0.0, -0.5).normalize();
+        assert!(surfaces.ray_hit(eye, side, 4096.0).is_some());
+        assert!(
+            surfaces
+                .ray_hit_among(eye, side, 4096.0, &near_only)
+                .is_none()
+        );
     }
 }

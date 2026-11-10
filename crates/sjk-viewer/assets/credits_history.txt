@@ -9,6 +9,24 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 10/11/2026 | - | Map editor: fly-to and frame (F, double clicks, mapedit_frame)
+- 127f867 |  | Map editor: fly-to and frame (F, double clicks, mapedit_frame)
++ 10/11/2026 | - | Map editor: texture alignment of shown faces (mapedit_align, Align on Selected)
+- fdd9cf1 |  | Map editor: texture alignment of shown faces (mapedit_align, Align on Selected)
++ 10/11/2026 | - | Map editor: place and grab along the surface (mapedit_surface, Place's Surface)
+- 4f5d6ed |  | Map editor: place and grab along the surface (mapedit_surface, Place's Surface)
++ 10/11/2026 | - | Map editor: grow, shrink and invert the selection
+- bab9616 |  | Map editor: grow, shrink and invert the selection
++ 10/11/2026 | - | Map editor: measure tool (M, mapedit_measure)
+- 246797b |  | Map editor: measure tool (M, mapedit_measure)
++ 10/11/2026 | - | Map editor: live preview on caulk and nodraw faces
+- 2b53e3a |  | Map editor: live preview on caulk and nodraw faces
++ 10/11/2026 | - | Map editor: a box casts its rays among the surfaces it can meet
+- d0ab594 |  | Map editor: a box casts its rays among the surfaces it can meet
++ 10/11/2026 | - | Map editor: world shot of the fourth round, and its fixes
+- 9f422df |  | Map editor: world shot of the fourth round, and its fixes
++ 10/11/2026 | - | Docs: the map editor's fly-to, alignment, caulk preview, surfaces, grow, measure
+- 89069aa |  | Docs: the map editor's fly-to, alignment, caulk preview, surfaces, grow, measure
 + 10/11/2026 | - | Verified-only GIFs, Change name sets the SJK name
 - b8cb802 |  | Verified-only GIFs, Change name sets the SJK name
 + 10/11/2026 | - | Credits history after Slash's PR #407

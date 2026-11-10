@@ -38,9 +38,10 @@ Caulk and nodraw sides have no drawn surface at all: q3map2 makes none for them,
 remap cannot reach them (`r_showBrushes` rebuilds them from the planes for the same
 reason). A `show_face` edit names one side of a world brush by its BSP numbers (with
 its shader, checked on load) and draws it with the shader chosen, rebuilt from its
-brush's planes, textured as Radiant textures a new brush (the axial projection at scale
-0.5, no shift or turn, the image's own size read from its header) and lit like a placed
-model from the face's middle ([faces.rs](../crates/sjk-viewer/src/map_edits/faces.rs)).
+brush's planes, textured as Radiant textures a brush face (the axial projection, at scale
+0.5 with no shift or turn until [aligned](#texture-alignment), the image's own size read
+from its header) and lit like a placed model from the face's middle
+([faces.rs](../crates/sjk-viewer/src/map_edits/faces.rs)).
 Only the caulk sides of structural brushes are offered, told by their compiled flags
 (nodraw, solid and not `trans`, `faces::offered`): never an invisible wall (`physics_clip`,
 `nodraw_solid`), a clip, a trigger, a hint or water, which are `trans` (10/11/2026: a click
@@ -224,8 +225,12 @@ a command without a selection acts on what is under the crosshair.
 | Ctrl+click | Take the surface, face or placed model under the pointer out of the selection |
 | Drag on the scene (left button) | A box: select the drawn surfaces, seen caulk faces and placed models in it ([below](#texture-guesses-and-selections)); Shift adds them, Ctrl takes them out |
 | Ctrl+D | Duplicate the selected placed models, 16 units to the view's right, the copies selected (`mapedit_duplicate`), outside a search field |
+| F | Frame the selection: the camera glides there, keeping its direction (`mapedit_frame`, [below](#fly-to-and-frame)) |
+| Double click on a row | An edit (Edits), a thing (Place > Things), a light or a lamp (Lights): the camera glides to it |
+| M | The measure tool on or off: two clicks on the scene, the distance and the axis deltas ([below](#measuring)) |
+| Ctrl with +, - or I | Select one ring more, one less, or the others of the kind (`mapedit_select grow`, `shrink`, `invert`) |
 | World-note key (Shift: add) | Select (add) what is under the crosshair, flying or not |
-| Escape | Stop adding a light or placing a thing; else take back a gizmo's drag or transform; else put a grabbed model back; else drop the selection; else leave the editor |
+| Escape | Stop measuring, adding a light or placing a thing; else take back a gizmo's drag or transform; else put a grabbed model back; else drop the selection; else leave the editor |
 | G, R, T; X, Y, Z; 1, 2, 3; L | The [gizmo](#gizmos)'s, only while the right button is not held |
 | Ctrl+Z, Ctrl+Y | Undo, redo |
 | Ctrl+C, Ctrl+V | Copy the selection, paste a model where the pointer is or a shader on the selection ([as the page](#the-browser-editor-creator-only-for-now)), outside a search field |
@@ -271,6 +276,11 @@ map without a server walks with its own movement.
 | `mapedit_link plane\|surface` | The selected caulk, nodraw or sky face and the faces joined to it (Same plane, Connected surface, [as the page's](#the-browser-editor-creator-only-for-now)) become the selection |
 | `mapedit_fill [shader]` | Draw the selected faces with the shader the drawn surfaces round them use (the nearby vote's first), or `shader`; one step to undo |
 | `mapedit_select shader\|placed [add\|remove]` | `shader`: every drawn surface of the map and every seen caulk face drawn with the selected surface's or face's shader becomes the selection; `placed`: every placed model; `add` and `remove` join or leave the selection instead. Within the selection's limits (1024, 256 placed models), the answer says when they cut it |
+| `mapedit_select grow\|shrink\|invert` | One ring more (the drawn surfaces sharing a corner with a selected one, the seen faces joined to a selected face), one less (those on the selection's edge), or the other placed models or drawn surfaces of the map ([below](#grow-shrink-and-invert)) |
+| `mapedit_align shift <s t> \| scale <s t> \| rotate <degrees> \| fit \| reset \| set <shift s t> <scale s t> <degrees>` | Lay the texture of the selected faces an edit draws ([below](#texture-alignment)), one step to undo |
+| `mapedit_surface [on\|off]` | Models placed and grabbed stand along the surface under the pointer ([below](#placing-on-a-surface)) |
+| `mapedit_frame [<x y z> [radius]]` | Glide the camera to frame the selection, or the point given ([below](#fly-to-and-frame)) |
+| `mapedit_measure [on\|off\|clear\|<x y z>]` | The measure tool (alone: on or off); `x y z` puts an end ([below](#measuring)) |
 | `mapedit_duplicate [dx dy dz]` | A copy of each selected placed model (a set's, else the current one) moved by the offset (16 units to the view's right along the nearest world axis by default), one step to undo; the copies become the selection once drawn, so G moves them |
 | `mapedit_weather [<command>, ...] \| -` | Keep the weather seen now for the map, or the world effect commands named (commas between); `-` gives the map its own weather back ([Weather](#weather)) |
 | `mapedit_light`, `mapedit_light_set`, `mapedit_lamp` | Add and set lights, turn the map's lamps off or move them ([Lights](#lights)) |
@@ -329,11 +339,11 @@ all takes everything. The [gizmo](#gizmos) stands at the set's middle.
 
 | Page | Offers |
 | --- | --- |
-| Selected | what it is (map prop, placed model, surface, game entity, hidden face: a caulk or nodraw side nearer than any drawn surface, sky: a sky side) with its model and shader, and how many more are selected, with the page's summary: a placed model's edit id and where it stands, a prop's entity number, a surface's number and kind, how many surfaces its whole model is and the remap it is drawn with, a face's brush and side and what draws it; on a sky the skies come first in the list, and its buttons are Swap sky (Cover side when a texture is chosen), Swap all skies and Take back; Hide (Remove for a placed model; Hide all for several), Hide whole model (a merged model's surfaces), Place a copy and, for placed models, Duplicate; on a hidden face or a sky side Same plane, Connected (`mapedit_link`) and Fill (`mapedit_fill`); Draw another shader: a search over the shaders a remap may draw (the world's `textures/` and the map objects' `models/`, shaders and images, never the player models'), opened on the selection's own folder with its first Suggested row chosen (its own shader when there is none), five rows, each with its picture ([below](#shader-pictures)), or as tiles (Tiles, 21 at once); the list starts with its Suggested rows, each with why ([below](#texture-guesses-and-selections): "62 % nearby", "same family", "140 on map"); on a face Fill's six nearby candidates lead them, and Fill draws the chosen one when it is a candidate (`mapedit_fill <shader>`, the vote's first otherwise; the line under the face names it); then the Recent rows. Resting the pointer on a row (or walking the list with the keys) draws the selected surfaces with it in the scene before anything is kept, put back when it leaves the list. Remap (or a second click on the chosen row), Remove remap and Same shader (`mapedit_select shader`; Draw, Draw nothing and Same shader on a face). A name the list does not know is tried as typed |
-| Place | every MD3 of the game data outside the player models, the Recent rows first, narrowed by a search, six rows; Place where you aimed (or a second click on the chosen row); Duplicate (`mapedit_duplicate`, also on Selected for placed models) and Select all (`mapedit_select placed`, Shift: added) beside it; the current placed model's Turn left and right (15 degrees), Up and Down (8 units), Left, Right, Away and Closer (8 units along the world axis nearest the view's right and ahead, so steps add up straight), Smaller and Bigger (by 1.1), Grab and Remove. Shift held makes the steps 1 degree, 1 unit and a tenth of the growth. Things (beside the search) swaps the models for the things standing on the map, as the page's World: the boomboxes, mystery boxes and Toy Master toys listed; Your boombox, Mystery box and Toy stand one where the next click meets the floor, facing the view (`place_boombox_at`, `mystery_box_place_at`, `toy_master_place_at`, the page's code; boxes and toys SJK's creator's on a game server, for this server only when New edits for says so), Toy: <kind> steps through the hub's kinds, Escort shows the next toy only where you are, Remove takes the chosen one away (`mysterybox_remove`, `toymaster_remove`, the boombox back on the shoulder). No move for a box or a toy, as in the page |
+| Selected | what it is (map prop, placed model, surface, game entity, hidden face: a caulk or nodraw side nearer than any drawn surface, sky: a sky side) with its model and shader, and how many more are selected, with the page's summary: a placed model's edit id and where it stands, a prop's entity number, a surface's number and kind, how many surfaces its whole model is and the remap it is drawn with, a face's brush and side and what draws it; on a sky the skies come first in the list, and its buttons are Swap sky (Cover side when a texture is chosen), Swap all skies and Take back; Hide (Remove for a placed model; Hide all for several), Hide whole model (a merged model's surfaces), Place a copy and, for placed models, Duplicate; on a hidden face or a sky side Same plane, Connected (`mapedit_link`) and Fill (`mapedit_fill`); Draw another shader: a search over the shaders a remap may draw (the world's `textures/` and the map objects' `models/`, shaders and images, never the player models'), opened on the selection's own folder with its first Suggested row chosen (its own shader when there is none), five rows, each with its picture ([below](#shader-pictures)), or as tiles (Tiles, 21 at once); the list starts with its Suggested rows, each with why ([below](#texture-guesses-and-selections): "62 % nearby", "same family", "140 on map"); on a face Fill's six nearby candidates lead them, and Fill draws the chosen one when it is a candidate (`mapedit_fill <shader>`, the vote's first otherwise; the line under the face names it); then the Recent rows. Resting the pointer on a row (or walking the list with the keys) draws the selected surfaces, or caulk and nodraw faces, with it in the scene before anything is kept, put back when it leaves the list. Remap (or a second click on the chosen row), Remove remap and Same shader (`mapedit_select shader`; Draw, Draw nothing and Same shader on a face). A name the list does not know is tried as typed. On a surface More and Less beside Hide and Whole model (Hide whole model; `mapedit_select grow`, `shrink`); on a face or a sky side Align beside Fill swaps the shader list for the texture's [alignment](#texture-alignment) (Shaders swaps back) |
+| Place | every MD3 of the game data outside the player models, the Recent rows first, narrowed by a search, six rows; Surface (beside Things, gold while on: `mapedit_surface`) stands placed and grabbed models along the surface under the pointer; Place where you aimed (or a second click on the chosen row); Duplicate (`mapedit_duplicate`, also on Selected for placed models) and Select all (`mapedit_select placed`, Shift: added) beside it; the current placed model's Turn left and right (15 degrees), Up and Down (8 units), Left, Right, Away and Closer (8 units along the world axis nearest the view's right and ahead, so steps add up straight), Smaller and Bigger (by 1.1), Grab and Remove. Shift held makes the steps 1 degree, 1 unit and a tenth of the growth. Things (beside the search) swaps the models for the things standing on the map, as the page's World: the boomboxes, mystery boxes and Toy Master toys listed; Your boombox, Mystery box and Toy stand one where the next click meets the floor, facing the view (`place_boombox_at`, `mystery_box_place_at`, `toy_master_place_at`, the page's code; boxes and toys SJK's creator's on a game server, for this server only when New edits for says so), Toy: <kind> steps through the hub's kinds, Escort shows the next toy only where you are, Remove takes the chosen one away (`mysterybox_remove`, `toymaster_remove`, the boombox back on the shoulder). No move for a box or a toy, as in the page |
 | Lights | the added lights (each `20: #ffd9a6 r320 x1.00` with a dot of its colour; how many of the 8 drawn), Add: click (the next click on the scene puts a light 12 units in front of what it meets, `mapedit_light`; Esc stops), At view centre (what the view's centre meets, then `mapedit_light`), Delete (`mapedit_delete`; on a lamp, its reset); eight colour swatches, Smaller and Bigger (the reach by 1.25), Dimmer and Brighter (the strength by 1.25), each one `mapedit_light_set`; then the map's lamp fixtures, nearest the view first (`light_blue (surface:1043) off (on reload)`), Turn off or on and As the map has it (`mapedit_lamp off\|on\|reset`); without Experimental it says lamps are found there only |
 | Weather | the map's own weather and what an edit keeps here; Drizzle, Rain, Storm and Snow (`r_weatherForce`'s four, keeping the fog), Fog (`mist` on, or every fog off) and Wind (`wind` on, or every wind off), Keep what I see (`mapedit_weather`) and Map's own (`mapedit_weather -`); an ember line while your own `r_weatherForce` hides it |
-| Edits | the map's edits, newest first, ten rows, named shortly (`3: Placed: crate.md3`, `Hidden surface: floor (1043)`, `Remap: wall -> wall2`, a server's address when for one), those for another server dimmed; choosing a placed model makes it the one Place's buttons move; Delete the chosen one, Undo and Redo; the Recent rows' switch ("Recent: remembered" or off) and Forget recent; Invisible brushes: Off, Play, Caulk and All, the browser editor's presets (`r_showBrushes 0`, `1`, `2` with `r_showBrushesTypes caulk nodraw solid`, `2`; B steps through them) |
+| Edits | the map's edits, newest first, ten rows (a double click flies to one that has a place), named shortly (`3: Placed: crate.md3`, `Hidden surface: floor (1043)`, `Remap: wall -> wall2`, a server's address when for one), those for another server dimmed; choosing a placed model makes it the one Place's buttons move; Delete the chosen one, Undo and Redo; the Recent rows' switch ("Recent: remembered" or off) and Forget recent; Invisible brushes: Off, Play, Caulk and All, the browser editor's presets (`r_showBrushes 0`, `1`, `2` with `r_showBrushesTypes caulk nodraw solid`, `2`; B steps through them) |
 
 ### Texture guesses and selections
 
@@ -365,13 +375,20 @@ brush cache, never per frame.
 **Live preview.** While the pointer rests a quarter of a second on a row or tile of the
 list (or the keys walk it), the selected drawn surfaces are drawn with that shader in the
 scene, as a remap edit would draw them (every surface of their shader, on the whole map);
-on a sky, a sky row swaps the sky. Leaving the list (or closing the panel) puts the map's
-back at once. The preview is a remap drawn over the document's own, through the path remap
+on a sky, a sky row swaps the sky; on caulk and nodraw faces the face shows it (below).
+Leaving the list (or closing the panel) puts the map's back at once. The preview is a remap drawn over the document's own, through the path remap
 edits take (`set_edit_remaps`): never written to the document or the hub, never a step to
 undo, so Remap then keeps it as one step as before. Each preview drawn recompiles that
 shader's materials, as a remap edit does (the log's `shader remaps: N materials updated`
-line). Caulk and nodraw faces are not previewed: a shown face is a mesh of its own, built
-once and kept for the map, so a preview per row would keep a mesh for every row seen.
+line). Caulk and nodraw faces (10/11/2026) are previewed on one preview mesh per world
+([face_preview.rs](../crates/sjk-viewer/src/map_edits/face_preview.rs)), made the first
+time a face is previewed: 4096 corners (about 300 KB of the shared buffers, kept for the
+world, none until then), whose corners and triangles are written over in place with the
+selected faces laid for the row's texture (the faces' own alignment kept), the rest left as
+empty triangles. It is drawn with the newest face's own shader, which the map draws
+nowhere, and the preview remaps that shader to the row's, as for surfaces; a face an edit
+draws already is hidden under it meanwhile. Faces past 4096 corners are not previewed. The
+mesh is lit from the newest face's middle.
 
 **Hover.** While the panel is open, the surface, face or model under the pointer is
 outlined in faint white dots (240 at most, under the selection's green ones, never on what
@@ -389,7 +406,10 @@ drawn surfaces about two thousand rays through the box meet first (no sky), the 
 whose middle lies in it facing the view with no drawn surface before them and seen (the
 [linked caulk](#the-browser-editor-creator-only-for-now) cover test), and the placed models
 standing in it with nothing drawn before them. A plain click therefore selects at the
-release, not the press. Ctrl+click takes one thing out.
+release, not the press. Ctrl+click takes one thing out. Every ray of a box starts at the
+eye, so the surfaces whose bounds show in the box are found once, nearest first
+(`DecalSurfaces::candidates`), and each ray stops at the first bounds beyond its nearest
+hit (10/11/2026: duel6's box in a release build, 71 things selected, 8.4 ms from 22 ms).
 
 **Same shader and Select all.** `mapedit_select shader` selects every drawn surface of the
 world with the selected one's shader (not hidden) and every seen caulk face of it, the
@@ -398,9 +418,86 @@ within the selection's limits and say when they cut. **Duplicate** (`mapedit_dup
 Ctrl+D) copies the selected placed models with an offset as new place edits, one step to
 undo, the copies selected once drawn.
 
-Not built: grow and shrink of a selection beyond Same plane and Connected, invert, a
-normal-aligned placing, measuring, and a double-click fly-to (the free camera has no way to
-be put somewhere yet). The browser editor has none of this round's tools yet.
+The browser editor has none of this round's tools yet, nor of the next round's below
+but the alignment, which it draws.
+
+### Fly-to and frame
+
+Sol, 10/11/2026: "continue, do the good stuff you want to do!" (this round's
+[fly_to.rs](../crates/sjk-viewer/src/map_edits/fly_to.rs),
+[fly.rs](../crates/sjk-viewer/src/map_edits/fly.rs)). F (`mapedit_frame`) frames the
+selection as Blender's View Selected does: the view keeps its direction and steps back
+from the middle of what is selected until it fills the view (its radius over tan 30
+degrees, 64 to 6000 units away). A double click on a row of Edits (a placed model, a
+light, a shown face, a hidden surface or prop, a lamp seen on Lights; a remap or the
+weather has no one place), of Place > Things, or of the Lights page's lights and lamps
+frames that one (`mapedit_frame <x y z> <radius>`). The camera glides there in 0.45 s,
+eased in and out, the yaw the short way round; the right button or the editor leaving
+ends it where it is. It moves the free camera's flight only, the client's own predicted
+view (`LocalPrediction::place_flight`): the server is still sent the still body, and the
+body stays at its server position. Without the free camera (dead, in a duel, walking a
+map without a server) it is refused, with why; a map seen without any session moves its
+inspection camera.
+
+### Texture alignment
+
+A shown face's texture is laid as Radiant's surface inspector lays a brush face's
+([align.rs](../crates/sjk-viewer/src/map_edits/align.rs), `faces::texture_coordinates`):
+the axial projection turned by `rotate` degrees within its plane, each axis divided by its
+`scale` (the units a texel covers; 0.5, Radiant's, by default; negative flips it), shifted
+by `shift` texels. `mapedit_align shift <s t>` adds texels, `scale <s t>` multiplies (one
+number scales both), `rotate <degrees>` turns, `fit` lays the image once across the face
+and once down it (Radiant's Fit 1 x 1, the turn and a flip kept), `reset` goes back to
+the default, `set` gives all five numbers. It changes every selected face an edit of the
+scope draws, in one step to undo. The panel's Align page (Selected, on a face or a sky
+side) shows how the newest one lies and has Left, Right, Up and Down (8 texels), Turn left
+and right (15 degrees), Smaller and Bigger (by 1.25), Flip across and down, Fit and Reset;
+Shift makes the steps a texel, a degree and a tenth of the growth. Left moves the texture
+along its own axes, as seen on a wall facing the view at the default turn. A face drawn
+with another shader keeps its alignment, as in Radiant. The face's mesh is not made
+again: its corners are written over in the shared vertex buffer (`FaceSlot`), so aligning
+makes no new mesh or material.
+
+The alignment is three optional fields of the `show_face` edit, each left out at its
+default: `{"kind":"show_face","brush":40,"side":7,"shader":"textures/system/caulk",
+"to":"textures/a/wall","shift":[8,0],"scale":[0.25,0.5],"rotate":15}`, the scale's size 0.01
+to 64, the shift within 65536 texels, the turn within 3600 degrees. A client from before
+it reads the fields as unknown ones and ignores them (no edit refuses unknown fields:
+`a_shown_faces_alignment_is_optional_and_old_clients_read_it` parses a document of
+aligned faces with the old shape), so it draws such a face at Radiant's default and the
+rest of the document as before. The browser editor's page draws the alignment (the game
+sends each face's texture coordinates); it has no alignment controls yet.
+
+### Placing on a surface
+
+`mapedit_surface on` (Place's Surface) makes a model placed (`mapedit_place`, Place where
+you aimed) or grabbed stand on the surface under the pointer with its up axis along the
+surface's normal ([on_surface.rs](../crates/sjk-viewer/src/map_edits/on_surface.rs)): on a
+slope it leans with it, on a wall it sticks out of it, under a ceiling it hangs. Its origin
+is the point met; its heading is the view's when placed (as before) and its own while
+grabbed, laid along the surface. A paste's angles (Ctrl+V) are kept as copied. Off, models
+stand upright as before.
+
+### Grow, shrink and invert
+
+As Blender's Select More, Less and Invert
+([select_grow.rs](../crates/sjk-viewer/src/map_edits/select_grow.rs)): `mapedit_select
+grow` (Ctrl and +, or More) adds the drawn world surfaces sharing a corner with a selected
+one (an eighth of a unit apart is one corner; no sky, nothing hidden) and the faces players
+see joined to a selected caulk, nodraw or sky face (as Connected joins them, sky with sky),
+one ring at a time, the newest staying the newest; `shrink` (Ctrl and -, or Less) takes out
+the surfaces and faces touching one that is not selected; `invert` (Ctrl and I) selects
+the other placed models, or the other drawn surfaces of the world, of the kinds selected,
+refused when they would pass the selection's limits (1024, 256 placed models) and for faces
+(Same plane and Connected select those). Each runs once when asked.
+
+### Measuring
+
+M (`mapedit_measure`) starts the measure tool
+([measure.rs](../crates/sjk-viewer/src/map_edits/measure.rs)): two clicks on the scene put
+its ends on what they meet (a drawn surface, else a caulk or sky face), and a gold line
+joins them with a label over its middle, `128.0 u  dx 128 dy 0 dz 0`; the answer line says
+it too. A third click starts a new one; M or Escape stops. A player stands 64 units tall.
 
 ### Shader pictures
 
@@ -777,8 +874,10 @@ draws one sky, the map's first (a map with several shows the first one's swap on
 - The hub's side is the hub repository's `map-edits` branch (19/10/2026). Until the live
   hub runs it, it answers 404: Publish says the hub does not keep map edits yet, and
   players get no copies (found 28/10/2026: the branch had never been merged there).
-- A shown face's texture always lies at Radiant's default; the map's own projection of
-  that side is not in the BSP.
+- A shown face's texture starts at Radiant's default and is then aligned by hand
+  ([Texture alignment](#texture-alignment)); the map's own projection of that side is not
+  in the BSP, so a face is never aligned to match its neighbours by itself. Clients from
+  before 10/11/2026 draw an aligned face at the default.
 - Verified: unit tests (documents, scopes, the remap order, the folder's sync against a
   fake hub, the refusals' words, undo and the panel's lists), the hub round trip against
   a local hub (`staff_publish_map_edits_that_every_key_reads` in `hub_e2e.rs`), and the
@@ -887,6 +986,29 @@ draws one sky, the map's first (a map with several shows the first one's swap on
   among the votes, and the whole run 1.5 s (900 s before the cover test's cap). Not tried in a
   running client: the real pointer (drag, Ctrl and Shift), the preview's cost on a big map,
   Ctrl+D.
+- Fly-to, alignment, the caulk preview, placing on a surface, grow and measuring
+  (10/11/2026): unit tests of the framing (the direction kept, the distance by the size,
+  the pitch limit), the glide (eased, the yaw the short way, done on time), the predictor's
+  flight put somewhere while a walk is not (`place_flight`), the double click on rows, the
+  alignment's maths (shift, scale, flip, a quarter turn, Fit across turns and flips), its
+  limits, its JSON left out at the default and read by the old `show_face` shape, the
+  command's words and the buttons' steps, the preview mesh's layout (faces one after the
+  other, the rest empty, faces past its room left out), a model's angles along a slope, a
+  wall and a ceiling, corners shared between surfaces, a ring and an edge, rays among
+  candidates meeting what every surface meets, the box's bounds test, the measure's reading,
+  and the pages and key lines at four window shapes. The world shot
+  `duel6_map_editor_align_preview_measure_and_fly` (release): a caulk wall drawn with Fill's
+  `textures/yavin/stone_walk`, turned 45 degrees, grown and shifted (37 % of the view's
+  middle changed, no new mesh), Fit; a second caulk wall previewed with the first row under
+  the pointer (28 % changed, one preview mesh) and the preview gone off the list; a measure
+  between two clicks (`77.4 u  dx 22 dy 57 dz -48`); F framing the selection from four
+  times as far (895 units from its middle for a 512 round selection, straight ahead, the
+  glide done); a tree placed on the wall with Surface on (its up along the wall's normal,
+  0.99 and more) and undone; a sky side grown by a ring (1 to 5) and shrunk back (5 to 1).
+  The shots' world runs no editor frame, so the shot steps the glide and applies changed
+  documents itself. Not tried in a running client: the glide in the free camera (the
+  predictor moved, the body still), double clicks with the real pointer, the keys, the
+  preview on a big map, placing on surfaces while grabbing.
 - Lights (08/11/2026): unit tests of the kinds (round trip in the hub's shape, the limits,
   one lamp edit per fixture, an unknown kind refusing the whole document), the fixtures
   (written and read back, the lamps grouped one marker per fixture, turned off and moved),

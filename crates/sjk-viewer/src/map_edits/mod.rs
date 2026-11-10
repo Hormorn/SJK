@@ -24,15 +24,20 @@
 //!
 //! Staff edit in game ([`editor`], [`panel`]) or in a web browser ([`web`]).
 
+pub(crate) mod align;
 pub(crate) mod clip;
 pub(crate) mod document;
 pub(crate) mod editor;
+pub(crate) mod face_preview;
 pub(crate) mod faces;
 pub(crate) mod fly;
+pub(crate) mod fly_to;
 pub(crate) mod gizmo;
 pub(crate) mod lights;
 pub(crate) mod linked;
+pub(crate) mod measure;
 pub(crate) mod nearby;
+pub(crate) mod on_surface;
 pub(crate) mod panel;
 pub(crate) mod panel_lights;
 mod panel_view;
@@ -40,6 +45,7 @@ pub(crate) mod pictures;
 pub(crate) mod preview;
 pub(crate) mod recent;
 pub(crate) mod select;
+pub(crate) mod select_grow;
 pub(crate) mod suggest;
 pub(crate) mod web;
 
@@ -82,6 +88,13 @@ pub(crate) struct State {
     pub(crate) lights: Vec<lights::EditLight>,
     /// The shown faces drawn now: each one's mesh in `object_meshes` and where it is lit.
     faces: Vec<(usize, ActorInstance)>,
+    /// Where each shown face's mesh lies in the shared buffers, so a new alignment is
+    /// written over its corners in place ([`FaceSlot`]).
+    face_slots: Vec<FaceSlot>,
+    /// Which face each of [`Self::faces`] draws (brush, side).
+    face_keys: Vec<[u32; 2]>,
+    /// The preview on caulk and nodraw faces ([`face_preview`]).
+    pub(crate) face_preview: Option<face_preview::FacePreview>,
     /// The remap edits applied now (from, to): what a remap preview stands over and goes
     /// back to ([`preview`]).
     pub(crate) remaps: Vec<(String, String)>,
@@ -128,6 +141,19 @@ enum Lookup {
 struct Applied {
     props: BTreeSet<u32>,
     surfaces: BTreeSet<u32>,
+}
+
+/// A shown face's mesh (its `object_meshes` index and variant) and its corners in the
+/// shared vertex buffer, with the texture's size and the alignment they were written
+/// with: a face given a new alignment keeps its mesh and has its corners written again,
+/// so aligning makes no new mesh or material.
+struct FaceSlot {
+    variant: String,
+    mesh: usize,
+    vertex_base: u32,
+    corners: usize,
+    size: Option<[u32; 2]>,
+    align: document::Align,
 }
 
 /// A placed model as drawn.
@@ -228,6 +254,12 @@ impl State {
             ])
         }));
         Some(entities)
+    }
+
+    /// How many shown faces' meshes are kept to align in place (the world shots).
+    #[cfg(test)]
+    pub(crate) fn face_slot_count(&self) -> usize {
+        self.face_slots.len()
     }
 
     /// Move placed edit `id` where it is drawn, without saving (`mapedit_grab`).
@@ -570,6 +602,7 @@ impl GpuState {
                     side,
                     shader,
                     to,
+                    align,
                 } => {
                     // The checksum pins the map; the side's shader is a last check.
                     if let Some((polygon, normal)) =
@@ -580,6 +613,8 @@ impl GpuState {
                             polygon,
                             normal,
                             to.clone(),
+                            *align,
+                            [*brush, *side],
                         ));
                     }
                 }
@@ -604,17 +639,22 @@ impl GpuState {
             .map(<[String]>::to_vec)
             .unwrap_or_default();
         self.weather.set_edit(&weather);
-        self.map_edits.faces = shown_faces
+        let (drawn, keys): (Vec<_>, Vec<_>) = shown_faces
             .into_iter()
-            .filter_map(|(variant, polygon, normal, to)| {
+            .filter_map(|(variant, polygon, normal, to, align, key)| {
                 let origin = faces::centre(&polygon);
-                let mesh = self.face_mesh(variant, &polygon, normal, origin, &to)?;
+                let mesh = self.face_mesh(variant, &polygon, normal, origin, &to, &align)?;
                 Some((
-                    mesh,
-                    ActorInstance::new(origin, [0.0, 0.0, 0.0, 1.0], [1.0; 3]),
+                    (
+                        mesh,
+                        ActorInstance::new(origin, [0.0, 0.0, 0.0, 1.0], [1.0; 3]),
+                    ),
+                    key,
                 ))
             })
-            .collect();
+            .unzip();
+        self.map_edits.faces = drawn;
+        self.map_edits.face_keys = keys;
         self.static_models.set_hidden(props.clone());
         let before = std::mem::take(&mut self.map_edits.applied.surfaces);
         for &surface in before.difference(&surfaces) {
@@ -627,6 +667,7 @@ impl GpuState {
         self.map_edits.placed = placed;
         // A remap preview the panel drew is gone with these.
         self.map_edits.panel.preview.dropped();
+        self.map_edit_face_preview_off();
         self.map_edits.remaps.clone_from(&remaps);
         if let Some(vfs) = self.vfs.clone() {
             let refused = self.world_materials.set_edit_remaps(
@@ -673,7 +714,8 @@ impl GpuState {
     }
 
     /// The mesh of a shown face (`variant` names it and its shader), built and installed
-    /// the first time it is asked for: its index in `object_meshes`.
+    /// the first time it is asked for, its texture laid as `align` says (written again in
+    /// place when it changed): its index in `object_meshes`.
     fn face_mesh(
         &mut self,
         variant: String,
@@ -681,6 +723,7 @@ impl GpuState {
         normal: [f32; 3],
         origin: [f32; 3],
         shader: &str,
+        align: &document::Align,
     ) -> Option<usize> {
         let appearance = sjk_runtime::Appearance {
             model: FACE_MODEL.to_owned(),
@@ -690,15 +733,17 @@ impl GpuState {
             meshes.iter().position(|mesh| mesh.appearance == appearance)
         };
         if let Some(index) = find(&self.object_meshes) {
+            self.realign_face(index, &appearance.variant, polygon, normal, origin, align);
             return Some(index);
         }
         let size = self
             .vfs
             .as_ref()
             .and_then(|vfs| texture_size(vfs, &self.shaders, shader));
+        let base = self.geometry.vertex_count();
         let mut scene = crate::scene_flatten::FlattenedScene::default();
-        let built =
-            faces::append(&mut scene, polygon, normal, origin, shader, size).and_then(|draws| {
+        let built = faces::append(&mut scene, polygon, normal, origin, shader, size, align)
+            .and_then(|draws| {
                 self.install_config_model(
                     crate::object_meshes::StaticModelMesh {
                         appearance: appearance.clone(),
@@ -718,7 +763,52 @@ impl GpuState {
             ));
             return None;
         }
-        find(&self.object_meshes)
+        let index = find(&self.object_meshes)?;
+        // Its corners are the ones just appended: kept to align it again in place.
+        let slots = &mut self.map_edits.face_slots;
+        slots.retain(|slot| slot.variant != appearance.variant && slot.mesh != index);
+        if self.geometry.vertex_count() == base + polygon.len() as u32 {
+            slots.push(FaceSlot {
+                variant: appearance.variant,
+                mesh: index,
+                vertex_base: base,
+                corners: polygon.len(),
+                size,
+                align: *align,
+            });
+        }
+        Some(index)
+    }
+
+    /// Write shown face mesh `mesh`'s corners again with the texture laid as `align`
+    /// says, when it was written with another alignment.
+    fn realign_face(
+        &mut self,
+        mesh: usize,
+        variant: &str,
+        polygon: &[[f32; 3]],
+        normal: [f32; 3],
+        origin: [f32; 3],
+        align: &document::Align,
+    ) {
+        let Some(slot) = self
+            .map_edits
+            .face_slots
+            .iter_mut()
+            .find(|slot| slot.mesh == mesh && slot.variant == variant)
+        else {
+            return;
+        };
+        if slot.align == *align || slot.corners != polygon.len() {
+            return;
+        }
+        let corners = faces::vertices(polygon, normal, origin, slot.size, align);
+        if self
+            .geometry
+            .write_vertices(&self.queue, slot.vertex_base, &corners)
+        {
+            slot.align = *align;
+        }
     }
 
     /// Submit the placed models for this frame.
@@ -731,16 +821,31 @@ impl GpuState {
                 group.push(placed.instance);
             }
         }
-        for (mesh, instance) in &self.map_edits.faces {
+        // A face under the preview is drawn by the preview alone.
+        let previewed = self
+            .map_edits
+            .face_preview
+            .as_ref()
+            .filter(|preview| preview.instance.is_some())
+            .map_or(&[][..], |preview| preview.faces.as_slice());
+        for ((mesh, instance), key) in self.map_edits.faces.iter().zip(&self.map_edits.face_keys) {
+            if previewed.contains(key) {
+                continue;
+            }
             if let Some(group) = self.object_groups.get_mut(*mesh) {
                 group.push(*instance);
             }
+        }
+        if let Some((mesh, instance)) = self.map_edit_face_preview_instance()
+            && let Some(group) = self.object_groups.get_mut(mesh)
+        {
+            group.push(instance);
         }
     }
 }
 
 /// The width and height of the image `shader` draws first, read from its header.
-fn texture_size(
+pub(super) fn texture_size(
     vfs: &sjk_vfs::VirtualFileSystem,
     shaders: &sjk_shader::ShaderCatalog,
     shader: &str,

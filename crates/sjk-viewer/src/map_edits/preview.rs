@@ -102,9 +102,25 @@ impl crate::GpuState {
         let step = self.map_edits.panel.preview.step(wanted.as_deref(), now);
         let shown = match step {
             Step::Keep => return,
-            Step::Revert => None,
+            Step::Revert => {
+                self.map_edit_face_preview_off();
+                None
+            }
             Step::Draw(shader) => {
-                let froms = self.map_edit_preview_froms();
+                let mut froms = self.map_edit_preview_froms();
+                // Caulk and nodraw faces: the preview mesh's own shader stands for them.
+                let on_faces = !self.map_edits.panel.is_sky(&shader);
+                match on_faces
+                    .then(|| self.map_edit_face_preview(&shader))
+                    .flatten()
+                {
+                    Some(face_shader) => {
+                        if !froms.iter().any(|f| f.eq_ignore_ascii_case(&face_shader)) {
+                            froms.push(face_shader);
+                        }
+                    }
+                    None => self.map_edit_face_preview_off(),
+                }
                 (!froms.is_empty()).then_some((shader, froms))
             }
         };
@@ -124,6 +140,7 @@ impl crate::GpuState {
 
     /// Put the map's remaps back when a preview is drawn (the panel closing).
     pub(crate) fn map_edit_preview_off(&mut self) {
+        self.map_edit_face_preview_off();
         if self.map_edits.panel.preview.step(None, Instant::now()) == Step::Revert {
             self.map_edits.panel.preview.shown = None;
             if let Some(vfs) = self.vfs.clone() {
@@ -162,6 +179,8 @@ impl crate::GpuState {
         match picked {
             Picked::Surface { .. } => Some(shader.to_owned()),
             Picked::Sky if panel.is_sky(shader) => Some(shader.to_owned()),
+            // On caulk and nodraw faces any texture (a face takes no sky).
+            Picked::Face if !panel.is_sky(shader) => Some(shader.to_owned()),
             _ => None,
         }
     }

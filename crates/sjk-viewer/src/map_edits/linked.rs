@@ -305,6 +305,55 @@ impl Sides {
         !self.seen_pieces(index, open).is_empty()
     }
 
+    /// For each face of `members` (indices of [`Self::find`]), the faces players see that
+    /// are joined to it at any angle (as Connected surface joins them, sky with sky): one
+    /// ring of the map editor's grow, and what tells a shrink's edge (`mapedit_select`).
+    pub(crate) fn joined(&self, members: &[usize], open: &dyn Fn(Vec3) -> bool) -> Vec<Vec<usize>> {
+        let mut pieces: HashMap<usize, Vec<Vec<Vec3>>> = HashMap::new();
+        let mut seen_of = |index: usize| -> Vec<Vec<Vec3>> {
+            pieces
+                .entry(index)
+                .or_insert_with(|| self.seen_pieces(index, open))
+                .clone()
+        };
+        let reach = Vec3::splat(EDGE_EPSILON);
+        members
+            .iter()
+            .map(|&member| {
+                let face = &self.sides[member];
+                let mut own = seen_of(member);
+                if own.is_empty() {
+                    // Selected, so seen somewhere: joined by the whole of it.
+                    own = vec![face.polygon.clone()];
+                }
+                let mut found = Vec::new();
+                for other in self.side_grid.near(face.low - reach, face.high + reach) {
+                    let candidate = &self.sides[other];
+                    if other == member
+                        || found.contains(&other)
+                        || !candidate.showable
+                        || candidate.sky != face.sky
+                        || !overlaps(
+                            candidate.low,
+                            candidate.high,
+                            face.low - reach,
+                            face.high + reach,
+                        )
+                        || !facing(face, candidate, Grow::Surface)
+                        || shared(&own, std::slice::from_ref(&candidate.polygon)) < MIN_SHARED
+                    {
+                        continue;
+                    }
+                    let theirs = seen_of(other);
+                    if !theirs.is_empty() && shared(&own, &theirs) >= MIN_SHARED {
+                        found.push(other);
+                    }
+                }
+                found
+            })
+            .collect()
+    }
+
     /// The faces joined to face `start` (an index of [`Self::find`]) that players see,
     /// growing by `grow`, at most `limit` of them with `start` first. Faces join where
     /// what players see of them meets: a side half covered by a lower floor joins that
@@ -652,6 +701,19 @@ pub(crate) mod tests {
         // the middle top keeps its area round the crate's foot
         assert!(sides.visible(top(&sides, 1), OPEN));
         assert!(!sides.visible(top(&sides, 5), OPEN));
+    }
+
+    /// One ring at a time: the middle top's ring is the tops beside it (and the faces it
+    /// meets at an angle), never the covered top; the first top's ring holds the middle.
+    #[test]
+    fn a_ring_is_the_seen_faces_joined_to_each_member() {
+        let sides = floor();
+        let rings = sides.joined(&[top(&sides, 1), top(&sides, 0)], OPEN);
+        assert!(rings[0].contains(&top(&sides, 0)) && rings[0].contains(&top(&sides, 2)));
+        assert!(!rings[0].contains(&top(&sides, 1)), "not itself");
+        assert!(rings[1].contains(&top(&sides, 1)));
+        assert!(!rings[1].contains(&top(&sides, 2)), "two tops away");
+        assert!(rings.iter().flatten().all(|&face| face != top(&sides, 5)));
     }
 
     #[test]

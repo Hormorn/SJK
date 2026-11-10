@@ -88,6 +88,7 @@ pub(super) fn build(panel: &mut Panel, ui: &mut MenuCanvas, viewport: [f32; 2]) 
 /// line on navy glass under and right of the pointer, kept on the scene.
 fn scene_marks(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
     let s = frame.s;
+    measure_label(ui, frame, panel);
     if let Some([x0, y0, x1, y1]) = panel.scene.marquee {
         let rect = Rect::new(x0, y0, x1 - x0, y1 - y0);
         push(
@@ -151,6 +152,49 @@ fn scene_marks(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
         14.0 * s,
         color::TEXT,
         FontWeight::Regular,
+        TextAlign::Start,
+    );
+}
+
+/// The measure's label over its line's middle: its length and deltas in gold on navy
+/// glass, kept on the scene.
+fn measure_label(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel) {
+    let s = frame.s;
+    let Some(([x, y], words)) = &panel.measure.label else {
+        return;
+    };
+    let width = (words.chars().count() as f32 * 7.4 + 26.0) * s;
+    let height = 28.0 * s;
+    let left = (x - width * 0.5)
+        .min(panel.scene_right - width - 8.0 * s)
+        .max(0.0);
+    let top = (y - height - 10.0 * s).max(0.0);
+    let rect = Rect::new(left, top, width, height);
+    push(
+        ui,
+        DrawCommand::RoundedRect {
+            rect,
+            radius: 8.0 * s,
+            color: color::alpha(color::SPACE, 0.9),
+        },
+    );
+    push(
+        ui,
+        DrawCommand::Border {
+            rect,
+            radius: 8.0 * s,
+            width: 1.0 * s,
+            color: color::alpha(color::GOLD_BRIGHT, 0.6),
+        },
+    );
+    text(
+        ui,
+        TextFamily::Body,
+        format_args!("{words}"),
+        Rect::new(left + 12.0 * s, top + 4.0 * s, width - 16.0 * s, 20.0 * s),
+        15.0 * s,
+        color::GOLD_BRIGHT,
+        FontWeight::Semibold,
         TextAlign::Start,
     );
 }
@@ -471,7 +515,9 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
             y,
             &[
                 (HIDE, if many { "Hide all" } else { "Hide" }, true),
-                (HIDE_GROUP, "Hide whole model", soup && !many),
+                (HIDE_GROUP, "Whole model", soup && !many),
+                (SELECT_MORE, "More", true),
+                (SELECT_LESS, "Less", many),
             ],
         ),
         Picked::Entity => line(
@@ -490,6 +536,11 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 (LINK_PLANE, "Same plane", true),
                 (LINK_SURFACE, "Connected", true),
                 (FILL, "Fill", panel.facts.fill.is_some()),
+                (
+                    ALIGN,
+                    if panel.aligning { "Shaders" } else { "Align" },
+                    true,
+                ),
             ],
         ),
         Picked::Other => {}
@@ -498,6 +549,10 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         return;
     }
     y += BUTTON + 34.0;
+    if panel.aligning && matches!(selection.picked, Picked::Face | Picked::Sky) {
+        align_page(ui, frame, panel, y);
+        return;
+    }
     kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Draw another shader");
     let card_top = y - 10.0;
     y += 18.0;
@@ -585,6 +640,62 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 ),
             ]
         },
+    );
+}
+
+/// Selected's texture alignment of a drawn face (Align): how it lies now, then the
+/// shifts, turns, growths, flips, Fit and Reset, three rows of four, each one
+/// `mapedit_align` on every selected drawn face.
+fn align_page(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel, mut y: f32) {
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Lay the texture");
+    y += 22.0;
+    let drawn = panel.facts.align;
+    match drawn {
+        Some(align) => {
+            let words = align.describe();
+            let mut letters = words.chars();
+            let first = letters.next().map(|c| c.to_ascii_uppercase());
+            let words: String = first.into_iter().chain(letters).collect();
+            line(ui, frame, y, &words, color::TEXT);
+        }
+        None => line(
+            ui,
+            frame,
+            y,
+            "Drawn by no edit: Draw a shader on it first",
+            color::MUTED,
+        ),
+    }
+    y += 40.0;
+    for (row, steps) in ALIGN_STEPS.chunks(4).enumerate() {
+        let tokens: Vec<(u16, &str, bool)> = steps
+            .iter()
+            .enumerate()
+            .map(|(index, (label, _))| {
+                (
+                    ALIGN_STEP + (row * 4 + index) as u16,
+                    *label,
+                    drawn.is_some(),
+                )
+            })
+            .collect();
+        buttons(ui, frame, panel, y, &tokens);
+        y += BUTTON + GAP;
+    }
+    y += 6.0;
+    line(
+        ui,
+        frame,
+        y,
+        "Shift: a texel, a degree, a finer growth.",
+        color::MUTED,
+    );
+    line(
+        ui,
+        frame,
+        y + 24.0,
+        "Every selected drawn face, one step to undo.",
+        color::MUTED,
     );
 }
 
@@ -1173,12 +1284,28 @@ fn place(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
     kit::search(
         ui,
         frame,
-        [COLUMN_X, y, COLUMN_WIDTH - switch - GAP, FIELD],
+        [COLUMN_X, y, COLUMN_WIDTH - 2.0 * (switch + GAP), FIELD],
         &panel.search,
         searching,
-        "Search the models",
+        "Search models",
         (!panel.search.is_empty()).then_some(panel.shown.len()),
         SEARCH,
+    );
+    // Placed and grabbed models stand along the surface: a gold pill while on.
+    kit::button(
+        ui,
+        frame,
+        [
+            COLUMN_X + COLUMN_WIDTH - 2.0 * switch - GAP,
+            y + 2.0,
+            switch,
+            BUTTON,
+        ],
+        "Surface",
+        panel.facts.on_surface,
+        true,
+        panel.focus == PLACE_SURFACE,
+        PLACE_SURFACE,
     );
     kit::button(
         ui,
@@ -2043,7 +2170,13 @@ fn key_lines<'a>(panel: &'a Panel, exit: &'a [&'a str]) -> Vec<Vec<Hint<'a>>> {
         ];
     }
     let typing = matches!(panel.focus, SEARCH | REMAP_FIELD);
-    let first: Vec<Hint<'a>> = if panel.facts.grabbing {
+    let first: Vec<Hint<'a>> = if panel.measure.on {
+        vec![
+            (&["Click"], "measure to"),
+            (&["M"], "stop"),
+            (&["Esc"], "stop"),
+        ]
+    } else if panel.facts.grabbing {
         vec![
             (&["Click"], "put down"),
             (&["Wheel"], "turn"),
@@ -2081,7 +2214,11 @@ fn key_lines<'a>(panel: &'a Panel, exit: &'a [&'a str]) -> Vec<Vec<Hint<'a>>> {
             (&["Esc"], "back"),
         ]
     };
-    vec![first, second, vec![(&["Ctrl", "Z"], "undo"), leave]]
+    vec![
+        first,
+        second,
+        vec![(&["Ctrl", "Z"], "undo"), (&["F"], "frame"), leave],
+    ]
 }
 
 /// The cap of the key that leaves: the one bound to `mapedit`.
@@ -2191,6 +2328,20 @@ mod tests {
             ("fill", fill_panel()),
             ("lights", lights_panel()),
             ("things", things_panel()),
+            ("align", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Face));
+                panel.aligning = true;
+                panel.facts.align = Some(super::super::document::Align {
+                    shift: [8.0, 0.0],
+                    ..Default::default()
+                });
+                panel
+            }),
+            ("align undrawn", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Sky));
+                panel.aligning = true;
+                panel
+            }),
         ]
     }
 
@@ -2513,11 +2664,20 @@ mod tests {
         let place = tokens("place");
         assert!(place.contains(&SEARCH) && place.contains(&PLACE) && place.contains(&GRAB));
         assert!(place.contains(&MOVE_LEFT) && place.contains(&NEARER));
+        assert!(place.contains(&PLACE_SURFACE) && place.contains(&PLACE_THINGS));
         assert!(place.contains(&(MODEL_ROW + MODEL_ROWS as u16 - 1)));
         assert!(!place.contains(&(MODEL_ROW + MODEL_ROWS as u16)));
         let edits = tokens("edits");
         assert!(edits.contains(&(EDIT_ROW + EDIT_ROWS as u16 - 1)) && edits.contains(&DELETE));
         assert!(edits.contains(&UNDO) && edits.contains(&REDO));
+        // A face's Align swaps the shader list for the texture's steps.
+        assert!(tokens("face").contains(&ALIGN) && tokens("sky").contains(&ALIGN));
+        assert!(!tokens("surface").contains(&ALIGN));
+        let align = tokens("align");
+        assert!(align.contains(&ALIGN) && !align.contains(&REMAP_FIELD));
+        let last = ALIGN_STEP + ALIGN_STEPS.len() as u16 - 1;
+        assert!(align.contains(&ALIGN_STEP) && align.contains(&last));
+        assert!(!tokens("face").contains(&ALIGN_STEP));
     }
 
     #[test]
@@ -2597,9 +2757,15 @@ mod tests {
                 (false, true, tab.token()),
                 (false, false, SEARCH),
             ] {
-                for (exit_key, grabbing) in [("", false), ("F7", true), ("Backspace", false)] {
+                for (exit_key, grabbing, measuring) in [
+                    ("", false, false),
+                    ("F7", true, false),
+                    ("Backspace", false, false),
+                    ("Backspace", false, true),
+                ] {
                     let mut panel = Panel::default();
                     panel.facts.grabbing = grabbing;
+                    panel.measure.on = measuring;
                     panel.tab = tab;
                     panel.focus = focus;
                     panel.transforming = transforming;
@@ -2624,7 +2790,9 @@ mod tests {
         let exit = [exit_cap(&panel)];
         let lines = key_lines(&panel, &exit);
         let actions: Vec<&str> = lines.iter().flatten().map(|(_, action)| *action).collect();
-        for wanted in ["fly", "select", "add", "gizmo", "back", "leave", "undo"] {
+        for wanted in [
+            "fly", "select", "add", "gizmo", "back", "leave", "undo", "frame",
+        ] {
             assert!(actions.contains(&wanted), "{wanted}: {actions:?}");
         }
         assert!(lines.iter().flatten().any(|(caps, _)| caps == &["F7"]));

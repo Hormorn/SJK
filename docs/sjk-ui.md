@@ -2189,8 +2189,9 @@ the column stays drawn, its keys lines turned to the flight's.
   fit the column; 09/11/2026).
 - **Selected:** what it is (Rajdhani 26; "Hidden face and 11 more" for several), its model
   or shader and its detail (Exo 2 16, muted, two lines; on faces the second is Fill's
-  shader and share in gold), a row of kit buttons (two; three on a hidden face or a sky:
-  Same plane, Connected, Fill), then Draw another shader: the kit's search pill (with its
+  shader and share in gold), a row of kit buttons (on a surface four: Hide, Whole model,
+  More, Less; on a hidden face or a sky four: Same plane, Connected, Fill, Align), then Draw
+  another shader: the kit's search pill (with its
   count) and a Tiles switch (92 wide) at its right, a list of five rows as Place's, each
   with the shader's picture (28 square on a dark ground) before its name (names without
   `textures/` or `models/`, the selection's own shader in quiet print unless chosen; on a
@@ -2209,8 +2210,14 @@ the column stays drawn, its keys lines turned to the flight's.
   nothing selected, how to select and to fly. On a sky (04/11/2026) the kind is "Sky", the
   skies lead the list after the Recent rows, and its last row has three buttons: Swap sky
   (Cover side when a texture is chosen), Swap all skies (only with a sky chosen) and Take
-  back.
-- **Place:** the kit's search pill with a Things switch at its right, a list of six rows
+  back. Align (10/11/2026) swaps Draw another shader for "Lay the texture": how the
+  newest face's texture lies (`Shift 8 0, scale 0.50 0.50, turn 15`, Exo 2 16; muted
+  "Drawn by no edit" when none draws it, its buttons then off), three rows of four kit
+  buttons (Left, Right, Up, Down; Turn left, Turn right, Smaller, Bigger; Flip across,
+  Flip down, Fit, Reset) and two muted lines (Shift's fine steps, one step to undo); the
+  switch reads Shaders to go back.
+- **Place:** the kit's search pill with a Surface switch (92 wide, a gold pill while on)
+  and a Things switch at its right, a list of six rows
   (34 each, the chosen one gold with a gold tick at its left, paths without `models/`, the
   Recent rows first), Place where you aimed (200 wide) with Duplicate and Select all (100
   each) at its right, then Placed model: its line
@@ -2240,9 +2247,10 @@ the column stays drawn, its keys lines turned to the flight's.
   last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold) and
   Editor off at 898, and three lines of keys from 954, 30 apart (RMB fly, Click select,
   Shift+Click add; G R T gizmo, Drag box, Esc back, with Shift's fine steps instead of the
-  box on Place; Ctrl+Z undo and the cap of the key bound to
+  box on Place; Ctrl+Z undo, F frame and the cap of the key bound to
   `mapedit`, "leave"; while flying W A S D, Space C, Shift,
-  Wheel; while grabbing Click, Wheel, Esc; while transforming the gizmo's), then, when the
+  Wheel; while grabbing Click, Wheel, Esc; while measuring Click, M, Esc; while
+  transforming the gizmo's), then, when the
   free camera was refused, why, in ember Exo 2 15 at 1044. A page's controls end above it
   (a test checks every page at four window shapes, and that every key line fits the
   column). The Aim button and the strip over play (while the panel was hidden to aim) went
@@ -2251,13 +2259,16 @@ the column stays drawn, its keys lines turned to the flight's.
   white dots (1.5 to 3 pixels, 55 %), with its tip 18 right and 22 under the pointer (kept
   left of the column): one line of Exo 2 14 on navy glass (86 %) with a holo hairline,
   8 round; a box being drawn as a holo frame (80 %) over a faint holo fill (8 %), the tip
-  gone meanwhile.
+  gone meanwhile; the measure (10/11/2026) as a gold line 2 pixels wide over a dark one
+  of 4, its ends gold dots, its label over its middle in gold Exo 2 15 semibold on navy
+  glass (90 %) with a gold hairline (60 %), 8 round.
 
 It is a page of the in-game menu (`Page::MapEdit`), drawn by `InGameMenu::append_own_page`
 from the panel's state, which lives with the map's edits; its keys come before the game
 menu's (`GpuState::map_edit_key`), its pointer through `map_edit_pointer`. World shots:
 `duel6_map_editor_panel`, `duel6_map_editor_pictures_and_lights` and
-`duel6_map_editor_suggestions_hover_and_box` (`world_shot_map_edits.rs`).
+`duel6_map_editor_suggestions_hover_and_box` and
+`duel6_map_editor_align_preview_measure_and_fly` (`world_shot_map_edits.rs`).
 
 ## Ghost editor
 

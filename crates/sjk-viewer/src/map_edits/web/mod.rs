@@ -327,6 +327,7 @@ impl GpuState {
                     side,
                     shader,
                     to,
+                    align,
                 } => {
                     if let Some((polygon, normal)) =
                         super::faces::polygon(&self.bsp, *brush, *side, shader)
@@ -335,7 +336,7 @@ impl GpuState {
                             .vfs
                             .as_ref()
                             .and_then(|vfs| super::texture_size(vfs, &self.shaders, to));
-                        let uv = super::faces::texture_coordinates(&polygon, normal, size);
+                        let uv = super::faces::texture_coordinates(&polygon, normal, size, align);
                         faces.push(json!({
                             "id": edit.id, "points": polygon, "normal": normal,
                             "uv": uv, "shader": to,

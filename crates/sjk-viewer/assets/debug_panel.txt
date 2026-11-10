@@ -125,6 +125,23 @@ test: Character page: pick an RGB model, set a dark colour (60 30 30): stage sho
 test: Online, look at a player on an RGB model: colour matches what they see in EJK.
 test: Force shells (protect, absorb) and pickups look as before.
 
+[mapedit-ingame-fly-align-measure]
+area: Menus & settings
+title: Map editor: fly-to, F frame, texture alignment, caulk preview, measure, grow
+change: Double click an edit, thing, light or lamp (or F on the selection): the camera glides there.
+change: Align on a drawn caulk face shifts, turns, scales, flips, fits its texture; caulk previews.
+change: Place > Surface stands models along walls and slopes; M measures; Ctrl + - I grow/shrink.
+test: mapedit, Edits: double click a placed model's row: the view glides to it, body stays put.
+test: Click a wall, fly away, F: the view comes back to frame it, same direction.
+test: Draw a texture on a caulk face, Align: Left, Turn left, Bigger, Fit move it; Ctrl+Z undoes.
+test: An older client (main before this) loads that map's edits and shows the face unaligned.
+test: Click another caulk face, rest the pointer on a list row: the face shows it; move off: gone.
+test: Place > Surface on, aim at a wall, Place: the model sticks out of the wall; on a slope leans.
+test: Grab it with Surface on: it follows walls and floors, turning to each.
+test: M, click two points: a gold line and "N u dx dy dz"; a third click starts again; Esc stops.
+test: Click a floor surface, Ctrl and +: its neighbours join; Ctrl and -: the edge leaves.
+test: Select placed models, Ctrl+I: the other placed models are selected instead.
+
 [mapedit-ingame-guesses-selections]
 area: Menus & settings
 title: Map editor: texture guesses, live preview, hover, box select, Same shader, Ctrl+D
