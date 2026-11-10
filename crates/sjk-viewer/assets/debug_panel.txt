@@ -9275,6 +9275,19 @@ test: Switch presets: Volumetric clouds stays as you set it; a new profile has i
 test: T2_Rogue slanted walls in rain: rivulets follow the slope, drops run down, no flicker.
 test: Walk past a ramp facing a diagonal: one pattern along its fall, no crossed streaks.
 
+[weather-looks]
+area: Rendering & effects
+title: Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
+change: Wet ground in patches, water at wall feet; rivulets start under the lip, widen down.
+change: Spray and rain waves in a downpour; r_weatherReflections 1 sky, 2 puddles, 3 all.
+change: Sliders: r_weatherPuddles, RainOpacity, Haze, FogDensity; r_weatherSnowCover (off).
+test: T2_Rogue, r_weatherForce 3, r_weatherQuality 3: lit windows streak across the wet street.
+test: r_weatherReflections 1/2/3: sky only, puddles only, every wet surface. FPS stays close.
+test: Walls in rain: rivulets begin under the top, wider low down, wall foot darker.
+test: Look along the street in the storm: a low spray drifts over the ground, no halo.
+test: r_weatherForce 4 + Settings > Snow settles: snow lies in drifts within ~6 s, melts off.
+test: Each slider moves its look live; 0 haze clears the air.
+
 [japlus-mode]
 area: Gameplay
 title: SJK's server as a JA+ server (g_mod japlus), step 1: identity, settings, movement

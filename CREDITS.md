@@ -467,6 +467,10 @@ includes:
 - storms (05/11/2026): `r_weatherLightning` flashes through the haze, rain and puddles with
   the game's own thunder after it, single gusts of wind heard as they rise, and rain
   running down walls and slopes in rivulets with drops along each slope's fall;
+- richer rain (09/11/2026): uneven wet streets with water gathering at walls, rivulets that
+  start under a wall's lip, spray and waves of rain in a downpour, the world mirrored in
+  every wet surface (`r_weatherReflections`), settled snow (`r_weatherSnowCover`) and
+  sliders for puddles, rain, haze and fog;
 - door and lift shadows on lamp light within a budget (09/11/2026, Sol's request): the
   lamp cache is baked again 16 chunks of 64×64 texels a frame at most, only where a
   mover's shadow changed, so `T2_Rancor` no longer spends 14 ms a frame on it;
