@@ -367,10 +367,19 @@ pub(super) fn to_pixels(rect: [f32; 4], side: Side, viewport: [f32; 2], scale: f
     let [width, height] = viewport;
     let unit = height / 480.0 * scale;
     let [x, y, w, h] = rect;
+    if side == Side::Stretch {
+        let across = width / 640.0 * scale;
+        return [
+            width * 0.5 - (320.0 - x) * across,
+            height - (480.0 - y) * unit,
+            w * across,
+            h * unit,
+        ];
+    }
     let px = match side {
         Side::Left => x * unit,
         Side::Right => width - (640.0 - x) * unit,
-        Side::Centre => width * 0.5 - (320.0 - x) * unit,
+        Side::Centre | Side::Stretch => width * 0.5 - (320.0 - x) * unit,
     };
     [px, height - (480.0 - y) * unit, w * unit, h * unit]
 }

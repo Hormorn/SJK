@@ -339,7 +339,9 @@ impl MenuHud {
         let mut largest = vec![0.0_f32; layout.pictures.len()];
         if hud == Source::Jk2 {
             let first = layout.pictures.len() - frame::jk2::PICTURE_COUNT;
-            largest[first..].fill(frame::jk2::LARGEST);
+            for (index, side) in largest[first..].iter_mut().enumerate() {
+                *side = frame::jk2::largest(index);
+            }
         }
         layout.for_each_piece(|piece| {
             if let Some(picture) = piece.picture {
@@ -564,7 +566,47 @@ pub(crate) fn readout(gpu: &GpuState, time: i32) -> Option<Readout> {
         power_duel: gametype == 4,
         fraglimit: info.integer("fraglimit").unwrap_or(0),
         time,
+        selector: selector(gpu, player, time),
     })
+}
+
+/// The most recent of the weapon, Force and inventory selectors still showing and
+/// its age in milliseconds, as `CG_DrawIconBackground` picks it. None on a vehicle
+/// (EternalJK draws no Jedi Knight II selector bar there) or an emplaced gun (whose
+/// weapon cannot be cycled).
+fn selector(
+    gpu: &GpuState,
+    player: &sjk_protocol::PlayerState,
+    time: i32,
+) -> Option<(frame::Selector, i32)> {
+    if player.vehicle_entity_num() != 0 {
+        return None;
+    }
+    let show = crate::weapon_select::SHOW.as_millis() as i32;
+    let weapon = gpu
+        .weapon_selected_at
+        .filter(|_| player.emplaced_index() == 0)
+        .map(|at| {
+            let age = at.elapsed().as_millis().min(i32::MAX as u128) as i32;
+            (frame::Selector::Weapon, age)
+        });
+    let other = gpu
+        .gameplay_input
+        .selection
+        .cycled_at()
+        .map(|(inventory, at)| {
+            let selector = if inventory {
+                frame::Selector::Inventory
+            } else {
+                frame::Selector::Force
+            };
+            (selector, time - at)
+        });
+    weapon
+        .into_iter()
+        .chain(other)
+        .filter(|&(_, age)| (0..=show).contains(&age))
+        .min_by_key(|&(_, age)| age)
 }
 
 /// Parse `list` and every menu file it loads or includes.

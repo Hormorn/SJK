@@ -5265,7 +5265,10 @@ HUD pack) or a list naming other menus changes the HUD with no SJK-specific
 format. A nonzero integer selects the stock text-only HUD; as in EternalJK, `0`
 is the default list, `2` is the Jedi Knight II HUD (`menu_hud/frame/jk2.rs`,
 EternalJK's pictures built into the client, drawn in place of the status menus,
-without its scrolling static) and `3`/`4` name `ui/elegance_hud.txt`/`ui/jof_hud.txt`. A
+without its scrolling static; while a weapon, Force or inventory selector shows,
+its bar opens behind the icons from retail's `gfx/hud/background`, `_f` or `_i`
+between lit prongs and closes when it goes, as EternalJK's `CG_DrawIconBackground`,
+hub report 301) and `3`/`4` name `ui/elegance_hud.txt`/`ui/jof_hud.txt`. A
 missing list falls back to the default one, as `CG_LoadMenus` does; files
 without a `lefthud` or `righthud` menu leave the engine-drawn HUD in place.
 The text HUD's strings start where retail puts them, but SJK's vector font is
