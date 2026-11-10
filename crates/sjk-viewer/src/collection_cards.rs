@@ -1,6 +1,6 @@
 //! The Collection's Cards tab (`docs/cards.md`, "The Cards tab"): a binder of every card
-//! the SJK packs have a face of ([`crate::cards::faces`]), found or not, and the player's
-//! credits and kyber shards. On the left the tiles ([`crate::cards::binder`]), six to a
+//! the SJK packs have a face of ([`crate::cards::faces`]), found or not (the player's
+//! credits and kyber shards are on the Forge tab). On the left the tiles ([`crate::cards::binder`]), six to a
 //! line and three lines shown, scrolling a line at a time, each naming its card: the
 //! sealed copies first (a tile per rarity), then every card by set and number, one tile
 //! whatever the copies held, in the best finish's light with how many; a card not found
@@ -11,7 +11,7 @@
 //! asks the hub to reveal them, and a line beside it says what came of it. The cards
 //! come from the player's own hub profile ([`crate::cards::stacks`]).
 
-use super::view::{LEAD_Y, LEFT_X, SHOWCASE_WIDTH, SHOWCASE_X, centred_lines};
+use super::view::{LEFT_X, SHOWCASE_WIDTH, SHOWCASE_X, centred_lines};
 use super::*;
 use crate::cards::binder::{self, Show, Slot, Tile};
 use crate::cards::{self, FINISHES, Stack, look};
@@ -122,7 +122,7 @@ fn headline(
 impl Panel {
     /// The Cards tab.
     pub(super) fn cards(&mut self, frame: &Frame, inputs: &Inputs<'_>, seconds: f32) {
-        let (stacks, balance) = self.holdings(inputs);
+        let stacks = self.holdings(inputs);
         let faces = cards::faces::current();
         self.card_blade = None;
         self.card_blade_craft = false;
@@ -133,9 +133,6 @@ impl Panel {
         let progress = binder::progress(&all, &faces);
         let (headline, line) = headline(inputs, stacks.as_deref(), &progress);
         self.lead(frame, &headline, &line);
-        if let Some((credits, shards)) = balance {
-            self.balance(frame, credits, shards);
-        }
         let stacks = stacks.unwrap_or_default();
         let can_reveal = inputs.snapshot.is_some_and(crate::economy::may_act);
         self.revealable = if can_reveal {
@@ -362,98 +359,13 @@ impl Panel {
         );
     }
 
-    /// The player's cards, credits and kyber shards, once known (a world shot's own in
-    /// their place).
-    #[allow(clippy::type_complexity)]
-    pub(super) fn holdings(&self, inputs: &Inputs<'_>) -> (Option<Vec<Stack>>, Option<(u64, u64)>) {
+    /// The player's cards, once known (a world shot's own in their place).
+    pub(super) fn holdings(&self, inputs: &Inputs<'_>) -> Option<Vec<Stack>> {
         #[cfg(test)]
-        if let Some((list, credits, shards)) = &self.preview_cards {
-            return (Some(cards::stacks(list)), Some((*credits, *shards)));
+        if let Some((list, _, _)) = &self.preview_cards {
+            return Some(cards::stacks(list));
         }
-        let me = me(inputs);
-        (
-            me.map(|me| cards::stacks(&me.cards)),
-            me.map(|me| (me.credits, me.shards)),
-        )
-    }
-
-    /// The player's credits at the right of the tab's headline, and their kyber shards
-    /// left of them (17/10/2026), each word under it.
-    fn balance(&mut self, frame: &Frame, credits: u64, shards: u64) {
-        let right = SHOWCASE_X - 40.0;
-        let left = self.credits_balance(frame, credits, right);
-        self.shards_balance(frame, shards, left - 44.0);
-    }
-
-    /// The kyber shards' mark and count, right-aligned to `right` (frame pixels).
-    fn shards_balance(&mut self, frame: &Frame, shards: u64, right: f32) {
-        let s = frame.s;
-        let words = crate::economy::shards_text(shards);
-        let size = 30.0;
-        let width = crate::text::display_width(&words, size) * crate::text::style::current().scale;
-        let kyber = cards::shard::KYBER;
-        text(
-            &mut self.ui,
-            TextFamily::Display,
-            format_args!("{words}"),
-            frame.rect(right - width - 8.0, LEAD_Y, width + 8.0, 40.0),
-            size * s,
-            kyber,
-            FontWeight::Semibold,
-            TextAlign::End,
-        );
-        let mark = 26.0;
-        let [x, y] = frame.point(
-            right - width - 8.0 - 10.0 - cards::shard::width(mark),
-            LEAD_Y + 6.0,
-        );
-        cards::shard::draw(self.ui.draw_list_mut(), [x, y], mark * s, kyber);
-        text(
-            &mut self.ui,
-            TextFamily::Body,
-            format_args!("kyber shards"),
-            frame.rect(right - 200.0, LEAD_Y + 42.0, 200.0, 24.0),
-            15.0 * s,
-            color::QUIET,
-            FontWeight::Regular,
-            TextAlign::End,
-        );
-    }
-
-    /// The credits' mark and sum, right-aligned to `right` (frame pixels), the word
-    /// under them. Answers where the mark begins.
-    fn credits_balance(&mut self, frame: &Frame, credits: u64, right: f32) -> f32 {
-        let s = frame.s;
-        let words = cards::credits_text(credits);
-        let size = 30.0;
-        let width = crate::text::display_width(&words, size) * crate::text::style::current().scale;
-        text(
-            &mut self.ui,
-            TextFamily::Display,
-            format_args!("{words}"),
-            frame.rect(right - width - 8.0, LEAD_Y, width + 8.0, 40.0),
-            size * s,
-            color::GOLD_BRIGHT,
-            FontWeight::Semibold,
-            TextAlign::End,
-        );
-        let mark = 24.0;
-        let [x, y] = frame.point(
-            right - width - 8.0 - 10.0 - cards::mark::width(mark),
-            LEAD_Y + 8.0,
-        );
-        cards::mark::draw(self.ui.draw_list_mut(), [x, y], mark * s, color::GOLD);
-        text(
-            &mut self.ui,
-            TextFamily::Body,
-            format_args!("credits"),
-            frame.rect(right - 200.0, LEAD_Y + 42.0, 200.0, 24.0),
-            15.0 * s,
-            color::QUIET,
-            FontWeight::Regular,
-            TextAlign::End,
-        );
-        right - width - 8.0 - 10.0 - cards::mark::width(mark)
+        me(inputs).map(|me| cards::stacks(&me.cards))
     }
 
     /// How card `key` (0 the card up close, 1 and up the grid's) at `[x, y, width]` (frame

@@ -1976,8 +1976,9 @@ for the run.
     asking; `duel6_sjk_forge_windows`: 4:3 and 4K).
 - **Cards** ([collection_cards.rs](../crates/sjk-viewer/src/collection_cards.rs),
   [cards.md](cards.md#in-the-client), 12/10/2026; a binder since 19/10/2026): "5 of 13
-  cards found" with each set's progress under it ("SJK Alpha 5 / 13"), the kyber shards
-  and credits at the right of the headline (x up to 1080); the filter's chips at y 300
+  cards found" with each set's progress under it ("SJK Alpha 5 / 13"; the kyber shards
+  and credits, once at the headline's right, left it on 10/11/2026 as they covered the
+  sets' line, and show on the Forge tab); the filter's chips at y 300
   (All, Owned, Missing; "Rarity: Any", "Kind: Any", "Finish: Any", a click each on to the
   next; O, T, K, F) with "N of M cards" at the grid's right; every card of the packs as a
   tile (140 wide, six by three from y 340, scrolling a line a wheel notch, a bar at the

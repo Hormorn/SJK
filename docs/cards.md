@@ -848,8 +848,9 @@ contact sheets of twelve).
   come from the faces.
   - **The headline** says "5 of 13 cards found", the line under it each set's progress
     ("SJK Alpha 5 / 13", four sets at most, then "2 more sets"); with no card yet,
-    "Open a holocron on the Holocrons tab" after it. The kyber shards and credits stand
-    at its right. Without faces in the packs it says how many cards are held, as before.
+    "Open a holocron on the Holocrons tab" after it. The kyber shards and credits no
+    longer stand at its right (10/11/2026: they covered the sets' line); the Forge tab
+    shows them. Without faces in the packs it says how many cards are held, as before.
   - **The tiles** (140 frame pixels wide, six to a line, three lines shown from y 340;
     since 20/10/2026, Sol's request: seven at 122 were too small to tell apart):
     first the sealed copies, one tile per rarity, the rarest first (their back in the best
