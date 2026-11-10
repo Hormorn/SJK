@@ -125,6 +125,31 @@ pub(crate) const LIGHT_SWATCH: u16 = 70;
 /// presets ([`BrushPreset`]).
 pub(crate) const BRUSHES: u16 = 90;
 
+/// Selected, on a caulk, nodraw or sky face: the switch between the shader list and the
+/// texture's alignment, and the alignment's buttons (`ALIGN_STEPS`, in their order).
+pub(crate) const ALIGN: u16 = 600;
+pub(crate) const ALIGN_STEP: u16 = 601;
+
+/// The alignment's buttons, three rows of four: what each says and the step it takes
+/// ([`super::align`]), before Shift makes it fine.
+pub(crate) const ALIGN_STEPS: [(&str, super::align::Step); 12] = {
+    use super::align::{SCALE_STEP, SHIFT_STEP, Step, TURN_STEP};
+    [
+        ("Left", Step::Shift([SHIFT_STEP, 0.0])),
+        ("Right", Step::Shift([-SHIFT_STEP, 0.0])),
+        ("Up", Step::Shift([0.0, SHIFT_STEP])),
+        ("Down", Step::Shift([0.0, -SHIFT_STEP])),
+        ("Turn left", Step::Rotate(TURN_STEP)),
+        ("Turn right", Step::Rotate(-TURN_STEP)),
+        ("Smaller", Step::Scale([1.0 / SCALE_STEP; 2])),
+        ("Bigger", Step::Scale([SCALE_STEP; 2])),
+        ("Flip across", Step::Scale([-1.0, 1.0])),
+        ("Flip down", Step::Scale([1.0, -1.0])),
+        ("Fit", Step::Fit),
+        ("Reset", Step::Reset),
+    ]
+};
+
 /// The browser editor's brush-view presets, as `r_showBrushes` and `r_showBrushesTypes`
 /// set them: none, what play feels (`r_showBrushes 1`), the faces a caulk fix is about
 /// (caulk, nodraw and invisible walls), every kind.
@@ -427,6 +452,8 @@ pub(crate) enum Action {
     LampReset,
     /// F: glide the camera to frame the selection (`mapedit_frame`).
     Frame,
+    /// A step of the selected faces' texture alignment (`mapedit_align`).
+    Align(super::align::Step),
     /// A double click on a row: glide the camera to what it names.
     FlyTo(FlyTarget),
 }
@@ -555,6 +582,8 @@ pub(crate) struct Facts {
     pub(crate) creator: bool,
     /// The invisible brushes' view in force, when it is one of the presets.
     pub(crate) brushes: Option<BrushPreset>,
+    /// How the newest selected face's texture lies, when an edit draws it.
+    pub(crate) align: Option<super::document::Align>,
 }
 
 /// What the panel's facts were read for ([`Panel`]'s `seen`): the document's revision,
@@ -664,6 +693,8 @@ pub(crate) struct Panel {
     /// The last click on a list's row (its token) and when: a second soon after is a
     /// double click ([`DOUBLE_CLICK`]).
     last_click: Option<(u16, std::time::Instant)>,
+    /// Selected shows a face's texture alignment instead of the shader list.
+    pub(crate) aligning: bool,
 }
 
 /// Whether `path` (the game data's spelling) is a model a map edit can place: an MD3
@@ -1485,6 +1516,10 @@ impl Panel {
             SELECT_PLACED => return Some(Action::SelectPlaced),
             DUPLICATE => return Some(Action::Duplicate),
             TILES => self.toggle_tiles(),
+            ALIGN => self.aligning = !self.aligning,
+            step if (ALIGN_STEP..ALIGN_STEP + ALIGN_STEPS.len() as u16).contains(&step) => {
+                return Some(Action::Align(ALIGN_STEPS[usize::from(step - ALIGN_STEP)].1));
+            }
             REMEMBER => return Some(Action::Remember),
             FORGET => return Some(Action::Forget),
             PLACE | SEARCH => return Some(Action::Place),
@@ -1953,6 +1988,7 @@ impl GpuState {
                 away: away.signum() * f32::from(away != 0.0),
             },
             Action::Scale(factor) if fine => Action::Scale(factor.powf(0.1)),
+            Action::Align(step) if fine => Action::Align(super::align::fine(step)),
             action => action,
         };
         let (name, args): (&str, Vec<String>) = match action {
@@ -2183,6 +2219,7 @@ impl GpuState {
                 }
             },
             Action::Frame => ("mapedit_frame", vec![]),
+            Action::Align(step) => ("mapedit_align", super::align::words(step)),
             Action::FlyTo(target) => match self.map_edit_fly_target(target) {
                 Ok((centre, radius)) => {
                     ("mapedit_frame", super::fly_to::frame_words(centre, radius))
@@ -2540,6 +2577,7 @@ impl GpuState {
             )
         });
         let forced = self.context.weather.force() != 0;
+        let align = self.map_edit_selected_align();
         let hub_problem = match &state.hub_note {
             Some(Err(problem)) => Some(problem.clone()),
             _ => None,
@@ -2584,6 +2622,7 @@ impl GpuState {
             on_server,
             creator,
             brushes,
+            align,
         };
         let vfs = self.vfs.clone();
         let panel = &mut self.map_edits.panel;

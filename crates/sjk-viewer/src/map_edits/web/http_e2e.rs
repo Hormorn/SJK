@@ -658,7 +658,10 @@ fn serve_the_page_for_a_browser() {
                         {
                             Some((points, normal)) => {
                                 let uv = crate::map_edits::faces::texture_coordinates(
-                                    &points, normal, None,
+                                    &points,
+                                    normal,
+                                    None,
+                                    &crate::map_edits::document::Align::default(),
                                 );
                                 shown_faces.push(serde_json::json!({
                                     "id": shown_faces.len() + 1, "points": points,

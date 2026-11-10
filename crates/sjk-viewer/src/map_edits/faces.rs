@@ -10,6 +10,7 @@
 //! over the sky: every program that draws on the sky's own faces pushes their depth back
 //! (`SKY_FACE_PUSH`), so the face drawn on their plane covers them.
 
+use super::document::Align;
 use crate::brush_view::kinds::Kind as BrushKind;
 use crate::scene_flatten::{ActorDraw, FlattenedScene, ViewerMaterial};
 use glam::Vec3;
@@ -17,8 +18,6 @@ use sjk_bsp::Bsp;
 
 /// A side smaller than this (square units) is a bevel or a sliver: not offered.
 const MIN_AREA: f32 = 0.5;
-/// Radiant's default texture scale: a texel covers half a unit.
-const TEXTURE_SCALE: f32 = 0.5;
 /// What a texture of unknown size is taken to measure.
 const DEFAULT_TEXTURE_SIZE: [f32; 2] = [256.0; 2];
 /// `SURF_SKY` (`codemp/game/surfaceflags.h`): the side is drawn as the sky.
@@ -284,9 +283,33 @@ pub(crate) fn centre(polygon: &[[f32; 3]]) -> [f32; 3] {
     (sum / polygon.len().max(1) as f32).to_array()
 }
 
+/// The corners of the face `polygon` (`normal` out of its brush) as drawn: positions
+/// relative to `origin` (where it is lit from), its texture laid as `align` lays it on a
+/// `size` (width, height) texture. What [`append`] draws, and what a new alignment
+/// writes over a face's mesh in place.
+pub(crate) fn vertices(
+    polygon: &[[f32; 3]],
+    normal: [f32; 3],
+    origin: [f32; 3],
+    size: Option<[u32; 2]>,
+    align: &Align,
+) -> Vec<crate::GpuVertex> {
+    polygon
+        .iter()
+        .zip(texture_coordinates(polygon, normal, size, align))
+        .map(|(point, texture_coordinates)| crate::GpuVertex {
+            position: (Vec3::from_array(*point) - Vec3::from_array(origin)).to_array(),
+            normal,
+            color: [1.0; 4],
+            texture_coordinates,
+            lightmap_coordinates: [0.0; 2],
+        })
+        .collect()
+}
+
 /// Append the face `polygon` (corners in order, `normal` out of its brush) drawn with
 /// `shader` to `scene`, its positions relative to `origin` (where it is lit from), its
-/// texture laid as Radiant lays it on a `size` (width, height) texture.
+/// texture laid as `align` lays it on a `size` (width, height) texture.
 pub(crate) fn append(
     scene: &mut FlattenedScene,
     polygon: &[[f32; 3]],
@@ -294,25 +317,16 @@ pub(crate) fn append(
     origin: [f32; 3],
     shader: &str,
     size: Option<[u32; 2]>,
+    align: &Align,
 ) -> Result<Vec<ActorDraw>, Box<dyn std::error::Error>> {
     if polygon.len() < 3 {
         return Err("a face has three corners at least".into());
     }
     let vertex_base: u32 = scene.vertices.len().try_into()?;
     let index_start: u32 = scene.indices.len().try_into()?;
-    let coordinates = texture_coordinates(polygon, normal, size);
-    scene.vertices.extend(
-        polygon
-            .iter()
-            .zip(coordinates)
-            .map(|(point, texture_coordinates)| crate::GpuVertex {
-                position: (Vec3::from_array(*point) - Vec3::from_array(origin)).to_array(),
-                normal,
-                color: [1.0; 4],
-                texture_coordinates,
-                lightmap_coordinates: [0.0; 2],
-            }),
-    );
+    scene
+        .vertices
+        .extend(vertices(polygon, normal, origin, size, align));
     // Wound as the map's drawn faces are (clockwise seen from the front), so a shader
     // culling back faces shows it on the side its normal points to.
     let corner = |i: usize| Vec3::from_array(polygon[i]);
@@ -341,28 +355,100 @@ pub(crate) fn append(
     }])
 }
 
-/// The texture coordinates of `polygon`'s corners as Radiant textures a new brush (the
-/// axial projection at scale 0.5 of an image of `size`, 256 square when unknown): what
+/// The size a texture of `size` is taken to have: 256 square when unknown.
+fn texture_size(size: Option<[u32; 2]>) -> [f32; 2] {
+    size.map_or(DEFAULT_TEXTURE_SIZE, |[w, h]| {
+        [w.max(1) as f32, h.max(1) as f32]
+    })
+}
+
+/// The texture coordinates of `polygon`'s corners as Radiant lays a brush face's
+/// texture (`Face_TextureVectors`): the axial projection ([`texture_axes`]) turned by
+/// `align.rotate` within its plane, each axis divided by its `align.scale`, shifted by
+/// `align.shift` texels, over an image of `size` (256 square when unknown). At the
+/// default (scale 0.5, no shift, no turn) it is how Radiant textures a new brush. What
 /// [`append`] draws, and the browser editor's page too.
 pub(crate) fn texture_coordinates(
     polygon: &[[f32; 3]],
     normal: [f32; 3],
     size: Option<[u32; 2]>,
+    align: &Align,
 ) -> Vec<[f32; 2]> {
-    let size = size.map_or(DEFAULT_TEXTURE_SIZE, |[w, h]| {
-        [w.max(1) as f32, h.max(1) as f32]
-    });
-    let (s, t) = texture_axes(normal);
+    let size = texture_size(size);
+    let (s, t) = aligned_axes(normal, align.rotate);
     polygon
         .iter()
         .map(|point| {
             let world = Vec3::from_array(*point);
             [
-                world.dot(s) / TEXTURE_SCALE / size[0],
-                world.dot(t) / TEXTURE_SCALE / size[1],
+                (world.dot(s) / align.scale[0] + align.shift[0]) / size[0],
+                (world.dot(t) / align.scale[1] + align.shift[1]) / size[1],
             ]
         })
         .collect()
+}
+
+/// The alignment that fits the texture once across `polygon` and once down it (Radiant's
+/// Fit 1 x 1): each scale set so the face's extent along the texture's axis is the
+/// image's size, each shift so its low edge starts the image; the turn and each scale's
+/// sign (a flip) are kept. A face with no extent along an axis keeps that axis.
+pub(crate) fn fit(
+    polygon: &[[f32; 3]],
+    normal: [f32; 3],
+    size: Option<[u32; 2]>,
+    align: &Align,
+) -> Align {
+    let size = texture_size(size);
+    let (s, t) = aligned_axes(normal, align.rotate);
+    let mut fitted = *align;
+    for (axis, along) in [s, t].into_iter().enumerate() {
+        let (low, high) = polygon
+            .iter()
+            .map(|point| Vec3::from_array(*point).dot(along))
+            .fold((f32::INFINITY, f32::NEG_INFINITY), |(low, high), value| {
+                (low.min(value), high.max(value))
+            });
+        let extent = high - low;
+        if !(extent > 1e-3) {
+            continue;
+        }
+        let sign = if align.scale[axis] < 0.0 { -1.0 } else { 1.0 };
+        let scale = (extent / size[axis]).clamp(
+            *super::document::ALIGN_SCALE.start(),
+            *super::document::ALIGN_SCALE.end(),
+        ) * sign;
+        // The low edge at 0 (the high one when flipped), the other at 1.
+        let start = if sign > 0.0 { low } else { high };
+        fitted.scale[axis] = scale;
+        fitted.shift[axis] = -start / scale;
+    }
+    fitted
+}
+
+/// Radiant's texture axes for a face with `normal`, turned `degrees` within the plane
+/// of their two world axes (`Face_TextureVectors`: each axis's components on the pair
+/// turned as a 2D vector).
+fn aligned_axes(normal: [f32; 3], degrees: f32) -> (Vec3, Vec3) {
+    let (s, t) = texture_axes(normal);
+    if degrees == 0.0 {
+        return (s, t);
+    }
+    let component = |axis: Vec3| {
+        axis.to_array()
+            .iter()
+            .position(|value| *value != 0.0)
+            .unwrap_or(0)
+    };
+    let (sv, tv) = (component(s), component(t));
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    let turn = |axis: Vec3| {
+        let mut turned = axis.to_array();
+        let (a, b) = (turned[sv], turned[tv]);
+        turned[sv] = cos * a - sin * b;
+        turned[tv] = sin * a + cos * b;
+        Vec3::from_array(turned)
+    };
+    (turn(s), turn(t))
 }
 
 /// Radiant's texture axes for a face with `normal` (`TextureAxisFromPlane`): the world
@@ -561,6 +647,7 @@ pub(crate) mod tests {
             middle,
             "textures/a/wall",
             Some([256, 256]),
+            &Align::default(),
         )
         .unwrap();
         assert_eq!(draws.len(), 1);
@@ -572,5 +659,79 @@ pub(crate) mod tests {
         assert_eq!(scene.vertices[3].texture_coordinates, [0.0, -1.0]);
         assert_eq!(scene.materials[0].shader, "textures/a/wall");
         assert_eq!(area(&square), 128.0 * 128.0);
+    }
+
+    /// Radiant's alignment: a shift moves the texture by texels, a scale by units a texel
+    /// covers (negative flips), a turn turns its axes in their plane, and Fit lays the
+    /// image once across the face, whatever the turn or a flip.
+    #[test]
+    fn a_faces_texture_shifts_scales_turns_and_fits_as_radiants() {
+        let floor = [
+            [0.0, 0.0, 0.0],
+            [128.0, 0.0, 0.0],
+            [128.0, 64.0, 0.0],
+            [0.0, 64.0, 0.0],
+        ];
+        let up = [0.0, 0.0, 1.0];
+        let size = Some([256, 128]);
+        let at = |align: &Align| texture_coordinates(&floor, up, size, align);
+        let plain = at(&Align::default());
+        // 128 units of a 256-wide image at 0.5: one image across; y runs down the t axis.
+        assert_eq!(plain[1], [1.0, 0.0]);
+        assert_eq!(plain[3], [0.0, -1.0]);
+        let shifted = at(&Align {
+            shift: [64.0, 32.0],
+            ..Align::default()
+        });
+        assert_eq!(shifted[0], [0.25, 0.25]);
+        let doubled = at(&Align {
+            scale: [1.0, 1.0],
+            ..Align::default()
+        });
+        assert_eq!(doubled[1], [0.5, 0.0]);
+        let flipped = at(&Align {
+            scale: [-0.5, 0.5],
+            ..Align::default()
+        });
+        assert_eq!(flipped[1], [-1.0, 0.0]);
+        // A quarter turn: what ran along x now runs along y.
+        let turned = at(&Align {
+            rotate: 90.0,
+            ..Align::default()
+        });
+        assert!((turned[1][0]).abs() < 1e-5, "{:?}", turned[1]);
+        assert!((turned[1][1] - 2.0).abs() < 1e-5, "{:?}", turned[1]);
+        // Fit: the image once across and down, its corner on the face's.
+        for align in [
+            Align::default(),
+            Align {
+                rotate: 30.0,
+                ..Align::default()
+            },
+            Align {
+                scale: [-0.5, 0.25],
+                shift: [17.0, 3.0],
+                ..Align::default()
+            },
+        ] {
+            let fitted = fit(&floor, up, size, &align);
+            assert_eq!(fitted.rotate, align.rotate);
+            assert_eq!(
+                fitted.scale.map(f32::signum),
+                align.scale.map(f32::signum),
+                "a flip is kept"
+            );
+            let uv = texture_coordinates(&floor, up, size, &fitted);
+            for axis in 0..2 {
+                let (low, high) = uv.iter().fold((f32::MAX, f32::MIN), |(l, h), c| {
+                    (l.min(c[axis]), h.max(c[axis]))
+                });
+                assert!(
+                    low.abs() < 1e-4 && (high - 1.0).abs() < 1e-4,
+                    "{align:?} {uv:?}"
+                );
+            }
+        }
+        assert!(fit(&floor, up, size, &Align::default()).valid());
     }
 }

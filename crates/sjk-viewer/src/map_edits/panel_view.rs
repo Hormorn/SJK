@@ -490,6 +490,11 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 (LINK_PLANE, "Same plane", true),
                 (LINK_SURFACE, "Connected", true),
                 (FILL, "Fill", panel.facts.fill.is_some()),
+                (
+                    ALIGN,
+                    if panel.aligning { "Shaders" } else { "Align" },
+                    true,
+                ),
             ],
         ),
         Picked::Other => {}
@@ -498,6 +503,10 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
         return;
     }
     y += BUTTON + 34.0;
+    if panel.aligning && matches!(selection.picked, Picked::Face | Picked::Sky) {
+        align_page(ui, frame, panel, y);
+        return;
+    }
     kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Draw another shader");
     let card_top = y - 10.0;
     y += 18.0;
@@ -585,6 +594,62 @@ fn selected(ui: &mut MenuCanvas, frame: &Frame, panel: &mut Panel) {
                 ),
             ]
         },
+    );
+}
+
+/// Selected's texture alignment of a drawn face (Align): how it lies now, then the
+/// shifts, turns, growths, flips, Fit and Reset, three rows of four, each one
+/// `mapedit_align` on every selected drawn face.
+fn align_page(ui: &mut MenuCanvas, frame: &Frame, panel: &Panel, mut y: f32) {
+    kit::heading(ui, frame, COLUMN_X, y, COLUMN_WIDTH, "Lay the texture");
+    y += 22.0;
+    let drawn = panel.facts.align;
+    match drawn {
+        Some(align) => {
+            let words = align.describe();
+            let mut letters = words.chars();
+            let first = letters.next().map(|c| c.to_ascii_uppercase());
+            let words: String = first.into_iter().chain(letters).collect();
+            line(ui, frame, y, &words, color::TEXT);
+        }
+        None => line(
+            ui,
+            frame,
+            y,
+            "Drawn by no edit: Draw a shader on it first",
+            color::MUTED,
+        ),
+    }
+    y += 40.0;
+    for (row, steps) in ALIGN_STEPS.chunks(4).enumerate() {
+        let tokens: Vec<(u16, &str, bool)> = steps
+            .iter()
+            .enumerate()
+            .map(|(index, (label, _))| {
+                (
+                    ALIGN_STEP + (row * 4 + index) as u16,
+                    *label,
+                    drawn.is_some(),
+                )
+            })
+            .collect();
+        buttons(ui, frame, panel, y, &tokens);
+        y += BUTTON + GAP;
+    }
+    y += 6.0;
+    line(
+        ui,
+        frame,
+        y,
+        "Shift: a texel, a degree, a finer growth.",
+        color::MUTED,
+    );
+    line(
+        ui,
+        frame,
+        y + 24.0,
+        "Every selected drawn face, one step to undo.",
+        color::MUTED,
     );
 }
 
@@ -2195,6 +2260,20 @@ mod tests {
             ("fill", fill_panel()),
             ("lights", lights_panel()),
             ("things", things_panel()),
+            ("align", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Face));
+                panel.aligning = true;
+                panel.facts.align = Some(super::super::document::Align {
+                    shift: [8.0, 0.0],
+                    ..Default::default()
+                });
+                panel
+            }),
+            ("align undrawn", {
+                let mut panel = panel(Tab::Selected, Some(Picked::Sky));
+                panel.aligning = true;
+                panel
+            }),
         ]
     }
 
@@ -2522,6 +2601,14 @@ mod tests {
         let edits = tokens("edits");
         assert!(edits.contains(&(EDIT_ROW + EDIT_ROWS as u16 - 1)) && edits.contains(&DELETE));
         assert!(edits.contains(&UNDO) && edits.contains(&REDO));
+        // A face's Align swaps the shader list for the texture's steps.
+        assert!(tokens("face").contains(&ALIGN) && tokens("sky").contains(&ALIGN));
+        assert!(!tokens("surface").contains(&ALIGN));
+        let align = tokens("align");
+        assert!(align.contains(&ALIGN) && !align.contains(&REMAP_FIELD));
+        let last = ALIGN_STEP + ALIGN_STEPS.len() as u16 - 1;
+        assert!(align.contains(&ALIGN_STEP) && align.contains(&last));
+        assert!(!tokens("face").contains(&ALIGN_STEP));
     }
 
     #[test]

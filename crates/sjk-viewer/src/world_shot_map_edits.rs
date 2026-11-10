@@ -756,6 +756,7 @@ fn caulk_face_shown() {
                 side: side as u32,
                 shader: shader.clone(),
                 to: target.clone(),
+                align: crate::map_edits::document::Align::default(),
             },
             None,
         );
@@ -1087,6 +1088,7 @@ fn sky_face_covered() {
                 side,
                 shader: shader.clone(),
                 to: target.clone(),
+                align: crate::map_edits::document::Align::default(),
             },
             None,
         );

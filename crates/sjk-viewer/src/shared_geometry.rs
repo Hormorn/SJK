@@ -88,6 +88,33 @@ fn buffer_with(
 }
 
 impl SharedGeometry {
+    /// How many vertices the buffers hold: where the next [`Self::append`] lands.
+    pub(crate) fn vertex_count(&self) -> u32 {
+        self.vertex_count
+    }
+
+    /// Write `vertices` over those from `base`, when they lie in what was appended (a map
+    /// edit's shown face given a new texture alignment, `map_edits`). Whether they did.
+    pub(crate) fn write_vertices(
+        &self,
+        queue: &crate::frame_queue::FrameQueue,
+        base: u32,
+        vertices: &[GpuVertex],
+    ) -> bool {
+        let fits = u32::try_from(vertices.len())
+            .ok()
+            .and_then(|count| base.checked_add(count))
+            .is_some_and(|end| end <= self.vertex_count);
+        if fits && !vertices.is_empty() {
+            queue.write_buffer(
+                &self.vertex_buffer,
+                u64::from(base) * std::mem::size_of::<GpuVertex>() as u64,
+                bytemuck::cast_slice(vertices),
+            );
+        }
+        fits
+    }
+
     /// Upload the load-time scene.
     pub(crate) fn upload(device: &wgpu::Device, vertices: &[GpuVertex], indices: &[u32]) -> Self {
         let vertex_capacity = room(vertices.len() as u32, LEAST_VERTICES);

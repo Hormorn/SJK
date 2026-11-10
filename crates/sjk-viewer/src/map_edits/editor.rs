@@ -43,6 +43,7 @@ const CHANGES: &[&str] = &[
     "mapedit_delete",
     "mapedit_fill",
     "mapedit_duplicate",
+    "mapedit_align",
     "mapedit_weather",
     "mapedit_light",
     "mapedit_light_set",
@@ -277,6 +278,10 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: copy the selected placed models, offset (dx dy dz; 16 units to your right by default), in one step to undo; the copies are selected",
     ),
     (
+        "mapedit_align",
+        "Map editor: lay the texture of the selected drawn faces: shift <s t> texels, scale <s t> (factors; negative flips), rotate <degrees>, fit, reset, or set <shift s t> <scale s t> <degrees>",
+    ),
+    (
         "mapedit_frame",
         "Map editor: glide the camera to frame the selection (F), or the point x y z [radius] given; the body stays where it is",
     ),
@@ -464,6 +469,7 @@ impl GpuState {
             "mapedit_select" => self.map_edit_select_command(args),
             "mapedit_duplicate" => self.map_edit_duplicate(args),
             "mapedit_frame" => self.map_edit_frame_command(args),
+            "mapedit_align" => self.map_edit_align(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_weather" => self.map_edit_weather(args),
             "mapedit_light" => self.map_edit_light(args),
@@ -1188,6 +1194,7 @@ impl GpuState {
                 side,
                 shader: shader.clone(),
                 to: to.clone(),
+                align: super::document::Align::default(),
             },
             server,
         );
@@ -1904,6 +1911,7 @@ fn apply_many(
                         side: *side,
                         shader: shader.clone(),
                         to: to.clone(),
+                        align: super::document::Align::default(),
                     },
                     server.clone(),
                 );
@@ -2329,6 +2337,7 @@ mod tests {
                 side: face.1,
                 shader: face.2.clone(),
                 to: "textures/a/stone".into(),
+                align: crate::map_edits::document::Align::default(),
             },
             None,
         );
