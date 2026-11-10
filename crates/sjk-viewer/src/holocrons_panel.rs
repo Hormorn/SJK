@@ -128,6 +128,9 @@ pub(crate) struct Data {
     pub(crate) editions: Vec<(u64, String)>,
     /// The person's pity counter, once the hub said.
     pub(crate) pity: Option<crate::kyber::Pity>,
+    /// The Beta season's tables and the person's holocron pity, once the hub said
+    /// ([`crate::seasons`], 10/11/2026).
+    pub(crate) seasons: Option<sjk_identity::SeasonTables>,
     /// The player's credits, once known.
     pub(crate) credits: Option<u64>,
     /// The player's kyber shards, once known.
@@ -159,6 +162,7 @@ impl Data {
             crystal_sealed: Default::default(),
             editions: Vec::new(),
             pity: None,
+            seasons: None,
             credits: None,
             shards: None,
             every: None,
@@ -257,6 +261,7 @@ impl Data {
             crystal_sealed,
             editions,
             pity: crate::kyber::Pity::of(snapshot.kyber.as_ref()),
+            seasons: snapshot.seasons.clone(),
             credits: Some(me.credits),
             shards: Some(me.shards),
             every: progress
@@ -292,6 +297,14 @@ impl Data {
     /// What editions the tier at `slot`'s unopened ones are of, for its hover card:
     /// "Alpha Edition" when they are all of one, else how many of each ("2 Alpha, 1
     /// Beta", the oldest edition first); `None` when none is held.
+    /// Whether any unopened holocron of the tile at `slot` is a Beta one ([`crate::seasons`]).
+    pub(crate) fn holds_beta(&self, slot: usize) -> bool {
+        let sealed = self.sealed_of(slot);
+        self.editions
+            .iter()
+            .any(|(id, edition)| edition == crate::editions::BETA && sealed.contains(id))
+    }
+
     pub(crate) fn editions_line(&self, slot: usize) -> Option<String> {
         let sealed = self.sealed_of(slot);
         let mut counts: Vec<(&str, u32)> = Vec::new();
@@ -419,6 +432,8 @@ pub(crate) struct Panel {
     bonus_prizes: Vec<opening::Prize>,
     /// The loot table shows over the page.
     loot: bool,
+    /// Whether the loot table shows the Beta season's page ([`crate::seasons`]).
+    loot_beta: bool,
     /// Open all's question shows, the focus on its Open all or Cancel ([`ask_all`]).
     ask_all: Option<ask_all::AskAll>,
     /// The serial of the identity's last opening the page saw, so a new one is its
@@ -470,6 +485,7 @@ impl Panel {
             ceremony: None,
             bonus_prizes: Vec::new(),
             loot: false,
+            loot_beta: false,
             ask_all: None,
             opening_serial: 0,
             epoch: Instant::now(),
@@ -1023,6 +1039,7 @@ mod tests {
             log_answer: None,
             economy: None,
             kyber: None,
+            seasons: None,
             shop: None,
             trade: None,
             tag_trade: None,
@@ -1251,6 +1268,8 @@ mod tests {
             credits: 42,
             unlock: None,
             shards: 0,
+            extra: Vec::new(),
+            pity: None,
         }
     }
 

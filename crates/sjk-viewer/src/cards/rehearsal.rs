@@ -21,7 +21,12 @@
 //! debug_open mythical shards     one Mythical Holocron, a pile of kyber shards
 //! debug_open kyber_rare x3       three Rare Kyber Crystals, each a saber shader
 //! debug_open kyber               one kyber crystal of every tier
+//! debug_open mythical beta       one Beta Mythical Holocron: its card, shader and bonuses
 //! ```
+//!
+//! `beta` (10/11/2026) makes every card opening of Rare or better a Beta holocron's
+//! (`docs/cards.md`, "Seasons"): a Beta card, and as made-up extras a droppable shader
+//! from Legendary on, a pile of shards and, from a Mythical one, a second card.
 //!
 //! A kyber crystal ([`crate::kyber`]) always gives a saber shader: the droppable ones in
 //! turn, of the tiers its odds can give.
@@ -34,7 +39,7 @@ use sjk_identity::{Opened, OpenedCard, OpenedUnlock};
 /// The console command.
 pub(crate) const COMMAND: &str = "debug_open";
 /// Its line in the command list and browser.
-pub(crate) const HELP: &str = "Rehearse opening holocrons, nothing sent: debug_open <tier|all> [x<count>] [normal|holo|solar|shader|shards]";
+pub(crate) const HELP: &str = "Rehearse opening holocrons, nothing sent: debug_open <tier|all> [x<count>] [normal|holo|solar|shader|shards|beta]";
 /// The word that names every tier.
 const ALL: &str = "all";
 /// The word that names every kyber crystal tier.
@@ -45,7 +50,7 @@ const MOST: u32 = sjk_identity::OPEN_MAX as u32;
 /// The command's usage and the tiers it knows.
 pub(crate) fn listing() -> Vec<String> {
     let mut lines = vec![
-        format!("usage: {COMMAND} <tier|all> [x<count>] [normal|holo|solar|shader|shards]"),
+        format!("usage: {COMMAND} <tier|all> [x<count>] [normal|holo|solar|shader|shards|beta]"),
         "Plays the Holocrons tab's opening as if the hub had opened holocrons: the burst, the sealed card, its finish, the credits and shards beside it. Nothing is sent to the SJK hub and nothing is kept.".to_owned(),
     ];
     for (index, tier) in TIERS.iter().enumerate() {
@@ -82,7 +87,7 @@ fn crystal_shaders(index: usize) -> Vec<&'static crate::unlockables::Unlockable>
 /// What opening the holocrons `args` name would bring (made up, never rolled by the hub).
 pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
     let usage =
-        || format!("usage: {COMMAND} <tier|all> [x<count>] [normal|holo|solar|shader|shards]");
+        || format!("usage: {COMMAND} <tier|all> [x<count>] [normal|holo|solar|shader|shards|beta]");
     let Some((tier, rest)) = args.split_first() else {
         return Err(usage());
     };
@@ -109,6 +114,7 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
     let mut finish = None;
     let mut shader = false;
     let mut shards = false;
+    let mut beta = false;
     for word in rest {
         let word = word.to_ascii_lowercase();
         if let Some(number) = word.strip_prefix('x') {
@@ -121,6 +127,8 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
             shader = true;
         } else if word == "shards" {
             shards = true;
+        } else if word == "beta" {
+            beta = true;
         } else if let Some(found) = FINISHES.iter().find(|finish| finish.id == word) {
             finish = Some(found);
         } else {
@@ -155,6 +163,8 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
                         count: 1 + (at as u32 % 2),
                     }),
                     shards: 0,
+                    extra: Vec::new(),
+                    pity: None,
                 });
                 continue;
             }
@@ -168,6 +178,8 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
                     credits: 0,
                     unlock: None,
                     shards: u64::from(least + (at as u32 * 7) % (most - least + 1)),
+                    extra: Vec::new(),
+                    pity: None,
                 });
                 continue;
             }
@@ -189,10 +201,19 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
                         count: 1 + (at as u32 % 2),
                     }),
                     shards: 0,
+                    extra: Vec::new(),
+                    pity: None,
                 });
                 continue;
             }
             let rarity = &RARITIES[(tier.index + at) % RARITIES.len()];
+            let beta = beta && tier.index >= 1;
+            let extra = if beta {
+                beta_extras(tier.index, at)
+            } else {
+                Vec::new()
+            };
+            let edition = if beta { "beta" } else { "alpha" };
             let (least, most) = crate::loot_odds::current().credits[tier.index];
             // The card pack's shards, made up the same way.
             let (few, many) = crate::loot_odds::current().card_shards[tier.index];
@@ -208,15 +229,62 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
                         .unwrap_or(&FINISHES[(tier.index + at) % FINISHES.len()])
                         .id
                         .to_owned(),
-                    edition: "alpha".to_owned(),
+                    edition: edition.to_owned(),
                 }),
                 credits: u64::from(least + (at as u32 * 7) % (most - least + 1)),
                 unlock: None,
                 shards: u64::from(few + (at as u32 * 3) % (many - few + 1)),
+                extra,
+                pity: None,
             });
         }
     }
     Ok(opened)
+}
+
+/// A rehearsed Beta holocron's extras (`beta`): a droppable shader of its tier or near
+/// from Legendary (index 2) on, a pile of shards, and a second card from a Mythical one.
+fn beta_extras(tier: usize, at: usize) -> Vec<sjk_identity::OpenedExtra> {
+    let mut extra = Vec::new();
+    if tier >= 2 {
+        let skins: Vec<_> = crate::unlockables::blade_skins()
+            .filter(|skin| skin.droppable && skin.tier >= crate::unlockables::Rarity::Rare)
+            .collect();
+        if let Some(skin) = skins.get(at % skins.len().max(1)) {
+            extra.push(sjk_identity::OpenedExtra {
+                kind: "shader".to_owned(),
+                unlock: Some(OpenedUnlock {
+                    finish: None,
+                    id: skin.id.to_owned(),
+                    name: skin.name.to_owned(),
+                    count: 1,
+                }),
+                card: None,
+                shards: 0,
+            });
+        }
+    }
+    extra.push(sjk_identity::OpenedExtra {
+        kind: "shards".to_owned(),
+        unlock: None,
+        card: None,
+        shards: 25 + (at as u64 * 5) % 25,
+    });
+    if tier >= 3 {
+        extra.push(sjk_identity::OpenedExtra {
+            kind: "card".to_owned(),
+            unlock: None,
+            card: Some(OpenedCard {
+                id: 100 + at as u64,
+                card: None,
+                rarity: RARITIES[2 + at % 3].id.to_owned(),
+                finish: FINISHES[1].id.to_owned(),
+                edition: "beta".to_owned(),
+            }),
+            shards: 0,
+        });
+    }
+    extra
 }
 
 /// The face a rehearsed copy of `rarity` shows, going round that rarity's faces by
@@ -296,9 +364,24 @@ mod tests {
         );
         let shown: Vec<_> = all
             .iter()
-            .filter_map(crate::console::holocrons_panel::opening::Prize::of)
+            .flat_map(crate::console::holocrons_panel::opening::Prize::all)
             .collect();
         assert_eq!(shown.len(), 4, "every one shows");
+        // A Beta Mythical: its card, a shader, a pile and a second card.
+        let beta = parse(&words("mythical beta")).unwrap();
+        assert_eq!(beta[0].card.as_ref().unwrap().edition, "beta");
+        let kinds: Vec<&str> = beta[0]
+            .extra
+            .iter()
+            .map(|extra| extra.kind.as_str())
+            .collect();
+        assert_eq!(kinds, ["shader", "shards", "card"]);
+        assert_eq!(
+            crate::console::holocrons_panel::opening::Prize::all(&beta[0]).len(),
+            4
+        );
+        // An Uncommon one stays Alpha.
+        assert!(parse(&words("uncommon beta")).unwrap()[0].extra.is_empty());
         assert!(listing().iter().any(|line| line.contains("kyber_rare")));
     }
 

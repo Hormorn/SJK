@@ -1119,6 +1119,18 @@ pub(super) fn tier_card(index: usize, data: &Data) -> crate::menu::sjk::hover::C
         None => {}
     }
     lines.extend(edition_lines(tier.slot, data));
+    // A Beta one held (10/11/2026, [`crate::seasons`]): what it guarantees and the pity.
+    if data.holds_beta(tier.slot)
+        && let Some(tables) = &data.seasons
+    {
+        if let Some(beta) = tables.beta.iter().find(|beta| beta.tier == tier.id) {
+            lines.push(Line::status(crate::seasons::ABOUT));
+            if let Some(card) = crate::seasons::tier_lines(beta).into_iter().next() {
+                lines.push(Line::status(card));
+            }
+        }
+        lines.push(Line::status(crate::seasons::pity_line(&tables.pity)));
+    }
     Card {
         title: tier.title().into_owned(),
         colour: tier.colour,

@@ -1,3 +1,19 @@
+## Holocron seasons: the Beta tables
+
+10/11/2026, client `personal/holocron-seasons` and hub branch `beta-season` (Sol: "build what
+you can build, decisions later"). The 05/11 design ([cards.md](cards.md#seasons)) is built,
+behind the hub's Beta switch, which stays off: a Beta holocron of Rare or better gives a
+card with a rarity floor and its credits, a shader with a tier floor from Legendary on, and
+bonus rolls on top; pity 15/80 per person over Beta openings; Legendary and Mythical ones pick
+card faces not held yet; opening a Beta holocron needs the Beta release. The client shows a
+Beta holocron's prizes one by one, best last, has a Beta page on the loot table (B), the
+guarantee and pity on a Beta holocron's hover card, and `debug_open <tier> beta`.
+Verified on Windows 11: the hub's tests (the floors, the bonus shares with banners off, the
+pity's run and raise, a Beta Mythical's prizes, an Alpha holocron unchanged, a Beta Uncommon
+counted, fresh faces, the release gate, the status answer) and the client's (the wire, the
+reveal order, the rehearsal, the Beta page's lines and fit). Not verified: in a running
+client, or against a deployed hub. Not deployed; no changelog line until Beta opens.
+
 ## Map editor panel: the page's tools in game, and texture pictures
 
 09/11/2026, `personal/mapedit-ingame-2`, based on `main` `aeb7b1c4` (Sol: "I need all the

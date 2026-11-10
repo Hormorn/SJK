@@ -162,12 +162,16 @@ the hub decides. Rolls use the operating system's entropy, as drops do.
 
 ## Seasons
 
-Designed 05/11/2026 (Sol's request), not built. A **season** is a holocron's loot
+Designed 05/11/2026 (Sol's request); built 10/11/2026 (hub branch `beta-season`, client
+`personal/holocron-seasons`), not deployed: nothing changes for players until the hub is
+deployed and Beta opened (Order of work, step 3). A **season** is a holocron's loot
 tables. **Alpha** is every table above; **Beta** is the next one, made so that opening a
 Rare, Legendary and above all a Mythical holocron always feels worth it.
 
 ### Rules
 
+- **A holocron's season is its edition** ([Editions](unlockables.md#editions)), stamped by
+  the hub since 06/11/2026: no second stamp.
 - **A holocron keeps the season it dropped in.** The hub stamps it when it drops;
   opening it later always uses that season's tables and stamps its prizes with that
   season's edition ([Editions](unlockables.md#editions)). An Alpha holocron opened in
@@ -210,15 +214,18 @@ after a week of real Beta openings.
 
 ### Pity
 
-Per person, across seasons, shown on the Holocrons tab as the kyber crystals' is
-("Legendary or better within N holocrons"):
+Per person, counted over **Beta** holocrons opened (as built: an Alpha opening leaves it
+alone, so nobody starts Beta with a run already owed; a choice for Sol to confirm), shown on
+a Beta holocron's hover card and on the loot table's Beta page:
 
 - a prize of **Legendary or better** (shader or card) at the latest every **15**
   holocrons opened (about two days at the daily cap);
 - a **Mythical** prize (shader or card) at the latest every **80** (about ten days).
 
 A natural one resets its counter. The last opening of a run rolls its prize's tier from
-the floor up.
+the floor up: the guaranteed shader's when the holocron has one (Legendary, Mythical), else
+the card's. A Beta Uncommon holocron counts but is never raised, so a run it would end
+waits for the next Rare or better one. Tags, banners and shards do not count.
 
 ### No duplicate faces
 
@@ -234,6 +241,22 @@ days or so, each with a Legendary or better shader: a Legendary shader in the sh
 about 29 days of capped play. Accepted (my recommendation, 05/11/2026): Mythical drops
 are capped at one a day, and shaders avoid duplicates, so it fills a collection rather than
 the shard bank. Watch the shop's Legendary sales after a week.
+
+### As built (10/11/2026)
+
+- Hub `src/seasons.rs` (tables, floors, bonus shares, pity), `src/db/seasons.rs` (the
+  opening), table `holocron_pity`; Beta openings need the economy on. Bonus shares: a
+  Legendary holocron's tag, shard pile or banner a third each, a Mythical one's tag, pile,
+  banner or second card a quarter each (the second card without credits); while banners
+  do not drop their share is shared out among the others. A guaranteed shader is one the
+  person lacks first (the rolled tier, then above, then below to the floor). A Beta card
+  copy is stamped `beta`. Wire: the hub's `PROTOCOL.md`, "Seasons".
+- Client: `Prize::all` shows each prize of a Beta holocron as its own reveal, its best
+  last; `seasons.rs` writes the lines; the loot table's B key shows the Beta page; a Beta
+  holocron's hover card says what it guarantees and the pity; `debug_open mythical beta`
+  rehearses one.
+- Open for Sol: confirm the tables, the shader-floor economy risk below, pity counted on
+  Beta openings only, and when to open Beta (with Creyon's blades made droppable).
 
 ### Order of work
 
