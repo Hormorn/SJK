@@ -464,6 +464,10 @@ const HELP: &[(&str, &str)] = &[
         "Respect installed NPC-only model declarations and pack lists. Off ignores those rules; your blacklist still applies.",
     ),
     (
+        sjk_client::default_model_random::CVAR,
+        "A player whose model you lack shows as a retail model picked from its name instead of Kyle. Off, as in base JKA.",
+    ),
+    (
         sjk_client::player_model_eligibility::BLACKLIST_CVAR,
         "Model names separated by spaces, commas or semicolons. Players use Kyle instead; NPCs are unaffected.",
     ),

@@ -1226,6 +1226,11 @@ pub(super) const GAME: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Random missing models",
+        cvar: sjk_client::default_model_random::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Player model blacklist",
         cvar: sjk_client::player_model_eligibility::BLACKLIST_CVAR,
         kind: ValueKind::Text,

@@ -5153,6 +5153,13 @@ title: JA+ duellers pass through other players in prediction
 change: Walking through players in a private duel (or out of yours) no longer snaps back.
 test: JA+: two players duel, walk through them; while duelling, walk through a bystander.
 
+[default-model-random]
+area: Gameplay
+title: cg_defaultModelRandom: a stock model for a missing one (Slash, PR #406, hub #302)
+change: Off by default (Kyle). On: a player whose model you lack gets a stock model from its name.
+test: On a server with a model you lack (shown as Kyle): cg_defaultModelRandom 1 swaps it at once.
+test: The same model always gets the same stand-in; cg_defaultModelRandom 0 brings Kyle back.
+
 # ---- More changes ----
 
 [remove-modern-ui]
