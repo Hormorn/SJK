@@ -242,6 +242,33 @@ impl BindTable {
             false,
         )
     }
+
+    /// The commands an automatic repeat of a held key runs: its bind's (or its active
+    /// chord's) down-only commands, such as `weapnext`. Stock `CL_ParseBinding` runs
+    /// those again on every repeated press, so a held key keeps cycling the weapons; a
+    /// `+command` stays held and is not pressed again. Nothing for a key this binding
+    /// stream did not press.
+    pub fn commands_for_repeat(
+        &self,
+        state: &BindState,
+        key: &str,
+    ) -> Result<Vec<String>, BindError> {
+        let normalized = normalize_single_key(key)?;
+        if !state.held.contains(&normalized) {
+            return Ok(Vec::new());
+        }
+        let script = match state.active.get(&normalized) {
+            Some(combo) => self.get(combo),
+            None => self
+                .bindings
+                .get(&normalized)
+                .map(|binding| binding.command.as_str()),
+        };
+        Ok(commands_for_script(script, true)?
+            .into_iter()
+            .filter(|command| !command.trim_start().starts_with(['+', '-']))
+            .collect())
+    }
 }
 
 fn commands_for_script(command: Option<&str>, pressed: bool) -> Result<Vec<String>, BindError> {
@@ -387,6 +414,51 @@ mod tests {
         assert_eq!(binds.get("++k"), Some("say plus"));
         assert!(binds.bind("K+K", "no").is_err());
         assert!(binds.bind("K+", "no").is_err());
+    }
+
+    #[test]
+    fn a_held_key_repeats_only_its_down_only_commands() {
+        let mut binds = BindTable::new();
+        let mut state = BindState::default();
+        binds.bind("Q", "weapnext").unwrap();
+        binds.bind("E", "+attack; weapprev").unwrap();
+        binds.bind("R", "+use").unwrap();
+        binds.bind("R+T", "weapnext; +speed").unwrap();
+
+        // A key the bindings never saw pressed repeats nothing.
+        assert!(binds.commands_for_repeat(&state, "Q").unwrap().is_empty());
+
+        binds
+            .commands_for_chord_event(&mut state, "Q", true)
+            .unwrap();
+        assert_eq!(
+            binds.commands_for_repeat(&state, "Q").unwrap(),
+            ["weapnext"]
+        );
+        binds
+            .commands_for_chord_event(&mut state, "E", true)
+            .unwrap();
+        assert_eq!(
+            binds.commands_for_repeat(&state, "E").unwrap(),
+            ["weapprev"]
+        );
+        binds
+            .commands_for_chord_event(&mut state, "R", true)
+            .unwrap();
+        assert!(binds.commands_for_repeat(&state, "R").unwrap().is_empty());
+        // The chord's second key repeats the chord's down-only part.
+        binds
+            .commands_for_chord_event(&mut state, "T", true)
+            .unwrap();
+        assert_eq!(
+            binds.commands_for_repeat(&state, "T").unwrap(),
+            ["weapnext"]
+        );
+
+        binds
+            .commands_for_chord_event(&mut state, "Q", false)
+            .unwrap();
+        assert!(binds.commands_for_repeat(&state, "Q").unwrap().is_empty());
     }
 
     #[test]

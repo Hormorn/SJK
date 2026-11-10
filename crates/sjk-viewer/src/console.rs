@@ -696,6 +696,29 @@ impl ViewerConsole {
         }
     }
 
+    /// An automatic repeat of a held key: run its bind's down-only commands again
+    /// (`BindTable::commands_for_repeat`), so a held `weapnext` key keeps cycling as
+    /// in stock. Nothing for a key the bindings did not press.
+    pub(crate) fn repeat_bound_key(&mut self, code: KeyCode) {
+        let Some(name) = self.held_keys.name(code) else {
+            return;
+        };
+        match self
+            .shell
+            .binds
+            .commands_for_repeat(&self.bind_state, name.as_str())
+        {
+            Ok(commands) => {
+                for command in commands {
+                    if let Err(error) = self.shell.queue_script(&command) {
+                        self.shell.push_log(format!("^1Bind error: {error}"));
+                    }
+                }
+            }
+            Err(error) => self.shell.push_log(format!("^1Bind error: {error}")),
+        }
+    }
+
     /// Whether `code` went down through the bindings and is still held.
     pub(crate) fn holds_bound_key(&self, code: KeyCode) -> bool {
         self.held_keys.contains(code)
