@@ -1821,9 +1821,10 @@ for the run.
   the Hax's, how to turn it on and that `+use` held on a holder hacks them.
 - **Nameplates:** none exist yet. "No nameplates yet"; three empty places, dashed, each
   with a drawing of where its kind will go on the plate: Crest (before the name),
-  Frame (round the plate), Trail (under the plate). Over the model's head (projected
-  from the stage model's head with the last frame's view, `GpuState::frame_view`; over
-  the preview's head without a stage) the player's nameplate as a match draws it near
+  Frame (round the plate), Trail (under the plate). Under the model, at a fixed place
+  (its bottom at x 1120, y 950: between the empty places and the words, over the keys'
+  line; 10/11/2026, it stood over the model's head, projected from the stage, which
+  moves and put it into the row of tabs) the player's nameplate as a match draws it near
   (in the style chosen, `cg_nameplateStyle`, [client.md](client.md#nameplates), drawn
   with the match's layout at twice its size). The holo frame: their picture (or their
   initial on their colour) in the hexagon, the name in its colours and, while See &

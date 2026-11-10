@@ -1,7 +1,7 @@
 //! The Collection's Nameplates tab: ornaments for the nameplate every player sees over
 //! the player's head (`docs/client.md`, Nameplates). None exist yet, so the tab shows
 //! where they will go: three empty places on the left (a crest before the name, a
-//! frame round the plate, a trail under it) and, over the player's model beside the
+//! frame round the plate, a trail under it) and, under the player's model beside the
 //! page, their nameplate as a match draws it near in the style they chose (the holo
 //! frame, the capsule or the classic plate, `cg_nameplateStyle`, with its bars while
 //! they share), with dashed marks at those places.
@@ -10,7 +10,7 @@
 //! sharing the player's own health, shield and Force
 //! ([`crate::hud::nameplate::see_and_share`]).
 
-use super::view::{LEFT_X, MODEL_AREA, RIGHT_X, glow};
+use super::view::{LEFT_X, RIGHT_X, glow};
 use super::*;
 use crate::menu::sjk::{Frame, color, kit, text};
 use crate::menu_widgets::TextFamily;
@@ -31,6 +31,10 @@ const PLATE_ALPHA: f32 = 0.78;
 /// `cg_nameplateScale` 0.5.
 const CLASSIC_U: f32 = NAME_SIZE / 18.0;
 const CREST: f32 = 28.0;
+/// Where the nameplate's bottom stands (frame pixels): under the model, between the
+/// empty places and the words, clear of the keys' line (10/11/2026; it stood over the
+/// model's head, which moves, and ran into the row of tabs).
+const PLATE_SPOT: [f32; 2] = [1_120.0, 950.0];
 const PLATE_GAP: f32 = 12.0;
 const SHIELD: Color = Color::new(0.25, 0.82, 0.5, 1.0);
 const HEALTH: Color = Color::new(0.9, 0.28, 0.3, 1.0);
@@ -278,8 +282,7 @@ impl Panel {
             716.0,
             "Nothing to collect here yet: the first ones come later.",
         );
-        let at = self.plate_spot(frame);
-        self.nameplate(frame, inputs, at);
+        self.nameplate(frame, inputs, PLATE_SPOT);
         self.nameplate_words(frame, inputs);
     }
 
@@ -414,23 +417,6 @@ impl Panel {
             FontWeight::Regular,
             TextAlign::Center,
         );
-    }
-
-    /// Where the nameplate stands, in frame pixels: over the model's head on the
-    /// stage (the renderer says where), over the preview's, or high in the column.
-    fn plate_spot(&self, frame: &Frame) -> [f32; 2] {
-        match self.backstage {
-            Backstage::World { head: Some(head) } => [
-                (head[0] - frame.origin[0]) / frame.s,
-                (head[1] - frame.origin[1]) / frame.s,
-            ],
-            Backstage::World { head: None } | Backstage::Preview { .. } => {
-                let [x, y, width, _] = MODEL_AREA;
-                [x + width * 0.5, y + 70.0]
-            }
-            // The stage's column, where the model would stand.
-            Backstage::None => [1_160.0, 380.0],
-        }
     }
 
     /// The player's nameplate as a match draws it near, its bottom at `at`, in the style
