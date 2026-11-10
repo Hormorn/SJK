@@ -154,6 +154,11 @@ impl Cloud {
     pub(crate) fn is_rain(&self) -> bool {
         self.look == Look::Streak
     }
+
+    /// Falling snow, which can settle (`r_weatherSnowCover`).
+    pub(crate) fn is_snow(&self) -> bool {
+        self.look == Look::Sprite(Image::Snowflake)
+    }
 }
 
 /// Everything the world effect commands have set up.

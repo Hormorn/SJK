@@ -32,9 +32,12 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+= r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
+
 - PK3s no longer have to sit in `base`: make a `GameData/assets` folder and sort them into subfolders as you like (`assets/jof`, `assets/personal`), every one loads as if it were in `base` _(Sol)_
 - The Sith cloud card follows the SJK Launcher into `assets/S` and doesn't fetch a file you already have in `base` _(Sol)_
 - Your SJK page: `identity site` opens SJK's web page in the browser, signed in with your SJK key (no password), where you join your other keys (`identity link <code>` in the other game) and send videos for the SJK team's video bounties, paid in holocrons and a new Videographer medal _(Sol)_
+- Rain looks richer (Settings > Graphics > WEATHER): wet streets shine in patches and gather water at the foot of walls, rivulets start under a wall's lip and widen as they run down, a downpour raises a spray over the ground and comes in waves with the wind; at Ultra every wet surface mirrors the lit city round it, softly on a street, sharply in a puddle (`r_weatherReflections` picks sky, puddles or everything). New sliders: Puddles, Rain visibility, Rain haze and spray, Ground fog thickness _(Sol)_
 - Emote music no longer goes missing for a whole dance: music still loading when the emote starts now joins in as soon as it is ready, as a boombox track does _(Sol, hub report #270)_
 - `+grapple` lets go of the hook every time on JA+ servers: the release's `+use` now lasts two commands, as in EternalJK, instead of one a server could miss _(Sol, hub report #238)_
 - `s_language` picks the voices as in retail: `s_language francais` (or `deutsch`, `espanol`), then `snd_restart`; a voice the language lacks stays English _(Sol, after retail)_

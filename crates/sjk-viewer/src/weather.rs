@@ -63,7 +63,9 @@ use bytemuck::Zeroable;
 use effects::{Cloud, Effects, Image, Look, MAX_CLOUDS, Mist};
 use gpu::{BUCKETS, Batch, GpuCloud, GpuWeather, Kind};
 pub(crate) use settings::{
-    CLOUDS_CVAR, CVAR, DENSITY_CVAR, FOG_CVAR, FORCE_CVAR, LIGHTNING_CVAR, QUALITY_CVAR, Settings,
+    CLOUDS_CVAR, CVAR, DENSITY_CVAR, FOG_CVAR, FOG_DENSITY_CVAR, FORCE_CVAR, HAZE_CVAR,
+    LIGHTNING_CVAR, PUDDLES_CVAR, QUALITY_CVAR, RAIN_OPACITY_CVAR, REFLECTIONS_CVAR,
+    SNOW_COVER_CVAR, Settings,
 };
 use std::sync::Arc;
 
@@ -119,6 +121,25 @@ const MAX_CUES: usize = 4;
 const SUN_SCATTER: f32 = 0.5;
 /// The rain haze of a downpour: what wets surfaces fully. Drizzle wets them about half.
 const SOAKING_HAZE: f32 = 2.8e-4;
+/// The spray a downpour raises over the ground it beats on (extinction per unit at the
+/// floor; `spray_over` in weather.wgsl): none in a drizzle, growing with the square of the
+/// rain's haze. From `r_weatherQuality` 2.
+const SPRAY_DENSITY: f32 = 1.5e-3;
+/// Rain comes in waves with the wind (`rain_waves` in weather.wgsl): the wind speed at
+/// which they are strongest, how strong, their two lengths across the ground and how
+/// fast each travels with the wind (units a second).
+const WAVE_WIND: f32 = 1500.0;
+const WAVE_STRENGTH: f32 = 0.5;
+const WAVE_LENGTHS: [f64; 2] = [1100.0, 430.0];
+/// The waves travel at this share of the wind, and each along its own axis (`WAVE_AXES`,
+/// the same in weather.wgsl) at least this fast in calm air (units a second).
+const WAVE_DRIFT: f64 = 0.3;
+const WAVE_CALM: f64 = 60.0;
+const WAVE_AXES: [[f64; 2]; 2] = [[0.8, 0.6], [-0.6, 0.8]];
+/// Snow settled on the ground (`r_weatherSnowCover`): its colour under the overcast sky,
+/// times the sky's light, and how fast it settles and melts (a full cover in seconds).
+const SNOW_TINT: [f32; 3] = [0.56, 0.59, 0.64];
+const SNOW_SETTLE: f32 = 6.0;
 
 /// The map's weather state, its cover and its GPU resources.
 pub(crate) struct Runtime {
@@ -146,6 +167,11 @@ pub(crate) struct Runtime {
     /// pattern's change (wrapped to one tile).
     streak_flow: f64,
     streak_change: f64,
+    /// The rain waves' phases (radians, wrapped to a turn).
+    wave_phase: [f64; 2],
+    /// How much snow has settled (0..1), easing towards what the weather and
+    /// `r_weatherSnowCover` ask for.
+    snow: f32,
     cloud_flow: [f64; 2],
     time: f64,
     light: [f32; 3],
@@ -244,6 +270,8 @@ impl Runtime {
             fog_flow: [0.0; 3],
             streak_flow: 0.0,
             streak_change: 0.0,
+            wave_phase: [0.0; 2],
+            snow: 0.0,
             cloud_flow: [0.0; 2],
             time: 0.0,
             light: [1.0; 3],
@@ -545,8 +573,12 @@ impl Runtime {
             return;
         }
 
-        let mist = self.mist(settings.fog());
-        let haze: f32 = self.effects.clouds.iter().map(|cloud| cloud.haze).sum();
+        let mist = self.mist(settings.fog()).map(|(mist, color)| {
+            let density = mist.density * settings.fog_density();
+            (Mist { density, ..mist }, color)
+        });
+        let own_haze: f32 = self.effects.clouds.iter().map(|cloud| cloud.haze).sum();
+        let haze = own_haze * settings.haze();
         let volume = quality.fog_steps > 0 && (mist.is_some() || haze > 0.0);
         if self.effects.clouds.is_empty() && !volume {
             return;
@@ -611,6 +643,23 @@ impl Runtime {
                 (self.streak_flow + STREAK_SPEED * f64::from(seconds)).rem_euclid(STREAK_LENGTH);
             self.streak_change =
                 (self.streak_change + STREAK_CHANGE * f64::from(seconds)).rem_euclid(1.0);
+            for (index, phase) in self.wave_phase.iter_mut().enumerate() {
+                let axis = WAVE_AXES[index];
+                let along = axis[0] * f64::from(wind[0]) + axis[1] * f64::from(wind[1]);
+                let speed = WAVE_DRIFT * along + WAVE_CALM;
+                *phase = (*phase
+                    + std::f64::consts::TAU / WAVE_LENGTHS[index] * speed * f64::from(seconds))
+                .rem_euclid(std::f64::consts::TAU);
+            }
+            // Snow settles while it falls with the setting on, and melts away after.
+            let falling = self.effects.clouds.iter().any(Cloud::is_snow);
+            let target = f32::from(u8::from(settings.snow_cover() && falling));
+            let change = if seconds == 0.0 {
+                1.0
+            } else {
+                seconds / SNOW_SETTLE
+            };
+            self.snow += (target - self.snow).clamp(-change, change);
         }
 
         self.uniform.window = window.cells;
@@ -709,9 +758,10 @@ impl Runtime {
         ];
         let (wetness, rain) = wetting(&self.effects.clouds, wind);
         // Without a cover (a map with no sky) the rain falls everywhere; it wets nothing.
-        self.wet = quality.wet > 0 && wetness > 0.0 && window.enabled;
+        let rain_wets = quality.wet > 0 && wetness > 0.0;
+        self.wet = (rain_wets || self.snow > 0.0) && window.enabled;
         self.uniform.wet = [
-            wetness,
+            if rain_wets { wetness } else { 0.0 },
             quality.wet as f32,
             self.streak_flow as f32,
             self.streak_change as f32,
@@ -736,8 +786,39 @@ impl Runtime {
             self.fog_flow[2] as f32,
             FOG_REACH,
         ];
-        // Puddles (ultra) mirror the scene when it can be copied; else their copy goes.
-        let mirrored = self.wet && quality.wet >= 3 && self.mirror_allowed();
+        // Rain beating on the ground raises a spray over it, and comes in waves with the
+        // wind.
+        let rain_haze: f32 = self
+            .effects
+            .clouds
+            .iter()
+            .filter(|cloud| cloud.is_rain())
+            .map(|cloud| cloud.haze)
+            .sum();
+        let downpour = (rain_haze / STORM_HAZE).min(1.0);
+        let spray = if volume && quality.wet >= 2 && window.enabled {
+            SPRAY_DENSITY * downpour * downpour * settings.haze()
+        } else {
+            0.0
+        };
+        let blown = (wind[0].hypot(wind[1]) / WAVE_WIND).min(1.0);
+        self.uniform.tune = [
+            spray,
+            WAVE_STRENGTH * blown.max(0.3 * downpour),
+            self.wave_phase[0] as f32,
+            self.wave_phase[1] as f32,
+        ];
+        let snow_light = snow_light(input.sky, flash);
+        self.uniform.snow = [snow_light[0], snow_light[1], snow_light[2], 0.0];
+        // What wet surfaces mirror: the scene when it can be copied (puddles need ultra's
+        // standing water; every wet surface only needs to be wet); else its copy goes.
+        let reflections = match settings.reflections() {
+            settings::Reflections::Sky => 0.0,
+            settings::Reflections::Puddles if quality.wet >= 3 => 1.0,
+            settings::Reflections::Puddles => 0.0,
+            settings::Reflections::Everything => 2.0,
+        };
+        let mirrored = self.wet && rain_wets && reflections > 0.0 && self.mirror_allowed();
         if let Some(gpu) = self.gpu.as_mut() {
             match input.mirror.as_ref().filter(|_| mirrored) {
                 Some(scene) => {
@@ -748,6 +829,12 @@ impl Runtime {
             }
         }
         self.uniform.wet_sky[3] = f32::from(u8::from(self.mirrored));
+        self.uniform.looks = [
+            if self.mirrored { reflections } else { 0.0 },
+            settings.puddles(),
+            self.snow,
+            settings.rain_opacity(),
+        ];
         if let Some(gpu) = &self.gpu {
             gpu.write(input.queue, &self.uniform);
         }
@@ -876,6 +963,13 @@ fn wetting(clouds: &[Cloud], wind: [f32; 3]) -> (f32, [f32; 3]) {
 fn wet_sky(sky: clouds::SkyLight, storm: f32) -> [f32; 3] {
     let level = sky.radiance.max(0.0) * (0.08 + 0.92 * sky.strength.clamp(0.0, 1.0));
     [0.46, 0.52, 0.6].map(|channel| channel * level * (1.0 - 0.4 * storm))
+}
+
+/// The light settled snow gives back, in the scene's light units: the overcast sky's on
+/// it, dimmer at night, lit by a lightning flash as the wet ground's mirror is.
+fn snow_light(sky: clouds::SkyLight, flash: f32) -> [f32; 3] {
+    let level = sky.radiance.max(0.0) * (0.08 + 0.92 * sky.strength.clamp(0.0, 1.0));
+    SNOW_TINT.map(|channel| channel * level * (1.0 + FLASH_WET * flash))
 }
 
 /// Gravity and wind on a cloud's particles.
@@ -1172,6 +1266,9 @@ mod tests {
         // A wind along +x slants the rain that way.
         let (_, slanted) = wetting(&clouds(&["rain"]), [2000.0, 0.0, 0.0]);
         assert!(slanted[0] > 0.5 && slanted[2] < -0.5, "{slanted:?}");
+        // Settled snow is lit by the sky as the mirror is: dim at night, white by day.
+        let day = snow_light(clouds::SkyLight::DEFAULT, 0.0);
+        assert!(day[2] > day[0] && day[0] > 0.5, "a cool white: {day:?}");
         // The mirrored sky follows the light: none at night, dimmer in a storm.
         let night = clouds::SkyLight {
             strength: 0.0,
