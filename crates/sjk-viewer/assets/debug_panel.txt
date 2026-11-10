@@ -9791,6 +9791,12 @@ test: Move a map PK3 to assets/jof: Create game lists it and the local server st
 test: assetbrowser lists assets/personal/name.pk3, and disabling it takes effect.
 test: With GameData/assets/S/base there, sith.downloads names that folder, a base copy is kept.
 
+[jof-check-assets]
+area: Menus & settings
+title: JoF content finds files tidied into GameData/assets
+change: A JoF or Sith file anywhere under GameData/assets counts as already in the game folder.
+test: With JoF PK3s moved to assets/jof, jof.downloads lists them as in the game folder.
+
 [credits-pr-count]
 area: Menus & settings
 title: Credits count the pull requests of older merge names (#403)
