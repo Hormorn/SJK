@@ -216,6 +216,8 @@ const SEEN_ALL_TOKEN: u16 = 1_374;
 const NEW_NOTE_TOKEN: u16 = 1_371;
 /// The Nameplates tab's Showcase current set (10/11/2026).
 const SHOWCASE_TOKEN: u16 = 1_370;
+/// The chosen shader's Locked features chip on the Shaders tab's card (10/11/2026).
+const LOCKED_NOTE_TOKEN: u16 = 1_369;
 /// The Shaders tab's view switches: the list and the wall of tiles.
 const LIST_VIEW_TOKEN: u16 = 1_312;
 const GRID_VIEW_TOKEN: u16 = 1_313;
@@ -961,6 +963,11 @@ pub(crate) struct Panel {
     /// The Nameplates tab's showcase card shows: Showcase current set opened it; a click
     /// but on it, Style or See & share nameplates, Escape or leaving the tab closes it.
     showcase_open: bool,
+    /// The chosen shader's Locked features note shows (a click on its chip opened it;
+    /// another click, Escape or another shader or tab closes it), and its card, as this
+    /// frame's card drew the chip.
+    locked_note: bool,
+    locked_card: Option<crate::menu::sjk::hover::Card>,
     /// The count of the last refused change of a mark the console was told of.
     mark_refusal_seen: u64,
     /// The marks a world shot or a test shows in place of the live ones.
@@ -1115,6 +1122,8 @@ impl Panel {
             clicked_shader: false,
             new_note: false,
             showcase_open: false,
+            locked_note: false,
+            locked_card: None,
             mark_refusal_seen: 0,
             #[cfg(test)]
             preview_marks: None,
@@ -1967,6 +1976,10 @@ impl Panel {
         if std::mem::take(&mut self.new_note) && key == KeyCode::Escape {
             return PanelAction::None;
         }
+        // And the Locked features note.
+        if std::mem::take(&mut self.locked_note) && key == KeyCode::Escape {
+            return PanelAction::None;
+        }
         // Escape closes the showcase card first; other keys (Style's too) leave it.
         if self.showcase_open && key == KeyCode::Escape {
             self.showcase_open = false;
@@ -2295,6 +2308,9 @@ impl Panel {
         if event.kind == UiEventKind::Activate && event.token != Some(NEW_NOTE_TOKEN) {
             self.new_note = false;
         }
+        if event.kind == UiEventKind::Activate && event.token != Some(LOCKED_NOTE_TOKEN) {
+            self.locked_note = false;
+        }
         // The showcase card stays open while Style or See & share changes what it shows.
         let keeps_showcase = event.token.is_some_and(|token| {
             token == SHOWCASE_TOKEN
@@ -2575,6 +2591,10 @@ impl Panel {
             SEEN_ALL_TOKEN => self.see_all(),
             NEW_NOTE_TOKEN => {
                 self.new_note = !self.new_note;
+                PanelAction::None
+            }
+            LOCKED_NOTE_TOKEN => {
+                self.locked_note = !self.locked_note;
                 PanelAction::None
             }
             SHOWCASE_TOKEN => {

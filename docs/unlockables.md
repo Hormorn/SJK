@@ -1934,10 +1934,11 @@ that only a holder of a given card in a given finish may switch on
 - **Gated** in the client before the look is made (`blade_extras::gated`): the words for
   the extras of a skin whose card the own hub profile does not list in its finish are left
   out, so they are neither drawn for the player nor sent. The Collection lists the extras
-  after the parts, each behind a padlock while locked, with a line saying what unlocks them
-  at the card's foot under its buttons, inside the frame, in gold breathing as the tier
-  frames do (10/11/2026: under the parts it ran into the buttons on a full card);
-  a locked one takes no click. `saberskin <id> parts` lists them too ("locked" until the
+  after the parts once unlocked. While locked they are not listed: a gold padlock chip,
+  "Locked features (3)", stands at the right of "Parts", breathing as the tier frames do,
+  and a click on it opens a note over the page (darker than a hover card) naming each
+  locked extra and what unlocks them (10/11/2026: greyed in the list, with a line under
+  it, they ran into the buttons on a full card); another click or Escape closes it. `saberskin <id> parts` lists them too ("locked" until the
   card is held) and `saberskin <id> <extra> on` refuses while locked, saying why.
 - **Sent** as `saber_on` (and `saber2_on` for a second saber's own skin), only when not
   empty: the hub keeps them only while the key holds the card in its finish and drops
