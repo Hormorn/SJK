@@ -814,7 +814,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 145 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 146 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1064,6 +1064,7 @@ medal pictures carry their own labels in `vram` and crash reports.
   read them in the language's folder too, as retail does (hub report #298).
 - #411 Ctrl+A and a double click select the search and a cvar value in the commands and cvars\n  list (F3) again: the menu no longer drops a selection made outside it (hub report #308).
 - #412 a held key bound to `weapnext` or `weapprev` keeps cycling the weapons: a key repeat runs\n  its bind's down-only commands again, as stock `CL_ParseBinding` does (hub report #309).
+- #413 no thin line above some weapon icons: the UI icon atlas samples half a texel inside each\n  cell, so an icon drawn large no longer blends in its neighbour's edge (hub report #311).
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

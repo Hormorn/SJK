@@ -3953,6 +3953,8 @@ test: Compact SJK scoreboard off, 30 players: two lists side by side as before.
 note: Not tried in a running client: the HUD hiding and the compact board over a real match.
 note: Alt+Tab while holding Tab leaves the board and the hidden HUD up until Tab is pressed again.
 
+[icon-atlas-inset]\narea: HUD\ntitle: No line above weapon icons (Slash, PR #413, hub #311)\nchange: Icons sample half a texel inside their atlas cell, not the neighbouring picture.\ntest: Pick up several weapons and open the weapon bar: no thin line above any icon.\ntest: Menu and Force icons look as before, edges not cut.\n
+
 # ---- Rendering & effects ----
 
 [rig-chain-motion]
