@@ -35,6 +35,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
 
+- The Forge's Craft search tells you when the shader you looked for is yours already (it crafts only shaders you lack; another copy comes from holocrons), instead of finding nothing _(Slash, hub report #305, after SimpleSmokie's report)_
 - GIF tags: a new Rare Blank tag drops from holocrons; verified players spend it once on a GIPHY link for a tag that plays that GIF on walls, theirs for good (a GIF GIPHY removes is a tag lost). GIF tags are off until you turn them on (`cg_toyGifTags`, on the tag's card or Settings > Gameplay) _(Sol)_
 - PK3s no longer have to sit in `base`: make a `GameData/assets` folder and sort them into subfolders as you like (`assets/jof`, `assets/personal`), every one loads as if it were in `base` _(Sol)_
 - The Sith cloud card follows the SJK Launcher into `assets/S` and doesn't fetch a file you already have in `base` _(Sol)_

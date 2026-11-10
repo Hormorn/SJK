@@ -308,6 +308,26 @@ pub(super) fn craftable(
     list
 }
 
+/// The shaders of the trade the player holds that `filter`'s search names (hub report
+/// #305). Craft never lists them, since crafting refuses a held shader (Sol, 17/10/2026),
+/// so a search for one says it is held instead of finding nothing. Empty without a search.
+pub(super) fn held_matches(
+    holdings: &Holdings<'_>,
+    filter: &ShaderFilter,
+    marks: &crate::shader_marks::Marks,
+) -> Vec<&'static Unlockable> {
+    if filter.query.trim().is_empty() {
+        return Vec::new();
+    }
+    unlockables::blade_skins_by_tier()
+        .iter()
+        .rev()
+        .copied()
+        .filter(|skin| crate::economy::in_trade(skin) && holdings.unlock(skin.id).is_some())
+        .filter(|skin| filter.passes(skin, true, marks.favourite(skin.id)))
+        .collect()
+}
+
 impl Panel {
     /// The player's card copies in `inputs`, while the identity is on (empty before the
     /// hub sent their profile; a world shot's made-up ones in tests).
@@ -1709,6 +1729,32 @@ mod tests {
         );
         assert_eq!(ids(owned(&holdings, false, &none)), ["saber_tidal"]);
         assert_eq!(duplicates(&owned(&holdings, true, &none)), (2, 1, 10));
+    }
+
+    /// Hub report #305: a search for a shader the player holds finds it among the held
+    /// ones, which Craft leaves out; no search, or one for a shader they lack, finds none.
+    #[test]
+    fn a_search_names_the_held_shader_craft_leaves_out() {
+        let held = [copy("saber_kyber_filament", 1)];
+        let holdings = Holdings::Known(&held);
+        let none = crate::shader_marks::Marks::default();
+        let search = |query: &str| ShaderFilter {
+            query: query.to_owned(),
+            ..ShaderFilter::default()
+        };
+        let craft = craftable(&holdings, &[], &none);
+        assert!(
+            craft
+                .iter()
+                .all(|item| item.skin.id != "saber_kyber_filament")
+        );
+        let found = held_matches(&holdings, &search("kyber fil"), &none);
+        assert_eq!(
+            found.iter().map(|skin| skin.id).collect::<Vec<_>>(),
+            ["saber_kyber_filament"]
+        );
+        assert!(held_matches(&holdings, &search(""), &none).is_empty());
+        assert!(held_matches(&holdings, &search("aurora"), &none).is_empty());
     }
 
     /// Collection marks (29/10/2026): favourites first, the marks on each item, and a

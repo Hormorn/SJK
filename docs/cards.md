@@ -391,7 +391,8 @@ Why these numbers:
 Since 21/10/2026 (Sol's request: a better interface for the shop, crafting and breaking
 shaders down, in a tab of its own) everything kyber shards and credits trade is the
 Collection's Forge tab, between Holocrons and Cards: Shop (the day's four offers and the
-holocrons for credits), Craft (every shader of the trade the player lacks) and Break down
+holocrons for credits), Craft (every shader of the trade the player lacks; a search that names only held ones
+says they are held, hub report #305) and Break down
 (the player's own copies, the last one too on a hub that takes it, and every duplicate at
 once). The look, keys and states are in [sjk-ui.md](sjk-ui.md#collection); the requests
 and refusals in the hub's `PROTOCOL.md` ("Shards and the shop"). Checked by unit tests and
