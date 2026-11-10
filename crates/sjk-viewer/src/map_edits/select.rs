@@ -78,6 +78,35 @@ pub(crate) fn samples(rect: [f32; 4]) -> Vec<[f32; 2]> {
     points
 }
 
+/// Whether a surface whose bounds are `low` to `high` may show in box `rect` (physical
+/// pixels), `project` putting a point on the screen (`None` near or behind the eye): its
+/// corners' screen box meets the box, or a corner is too near the eye to tell.
+pub(crate) fn box_keeps(
+    project: &impl Fn(Vec3) -> Option<[f32; 2]>,
+    rect: [f32; 4],
+    low: Vec3,
+    high: Vec3,
+) -> bool {
+    let mut screen = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
+    for corner in 0..8 {
+        let point = Vec3::new(
+            if corner & 1 == 0 { low.x } else { high.x },
+            if corner & 2 == 0 { low.y } else { high.y },
+            if corner & 4 == 0 { low.z } else { high.z },
+        );
+        let Some([x, y]) = project(point) else {
+            return true;
+        };
+        screen = [
+            screen[0].min(x),
+            screen[1].min(y),
+            screen[2].max(x),
+            screen[3].max(y),
+        ];
+    }
+    screen[0] <= rect[2] && screen[2] >= rect[0] && screen[1] <= rect[3] && screen[3] >= rect[1]
+}
+
 /// Whether the hover picks again: the pointer moved two pixels or more since the last
 /// pick and [`HOVER_EVERY`] passed.
 fn hover_due(last: Option<([f32; 2], Instant)>, at: [f32; 2], now: Instant) -> bool {
@@ -243,13 +272,21 @@ impl crate::GpuState {
             .models()
             .first()
             .map_or(0..0, |world| world.surfaces.clone());
+        // Every ray of the box starts at the eye and goes through the box: only the
+        // surfaces whose bounds show in it can be met, nearest first ([`box_keeps`]).
+        let candidates = self
+            .decal_surfaces
+            .candidates(eye, |low, high| box_keeps(&project, rect, low, high));
         // Drawn surfaces: what the rays through the box meet first.
         let mut surfaces: Vec<(usize, Vec3, Vec3)> = Vec::new();
         for point in samples(rect) {
             let Some((from, direction)) = self.world_notes.ray_at(point) else {
                 continue;
             };
-            let Some(hit) = self.decal_surfaces.ray_hit(from, direction, REACH) else {
+            let Some(hit) = self
+                .decal_surfaces
+                .ray_hit_among(from, direction, REACH, &candidates)
+            else {
                 continue;
             };
             if !world_surfaces.contains(&hit.surface)
@@ -291,7 +328,7 @@ impl crate::GpuState {
                 let direction = (middle - eye) / distance.max(1e-3);
                 if self
                     .decal_surfaces
-                    .ray_hit(eye, direction, distance - 1.0)
+                    .ray_hit_among(eye, direction, distance - 1.0, &candidates)
                     .is_some()
                     || !sides.visible(index, &open)
                 {
@@ -319,7 +356,12 @@ impl crate::GpuState {
                 project(origin).is_some_and(|at| inside(rect, at))
                     && self
                         .decal_surfaces
-                        .ray_hit(eye, (origin - eye) / distance.max(1e-3), distance - 8.0)
+                        .ray_hit_among(
+                            eye,
+                            (origin - eye) / distance.max(1e-3),
+                            distance - 8.0,
+                            &candidates,
+                        )
                         .is_none()
             })
             .map(|placed| placed.id)
@@ -765,6 +807,28 @@ mod tests {
         let full =
             crate::world_notes::combine_in(&mut primary, &mut more, placed, Combine::Add, key);
         assert_eq!(full, (limit, true));
+    }
+
+    /// A box keeps the surfaces whose bounds show in it, and every one with a corner too
+    /// near the eye to place.
+    #[test]
+    fn a_box_keeps_the_bounds_that_show_in_it() {
+        // Looking down +x: y to the screen's left, z up, 100 pixels a unit of y / x.
+        let project = |point: Vec3| {
+            (point.x > 0.5).then(|| {
+                [
+                    500.0 - 100.0 * point.y / point.x,
+                    500.0 - 100.0 * point.z / point.x,
+                ]
+            })
+        };
+        let rect = [400.0, 400.0, 600.0, 600.0];
+        let ahead = (Vec3::new(10.0, -1.0, -1.0), Vec3::new(12.0, 1.0, 1.0));
+        let aside = (Vec3::new(10.0, 50.0, -1.0), Vec3::new(12.0, 52.0, 1.0));
+        let round_the_eye = (Vec3::new(-5.0, -5.0, -5.0), Vec3::new(5.0, 5.0, 5.0));
+        assert!(box_keeps(&project, rect, ahead.0, ahead.1));
+        assert!(!box_keeps(&project, rect, aside.0, aside.1));
+        assert!(box_keeps(&project, rect, round_the_eye.0, round_the_eye.1));
     }
 
     #[test]
