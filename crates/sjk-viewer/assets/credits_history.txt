@@ -9,6 +9,10 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 10/11/2026 | - | Forge fusion, deal of the day and a wishlist (client)
+- 19a22ac |  | Forge fusion, deal of the day and a wishlist (client)
++ 10/11/2026 | - | Credits history: the map editor guesses and selections round
+- c10f6aa |  | Credits history: the map editor guesses and selections round
 + 10/11/2026 | - | Map editor: clips, triggers and invisible walls are no hidden faces
 - 84e69d3 |  | Map editor: clips, triggers and invisible walls are no hidden faces
 + 10/11/2026 | - | Map editor: texture guesses, a live remap preview and better selections
@@ -3550,6 +3554,9 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 10/11/2026 | SJK #407 | JK2 HUD: the selector bar opens behind the icons (hub report #301)
+- 44c0f37 |  | JK2 HUD: open the selector bar behind the icons (hub report #301)
+- 7402bb7 |  | Changelog: PR number for the JK2 selector bar
 + 10/11/2026 | - | Release 2026.1109.3 (Alpha)
 - a692047 |  | Release 2026.1109.3 (Alpha)
 + 10/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
