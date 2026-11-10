@@ -352,7 +352,7 @@ mod tests {
                 // (models/ shaders: a misc_model's clip brushes, which q3map2 never draws)
                 if face.showable
                     || flags & 0x0020_2000 != 0
-                    || contents & 0x2000_0000 != 0
+                    || contents & crate::map_edits::faces::CONTENTS_TRANSLUCENT != 0
                     || face.shader.starts_with("models/")
                 {
                     continue;

@@ -42,19 +42,59 @@ pub(crate) struct Face {
     pub(crate) polygon: Vec<[f32; 3]>,
 }
 
-/// Whether side `side` of brush `brush` is one edits may draw: a solid brush's caulk or
-/// nodraw side the map draws nothing on, not a tool volume (clip, trigger, water), or a
-/// sky side; its shader, and whether it is a sky side.
+/// `CONTENTS_SOLID` and `CONTENTS_TRANSLUCENT` (`codemp/game/surfaceflags.h`): q3map2
+/// sets the second for `surfaceparm trans`, on tool brushes (`physics_clip`,
+/// `nodraw_solid`, hint, clip, trigger) and never on caulk.
+pub(crate) const CONTENTS_SOLID: u32 = 0x0000_0001;
+pub(crate) const CONTENTS_TRANSLUCENT: u32 = 0x8000_0000;
+/// `SURF_NODRAW`: the side draws nothing.
+const SURF_NODRAW: u32 = 0x0020_0000;
+
+/// Whether a side of a brush of `contents`, of a shader with `side_contents` and
+/// `surface` flags, is one edits may draw, and whether it is a sky side: a sky side, or a
+/// structural brush's caulk side (nodraw, solid, opaque, not a clip, trigger, liquid or
+/// invisible wall). Told by the compiled flags only: an invisible wall (`physics_clip`,
+/// `nodraw_solid`) is `trans`, caulk never is (duel6, 10/11/2026: a click on a physics
+/// clip selected it as a hidden face).
+pub(crate) fn offered(
+    contents: u32,
+    side_contents: u32,
+    surface: u32,
+    name: &[u8],
+) -> Option<bool> {
+    if is_sky_side(contents, surface) {
+        return Some(true);
+    }
+    let structural = (contents | side_contents) & CONTENTS_TRANSLUCENT == 0;
+    (structural
+        && matches!(
+            BrushKind::of_face(contents, surface, name),
+            Some(BrushKind::Caulk | BrushKind::Solid)
+        ))
+    .then_some(false)
+}
+
+/// Whether the face pick goes on through a brush of `contents` whose entered side has
+/// `surface` flags and is no face edits draw: a tool volume (clip, trigger, hint, water,
+/// an invisible wall), not a drawn wall.
+fn passes_through(contents: u32, side_contents: u32, surface: u32) -> bool {
+    contents & CONTENTS_SOLID == 0
+        || ((contents | side_contents) & CONTENTS_TRANSLUCENT != 0 && surface & SURF_NODRAW != 0)
+}
+
+/// Whether side `side` of brush `brush` is one edits may draw ([`offered`]); its shader,
+/// and whether it is a sky side.
 fn showable(bsp: &Bsp, brush: usize, side: usize) -> Option<(String, bool)> {
     let brush = bsp.brushes().get(brush)?;
     let side = bsp.brush_sides().get(side)?;
     let shader = bsp.shaders().get(side.shader)?;
-    let sky = is_sky_side(brush.content_flags, shader.surface_flags);
-    (sky || matches!(
-        BrushKind::of_face(brush.content_flags, shader.surface_flags, shader.name()),
-        Some(BrushKind::Caulk | BrushKind::Solid | BrushKind::Nodraw)
-    ))
-    .then(|| (shader.name_lossy().into_owned(), sky))
+    let sky = offered(
+        brush.content_flags,
+        shader.content_flags,
+        shader.surface_flags,
+        shader.name(),
+    )?;
+    Some((shader.name_lossy().into_owned(), sky))
 }
 
 /// Whether a side of `surface` flags on a brush of `contents` is a sky side an edit may
@@ -94,10 +134,12 @@ pub(crate) fn map_skies(bsp: &Bsp) -> Vec<String> {
 }
 
 /// The world brush side the ray from `eye` along `direction` (normalized) enters first
-/// within `reach`, when it is one edits may show.
+/// within `reach`, when it is one edits may show. Tool volumes (clip, trigger, hint,
+/// water, invisible walls: [`passes_through`]) are no faces: the ray goes on through them
+/// to what is behind; a drawn brush stops it.
 pub(crate) fn pick(bsp: &Bsp, eye: Vec3, direction: Vec3, reach: f32) -> Option<Face> {
     let world = bsp.render().models().first()?;
-    let mut nearest: Option<(f32, usize, usize)> = None;
+    let mut entries: Vec<(f32, usize, usize)> = Vec::new();
     for brush_index in world.brushes.clone() {
         let Some(brush) = bsp.brushes().get(brush_index) else {
             continue;
@@ -141,12 +183,23 @@ pub(crate) fn pick(bsp: &Bsp, eye: Vec3, direction: Vec3, reach: f32) -> Option<
         let Some(side) = entered.filter(|_| !missed && enter >= 0.0) else {
             continue;
         };
-        if nearest.is_none_or(|(distance, _, _)| enter < distance) {
-            nearest = Some((enter, brush_index, side));
-        }
+        entries.push((enter, brush_index, side));
     }
-    let (distance, brush, side) = nearest?;
-    let (shader, sky) = showable(bsp, brush, side)?;
+    entries.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let (distance, brush, side, shader, sky) = entries.into_iter().find_map(|(d, b, s)| {
+        if let Some((shader, sky)) = showable(bsp, b, s) {
+            return Some(Some((d, b, s, shader, sky)));
+        }
+        let brush = &bsp.brushes()[b];
+        let shader = &bsp.shaders()[bsp.brush_sides()[s].shader];
+        // a tool volume: on through it; a drawn wall: nothing behind it is seen
+        (!passes_through(
+            brush.content_flags,
+            shader.content_flags,
+            shader.surface_flags,
+        ))
+        .then_some(None)
+    })??;
     let polygon = bsp.brush_side_polygon(brush, side);
     if area(&polygon) < MIN_AREA {
         return None;
@@ -410,6 +463,73 @@ pub(crate) mod tests {
         // a sky-flagged liquid's side is no sky an edit covers
         assert!(!is_sky_side(0x4, SURF_SKY));
         assert!(is_sky_side(1, SURF_SKY) && !is_sky_side(1, 0));
+    }
+
+    /// Clips, triggers and invisible walls are no faces: the pick goes through them to the
+    /// caulk behind, and a physics clip alone is never offered (duel6, 10/11/2026). The
+    /// flags are retail duel6's and ffa3's own.
+    #[test]
+    fn the_pick_goes_through_clips_and_triggers_to_the_caulk_behind() {
+        use sjk_bsp::{CollisionShader, box_brush, write_collision_map};
+        let shader = |name: &str, surface_flags: u32, content_flags: u32| CollisionShader {
+            name: name.into(),
+            surface_flags,
+            content_flags,
+        };
+        let shaders = [
+            shader("textures/system/caulk", 0x30_0000, 0x8001),
+            shader("textures/system/physics_clip", 0x20_0000, 0x8000_8001),
+            shader("textures/system/trigger", 0x20_0000, 0x8000_0400),
+            shader("textures/system/nodraw_solid", 0x30_0000, 0x8000_0001),
+            shader("textures/system/clip", 0x38_0000, 0x8000_0030),
+            shader("textures/a/stone", 0, 0x8001),
+        ];
+        let brushes = [
+            // the caulk wall at x 256
+            box_brush([256.0, -256.0, 0.0], [272.0, 256.0, 256.0], 0),
+            // a physics clip, a trigger and a player clip before it
+            box_brush([64.0, -256.0, 0.0], [80.0, 256.0, 256.0], 1),
+            box_brush([128.0, -256.0, 0.0], [144.0, 256.0, 256.0], 2),
+            box_brush([192.0, -256.0, 0.0], [200.0, 256.0, 256.0], 4),
+            // a nodraw_solid wall at -x, a stone wall at +y with caulk behind it
+            box_brush([-80.0, -256.0, 0.0], [-64.0, 256.0, 256.0], 3),
+            box_brush([-256.0, 64.0, 0.0], [256.0, 80.0, 256.0], 5),
+            box_brush([-256.0, 96.0, 0.0], [256.0, 112.0, 256.0], 0),
+        ];
+        let bsp = Bsp::parse(&write_collision_map(
+            "{
+\"classname\" \"worldspawn\"
+}
+",
+            &shaders,
+            &brushes,
+        ))
+        .expect("synthetic map parses");
+        let eye = Vec3::new(0.0, 0.0, 64.0);
+        let wall = pick(&bsp, eye, Vec3::X, 4096.0).expect("the caulk behind the clips");
+        assert_eq!(wall.shader, "textures/system/caulk");
+        assert!((wall.distance - 256.0).abs() < 1e-3, "{}", wall.distance);
+        // an invisible wall alone is not a face
+        assert!(pick(&bsp, eye, Vec3::NEG_X, 4096.0).is_none());
+        // a drawn wall stops the pick: the caulk behind it is not seen
+        assert!(pick(&bsp, eye, Vec3::Y, 4096.0).is_none());
+        // the flags alone tell them apart
+        assert_eq!(
+            offered(0x8001, 0x8001, 0x30_0000, b"textures/system/caulk"),
+            Some(false)
+        );
+        assert_eq!(
+            offered(0x8000_8001, 0x8000_8001, 0x20_0000, b"x/physics_clip"),
+            None
+        );
+        assert_eq!(
+            offered(0x8000_0001, 0x8000_0001, 0x30_0000, b"x/nodraw_solid"),
+            None
+        );
+        assert_eq!(
+            offered(0x8000_0400, 0x8000_0400, 0x20_0000, b"x/trigger"),
+            None
+        );
     }
 
     #[test]

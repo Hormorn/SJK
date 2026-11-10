@@ -40,7 +40,7 @@ pub(crate) const LINK_LIMIT: usize = 512;
 
 /// `CONTENTS_SOLID` and `CONTENTS_TRANSLUCENT` (`codemp/game/surfaceflags.h`).
 const CONTENTS_SOLID: u32 = 0x0000_0001;
-const CONTENTS_TRANSLUCENT: u32 = 0x2000_0000;
+const CONTENTS_TRANSLUCENT: u32 = super::faces::CONTENTS_TRANSLUCENT;
 
 /// How a link grows from its first face.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
@@ -137,19 +137,13 @@ impl Sides {
                         let shader = bsp.shaders().get(side.shader)?;
                         let sky =
                             super::faces::is_sky_side(brush.content_flags, shader.surface_flags);
-                        let showable = sky
-                            || matches!(
-                                crate::brush_view::kinds::Kind::of_face(
-                                    brush.content_flags,
-                                    shader.surface_flags,
-                                    shader.name()
-                                ),
-                                Some(
-                                    crate::brush_view::kinds::Kind::Caulk
-                                        | crate::brush_view::kinds::Kind::Solid
-                                        | crate::brush_view::kinds::Kind::Nodraw
-                                )
-                            );
+                        let offered = super::faces::offered(
+                            brush.content_flags,
+                            shader.content_flags,
+                            shader.surface_flags,
+                            shader.name(),
+                        );
+                        let showable = offered.is_some();
                         Some(SideIn {
                             side: side_index as u32,
                             normal: Vec3::from_array(plane.normal),
@@ -241,7 +235,6 @@ impl Sides {
     }
 
     /// How many sides there are.
-    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.sides.len()
     }
@@ -298,7 +291,6 @@ impl Sides {
     }
 
     /// Whether a player can see some of side `index` ([`Self::seen_pieces`]).
-    #[cfg(test)]
     pub(crate) fn visible(&self, index: usize, open: &dyn Fn(Vec3) -> bool) -> bool {
         !self.seen_pieces(index, open).is_empty()
     }
