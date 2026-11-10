@@ -2745,6 +2745,15 @@ impl Panel {
         self.hover.pin(index.map(|index| base + index as u16));
     }
 
+    /// Open (or close) the New note, the Locked features note and the showcase card,
+    /// for a world shot.
+    #[cfg(test)]
+    pub(crate) fn notes_for_shot(&mut self, new_note: bool, locked_note: bool, showcase: bool) {
+        self.new_note = new_note;
+        self.locked_note = locked_note;
+        self.showcase_open = showcase;
+    }
+
     /// Choose the Toys tab's toy `index` (0 Illuminate), for a world shot.
     #[cfg(test)]
     pub(crate) fn choose_toy_for_shot(&mut self, index: usize) {

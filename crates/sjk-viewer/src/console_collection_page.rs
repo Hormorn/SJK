@@ -954,6 +954,13 @@ impl ViewerConsole {
         self.collection_panel.hover_for_shot(index);
     }
 
+    /// Open (or close) the Collection's New note, Locked features note and showcase
+    /// card, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_notes_for_shot(&mut self, new: bool, locked: bool, showcase: bool) {
+        self.collection_panel.notes_for_shot(new, locked, showcase);
+    }
+
     /// Let the Shaders tab show its way to the Forge (`known`), for a world shot.
     #[cfg(test)]
     pub(crate) fn collection_trade_for_shot(&mut self, known: bool) {

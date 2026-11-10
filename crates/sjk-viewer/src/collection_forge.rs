@@ -50,7 +50,7 @@ pub(crate) const SHARDS_TOKEN: u16 = 9_005;
 pub(super) const CREDITS_TOKEN: u16 = 9_006;
 /// The round "i" chip after the section chips, its hover card the section's line
 /// (10/11/2026).
-pub(super) const INFO_TOKEN: u16 = 9_007;
+pub(crate) const INFO_TOKEN: u16 = 9_007;
 pub(super) const OFFER_BASE: u16 = 9_010;
 pub(super) const OFFER_BUY_BASE: u16 = 9_020;
 pub(super) const HOLOCRON_BASE: u16 = 9_030;
