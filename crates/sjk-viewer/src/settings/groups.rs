@@ -412,6 +412,8 @@ impl Group {
                 "cg_remaps",
                 crate::monitor::SHOW_CVAR,
                 crate::banana::SHOW_CVAR,
+                crate::tags::SHOW_CVAR,
+                crate::tags::GIF_SHOW_CVAR,
                 crate::toy_sight::ILLUMINATE,
                 crate::toy_sight::CARDBOARD_BOX,
                 crate::toy_sight::RAGDOLL,

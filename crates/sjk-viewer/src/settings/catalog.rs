@@ -1298,6 +1298,16 @@ pub(super) const GAME: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Show others' tags",
+        cvar: crate::tags::SHOW_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Show GIF tags",
+        cvar: crate::tags::GIF_SHOW_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Show others' holocrons",
         cvar: crate::toy_sight::ILLUMINATE,
         kind: ValueKind::Bool,

@@ -1513,6 +1513,7 @@ fn identity_page(shots: &Snapshot, art: ArtSet) {
         key_id: "44f3d0b36c9b2510".to_owned(),
         me: Some(Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),
@@ -1881,6 +1882,7 @@ fn player_card_profile(shots: &mut Snapshot) {
     };
     let profile = sjk_identity::Profile {
         tag_cards: Vec::new(),
+        gif_tags: None,
         credits: 0,
         cards: Vec::new(),
         keys: Vec::new(),
@@ -3204,6 +3206,7 @@ fn medals_snapshot() {
         key_id: "44f3d0b36c9b2510".to_owned(),
         me: Some(Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),
