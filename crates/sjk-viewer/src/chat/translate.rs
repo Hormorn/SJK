@@ -3,6 +3,10 @@
 //! translator for it in English. Nothing is translated on its own and nothing goes to
 //! the game server.
 //!
+//! - While the chat field is open, a click on a line's text (game chat of every kind,
+//!   SJK chat and clan chat lines in the feed) translates that line; a click on the
+//!   sender's name still opens their card. Not the player's own lines, this client's
+//!   notices and translations, nor a line already asked for.
 //! - `/tr` typed in the chat field (or the console's `tr`) translates the newest line in
 //!   the feed that looks foreign: its language, guessed here offline (`whatlang`), is
 //!   neither English nor one of `cl_chatTranslateSkip`'s. `/tr <text>` translates the
@@ -142,6 +146,13 @@ type LineKey = (u64, String);
 #[derive(Debug, Default)]
 pub(crate) struct Asks(Vec<(u64, Option<LineKey>)>);
 
+/// A line whose text was clicked: its key and its plain text, to send.
+#[derive(Debug)]
+pub(crate) struct Click {
+    pub(super) key: LineKey,
+    pub(super) text: String,
+}
+
 /// A translation's line: `» (fr) Hi`.
 pub(crate) fn line(translation: &sjk_identity::Translation) -> String {
     let from = if translation.from.is_empty() {
@@ -164,7 +175,7 @@ impl ChatOverlay {
         self.lines
             .iter()
             .rev()
-            .filter(|line| !line.muted && !line.translated)
+            .filter(|line| !line.muted && !line.local)
             .find_map(|line| {
                 let text = plain(&line.body);
                 foreign(&text, skip)?;
@@ -226,6 +237,121 @@ impl ChatOverlay {
         self.put_translation(format!("^3Translate: {text}"), None, now);
     }
 
+    /// Say `text` (with its colour codes) in the feed as this client's own line, never
+    /// sent and never offered for translation.
+    pub(crate) fn notice(&mut self, text: String, now: Instant) {
+        self.put_translation(text, None, now);
+    }
+
+    /// Whether a click on `line`'s text may translate it: another player's line or a
+    /// server's, not this client's own words, a translation, a blocked sender's line,
+    /// nor one already asked for.
+    fn translatable(&self, line: &ChatLine) -> bool {
+        !line.local
+            && !line.asked
+            && !line.muted
+            && !line.body.trim().is_empty()
+            // The player's own encrypted whisper is "To <recipient>", without a sender.
+            && !(line.encrypted && line.sender.is_none())
+            && line.sender.is_none_or(|target| Some(target.slot()) != self.own_slot)
+            && line.hub.as_ref().is_none_or(|hub| {
+                !hub.official
+                    && hub.tier.is_none()
+                    && self.sjk_own_key.as_deref() != Some(hub.key_id.as_str())
+            })
+    }
+
+    /// Note that the text of the line at `index` in `lines`, the `token`th on show, is
+    /// drawn in `rect` and may be clicked to translate; a faint band shows under the
+    /// pointer resting on it. Nothing while `cl_chatTranslate` is off.
+    pub(super) fn offer_body(&mut self, token: usize, index: usize, rect: sjk_ui::Rect) {
+        let Some(line) = self.lines.get(index) else {
+            return;
+        };
+        if !self.translate_on || token >= super::MAX_VISIBLE || !self.translatable(line) {
+            return;
+        }
+        self.visible_bodies[token] = Some((index, line.received_ms, rect));
+        if self.pointer_at.is_some_and(|at| rect.contains(at)) {
+            self.ui
+                .accent_bar(rect, sjk_ui::Color::new(1.0, 1.0, 1.0, 0.05));
+        }
+    }
+
+    /// The line whose text is at `at` on show, as its index and when it came.
+    fn body_at(&self, at: sjk_ui::Vec2) -> Option<(usize, u64)> {
+        self.visible_bodies
+            .iter()
+            .flatten()
+            .find(|(.., rect)| rect.contains(at))
+            .map(|&(index, ms, _)| (index, ms))
+    }
+
+    /// A press and release of the main button on the same line's text, off every
+    /// control, asks for its translation.
+    pub(super) fn follow_body_click(&mut self, event: sjk_ui::InputEvent) {
+        use sjk_ui::{InputEvent, PointerButton};
+        match event {
+            InputEvent::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                self.pressed_body = if self.pressed_action.is_none() {
+                    self.body_at(position)
+                } else {
+                    None
+                };
+            }
+            InputEvent::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                if let Some(pressed) = self.pressed_body.take()
+                    && self.body_at(position) == Some(pressed)
+                {
+                    self.click_body(pressed);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Ask for the translation of the line at `index` that came at `ms`.
+    fn click_body(&mut self, (index, ms): (usize, u64)) {
+        let Some(line) = self.lines.get(index) else {
+            return;
+        };
+        if line.received_ms != ms || !self.translatable(line) {
+            return;
+        }
+        let key = (line.received_ms, line.body.clone());
+        let text = plain(&line.body);
+        self.lines[index].asked = true;
+        self.translate_click = Some(Click { key, text });
+    }
+
+    /// Follow `cl_chatTranslate`: off, no line's text may be clicked to translate.
+    pub(crate) fn set_translate_on(&mut self, on: bool) {
+        self.translate_on = on;
+    }
+
+    /// The line whose text was clicked, once.
+    pub(crate) fn take_translate_click(&mut self) -> Option<Click> {
+        self.translate_click.take()
+    }
+
+    /// The line of `key` may be clicked again: its translation was not asked after all.
+    fn unask(&mut self, key: &LineKey) {
+        if let Some(line) = self
+            .lines
+            .iter_mut()
+            .rev()
+            .find(|line| line.received_ms == key.0 && line.body == key.1)
+        {
+            line.asked = false;
+        }
+    }
+
     /// Put `text` in the feed under the line of `key`, or at the end.
     fn put_translation(&mut self, text: String, key: Option<&LineKey>, now: Instant) {
         let at = key.and_then(|(ms, body)| {
@@ -251,7 +377,8 @@ impl ChatOverlay {
             verified: false,
             recipient: None,
             loud: original.is_none_or(|line| line.loud),
-            translated: true,
+            local: true,
+            asked: false,
         };
         match at {
             Some(at) if at + 1 < self.lines.len() => {
@@ -291,6 +418,38 @@ impl crate::GpuState {
                 (Some(key), text)
             }
         };
+        self.ask_translation(key, text)
+    }
+
+    /// Translate the line whose text was clicked: whatever its guessed language, unless
+    /// the guess is sure it is English or a skipped one.
+    fn translate_clicked(&mut self, click: Click) -> Result<(), String> {
+        let skip = Skip::parse(
+            self.console
+                .as_ref()
+                .and_then(|console| console.text_cvar(SKIP_CVAR).ok())
+                .unwrap_or(SKIP_DEFAULT),
+        );
+        if let Some(guess) = guess(&click.text)
+            && guess.sure
+            && skip.skips(guess.code)
+        {
+            return Err(if guess.code == "en" {
+                "this line is in English already".to_owned()
+            } else {
+                format!(
+                    "this line is in {}, which {SKIP_CVAR} passes over",
+                    guess.code
+                )
+            });
+        }
+        let key = click.key.clone();
+        self.ask_translation(Some(click.key), click.text)
+            .inspect_err(|_| self.chat.unask(&key))
+    }
+
+    /// Ask the hub for `text` in English, its translation to go under the line of `key`.
+    fn ask_translation(&mut self, key: Option<LineKey>, text: String) -> Result<(), String> {
         if sjk_identity::translate::check(&text).is_none() {
             return Err(format!(
                 "nothing to translate (1 to {} characters)",
@@ -306,6 +465,16 @@ impl crate::GpuState {
     /// Show the translations the hub answered (each frame; nothing to do while none
     /// waits), in the feed and the console.
     pub(crate) fn update_chat_translations(&mut self) {
+        let on = self
+            .console
+            .as_ref()
+            .is_none_or(|console| console.bool_cvar(CVAR) != Some(false));
+        self.chat.set_translate_on(on);
+        if let Some(click) = self.chat.take_translate_click()
+            && let Err(why) = self.translate_clicked(click)
+        {
+            self.chat.translation_notice(&why, Instant::now());
+        }
         if !self.chat.translations_waiting() {
             return;
         }
@@ -509,7 +678,7 @@ mod tests {
         assert!(!chat.translations_waiting());
         let bodies: Vec<&str> = chat.lines.iter().map(|line| line.body.as_str()).collect();
         assert_eq!(bodies[1], console[0], "under its line: {bodies:?}");
-        assert!(chat.lines[1].translated);
+        assert!(chat.lines[1].local);
         // The translation is not foreign itself, and the French line is taken again.
         let (_, again) = chat.last_foreign(&Skip::parse("en")).unwrap();
         assert!(again.starts_with("Salut"));

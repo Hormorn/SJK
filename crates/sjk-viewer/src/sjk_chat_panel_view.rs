@@ -1524,7 +1524,7 @@ impl Panel {
             "Chosen message",
         );
         self.shown.chosen_bannable = false;
-        self.shown.chosen_translate = None;
+        self.shown.chosen_translate = false;
         let message = self.selected.and_then(|id| {
             inputs.chat.and_then(|chat| {
                 // The SJK team's lines have no sender to act on.
@@ -1571,13 +1571,24 @@ impl Panel {
             .and_then(|chat| chat.own_key.as_ref())
             .and_then(|key| std::str::from_utf8(key).ok())
             .is_some_and(|key| key == message.key_id);
-        let plain = crate::chat::translate::plain(&sjk_chat_look::message_text(&message.text));
-        if let Some(skip) = inputs.translate
-            && !muted
-            && !own
-            && message.holocron.is_none()
-            && crate::chat::translate::offered(&plain, skip)
-        {
+        let offered = match inputs.translate {
+            Some(skip) if !muted && !own && message.holocron.is_none() => {
+                // Guessed once per message (and skip list), not every frame.
+                let known = matches!(&self.translate_guess,
+                    Some((id, kept, _)) if *id == message.id && kept == skip);
+                if !known {
+                    let plain =
+                        crate::chat::translate::plain(&sjk_chat_look::message_text(&message.text));
+                    let offer = crate::chat::translate::offered(&plain, skip).then_some(plain);
+                    self.translate_guess = Some((message.id, skip.clone(), offer));
+                }
+                self.translate_guess
+                    .as_ref()
+                    .is_some_and(|(_, _, offer)| offer.is_some())
+            }
+            _ => false,
+        };
+        if offered {
             kit::button(
                 &mut self.ui,
                 frame,
@@ -1594,12 +1605,12 @@ impl Panel {
                 TRANSLATE_TOKEN,
             );
             self.order.push(TRANSLATE_TOKEN);
-            self.shown.chosen_translate = Some(plain);
+            self.shown.chosen_translate = true;
         }
         let size = 26.0;
         let room = SIDE_WIDTH
             - sjk_chat_look::tick_room(size)
-            - if self.shown.chosen_translate.is_some() {
+            - if self.shown.chosen_translate {
                 TRANSLATE_WIDTH + 12.0
             } else {
                 0.0

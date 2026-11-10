@@ -192,8 +192,8 @@ struct Shown {
     blocked: Vec<crate::chat_mutes::Mute>,
     /// Whether the chosen message offers Ban 24 h.
     chosen_bannable: bool,
-    /// The chosen message's plain text while it offers Translate.
-    chosen_translate: Option<String>,
+    /// Whether the chosen message offers Translate.
+    chosen_translate: bool,
     /// The keys of the players in the who-is-online window, by token.
     people: Vec<String>,
     /// The keys of faces in the window drawn without knowing their picture: the
@@ -251,6 +251,9 @@ pub(crate) struct Panel {
     only_for_staff: bool,
     /// The translations the page asked for, the newest last ([`Panel::translation_sent`]).
     translations: Vec<Translated>,
+    /// The language guess of the chosen message: its id, the skip list it was made
+    /// with, and its plain text while it offers Translate.
+    translate_guess: Option<(u64, crate::chat::translate::Skip, Option<String>)>,
     /// The chat to show in place of the live one, for a world shot.
     #[cfg(test)]
     pub(crate) preview: Option<ChatState>,
@@ -326,6 +329,7 @@ impl Panel {
             hover: Default::default(),
             only_for_staff: false,
             translations: Vec::new(),
+            translate_guess: None,
             #[cfg(test)]
             preview: None,
         }
@@ -915,7 +919,13 @@ impl Panel {
                 },
                 None => PanelAction::None,
             },
-            TRANSLATE_TOKEN => match (chosen, self.shown.chosen_translate.clone()) {
+            TRANSLATE_TOKEN => match (
+                chosen,
+                self.translate_guess
+                    .as_ref()
+                    .filter(|_| self.shown.chosen_translate)
+                    .and_then(|(_, _, offer)| offer.clone()),
+            ) {
                 // Only offered (laid out) while the message may be translated.
                 (Some((message, ..)), Some(text)) => PanelAction::Translate { message, text },
                 _ => PanelAction::None,

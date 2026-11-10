@@ -120,9 +120,12 @@ struct ChatLine {
     recipient: Option<u16>,
     /// The line passes quiet mode (`chat/quiet.rs`), decided when it arrived.
     loud: bool,
-    /// The line is a translation the player asked for, or why there is none
-    /// (`chat/translate.rs`): local, never another line's to translate.
-    translated: bool,
+    /// The line is this client's own words: a translation the player asked for, why
+    /// there is none, or a notice (`chat/translate.rs`); never one to translate.
+    local: bool,
+    /// The line's translation was asked for (`chat/translate.rs`): a click on it does
+    /// not ask again.
+    asked: bool,
 }
 
 /// An SJK chat line's id at the hub and its sender.
@@ -284,6 +287,15 @@ pub(crate) struct ChatOverlay {
     sjk_own_key: Option<String>,
     /// Translations waiting for the hub (`chat/translate.rs`).
     translations: translate::Asks,
+    /// Whether a click on a line's text translates it (`cl_chatTranslate`).
+    translate_on: bool,
+    /// The line whose text was clicked, until the frame asks the hub for it.
+    translate_click: Option<translate::Click>,
+    /// The text of each line on show that a click translates: its index in `lines`,
+    /// when it came, and where its text is drawn (`chat/translate.rs`).
+    visible_bodies: [Option<(usize, u64, sjk_ui::Rect)>; MAX_VISIBLE],
+    /// The line text a press began on, until its release.
+    pressed_body: Option<(usize, u64)>,
     /// The feed draws during a world shot, which has no session.
     #[cfg(test)]
     pub(crate) for_shot: bool,
@@ -388,6 +400,10 @@ impl ChatOverlay {
             duel_partner: sjk_client::DuelPartner::default(),
             sjk_own_key: None,
             translations: translate::Asks::default(),
+            translate_on: true,
+            translate_click: None,
+            visible_bodies: [None; MAX_VISIBLE],
+            pressed_body: None,
             #[cfg(test)]
             for_shot: false,
         }
@@ -635,7 +651,8 @@ impl ChatOverlay {
                 self.own_slot,
                 self.duel_partner.target(),
             ),
-            translated: false,
+            local: false,
+            asked: false,
         };
         self.push_line(line, server_private);
     }
@@ -710,7 +727,8 @@ impl ChatOverlay {
             verified,
             recipient,
             loud: true,
-            translated: false,
+            local: false,
+            asked: false,
         };
         self.push_line(line, true);
         true

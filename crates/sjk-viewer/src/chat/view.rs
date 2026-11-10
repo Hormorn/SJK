@@ -87,6 +87,7 @@ impl ChatOverlay {
         self.ui.begin_transparent(viewport);
         self.visible_people.fill(None);
         self.visible_blades.fill(None);
+        self.visible_bodies.fill(None);
         let mut g = self.options.geometry(viewport);
         if self.scoreboard_layout == crate::scoreboard::behavior::ChatLayout::SideColumn {
             place_beside_scoreboard(&mut g, viewport, self.options.font);
@@ -295,6 +296,11 @@ impl ChatOverlay {
                     let key = (index, line.received_ms);
                     self.links.add_line(font, key, &line.body, rows, place);
                 }
+                if active {
+                    let rows = line.wrap.len as f32;
+                    let rect = Rect::new(x, y, g.width - 12.0 * g.scale, rows * g.row);
+                    self.offer_body(token, index, rect);
+                }
                 continue;
             };
             let prefix = sjk_line::Prefix::new(name, marks, font, g);
@@ -383,6 +389,14 @@ impl ChatOverlay {
                 self.visible_blades[token] = Some((skin, rect, colour));
                 self.ui.hit_region(find_blade::BLADE + token as u16, rect);
             }
+            // The text after the name: a click translates the line (`translate.rs`).
+            let indent = prefix.width();
+            let body = Rect::new(
+                x + indent,
+                y,
+                (g.width - 12.0 * g.scale - indent).max(1.0),
+                line.wrap.len as f32 * g.row,
+            );
             if let Some(hub) = &line.hub {
                 self.visible_people[token] = Some(card::Who::Hub(hub.id));
                 self.ui.hit_region(token as u16, name);
@@ -393,6 +407,7 @@ impl ChatOverlay {
                 self.visible_people[token] = Some(card::Who::Player(target));
                 self.ui.hit_region(token as u16, name);
             }
+            self.offer_body(token, index, body);
         }
         // The link under the pointer is lit as a name under it is, on every row it is
         // drawn on: Ctrl+C copies it (`links.rs`).

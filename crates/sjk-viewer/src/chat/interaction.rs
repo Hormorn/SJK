@@ -302,6 +302,9 @@ impl ChatOverlay {
                 self.unpin_card();
             }
         }
+        // A line's text, off every control: a click on it translates the line
+        // (`chat/translate.rs`).
+        self.follow_body_click(event);
         if let InputEvent::PointerWheel { delta, .. } = event {
             if delta.y != 0.0 {
                 self.scroll_by(if delta.y > 0.0 { 1 } else { -1 });
@@ -464,12 +467,7 @@ impl crate::GpuState {
             None
         };
         if let Some(why) = why {
-            self.chat.receive(
-                sjk_client::ServerEventKind::Chat,
-                why.to_owned(),
-                None,
-                Instant::now(),
-            );
+            self.chat.notice(why.to_owned(), Instant::now());
         }
     }
 
@@ -488,12 +486,7 @@ impl crate::GpuState {
             None
         };
         if let Some(why) = why {
-            self.chat.receive(
-                sjk_client::ServerEventKind::Chat,
-                why.to_owned(),
-                None,
-                Instant::now(),
-            );
+            self.chat.notice(why.to_owned(), Instant::now());
         }
     }
 

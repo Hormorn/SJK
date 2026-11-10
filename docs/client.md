@@ -3354,6 +3354,14 @@ A foreign chat line is put into English on request only (Creo's idea, 10/11/2026
 [chat/translate.rs](../crates/sjk-viewer/src/chat/translate.rs)). Nothing is
 translated on its own and nothing goes to the game server:
 
+- While the chat field is open (the mouse is free then), a click on a line's text
+  translates that line: public, team and private game chat, any server line, and SJK
+  and clan chat lines in the feed. A faint band shows under the pointer on a line that
+  can be clicked. A click on the sender's name still opens their card. The player's own
+  lines, SJK's notices and translations, a blocked player's lines and a line already
+  translated are not offered. The click is the ask, so the language guess does not
+  hold it back, except that a line the guess is sure is English (or a skipped
+  language) is not sent: a notice says so.
 - `/tr` typed in the chat field, on any channel, translates the newest line in the
   feed that looks foreign; `/tr <text>` translates the text given. The field closes
   and nothing is said.
@@ -3376,8 +3384,11 @@ counts only when its script alone says so (Cyrillic, Greek, Han...): "gg" or "sa
 are not taken by a bare `/tr`, though `/tr salut` and the page's button still
 translate them.
 
+The sender card has no Translate of its own, and the console has no click: its path is
+`tr` (or `tr <text>` with the line copied).
+
 - `cl_chatTranslate` (archived, default 1; Settings > Chat > Translate chat): 0 turns
-  `/tr`, `tr` and Translate off; a typed `/tr` then says so and is still not said.
+  the click, `/tr`, `tr` and Translate off; a typed `/tr` then says so and is still not said.
 - `cl_chatTranslateSkip` (archived, default `en`; Settings > Chat > Never translate):
   ISO 639-1 codes separated by spaces or commas (`en sk cs`), never offered; English
   never is, whatever the list says.

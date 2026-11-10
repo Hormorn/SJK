@@ -1536,7 +1536,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::chat::translate::CVAR,
-        "/tr in the chat or Translate on the SJK chat page puts a foreign line into English. Only that line goes to the SJK hub.",
+        "Click a line's text with the chat open, or type /tr, to put it into English. Only that line goes to the SJK hub.",
     ),
     (
         crate::chat::translate::SKIP_CVAR,
