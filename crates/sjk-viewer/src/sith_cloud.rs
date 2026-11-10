@@ -189,7 +189,10 @@ mod tests {
         let console = ViewerConsole::new(directory.path().join("config.cfg")).unwrap();
         let game_data = directory.path();
         let settings = job_settings(&console, game_data);
-        assert_eq!((settings.root, settings.game_base), (game_data.to_owned(), None));
+        assert_eq!(
+            (settings.root, settings.game_base),
+            (game_data.to_owned(), None)
+        );
         assert_eq!(folder(game_data), game_data.join("base"));
         let tidied = game_data.join("assets").join("S");
         std::fs::create_dir_all(tidied.join("base")).unwrap();
