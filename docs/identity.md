@@ -858,8 +858,13 @@ on the hub, in the SJK UI's look in every menu style:
 - who they are: the hub name with its colours, Verified by the SJK team or not yet,
   the date the key was registered (`Member since`) and up to three other
   names worn (the switch, the key and the hub are on the Identity page, in Settings,
-  Network, since 09/10/2026); on the Profile screen Change name opens the Character
-  tab's Name field, since the hub name is the `name` worn in game;
+  Network, since 09/10/2026); on the Profile screen Change name opens the name panel in
+  the bio's place (10/11/2026, Sol: it used to open the Character tab's in-game Name
+  field): a field holding the hub name, whose Save sends it as the custom SJK name
+  (`PUT /v1/profile` `{"name"}`, `sjk_identity::custom_name`: trimmed, 1 to 24
+  characters, a letter or digit once colour codes are dropped; the hub refuses one
+  another key holds, `name_taken`), shown on the hub, in the SJK chat and on cards
+  instead of the name worn;
 - their record, from the achievement counts kept on this PC (players defeated, saber
   kills, best streak, duels won, flags captured, maps and servers played, time
   played) and the last four achievements unlocked;
@@ -939,7 +944,10 @@ on screen. A bio is plain text: nothing in it is ever a link or markup.
 ## Pictures
 
 A player may show a small square picture beside their name (08/10/2026, Sol's
-request). The hub's side is `PROTOCOL.md`, "Pictures", in Sol-Vulpes/SJK-hub: the
+request). Since 10/11/2026 (Sol) only verified players, staff and the creator may
+upload one: the hub refuses anyone else with 403 `not_verified`, which the picture
+panel shows as "Not sent: only players the SJK team verified may show a picture".
+Pictures uploaded before stay until staff take them down. The hub's side is `PROTOCOL.md`, "Pictures", in Sol-Vulpes/SJK-hub: the
 client needs a hub with it, or profiles carry no `avatar` and the stand-ins show.
 
 **Choosing one.** The picture panel's **Browse...** (09/10/2026, Sol's request) opens

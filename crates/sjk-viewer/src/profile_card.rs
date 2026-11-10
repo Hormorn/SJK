@@ -633,6 +633,7 @@ mod tests {
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),

@@ -19,10 +19,6 @@ impl ViewerConsole {
     pub(crate) fn take_quit(&mut self) -> bool {
         std::mem::take(&mut self.pending_quit)
     }
-    /// Whether the Profile page's Change name was pressed since the last call.
-    pub(crate) fn take_name_edit(&mut self) -> bool {
-        std::mem::take(&mut self.pending_name_edit)
-    }
     /// Attach the mounted search path used after the writable config directory.
     pub(crate) fn attach_script_vfs(&mut self, vfs: Arc<sjk_vfs::VirtualFileSystem>) {
         self.script_vfs = Some(vfs);

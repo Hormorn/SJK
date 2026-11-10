@@ -1454,6 +1454,7 @@ impl GpuState {
         let mut markers =
             std::mem::replace(&mut self.map_edits.gizmo.list, sjk_ui::DrawList::new(0));
         self.map_edit_markers_draw(&mut markers);
+        self.map_edit_measure_draw(&mut markers, &view);
         self.map_edits.gizmo.list = markers;
         let mode = self.map_edit_gizmo_mode();
         let lights = self.map_edits.panel.tab == super::panel::Tab::Lights;

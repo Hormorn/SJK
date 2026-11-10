@@ -9,6 +9,66 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 10/11/2026 | - | Map editor: fly-to and frame (F, double clicks, mapedit_frame)
+- 127f867 |  | Map editor: fly-to and frame (F, double clicks, mapedit_frame)
++ 10/11/2026 | - | Map editor: texture alignment of shown faces (mapedit_align, Align on Selected)
+- fdd9cf1 |  | Map editor: texture alignment of shown faces (mapedit_align, Align on Selected)
++ 10/11/2026 | - | Map editor: place and grab along the surface (mapedit_surface, Place's Surface)
+- 4f5d6ed |  | Map editor: place and grab along the surface (mapedit_surface, Place's Surface)
++ 10/11/2026 | - | Map editor: grow, shrink and invert the selection
+- bab9616 |  | Map editor: grow, shrink and invert the selection
++ 10/11/2026 | - | Map editor: measure tool (M, mapedit_measure)
+- 246797b |  | Map editor: measure tool (M, mapedit_measure)
++ 10/11/2026 | - | Map editor: live preview on caulk and nodraw faces
+- 2b53e3a |  | Map editor: live preview on caulk and nodraw faces
++ 10/11/2026 | - | Map editor: a box casts its rays among the surfaces it can meet
+- d0ab594 |  | Map editor: a box casts its rays among the surfaces it can meet
++ 10/11/2026 | - | Map editor: world shot of the fourth round, and its fixes
+- 9f422df |  | Map editor: world shot of the fourth round, and its fixes
++ 10/11/2026 | - | Docs: the map editor's fly-to, alignment, caulk preview, surfaces, grow, measure
+- 89069aa |  | Docs: the map editor's fly-to, alignment, caulk preview, surfaces, grow, measure
++ 10/11/2026 | - | Verified-only GIFs, Change name sets the SJK name
+- b8cb802 |  | Verified-only GIFs, Change name sets the SJK name
++ 10/11/2026 | - | Credits history after Slash's PR #407
+- eea6e7b |  | Credits history after Slash's PR #407
++ 10/11/2026 | - | Forge fusion, deal of the day and a wishlist (client)
+- 19a22ac |  | Forge fusion, deal of the day and a wishlist (client)
++ 10/11/2026 | - | Credits history: the map editor guesses and selections round
+- c10f6aa |  | Credits history: the map editor guesses and selections round
++ 10/11/2026 | - | Map editor: clips, triggers and invisible walls are no hidden faces
+- 84e69d3 |  | Map editor: clips, triggers and invisible walls are no hidden faces
++ 10/11/2026 | - | Map editor: texture guesses, a live remap preview and better selections
+- eee07a0 |  | Map editor: texture guesses, a live remap preview and better selections
++ 10/11/2026 | - | Map editor guesses and selections: world shot, docs, test list and changelog
+- 636b103 |  | Map editor guesses and selections: world shot, docs, test list and changelog
++ 10/11/2026 | - | Beta season: a guaranteed shader in every Rare+ holocron, Beta kyber crystal odds
+- d7a349e |  | Beta season: a guaranteed shader in every Rare+ holocron, Beta kyber crystal odds
++ 10/11/2026 | - | JoF and Sith content: count the files tidied into GameData/assets
+- 3db375f |  | JoF and Sith content: count the files tidied into GameData/assets
++ 10/11/2026 | - | Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer's Low to Ultra
+- 08560d0 |  | Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer's Low to Ultra
++ 10/11/2026 | - | Holocron seasons: Beta holocrons' prizes one by one, the Beta loot page and the pity
+- 38ab2e2 |  | Holocron seasons: Beta holocrons' prizes one by one, the Beta loot page and the pity
++ 10/11/2026 | - | GIF tags: a blank tag spent once on a GIPHY GIF, played on walls
+- 42e3168 |  | GIF tags: a blank tag spent once on a GIPHY GIF, played on walls
++ 10/11/2026 | - | GIF tags: test list entry, changelog and credits
+- 2bbcc80 |  | GIF tags: test list entry, changelog and credits
++ 10/11/2026 | - | debug_panel: fold the acoustics fix into three change lines (the panel's limit)
+- fc9b0fb |  | debug_panel: fold the acoustics fix into three change lines (the panel's limit)
++ 10/11/2026 | - | Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
+- f683f43 |  | Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
++ 10/11/2026 | - | README: buttons for the site, downloads and launcher, and screenshots
+- 6bb008f |  | README: buttons for the site, downloads and launcher, and screenshots
++ 10/11/2026 | - | Sith cloud card: follow the launcher into assets/S
+- 8404e84 |  | Sith cloud card: follow the launcher into assets/S
++ 10/11/2026 | - | Sith cloud card: format the new test
+- 1451d9a |  | Sith cloud card: format the new test
++ 10/11/2026 | - | Load PK3s from GameData/assets and its subfolders
+- c8096b6 |  | Load PK3s from GameData/assets and its subfolders
++ 09/11/2026 | - | Your SJK page: identity site, identity link, the Videographer medal
+- 4d1c792 |  | Your SJK page: identity site, identity link, the Videographer medal
++ 09/11/2026 | - | 3D sound: the room echo sits under the sounds instead of over them
+- 5eb7ecb |  | 3D sound: the room echo sits under the sounds instead of over them
 + 09/11/2026 | - | +grapple's release lasts two commands; an emote's music waits for its decoder
 - a90b7df |  | +grapple's release lasts two commands; an emote's music waits for its decoder
 + 09/11/2026 | - | s_language voices; the strafe helper on jaPRO servers
@@ -3516,10 +3576,16 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
-+ 09/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
-- 2d5ae54 |  | Credits: count pull requests merged as "Merge PR #N (Author): title" or "Merge PR #N"
-+ 09/11/2026 | - | Release 2026.1109.3 (Alpha)
++ 10/11/2026 | SJK #405 | Disruptor beams leave the gun's tip (hub report #294)
+- a39e53b |  | Disruptor beams leave the gun's tip (hub report #294)
+- d69857b |  | Changelog: the beam fix's PR number
++ 10/11/2026 | SJK #407 | JK2 HUD: the selector bar opens behind the icons (hub report #301)
+- 44c0f37 |  | JK2 HUD: open the selector bar behind the icons (hub report #301)
+- 7402bb7 |  | Changelog: PR number for the JK2 selector bar
++ 10/11/2026 | - | Release 2026.1109.3 (Alpha)
 - a692047 |  | Release 2026.1109.3 (Alpha)
++ 10/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
+- 2d5ae54 |  | Credits: count pull requests merged as "Merge PR #N (Author): title" or "Merge PR #N"
 + 09/11/2026 | SJK #399 | Jedi Knight II HUD (cg_hudFiles 2)
 - 7b8cd0d |  | Jedi Knight II HUD (cg_hudFiles 2), pictures from EternalJK
 - b4b513e |  | Format menu_stage, which fails the CI formatting check on main

@@ -1038,6 +1038,16 @@ pub struct EconomyTables {
     /// `None` from hubs before.
     #[serde(default)]
     pub banners: Option<BannerTables>,
+    /// The duplicates one fusion takes, by the input shaders' tier, common to mythical, 0
+    /// for a tier that cannot fuse (10/11/2026, with [`FUSE_ABILITY`]): that many
+    /// duplicates of one tier make one shader of the next the person lacks. Empty from
+    /// hubs before.
+    #[serde(default)]
+    pub fuse: Vec<u32>,
+    /// The person's wishlist of saber shaders, up to [`WISHLIST_MAX`] ids (10/11/2026);
+    /// `None` from hubs before, which keep none.
+    #[serde(default)]
+    pub wishlist: Option<Vec<String>>,
 }
 
 impl EconomyTables {
@@ -1054,6 +1064,55 @@ impl EconomyTables {
     pub fn can(&self, ability: &str) -> bool {
         self.abilities.iter().any(|known| known == ability)
     }
+
+    /// The duplicates a fusion of tier index `tier` takes, when the hub fuses that tier
+    /// (it says [`FUSE_ABILITY`] and a count above 0 for it); `None` otherwise.
+    pub fn fuse_count(&self, tier: usize) -> Option<u32> {
+        if !self.can(FUSE_ABILITY) {
+            return None;
+        }
+        self.fuse.get(tier).copied().filter(|count| *count > 0)
+    }
+}
+
+/// The economy's ability that says the hub fuses duplicates (`POST /v1/unlocks/fuse`,
+/// 10/11/2026): [`EconomyTables::fuse`] duplicates of one tier for one shader of the next
+/// tier the person lacks.
+pub const FUSE_ABILITY: &str = "fuse";
+
+/// The most shaders a wishlist holds ([`EconomyTables::wishlist`], `PUT /v1/shop/wishlist`).
+pub const WISHLIST_MAX: usize = 3;
+
+/// The copies of one shader a fusion took (`POST /v1/unlocks/fuse`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct FuseUsed {
+    /// The shader's id.
+    pub id: String,
+    /// The copies of it that went.
+    #[serde(default)]
+    pub copies: u32,
+}
+
+/// The hub's answer to `POST /v1/unlocks/fuse`: the shader gained, in the craft's shape,
+/// the copies that went and the person's profile after.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct FuseAnswer {
+    /// The shader the fusion gave (its `cost` 0: no shards are spent).
+    #[serde(alias = "fused")]
+    pub crafted: Crafted,
+    /// The copies that went, by shader.
+    #[serde(default)]
+    pub used: Vec<FuseUsed>,
+    /// The person's profile after.
+    pub profile: Profile,
+}
+
+/// The hub's answer to `PUT /v1/shop/wishlist`: the wishlist it keeps now, when it says.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct WishlistAnswer {
+    /// The shader ids, in order; `None` when the answer leaves them out.
+    #[serde(default)]
+    pub wishlist: Option<Vec<String>>,
 }
 
 /// A duplicate the hub shattered (`POST /v1/unlocks/shatter`).
@@ -1163,6 +1222,17 @@ pub struct Offer {
     /// Whether the person holds it already (then the hub will not sell it).
     #[serde(default)]
     pub owned: bool,
+    /// The deal of the day (10/11/2026): one offer a day at half price, its
+    /// [`Offer::price`] already halved. False from hubs before.
+    #[serde(default)]
+    pub deal: bool,
+    /// Whether it is on the person's wishlist (10/11/2026). False from hubs before.
+    #[serde(default)]
+    pub wished: bool,
+    /// The shader's edition id (`alpha`, `beta`, 10/11/2026); `None` from hubs before,
+    /// read as Alpha.
+    #[serde(default)]
+    pub edition: Option<String>,
 }
 
 /// The hub's answer to `GET /v1/shop` (`PROTOCOL.md`, "Shards and the shop"): the day's
@@ -2064,6 +2134,27 @@ pub fn authorization(
     )
 }
 
+/// The most characters a custom SJK name holds (the hub's rule, `PROTOCOL.md`,
+/// "Profile fields").
+pub const CUSTOM_NAME_MAX: usize = 24;
+
+/// A custom SJK name as the hub takes it: trimmed, 1 to [`CUSTOM_NAME_MAX`]
+/// characters, no control characters, and a letter or digit once colour codes are
+/// dropped ([`normal_form`]). The hub still refuses one another player holds.
+pub fn custom_name(raw: &str) -> Result<String, &'static str> {
+    let name = raw.trim();
+    if name.is_empty() {
+        return Err("Type a name first");
+    }
+    if name.chars().count() > CUSTOM_NAME_MAX {
+        return Err("A name holds at most 24 characters");
+    }
+    if name.chars().any(char::is_control) || normal_form(name).is_empty() {
+        return Err("A name needs a letter or digit");
+    }
+    Ok(name.to_owned())
+}
+
 /// The form two player names are compared in: lower case, Quake colour codes
 /// removed, only letters and digits kept (the hub uses the same rule for
 /// display names).
@@ -2180,6 +2271,52 @@ mod tests {
     }
 
     const KNOWN_ANSWER: &str = "SJK-Sig key=6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw, ts=1000000, nonce=AQEBAQEBAQEBAQEB, sig=IKLlpqaSWIXqXK7Q77SsGJiE4BIdUTjkSWv2zyr0951WKByhEShSL-Ow70Rgc3znokl0Sf4rQK2VjNkPEm9uCQ";
+
+    /// Fusion, the deal of the day and the wishlist (10/11/2026): each field parses when
+    /// sent, and a hub before them leaves every one out.
+    #[test]
+    fn fusion_deals_and_the_wishlist_parse_and_older_hubs_send_none() {
+        let economy: EconomyTables = serde_json::from_str(
+            r#"{"shatter":[5,10,25,60,150],"abilities":["fuse"],"fuse":[3,3,3,5,0],
+                "wishlist":["saber_aurora","saber_tidal"]}"#,
+        )
+        .unwrap();
+        assert_eq!(economy.fuse, [3, 3, 3, 5, 0]);
+        assert_eq!(economy.fuse_count(3), Some(5));
+        assert_eq!(economy.fuse_count(4), None, "0: Mythical does not fuse");
+        assert_eq!(economy.fuse_count(9), None);
+        assert_eq!(economy.wishlist.as_deref().map(<[String]>::len), Some(2));
+        // The counts without the ability are not a fusion.
+        let unsaid: EconomyTables = serde_json::from_str(r#"{"fuse":[3,3,3,5,0]}"#).unwrap();
+        assert_eq!(unsaid.fuse_count(0), None);
+        // An empty wishlist is a hub that keeps one.
+        let empty: EconomyTables = serde_json::from_str(r#"{"wishlist":[]}"#).unwrap();
+        assert_eq!(empty.wishlist, Some(Vec::new()));
+        let offer: Offer = serde_json::from_str(
+            r#"{"id":"saber_phoenix","name":"Phoenix blade","tier":"mythical","price":750,
+                "deal":true,"wished":true,"edition":"beta"}"#,
+        )
+        .unwrap();
+        assert!(offer.deal && offer.wished);
+        assert_eq!((offer.price, offer.edition.as_deref()), (750, Some("beta")));
+        let older: Offer =
+            serde_json::from_str(r#"{"id":"saber_aurora","tier":"common","price":30}"#).unwrap();
+        assert!(!older.deal && !older.wished && older.edition.is_none());
+        let fused: FuseAnswer = serde_json::from_str(
+            r#"{"crafted":{"id":"saber_sakura","name":"Sakura blade","count":1,"cost":0,
+                "balance":12},"used":[{"id":"saber_aurora","copies":2},{"id":"saber_tidal",
+                "copies":1}],"profile":{"key_id":"0123456789abcdef","key":"k","name":"Sol",
+                "bio":"","verified":false,"created":1}}"#,
+        )
+        .unwrap();
+        assert_eq!(fused.crafted.id, "saber_sakura");
+        assert_eq!(fused.used.iter().map(|used| used.copies).sum::<u32>(), 3);
+        let wished: WishlistAnswer =
+            serde_json::from_str(r#"{"wishlist":["saber_aurora"]}"#).unwrap();
+        assert_eq!(wished.wishlist, Some(vec!["saber_aurora".to_owned()]));
+        let bare: WishlistAnswer = serde_json::from_str("{}").unwrap();
+        assert_eq!(bare.wishlist, None);
+    }
 
     #[test]
     fn a_feed_answer_parses() {
@@ -2546,6 +2683,9 @@ mod tests {
         );
         // A hub before the shop sold for shards says neither its currency nor holocrons.
         assert!(tables.shop_currency.is_empty() && tables.holocrons.is_empty());
+        // ... nor fusion nor a wishlist (10/11/2026).
+        assert!(tables.fuse.is_empty() && tables.wishlist.is_none());
+        assert_eq!(tables.fuse_count(0), None);
         let shards: EconomyTables = serde_json::from_str(
             r#"{"shatter":[5,10,25,60,150],"craft":[40,100,300,800,2000],
                 "shop":[30,75,225,600,1500],"shop_currency":"shards",

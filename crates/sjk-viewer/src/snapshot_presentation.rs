@@ -255,6 +255,7 @@ impl GpuState {
                 client_num: snapshot.player.client_num(),
                 third_person: self.third_person,
                 flash_point: self.last_first_person_flash,
+                world_muzzles: self.world_muzzles,
             };
             let hidden = duel_hidden(self.console.as_ref(), snapshot, game_state);
             observe(
@@ -386,6 +387,7 @@ impl GpuState {
                     client_num: snapshot.player.client_num(),
                     third_person: self.third_person,
                     flash_point: self.last_first_person_flash,
+                    world_muzzles: self.world_muzzles,
                 },
                 !snapshot.player.is_spectator(),
                 visual_now,

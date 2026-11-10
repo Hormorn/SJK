@@ -1,3 +1,51 @@
+## Verified-only pictures and GIFs, Change name sets the SJK name
+
+10/11/2026, `personal/verified-pictures-name` (Sol: "we don't accept profile pictures from
+unverified people no more + we don't play their gifs in chat. Also fix the change name in
+the SJK profile"). Hub branch `verified-pictures` refuses `PUT /v1/avatar` from a key that
+is not verified, staff or the creator (403 `not_verified`); it must be deployed for the
+picture rule to hold (the client has no check of its own). Client: `chat_gifs::plays_from`
+keeps an unverified sender's GIF link as text in the chat box, docks and SJK chat page;
+the SJK Profile tab's Change name opens a name panel that sends `PUT /v1/profile {"name"}`
+(the old route to the Character tab's Name field is gone). Existing pictures of unverified
+players stay up. Untested in game.
+
+## Forge fusion, deal of the day, wishlist (10/11/2026)
+
+10/11/2026, client `personal/forge-shop` based on `main` `c10f6aab7`, against the hub branch
+`forge-shop` built at the same time (Sol: "make crafting and the shop more relevant, people
+barely use it"; live then: 7 shop purchases ever, 38 crafts, a median of 148 kyber shards
+against a Legendary's 600). The Forge gains **Fuse** (duplicates of one tier for a shader of
+the next the player lacks, proposed from the biggest piles, never a last copy), the Shop
+marks the **deal of the day** (its struck table price), wished offers and Beta offers, and a
+**wishlist** of three shaders is kept from the Shaders tab, Craft and the offers, with a
+card once a shop day when a wished shader is on offer and a gold dot on the Forge tab, the
+Shop and Fuse chips and the Holocrons tab's Shop button while something waits there
+([cards.md](cards.md#fusion-deal-of-the-day-wishlist), [sjk-ui.md](sjk-ui.md#collection)).
+Each part hides against a hub that does not send it. Verified: `cargo test -p sjk-identity
+-p sjk-viewer` (wire parsing with and without the new fields, the fake hub's fuse and
+wishlist requests, the proposal and checks, the wishlist's limit, the dot's conditions, the
+card once a day, layout fits at 1920x1080, 3840x2160, 1440x1080 and 2560x1080), clippy on
+both crates, and the startup stack check. Not verified: nothing was tried in a running
+client nor against a deployed hub; the wire is the agreed contract, not a captured answer.
+
+## Map editor: texture guesses and better selections
+
+10/11/2026, `personal/mapedit-ingame-3`, based on `main` `e8f685997` (Sol: "further improve
+the in game editor with textures guesses, better selections and just whatever you can think
+of"). Every selection's shader list starts with Suggested rows: the nearby vote (Fill's on
+faces, asked by the surfaces' own triangles on drawn surfaces), the same name family in the
+folder, and the map's most used textures, each with why
+([map-edits.md](map-edits.md#texture-guesses-and-selections)); resting on a row previews the
+remap on the selected surfaces without writing anything. The hover outlines what is under
+the pointer with a tip; a drag draws a box selecting surfaces, seen caulk faces and placed
+models (Shift adds, Ctrl takes out); Ctrl+click takes one out; `mapedit_select shader|placed`
+and `mapedit_duplicate` (Ctrl+D) are new. Fixed: the face pick took a physics clip for a
+hidden face (now told by the `trans` flag, read at its real bit 0x80000000, which the cover
+test and the vote also had wrong), and a pick tests only the surfaces whose bounds the ray
+meets. Not built: grow and shrink, invert, normal-aligned placing, measuring, fly-to; the
+browser editor has none of these yet. Verification: below in map-edits.md's Limits.
+
 ## Holocron seasons: the Beta tables
 
 10/11/2026, client `personal/holocron-seasons` and hub branch `beta-season` (Sol: "build what

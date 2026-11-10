@@ -24,6 +24,40 @@
 
 # ---- Console & chat ----
 
+[verified-gifs-pictures]
+area: Console & chat
+title: Only verified players' GIFs play; only they upload pictures
+change: An unverified sender's GIPHY link stays a link (chat box, docks, SJK chat page).
+change: The hub refuses a picture from a key that is not verified or staff.
+test: From an unverified key, post a GIPHY link: it shows as text on every client.
+test: From a verified key, the same link plays.
+test: Unverified, Profile > change picture > Use this picture: "Not sent: only players...".
+note: Needs the hub branch verified-pictures deployed for the picture rule.
+
+[change-sjk-name]
+area: Menus & settings
+title: Change name sets the SJK name
+change: SJK Profile tab > Change name opens "Your SJK name" in the bio's place.
+change: Save sends it to the hub as the custom name, shown instead of the worn one.
+test: Profile > SJK Profile > Change name: the field holds your hub name.
+test: Type a new name, Save: "Saved..."; the SJK chat and your card show it.
+test: Try another player's name: "Not saved: ..." with the hub's reason.
+
+[forge-shop]
+area: Menus & settings
+title: Forge fusion, deal of the day, wishlist
+change: Forge > Fuse (4): duplicates of one tier make a shader of the next you lack.
+change: Shop: the deal of the day (old price struck), wished and Beta offers marked.
+change: Wishlist of 3 (gift toggle); a card once a day when one is on offer; gold dots.
+test: Collection > Forge > Fuse: the proposal never takes a last copy; P proposes again.
+test: Click a card, + and -: the count stays at the fusion's; Fuse twice reveals the gain.
+test: T steps the tier; a tier without enough duplicates says how many more are needed.
+test: Shop: the deal shows its ribbon, "Was ..." struck and the halved price; buy it.
+test: Shaders card, Craft (W) and an offer: the gift toggle adds and takes off; 3 is full.
+test: Shop lists the wishlist; a dot on the Forge tab and Holocrons' Shop when one waits.
+test: Restart the same day: the wishlist card does not come back; it does the next day.
+note: Needs the hub branch forge-shop deployed; an older hub shows none of it.
+
 [holocron-seasons]
 area: Menus & settings
 title: Holocron seasons: Beta holocrons, guaranteed prizes, bonus rolls, pity
@@ -90,6 +124,40 @@ change: so 128 is half brightness again and dark colours stay dark (female Twi'l
 test: Character page: pick an RGB model, set a dark colour (60 30 30): stage shows dark red.
 test: Online, look at a player on an RGB model: colour matches what they see in EJK.
 test: Force shells (protect, absorb) and pickups look as before.
+
+[mapedit-ingame-fly-align-measure]
+area: Menus & settings
+title: Map editor: fly-to, F frame, texture alignment, caulk preview, measure, grow
+change: Double click an edit, thing, light or lamp (or F on the selection): the camera glides there.
+change: Align on a drawn caulk face shifts, turns, scales, flips, fits its texture; caulk previews.
+change: Place > Surface stands models along walls and slopes; M measures; Ctrl + - I grow/shrink.
+test: mapedit, Edits: double click a placed model's row: the view glides to it, body stays put.
+test: Click a wall, fly away, F: the view comes back to frame it, same direction.
+test: Draw a texture on a caulk face, Align: Left, Turn left, Bigger, Fit move it; Ctrl+Z undoes.
+test: An older client (main before this) loads that map's edits and shows the face unaligned.
+test: Click another caulk face, rest the pointer on a list row: the face shows it; move off: gone.
+test: Place > Surface on, aim at a wall, Place: the model sticks out of the wall; on a slope leans.
+test: Grab it with Surface on: it follows walls and floors, turning to each.
+test: M, click two points: a gold line and "N u dx dy dz"; a third click starts again; Esc stops.
+test: Click a floor surface, Ctrl and +: its neighbours join; Ctrl and -: the edge leaves.
+test: Select placed models, Ctrl+I: the other placed models are selected instead.
+
+[mapedit-ingame-guesses-selections]
+area: Menus & settings
+title: Map editor: texture guesses, live preview, hover, box select, Same shader, Ctrl+D
+change: Every shader list starts with Suggested rows (nearby, same family, on map); resting on one
+change: previews it on the map. Hover outline and tip, box select (drag), Same shader, Ctrl+D copies.
+change: A click on a physics clip or trigger now selects what is behind it.
+test: mapedit, click a wall: the list starts with rows marked "% nearby", "same family", "on map".
+test: Rest the pointer on one: the wall (and every wall of its shader) shows it; move off: back.
+test: Remap after a preview: one Ctrl+Z takes it back; the preview alone saves nothing.
+test: Move over the scene: faint white dots and a tip ("Surface: ...") follow the pointer.
+test: Drag on the scene: a box selects what it covers; Shift+drag adds, Ctrl+drag removes.
+test: Ctrl+click a selected surface: it leaves the selection.
+test: Same shader: every surface of that shader is selected (the answer says how many).
+test: Select a placed model, Ctrl+D: a copy 16 units to the right, selected; G moves it.
+test: Place > Select all: every placed model is selected.
+test: duel6: click a physics clip wall: the wall or caulk behind is selected, not "Hidden face".
 
 [mapedit-ingame-pictures-lights]
 area: Menus & settings
@@ -4799,6 +4867,13 @@ test: Relock it on the Staff page: your blade goes back to the stock look.
 test: With no skin, retail and RGB blades look exactly as before.
 note: Needs the hub's unlocks and asset packs (SJK-hub #2 and #3), not deployed when merged.
 note: Not run in a game against the deployed hub; the sounds have not been heard yet.
+
+[disruptor-beam-tip]
+area: Rendering & effects
+title: Disruptor beams leave the gun's tip (Slash, PR #405, hub #294)
+change: Another player's beam, yours in third person and a zoomed shot start at the gun's flash.
+test: Watch another player fire the disruptor: the beam leaves their barrel, not their chest.
+test: Fire in third person, then zoomed in: the beam starts at the gun, not where it was before.
 
 # ---- Audio ----
 
@@ -9782,6 +9857,13 @@ title: Jedi Knight II HUD: cg_hudFiles 2 (#399)
 change: Settings > HUD lists Jedi Knight II, with a preview. cg_hudFiles 1 is still the text HUD.
 test: Settings > HUD: pick Jedi Knight II. Health, armor, Force and ammo draw and drain.
 test: Low health blinks. On a wide screen the corners keep to their edges.
+
+[jk2-hud-selector]
+area: HUD
+title: JK2 HUD: selector bar opens behind the icons (Slash, PR #407, hub #301)
+change: cg_hudFiles 2: the weapon, Force and item bars open a background between lit prongs.
+test: cg_hudFiles 2, change weapon: the bar opens, the prongs glow yellow and move in.
+test: Cycle Force (blue) and items (light blue); the bar closes after 1.4 s, grey prongs stay.
 
 [assets-folder]
 area: Menus & settings

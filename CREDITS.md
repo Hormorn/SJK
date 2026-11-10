@@ -147,6 +147,10 @@ includes:
   give a card with a rarity floor, a shader with a tier floor (Uncommon, Rare, Legendary;
   Beta's own odds, and better Beta kyber crystal odds, 10/11/2026) and bonus rolls on top, with a pity (Legendary or better every 15, Mythical every 80) and card
   faces not held yet; shown prize by prize, best last;
+- Forge fusion, the deal of the day and a wishlist (10/11/2026, Sol's request to make
+  crafting and the shop more used): duplicates of one tier fused into a shader of the next
+  not held yet, one offer a day at half price, and up to three wished shaders marked in the
+  shop with a card the day one is on offer;
 - the Legendary holocron's Sith pyramid sculpted anew (05/11/2026, art by Sol,
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
   the high-poly model, and normal maps on models whose shader names one (`normalMap`);
@@ -810,7 +814,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 138 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 140 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1048,6 +1052,10 @@ medal pictures carry their own labels in `vram` and crash reports.
 - #398 SJK UI: a typed slider value opens a gold pill at the number's size.
 - #399 The Jedi Knight II HUD, with cg_hudFiles 2 as in EternalJK.
 - #403 The credits page counts the pull requests merged under older merge names.
+- #407 The Jedi Knight II HUD's selector bar opens behind the icons when the weapon, Force or
+  inventory selector shows, between lit prongs, as EternalJK draws it (hub report #301).
+- #405 Disruptor beams leave the gun's tip: another player's, yours in third person, and a
+  zoomed sniper shot, from the world gun's flash point as stock does (hub report #294).
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

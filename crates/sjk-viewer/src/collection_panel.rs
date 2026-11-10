@@ -212,6 +212,8 @@ const BIND_SECOND_TOKEN: u16 = 1_379;
 const FAVOURITE_TOKEN: u16 = 1_372;
 const LOCK_TOKEN: u16 = 1_373;
 const SEEN_ALL_TOKEN: u16 = 1_374;
+/// The chosen shader's wishlist toggle on the Shaders tab's card (10/11/2026).
+const SHADER_WISH_TOKEN: u16 = 1_398;
 /// The Shaders tab's view switches: the list and the wall of tiles.
 const LIST_VIEW_TOKEN: u16 = 1_312;
 const GRID_VIEW_TOKEN: u16 = 1_313;
@@ -515,6 +517,11 @@ pub(crate) enum PanelAction {
     ShatterMany(Vec<(&'static str, u32)>, bool),
     /// Craft this shader with kyber shards.
     Craft(&'static str),
+    /// Fuse these duplicates (each shader once per copy) into a shader of the next tier (a
+    /// hub that says `fuse`, 10/11/2026).
+    Fuse(Vec<&'static str>),
+    /// Add this shader to the wishlist (`true`) or take it off (10/11/2026).
+    Wish(&'static str, bool),
     /// Ask the hub to sell the player this offer of the day.
     Buy(String),
     /// Ask the hub to sell the player a holocron of this tier for credits.
@@ -953,6 +960,14 @@ pub(crate) struct Panel {
     clicked_shader: bool,
     /// The count of the last refused change of a mark the console was told of.
     mark_refusal_seen: u64,
+    /// The serial of the last wishlist refusal told (10/11/2026).
+    wishlist_refusal_seen: u64,
+    /// Whether some tier's duplicates make a fusion, as the last frame read them (Fuse's
+    /// dot, 10/11/2026).
+    fuse_ready: bool,
+    /// The chosen shader's wishlist toggle on the Shaders tab's card as the last frame drew
+    /// it (10/11/2026): the shader, whether it is on the wishlist, whether the list is full.
+    shader_wish: Option<(&'static str, bool, bool)>,
     /// The marks a world shot or a test shows in place of the live ones.
     #[cfg(test)]
     pub(crate) preview_marks: Option<crate::shader_marks::Marks>,
@@ -1104,6 +1119,9 @@ impl Panel {
             viewing: crate::shader_marks::Look::default(),
             clicked_shader: false,
             mark_refusal_seen: 0,
+            wishlist_refusal_seen: 0,
+            fuse_ready: false,
+            shader_wish: None,
             #[cfg(test)]
             preview_marks: None,
             widen: 1.0,
@@ -1893,6 +1911,32 @@ impl Panel {
         Some(words.clone())
     }
 
+    /// Why the hub refused the last change of the wishlist (10/11/2026), once.
+    pub(crate) fn take_wishlist_refusal(
+        &mut self,
+        snapshot: Option<&sjk_identity::Snapshot>,
+    ) -> Option<String> {
+        let (serial, words) = snapshot?.wishlist_refusal.as_ref()?;
+        if *serial <= self.wishlist_refusal_seen {
+            return None;
+        }
+        self.wishlist_refusal_seen = *serial;
+        Some(words.clone())
+    }
+
+    /// The Shaders tab's wishlist toggle on the chosen shader: add it or take it off; a
+    /// full wishlist takes nothing more.
+    fn toggle_wish(&mut self) -> PanelAction {
+        let Some((id, on, full)) = self.shader_wish else {
+            return PanelAction::None;
+        };
+        if !on && full {
+            return PanelAction::None;
+        }
+        ui_cues_click();
+        PanelAction::Wish(id, !on)
+    }
+
     /// The choice left the page (another tab, the page closed): the shader it was on is
     /// seen only if it had stayed chosen a second.
     fn leave_viewing(&mut self) {
@@ -2538,6 +2582,7 @@ impl Panel {
             FORGE_LINK_TOKEN => self.open_forge_link(),
             FAVOURITE_TOKEN => self.toggle_mark(sjk_identity::Mark::Favourite),
             LOCK_TOKEN => self.toggle_mark(sjk_identity::Mark::Locked),
+            SHADER_WISH_TOKEN => self.toggle_wish(),
             SEEN_ALL_TOKEN => self.see_all(),
             // A toy's row chooses it; its own switch runs it.
             TOY_TOKEN | BOX_TOKEN | ORDER_TOKEN | HAX_TOKEN | RAGDOLL_TOKEN | DRONE_TOKEN

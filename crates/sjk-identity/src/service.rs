@@ -396,6 +396,9 @@ pub struct Snapshot {
     /// Why the last change of a mark failed (in the player's words), by its count: the
     /// marks are read again from the hub then.
     pub mark_refusal: Option<(u64, String)>,
+    /// Why the last change of the wishlist failed (in the player's words), by its count
+    /// (10/11/2026): the wishlist is read again from the hub then.
+    pub wishlist_refusal: Option<(u64, String)>,
     /// The player's trades with other players, as the hub last listed them
     /// ([`Service::trade_with`], 22/10/2026); `None` before the first read.
     pub trades: Option<TradesState>,
@@ -569,6 +572,10 @@ pub enum Trade {
     ShatterMany,
     /// A shader made with kyber shards.
     Craft,
+    /// Duplicates of one tier fused into a shader of the next (hubs whose economy says
+    /// `fuse`, 10/11/2026): the outcome's `id` is the shader gained, its `copies` the
+    /// duplicates that went.
+    Fuse,
     /// One of the shop's offers bought (with kyber shards since 17/10/2026).
     Buy,
     /// A holocron bought with credits; the outcome's `id` is its tier.
@@ -738,6 +745,12 @@ pub struct ReportOutcome {
 }
 
 impl Snapshot {
+    /// What a service not started yet for `identity` shows: its key, and nothing known of
+    /// the hub (10/11/2026, for a viewer's pages and tests built from a fresh snapshot).
+    pub fn blank(identity: &Identity) -> Self {
+        Self::new(identity)
+    }
+
     fn new(identity: &Identity) -> Self {
         let key_id = identity.key_id();
         Self {
@@ -799,6 +812,7 @@ impl Snapshot {
             marks: None,
             marks_revision: 0,
             mark_refusal: None,
+            wishlist_refusal: None,
             trades: None,
             history: None,
             announcements: Vec::new(),
@@ -865,6 +879,8 @@ enum Command {
     SetBanner(String),
     /// The name emoji to show at the right of the player's name, empty for none.
     SetEmoji(String),
+    /// The custom SJK name, shown instead of the name worn in game.
+    SetName(String),
     /// The counts the client keeps for its achievements, by id.
     Achievements(BTreeMap<String, u64>),
     /// A staff request.
@@ -1024,6 +1040,10 @@ enum Command {
     ShatterMany(Vec<(String, u32)>, bool),
     /// Craft this shader with shards.
     Craft(String),
+    /// Fuse these duplicates (each id once per copy) into a shader of the next tier.
+    Fuse(Vec<String>),
+    /// Replace the wishlist with these shader ids.
+    Wishlist(Vec<String>),
     /// Set or clear a collection mark on this shader.
     Mark(String, crate::wire::Mark, bool),
     /// Read the shop's day.
@@ -1366,6 +1386,29 @@ fn mark_at_once(snapshot: &mut Snapshot, id: &str, mark: crate::wire::Mark, on: 
         return false;
     }
     snapshot.marks_revision += 1;
+    true
+}
+
+/// Show `ids` as the wishlist in `snapshot` before (or as) the hub answers, the shop's
+/// offers marked wished to match; whether it changed anything (nothing while the hub
+/// keeps no wishlist, [`crate::wire::EconomyTables::wishlist`] `None`).
+fn wishlist_at_once(snapshot: &mut Snapshot, ids: &[String]) -> bool {
+    let Some(list) = snapshot
+        .economy
+        .as_mut()
+        .and_then(|economy| economy.wishlist.as_mut())
+    else {
+        return false;
+    };
+    if list.as_slice() == ids {
+        return false;
+    }
+    ids.clone_into(list);
+    if let Some(shop) = snapshot.shop.as_mut() {
+        for offer in &mut shop.day.offers {
+            offer.wished = ids.contains(&offer.id);
+        }
+    }
     true
 }
 
@@ -1893,6 +1936,7 @@ impl Worker {
             Command::SetBio(bio) => self.set_bio(&bio),
             Command::SetBanner(id) => self.set_banner(&id),
             Command::SetEmoji(emoji) => self.set_emoji(&emoji),
+            Command::SetName(name) => self.set_custom_name(&name),
             Command::Achievements(counts) => self.counts = counts,
             Command::Staff(request) => self.staff(&request),
             Command::StaffQuery(query) => self.staff_query(&query),
@@ -2060,6 +2104,8 @@ impl Worker {
                 self.shop_trade(Trade::ShatterMany, "", &items, last)
             }
             Command::Craft(id) => self.trade(Trade::Craft, &id),
+            Command::Fuse(ids) => self.fuse(&ids),
+            Command::Wishlist(ids) => self.set_wishlist(&ids, now),
             Command::Mark(id, mark, on) => self.set_mark(&id, mark, on, now),
             Command::ReadShop => self.read_shop(now),
             Command::Buy(id) => self.trade(Trade::Buy, &id),
@@ -2375,6 +2421,8 @@ impl Worker {
                     let credits = answer.bought.balance;
                     (answer.bought.price, 0, Some(credits), None, answer.profile)
                 }),
+                // A fusion has its own request ([`Self::fuse`]).
+                Trade::Fuse => Err(HubError::Protocol("a fusion is asked with fuse".to_owned())),
             },
             _ => Err(self.not_connected()),
         };
@@ -2489,6 +2537,93 @@ impl Worker {
                 },
             });
         });
+    }
+
+    /// Fuse the duplicates `ids` names (each shader once per copy): the outcome goes in
+    /// [`Snapshot::trade`] (its `id` the shader gained, its `copies` how many went), the
+    /// profile after it in [`Snapshot::me`], and the shop read last marks the shader
+    /// gained as held.
+    fn fuse(&mut self, ids: &[String]) {
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.fuse_unlocks(&self.identity, ids),
+            _ => Err(self.not_connected()),
+        };
+        // What is held changed meanwhile: the own profile is read again at once.
+        if matches!(&outcome, Err(HubError::Rejected { code, .. })
+                if matches!(code.as_str(), "not_held" | "not_a_duplicate" | "comes_with_card"))
+        {
+            self.due_profile = self.due_profile.min(Instant::now());
+        }
+        self.update(|snapshot| {
+            let serial = snapshot.trade.as_ref().map_or(1, |last| last.serial + 1);
+            snapshot.trade = Some(match outcome {
+                Ok(answer) => {
+                    let gained = answer.crafted.id;
+                    let used: u32 = if answer.used.is_empty() {
+                        ids.len() as u32
+                    } else {
+                        answer.used.iter().map(|used| used.copies).sum()
+                    };
+                    if let Some(shop) = snapshot.shop.as_mut() {
+                        shop.day.shards = answer.profile.shards;
+                        shop.day.credits = answer.profile.credits;
+                        for offer in shop
+                            .day
+                            .offers
+                            .iter_mut()
+                            .filter(|offer| offer.id == gained)
+                        {
+                            offer.owned = true;
+                        }
+                    }
+                    snapshot.set_me(answer.profile);
+                    TradeOutcome {
+                        serial,
+                        trade: Trade::Fuse,
+                        id: gained,
+                        amount: 0,
+                        copies: used,
+                        message: String::new(),
+                    }
+                }
+                Err(error) => TradeOutcome {
+                    serial,
+                    trade: Trade::Fuse,
+                    id: String::new(),
+                    amount: 0,
+                    copies: 0,
+                    message: trade_refusal(&error),
+                },
+            });
+        });
+    }
+
+    /// Replace the wishlist at the hub with `ids` (the snapshot shows it already,
+    /// [`Service::set_wishlist`]): the hub's answer replaces it; a refusal is told in
+    /// [`Snapshot::wishlist_refusal`] and the economy (with the hub's wishlist) is read
+    /// again soon.
+    fn set_wishlist(&mut self, ids: &[String], now: Instant) {
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.set_wishlist(&self.identity, ids),
+            _ => Err(self.not_connected()),
+        };
+        match outcome {
+            Ok(answer) => {
+                if let Some(list) = answer.wishlist {
+                    self.update(|snapshot| {
+                        wishlist_at_once(snapshot, &list);
+                    });
+                }
+            }
+            Err(error) => {
+                let words = trade_refusal(&error);
+                self.update(|snapshot| {
+                    let serial = snapshot.wishlist_refusal.as_ref().map_or(1, |(n, _)| n + 1);
+                    snapshot.wishlist_refusal = Some((serial, words));
+                });
+                self.holocrons_soon(now);
+            }
+        }
     }
 
     /// Set or clear `mark` on shader `id` at the hub (the snapshot shows the change
@@ -2627,6 +2762,32 @@ impl Worker {
                 } else {
                     "emoji saved".to_owned()
                 });
+            }
+            Err(error) => snapshot.notice = Some(error.to_string()),
+        });
+    }
+
+    fn set_custom_name(&mut self, name: &str) {
+        let name = match crate::wire::custom_name(name) {
+            Ok(name) => name,
+            Err(error) => {
+                self.update(|snapshot| snapshot.notice = Some(error.to_owned()));
+                return;
+            }
+        };
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.set_name(&self.identity, &name),
+            _ => {
+                self.update(|snapshot| {
+                    snapshot.notice = Some("not connected to the hub".to_owned())
+                });
+                return;
+            }
+        };
+        self.update(|snapshot| match outcome {
+            Ok(profile) => {
+                snapshot.set_me(profile);
+                snapshot.notice = Some("name saved".to_owned());
             }
             Err(error) => snapshot.notice = Some(error.to_string()),
         });
@@ -4790,6 +4951,29 @@ impl Service {
         let _ = self.commands.send(Command::Craft(id.to_owned()));
     }
 
+    /// Fuse duplicates into a shader of the next tier the player lacks (hubs whose economy
+    /// says [`crate::wire::FUSE_ABILITY`], 10/11/2026): `ids` names each shader once per
+    /// copy given, all of one tier, as many as the economy's `fuse` says. What came of it
+    /// arrives in [`Snapshot::trade`] ([`Trade::Fuse`], its `id` the shader gained), and
+    /// the profile after it.
+    pub fn fuse(&self, ids: Vec<String>) {
+        let _ = self.commands.send(Command::Fuse(ids));
+    }
+
+    /// Replace the player's wishlist with `ids` (distinct saber shaders, at most
+    /// [`crate::wire::WISHLIST_MAX`]; a hub whose economy sends `wishlist`, 10/11/2026).
+    /// The snapshot's economy shows it at once; the hub's answer replaces it, and a refusal
+    /// reads the hub's back ([`Snapshot::wishlist_refusal`] says why). Nothing while the
+    /// hub keeps no wishlist, or for a list over the limit.
+    pub fn set_wishlist(&self, ids: Vec<String>) {
+        if ids.len() > crate::wire::WISHLIST_MAX {
+            return;
+        }
+        if wishlist_at_once(&mut lock(&self.snapshot), &ids) {
+            let _ = self.commands.send(Command::Wishlist(ids));
+        }
+    }
+
     /// Set (`on`) or clear collection mark `mark` on shader `id` (a hub whose economy says
     /// [`crate::wire::MARKS_ABILITY`], 29/10/2026). [`Snapshot::marks`] shows the change at
     /// once; the hub's answer replaces it, and a refusal puts the hub's marks back
@@ -4918,6 +5102,12 @@ impl Service {
     /// away.
     pub fn set_emoji(&self, emoji: String) {
         let _ = self.commands.send(Command::SetEmoji(emoji));
+    }
+
+    /// Set the player's custom SJK name at the hub ([`crate::wire::custom_name`]),
+    /// shown instead of the name worn in game.
+    pub fn set_custom_name(&self, name: String) {
+        let _ = self.commands.send(Command::SetName(name));
     }
 
     /// Make `png` (cropped and scaled to [`crate::avatar::SIZE`] square) the player's
@@ -5580,6 +5770,46 @@ mod tests {
             self.record(format!("craft {id}"))?;
             Err(refused(409, "not_enough_shards"))
         }
+        fn fuse_unlocks(
+            &mut self,
+            _: &Identity,
+            ids: &[String],
+        ) -> Result<crate::wire::FuseAnswer, HubError> {
+            self.record(format!("fuse {}", ids.join(",")))?;
+            // Copies of a shader the fake hub does not hold twice are refused.
+            if ids.iter().any(|id| id == "saber_last") {
+                return Err(refused(409, "not_a_duplicate"));
+            }
+            let mut profile = profile("Sol");
+            profile.shards = 45;
+            Ok(crate::wire::FuseAnswer {
+                crafted: crate::wire::Crafted {
+                    id: "saber_aurora".to_owned(),
+                    name: "Aurora blade".to_owned(),
+                    count: 1,
+                    cost: 0,
+                    balance: 45,
+                },
+                used: vec![crate::wire::FuseUsed {
+                    id: "saber_tidal".to_owned(),
+                    copies: ids.len() as u32,
+                }],
+                profile,
+            })
+        }
+        fn set_wishlist(
+            &mut self,
+            _: &Identity,
+            ids: &[String],
+        ) -> Result<crate::wire::WishlistAnswer, HubError> {
+            self.record(format!("wishlist {}", ids.join(",")))?;
+            if ids.iter().any(|id| id == "saber_unknown") {
+                return Err(refused(400, "bad_ids"));
+            }
+            Ok(crate::wire::WishlistAnswer {
+                wishlist: Some(ids.to_vec()),
+            })
+        }
         fn trades(&mut self, _: &Identity) -> Result<crate::trades::TradesAnswer, HubError> {
             *self.trade_reads.lock().unwrap() += 1;
             if self.fail.load(Ordering::SeqCst) {
@@ -5685,6 +5915,9 @@ mod tests {
                     price: 30,
                     bought: false,
                     owned: false,
+                    deal: false,
+                    wished: false,
+                    edition: None,
                 }],
                 next: 1_791_003_600,
                 server_time: 1_791_000_000,
@@ -7026,6 +7259,86 @@ mod tests {
                 .filter(|line| line.starts_with("history"))
                 .eq(["history None", "history Some(20)", "history None"].iter())
         );
+    }
+
+    #[test]
+    fn duplicates_fuse_and_the_shop_follows() {
+        let fake = Fake::default();
+        let t0 = Instant::now();
+        let (mut worker, snapshot) = worker(&fake, t0);
+        worker.handle(Command::Configure(on("https://hub")), t0);
+        worker.tick(t0);
+        worker.handle(Command::ReadShop, t0);
+        let ids = vec!["saber_tidal".to_owned(); 3];
+        worker.handle(Command::Fuse(ids), t0);
+        assert!(
+            fake.log()
+                .iter()
+                .any(|line| line == "fuse saber_tidal,saber_tidal,saber_tidal")
+        );
+        let fused = lock(&snapshot).trade.clone().unwrap();
+        assert!(fused.done());
+        assert_eq!(
+            (fused.trade, fused.id.as_str(), fused.copies, fused.amount),
+            (Trade::Fuse, "saber_aurora", 3, 0)
+        );
+        // The shader gained is held now: its offer says so.
+        let shop = lock(&snapshot).shop.clone().unwrap();
+        assert!(shop.day.offers[0].owned && !shop.day.offers[0].bought);
+        assert_eq!(lock(&snapshot).me.as_ref().map(|me| me.shards), Some(45));
+        // A refusal is said in the player's words, and the profile read again.
+        worker.handle(Command::Fuse(vec!["saber_last".to_owned(); 3]), t0);
+        let refused = lock(&snapshot).trade.clone().unwrap();
+        assert_eq!(
+            (refused.trade, refused.message.as_str()),
+            (
+                Trade::Fuse,
+                "That is your last one: only duplicates can be shattered."
+            )
+        );
+        assert!(refused.id.is_empty());
+    }
+
+    /// The wishlist (10/11/2026): nothing is sent to a hub that keeps none; one that keeps
+    /// it shows the change at once, the offers following, and a refusal says why.
+    #[test]
+    fn the_wishlist_changes_at_once_and_only_on_a_hub_that_keeps_one() {
+        let fake = Fake::default();
+        let t0 = Instant::now();
+        let (mut worker, snapshot) = worker(&fake, t0);
+        worker.handle(Command::Configure(on("https://hub")), t0);
+        worker.tick(t0);
+        worker.handle(Command::ReadShop, t0);
+        let service_snapshot = Arc::clone(&snapshot);
+        let ids = vec!["saber_aurora".to_owned()];
+        // No economy (or none with a wishlist): nothing changes, nothing goes.
+        assert!(!wishlist_at_once(&mut lock(&service_snapshot), &ids));
+        lock(&snapshot).economy = Some(crate::wire::EconomyTables {
+            wishlist: Some(Vec::new()),
+            ..Default::default()
+        });
+        assert!(wishlist_at_once(&mut lock(&service_snapshot), &ids));
+        assert!(
+            !wishlist_at_once(&mut lock(&service_snapshot), &ids),
+            "no change"
+        );
+        assert!(lock(&snapshot).shop.clone().unwrap().day.offers[0].wished);
+        worker.handle(Command::Wishlist(ids), t0);
+        assert!(
+            fake.log()
+                .iter()
+                .any(|line| line == "wishlist saber_aurora")
+        );
+        assert_eq!(
+            lock(&snapshot)
+                .economy
+                .as_ref()
+                .and_then(|economy| economy.wishlist.clone()),
+            Some(vec!["saber_aurora".to_owned()])
+        );
+        worker.handle(Command::Wishlist(vec!["saber_unknown".to_owned()]), t0);
+        let refusal = lock(&snapshot).wishlist_refusal.clone().unwrap();
+        assert_eq!(refusal.0, 1, "the refusal is told");
     }
 
     #[test]

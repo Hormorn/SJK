@@ -673,8 +673,8 @@ overlay routes their text to the UI's families (`console_sjk_pages.rs`).
   (`profile_panel::Mode`). Three columns: who the player is (their picture, a disc 104
   across with "Add a picture" or "Change picture" under it, beside the hub name in its
   colours at 38, verified, member since, other names; then, on the Profile screen,
-  Change name (it opens the Character tab's Name field, the hub's name being the one
-  worn in game; hub report #202, 30/10/2026), the Name emoji button and Staff tools
+  Change name (it opens the name panel in the bio's place, setting the custom SJK name;
+  hub report #202, 30/10/2026, and Sol 10/11/2026), the Name emoji button and Staff tools
   for a staff key) over "Your record" (eight numbers in two columns) and "Unlocked lately"; "About
   you", the bio's box (620 by 300, Exo 2 at 18, wrapped by measured width, the end
   being written kept in view) with its counts, Revert and Save (gold) and the rules;
@@ -1612,7 +1612,8 @@ grown to four. The same module serves the Collection screen's row
 - **SJK Profile tab:** the page without its top bar's title (the keyboard starts on
   the picture), its medals left to the Collection and its Identity settings button
   gone (the identity is in Settings, Network); Change name, before the Name emoji and
-  Staff tools buttons, opens the Character tab's Name field (`PanelAction::EditName`);
+  Staff tools buttons, opens the name panel: "Your SJK name", a one-line field on the
+  hub name (24 characters at most), Save (`PanelAction::SetName`) and Done;
   See the board and See the collection open the Collection screen on Achievements and
   Medals.
 - **Opened by:** the in-game menu's Profile (the tab shown last in the run, Character
@@ -1970,6 +1971,31 @@ for the run.
     economy ("The Forge comes with the hub's shop") show a quiet place with the reason in
     place of the section; while the hub keeps opening to staff or this build is older than
     its minimum client, the lists still show and their buttons are dimmed with the reason.
+  - **Fuse, the deal of the day and the wishlist** (10/11/2026, Sol: "make crafting and the
+    shop more relevant, people barely use it"; [cards.md](cards.md#fusion-deal-of-the-day-wishlist)).
+    On a hub whose economy says `fuse` a fourth chip, **Fuse** (4), shows: a chip a tier the
+    hub fuses ("Common to Uncommon", T steps them), the tier's duplicates as cards or rows
+    (the most duplicated first, a locked shader left out, "2 spare" under each), the copies
+    the Forge proposes marked on them (one at a time from the biggest pile, never a last
+    copy, `forge_fuse.rs`); a click or Space picks a copy or lets it go, + and - (or the
+    stepper) change the chosen one's, P (or Propose) proposes again. The card on the right
+    reads "Common to Uncommon", "Fuse duplicates", "3 duplicates of Common -> 1 Uncommon
+    shader you do not own yet" and the copies picked; over the buttons why it cannot go
+    yet ("1 of 3 Common duplicates: 2 more needed.", "Pick 3 duplicates: 2 picked.", "You
+    hold every Uncommon shader already") or "Ready"; **Fuse 3 / 3** asks twice like Craft.
+    The hub's answer reveals the shader gained on the card: its tier, its blade, its name
+    in gold, "Fused: it is yours". The Shop marks the deal of the day with a gold "Deal of
+    the day -50 %" ribbon over its blade and its table price struck ("Was 600 kyber
+    shards") over the halved one, a wished offer "On your wishlist", and a Beta offer the
+    edition stamp ("Beta Edition") over its blade's other corner. On a hub that keeps a
+    wishlist the line under the chips lists it ("Your wishlist (2 of 3): ...") and every
+    offer, Craft's chosen shader (W) and the Shaders tab's card carry a wishlist toggle
+    (the gift mark), a hover card saying what it does or that the list is full. Shop and
+    Fuse carry a gold dot when an offer is wished, the deal is within reach or a fusion is
+    possible, as do the Collection's Forge tab and the Holocrons tab's Shop button
+    (`forge_alert.rs`), and once a shop day a card says "ON YOUR WISHLIST" with the
+    shader's name when one is on offer (`wishlist.rs`). A hub without these sends none of
+    them, and nothing of them shows.
   - The Holocrons tab's Shop (or S) shows the Forge on its Shop, and the Shaders tab's card
     leads to it: "Craft in the Forge" for a shader of the trade not held, "Break down in the
     Forge" for one of the player's own copies, the shader chosen there. A held blade card's
@@ -2163,28 +2189,38 @@ the column stays drawn, its keys lines turned to the flight's.
   fit the column; 09/11/2026).
 - **Selected:** what it is (Rajdhani 26; "Hidden face and 11 more" for several), its model
   or shader and its detail (Exo 2 16, muted, two lines; on faces the second is Fill's
-  shader and share in gold), a row of kit buttons (two; three on a hidden face or a sky:
-  Same plane, Connected, Fill), then Draw another shader: the kit's search pill (with its
+  shader and share in gold), a row of kit buttons (on a surface four: Hide, Whole model,
+  More, Less; on a hidden face or a sky four: Same plane, Connected, Fill, Align), then Draw
+  another shader: the kit's search pill (with its
   count) and a Tiles switch (92 wide) at its right, a list of five rows as Place's, each
   with the shader's picture (28 square on a dark ground) before its name (names without
   `textures/` or `models/`, the selection's own shader in quiet print unless chosen; on a
-  face Fill's candidates first with their share in gold at their right, "62 % nearby",
-  then the Recent rows with a quiet "Recent", a line under the last of each group), or as
+  Suggested rows first, why at their right in Exo 2 13: a nearby share in gold, "62 %
+  nearby" (on a face Fill's candidates), "same family" and "140 on map" in holo; then the
+  Recent rows with a quiet "Recent", a line under the last of each group), or as
   tiles (Rows to go back): seven 52-square pictures a line, three lines, the chosen one
-  framed gold, the hovered one holo, the selection's own quiet, a candidate's share on a
-  dark band at its foot, a Recent one a holo dot at its corner; then Remap and Remove
-  remap. Left of the column, over the scene's edge from the heading down (x 1164, 224
-  wide, 372 high), the preview card: the navy glass of the lists, "Under the pointer" or
+  framed gold, the hovered one holo, the selection's own quiet, a suggestion's reason on a
+  dark band at its foot ("62 %", "family", "140x"), a Recent one a holo dot at its
+  corner; then Remap, Remove remap and Same shader (Draw, Draw nothing and Same shader on
+  a face; three across). Left of the column, over the scene's edge from the heading down
+  (x 1164, 224 wide, 372 high), the preview card: the navy glass of the lists, "Under the pointer" or
   "Chosen" (Exo 2 13, quiet), the picture 200 square at its own shape on a darker ground,
   its name (two lines) and size, and "Drawn there now" with the selection's own shader at
   40 square and its name. With
   nothing selected, how to select and to fly. On a sky (04/11/2026) the kind is "Sky", the
   skies lead the list after the Recent rows, and its last row has three buttons: Swap sky
   (Cover side when a texture is chosen), Swap all skies (only with a sky chosen) and Take
-  back.
-- **Place:** the kit's search pill with a Things switch at its right, a list of six rows
+  back. Align (10/11/2026) swaps Draw another shader for "Lay the texture": how the
+  newest face's texture lies (`Shift 8 0, scale 0.50 0.50, turn 15`, Exo 2 16; muted
+  "Drawn by no edit" when none draws it, its buttons then off), three rows of four kit
+  buttons (Left, Right, Up, Down; Turn left, Turn right, Smaller, Bigger; Flip across,
+  Flip down, Fit, Reset) and two muted lines (Shift's fine steps, one step to undo); the
+  switch reads Shaders to go back.
+- **Place:** the kit's search pill with a Surface switch (92 wide, a gold pill while on)
+  and a Things switch at its right, a list of six rows
   (34 each, the chosen one gold with a gold tick at its left, paths without `models/`, the
-  Recent rows first), Place where you aimed across the column, then Placed model: its line
+  Recent rows first), Place where you aimed (200 wide) with Duplicate and Select all (100
+  each) at its right, then Placed model: its line
   and three rows of four buttons (turn and lift, the nudges, scale with Grab, Put down
   while grabbing, and Remove). Things (09/11/2026): "On this map" with Models at its
   right, six rows of the things standing there (another player's boombox quiet), two rows
@@ -2210,19 +2246,29 @@ the column stays drawn, its keys lines turned to the flight's.
 - **Foot:** New edits for and the kit's segments (All servers, This server) at y 800, the
   last answer (ember when refused, or a failed look at the hub) at 840, Publish (gold) and
   Editor off at 898, and three lines of keys from 954, 30 apart (RMB fly, Click select,
-  Shift+Click add; G R T gizmo, Esc back, with Shift's fine steps on Place; Ctrl+Z undo
-  and the cap of the key bound to `mapedit`, "leave"; while flying W A S D, Space C, Shift,
-  Wheel; while grabbing Click, Wheel, Esc; while transforming the gizmo's), then, when the
+  Shift+Click add; G R T gizmo, Drag box, Esc back, with Shift's fine steps instead of the
+  box on Place; Ctrl+Z undo, F frame and the cap of the key bound to
+  `mapedit`, "leave"; while flying W A S D, Space C, Shift,
+  Wheel; while grabbing Click, Wheel, Esc; while measuring Click, M, Esc; while
+  transforming the gizmo's), then, when the
   free camera was refused, why, in ember Exo 2 15 at 1044. A page's controls end above it
   (a test checks every page at four window shapes, and that every key line fits the
   column). The Aim button and the strip over play (while the panel was hidden to aim) went
   on 04/11/2026: the panel no longer hides while the editor is on.
+- **Over the scene** (10/11/2026): the hover, what is under the pointer outlined in faint
+  white dots (1.5 to 3 pixels, 55 %), with its tip 18 right and 22 under the pointer (kept
+  left of the column): one line of Exo 2 14 on navy glass (86 %) with a holo hairline,
+  8 round; a box being drawn as a holo frame (80 %) over a faint holo fill (8 %), the tip
+  gone meanwhile; the measure (10/11/2026) as a gold line 2 pixels wide over a dark one
+  of 4, its ends gold dots, its label over its middle in gold Exo 2 15 semibold on navy
+  glass (90 %) with a gold hairline (60 %), 8 round.
 
 It is a page of the in-game menu (`Page::MapEdit`), drawn by `InGameMenu::append_own_page`
 from the panel's state, which lives with the map's edits; its keys come before the game
 menu's (`GpuState::map_edit_key`), its pointer through `map_edit_pointer`. World shots:
-`duel6_map_editor_panel` and `duel6_map_editor_pictures_and_lights`
-(`world_shot_map_edits.rs`).
+`duel6_map_editor_panel`, `duel6_map_editor_pictures_and_lights` and
+`duel6_map_editor_suggestions_hover_and_box` and
+`duel6_map_editor_align_preview_measure_and_fly` (`world_shot_map_edits.rs`).
 
 ## Ghost editor
 

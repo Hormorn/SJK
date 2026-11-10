@@ -102,6 +102,8 @@ struct Sinks<'a> {
     lights: &'a mut dynamic_lights::PointLightList,
     presentation_time: i64,
     muzzle_effects: &'a sjk_client::LegacyMuzzleEffects,
+    /// Where each player's world gun muzzle is drawn this frame ([`crate::world_muzzles`]).
+    world_muzzles: &'a mut crate::world_muzzles::Points,
     /// Vehicle volleys to play at their muzzles, and the guns' `muzzleFX`.
     vehicle_fires: &'a mut crate::vehicle_fire::Pending,
     vehicle_flames: &'a mut crate::vehicle_burning::Flames,
@@ -169,6 +171,8 @@ pub(crate) fn submit(
     visual_now: Instant,
     game_audio: &mut Option<GameAudio>,
 ) -> usize {
+    // This frame records the world guns it draws; the next snapshot's beams read them.
+    gpu.world_muzzles.clear();
     let snapshot = first_person_view::presented_snapshot(
         gpu.live_session.as_ref(),
         gpu.demo_session.as_ref(),
@@ -374,6 +378,7 @@ pub(crate) fn submit(
         lights: &mut gpu.dynamic_lights,
         presentation_time,
         muzzle_effects: &gpu.muzzle_effects,
+        world_muzzles: &mut gpu.world_muzzles,
         vehicle_fires: &mut gpu.vehicle_fires,
         vehicle_flames: &mut gpu.vehicle_flames,
         missile_effects: &gpu.missile_effects,
@@ -1586,6 +1591,9 @@ fn submit_equipment(
     let socket = sinks.object_meshes[weapon_mesh]
         .flash_bolt
         .and_then(|flash| muzzle_flash::world_socket(flash, grip, weapon_rotation));
+    if let (Some(client), Some(socket)) = (client, socket) {
+        sinks.world_muzzles.record(client, socket.origin);
+    }
     if let (Some(charge), Some(socket)) = (client.and_then(|c| sinks.charges.of(c)), socket) {
         crate::charge_flash::push(
             sinks.particles,

@@ -419,13 +419,51 @@ before (the page alone reached about 11,600 of the 16,384). The world shot
 fails with 2,048. Not tried in a game; whether Nib's game had the menu pictures on is
 not known.
 
+### Fusion, deal of the day, wishlist
+
+**Client built 10/11/2026, not deployed** (client branch `personal/forge-shop`, hub branch
+`forge-shop` built at the same time against the same contract; Sol: "make crafting and the
+shop more relevant, people barely use it", after the live numbers of 10/11/2026: 7 shop
+purchases ever, 38 crafts, a median balance of 148 kyber shards against a Legendary's
+600). Three additions, each sent only by a hub that has it, so the client hides each one
+against a hub without it:
+
+- **Fusion** (the trade-up of the open points): the economy says `fuse` in `abilities` and
+  `fuse` (`[3,3,3,5,0]`: the duplicates a fusion takes by the input tier, Common to
+  Mythical, 0 for a tier that cannot). `POST /v1/unlocks/fuse`, signed like craft, body
+  `{"ids":[...]}`: each shader id once per copy given, all of one tier, as many as `fuse`
+  says, every copy a duplicate (the player keeps one of each). The hub gives one shader of
+  the next tier the player does not hold, its choice, and answers as craft does (`crafted`,
+  `profile`) with `used` (`[{"id","copies"}]`). The client's Forge proposes the copies (the
+  biggest piles first, never a last copy, never a locked shader's) and the player may
+  change them ([sjk-ui.md](sjk-ui.md#collection)). Refusals read as craft's; an unknown code
+  shows the hub's words.
+- **Deal of the day:** each offer carries `deal` (one offer a day at half price), `price`
+  (what it costs, the deal's already halved; the client always read it), `wished` and
+  `edition` (`alpha`, `beta`; absent is Alpha). The Shop strikes the table price over the
+  deal's.
+- **Wishlist:** the economy carries `wishlist` (up to three shader ids); `PUT
+  /v1/shop/wishlist`, signed, `{"ids":[...]}` (0 to 3 distinct ids) replaces it. The client
+  changes it at once and the hub's answer (its `wishlist` when it sends one) replaces it; a
+  refusal is said in the console and the economy read again. With a wishlist the client
+  reads the shop once a shop day by itself (at most once a minute, half an hour after a
+  refusal), for the card that tells, once a shop day per key (`wishlist_notice.txt` in the
+  settings folder), that a wished shader is on offer, and for the Forge's dot (a wished
+  offer, the deal within reach, a possible fusion).
+
+What decides which shader a fusion gives, whether a wish weighs on the offers, and the
+deal's choice are the hub's (its `PROTOCOL.md`); the client promises none of them. Checked
+by unit tests only (wire parsing with and without the fields, the proposal, the checks,
+the wishlist's limit, the dot, the card once a day, the Forge's and the Shaders tab's
+layouts at 1920x1080, 3840x2160, 1440x1080 and 2560x1080); not tried in a running client
+nor against a deployed hub.
+
 ### Open points for Sol
 
 Answered by Sol on 17/10/2026: one generic currency; the piles, shatter and craft tables
 kept for the launch; the shop in shards; buying or crafting a held shader refused; the
 Mythical offer one day in four; credits buy Uncommon and Rare holocrons. Left: tuning
-after a week of real openings, and a trade-up (spare copies of a tier for one of the next,
-proposed, not built).
+after a week of real openings. The trade-up became fusion on 10/11/2026 (above).
 
 No player text promises any of this until it is deployed.
 

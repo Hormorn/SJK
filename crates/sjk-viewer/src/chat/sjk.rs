@@ -41,8 +41,10 @@ impl ChatOverlay {
             (None, None) => crate::sjk_chat_look::message_text(&message.text),
         };
         // A message's GIPHY link reads "GIF", its GIF under it (`chat/feed_gif.rs`).
+        // Only a verified sender's (or staff's) GIF plays (`chat_gifs::plays_from`).
+        let plays = crate::chat_gifs::plays_from(message.verified, message.staff, message.creator);
         let (body, emojis, gif) = if drop.is_none() && official.is_none() {
-            self.with_gif(body)
+            self.with_gif(body, plays)
         } else {
             (body, Vec::new(), None)
         };
