@@ -300,7 +300,7 @@ mistake is fixed by a new commit, and a bad release by the next release
    write its recap, three to six `> Heading: sentence` lines in player words
    ([Changelog](#changelog)). Do not leave an empty `## Unreleased` above it: the
    test refuses a section with no change; the next merge adds it back.
-3. **Check.** `cargo test -p sjk-viewer --bin sjk changelog_data` must pass (it checks the
+3. **Check.** `cargo test -p sjk-viewer --bin sjk changelog` must pass (it checks the
    credits, the dates and the recap).
 4. **Commit and tag.** Commit as `Release <version>`, push `main`, then tag that
    commit and push the tag: `git tag sjk-v<version>` and

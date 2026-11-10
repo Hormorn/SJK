@@ -30,7 +30,15 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1111.1 (Alpha) | 11/11/2026
+
+Graphics presets for your PC, richer rain and settling snow, a Forge that fuses duplicates, GIF tags, a map editor that guesses textures and flies to things, and Slash's round of fixes.
+
+> Graphics: Pick Vanilla, Vanilla Plus or the Solar Renderer from Low to Ultra, each marked for your graphics card, or press "Recommended for this PC".
+> Weather: Rain wets the streets, mirrors the city in puddles and comes in waves, and snow settles on the ground and roofs.
+> Forge and shop: Fuse duplicate shaders into a new one, catch the deal of the day, and wish for up to three shaders in the shop.
+> GIF tags: A Blank tag from holocrons becomes a tag that plays a GIPHY GIF on walls, for verified players.
+> Fixes: Saber swings vary again, disruptor beams leave the gun, held weapnext cycles, and voices follow `s_language`.
 
 = r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
@@ -55,6 +63,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - The Jedi Knight II HUD (`cg_hudFiles 2`) opens its selector bar when you change weapon, Force power or item: the bar slides open behind the icons between its lit prongs and closes after, and the unlit prongs wait at its ends _(Slash, PR #407, hub report #301, after EternalJK)_
 - The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
 - The disruptor's beam leaves the gun's tip: another player's shot, and yours in third person, now starts at the barrel instead of in front of the chest, and a zoomed sniper shot no longer starts where your gun was before you zoomed in (hub report #294) _(Slash, PR #405, after Sol's report)_
+- The Forge fuses duplicates: a new Fuse section turns spare copies of a tier's shaders into a shader of the next tier you don't own yet. The shop has a deal of the day at half price and a wishlist of three shaders (the gift toggle on a shader's card, in Craft and on each offer), with a card on the day a wished shader is on offer, and a gold dot shows where there is something to take _(Sol)_
+- Blade shaders load faster: on Vulkan the built shaders are kept on disk (`GameData/SJK/cache`) for the next start, and the blades worn on the server are built ahead, before they are first drawn _(Sol)_
 - `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, PR #406, after mg.perso's report, hub report #302; after JoF EJK)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
