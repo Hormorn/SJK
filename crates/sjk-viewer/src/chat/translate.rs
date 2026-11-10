@@ -29,6 +29,9 @@ pub(crate) const SKIP_CVAR: &str = "cl_chatTranslateSkip";
 pub(crate) const SKIP_DEFAULT: &str = "en";
 /// The console command, and the chat field's `/tr`.
 pub(crate) const COMMAND: &str = "tr";
+/// Why an end-to-end encrypted whisper is not translated: its words never leave this
+/// client (`cl_e2eWhispers`), so they never go to the hub nor its translator.
+pub(crate) const ENCRYPTED: &str = "encrypted whispers are not translated";
 /// Translations waiting for the hub at once; an older one is forgotten past it.
 const ASKS_KEPT: usize = 8;
 /// Words a line needs before its guessed language counts without a script of its own.
@@ -170,17 +173,25 @@ pub(crate) fn shown(translation: &sjk_identity::Translation) -> String {
 
 impl ChatOverlay {
     /// The newest line in the feed that looks foreign ([`foreign`]): its key, for the
-    /// translation to go under it, and its plain text, to send.
-    pub(crate) fn last_foreign(&self, skip: &Skip) -> Option<(LineKey, String)> {
-        self.lines
+    /// translation to go under it, and its plain text, to send. When that line is an
+    /// end-to-end encrypted whisper the answer is [`ENCRYPTED`]: its words never leave
+    /// this client (`cl_e2eWhispers`), and an older line is not taken in its place.
+    pub(crate) fn last_foreign(&self, skip: &Skip) -> Result<(LineKey, String), &'static str> {
+        let (line, text) = self
+            .lines
             .iter()
             .rev()
             .filter(|line| !line.muted && !line.local)
             .find_map(|line| {
                 let text = plain(&line.body);
                 foreign(&text, skip)?;
-                Some(((line.received_ms, line.body.clone()), text))
+                Some((line, text))
             })
+            .ok_or("no foreign line in the chat to translate (/tr <text> takes one)")?;
+        if line.encrypted {
+            return Err(ENCRYPTED);
+        }
+        Ok(((line.received_ms, line.body.clone()), text))
     }
 
     /// Note that the hub was asked, under `serial`, for the line of `key` (none for a
@@ -245,15 +256,17 @@ impl ChatOverlay {
 
     /// Whether a click on `line`'s text may translate it: another player's line or a
     /// server's, not this client's own words, a translation, a blocked sender's line,
-    /// nor one already asked for.
+    /// one already asked for, nor an end-to-end encrypted whisper either way (its words
+    /// never leave this client, `cl_e2eWhispers`).
     fn translatable(&self, line: &ChatLine) -> bool {
         !line.local
             && !line.asked
             && !line.muted
             && !line.body.trim().is_empty()
-            // The player's own encrypted whisper is "To <recipient>", without a sender.
-            && !(line.encrypted && line.sender.is_none())
-            && line.sender.is_none_or(|target| Some(target.slot()) != self.own_slot)
+            && !line.encrypted
+            && line
+                .sender
+                .is_none_or(|target| Some(target.slot()) != self.own_slot)
             && line.hub.as_ref().is_none_or(|hub| {
                 !hub.official
                     && hub.tier.is_none()
@@ -411,10 +424,7 @@ impl crate::GpuState {
         let (key, text) = match text {
             Some(text) => (None, plain(text)),
             None => {
-                let (key, text) = self
-                    .chat
-                    .last_foreign(&skip)
-                    .ok_or("no foreign line in the chat to translate (/tr <text> takes one)")?;
+                let (key, text) = self.chat.last_foreign(&skip)?;
                 (Some(key), text)
             }
         };
@@ -682,6 +692,18 @@ mod tests {
         // The translation is not foreign itself, and the French line is taken again.
         let (_, again) = chat.last_foreign(&Skip::parse("en")).unwrap();
         assert!(again.starts_with("Salut"));
+    }
+
+    #[test]
+    fn an_encrypted_whisper_is_never_translated() {
+        let mut chat = feed();
+        let newest = chat.lines.len() - 1;
+        chat.lines[newest].body = "Salut, tu viens au duel ce soir avec nous ?".to_owned();
+        chat.lines[newest].encrypted = true;
+        // `/tr` and `tr` say why, and take no older line in its place.
+        assert_eq!(chat.last_foreign(&Skip::parse("en")), Err(ENCRYPTED));
+        // A click on its text asks nothing.
+        assert!(!chat.translatable(&chat.lines[newest]));
     }
 
     #[test]

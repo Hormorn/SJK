@@ -3399,6 +3399,12 @@ counts only when its script alone says so (Cyrillic, Greek, Han...): "gg" or "sa
 are not taken by a bare `/tr`, though `/tr salut` and the page's button still
 translate them.
 
+End-to-end encrypted whispers (`cl_e2eWhispers`) are never translated, sent or
+received: their text cannot be clicked, and when the newest foreign line is one, `/tr`
+and `tr` say "encrypted whispers are not translated" rather than take an older line.
+Their words never leave this PC, so they never reach the hub, its translator nor its
+cache (Sol's review of PR #410).
+
 The sender card has no Translate of its own, and the console has no click: its path is
 `tr` (or `tr <text>` with the line copied).
 
