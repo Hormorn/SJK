@@ -63,6 +63,9 @@ pub(crate) const ABOUT: &str = "Earned from achievements. Always a saber shader.
 pub(crate) struct Odds {
     /// Per crystal tier, the shader's tier per mille (common to mythical; each sums to 1000).
     pub(crate) shader_tier: [[u32; SHADER_TIERS]; COUNT],
+    /// The same for a Beta crystal (Sol, 10/11/2026: at least as good as the Beta
+    /// holocron of its tier).
+    pub(crate) beta_tier: [[u32; SHADER_TIERS]; COUNT],
     /// The `every`-th crystal in a row without a Legendary or Mythical shader gives one.
     pub(crate) pity_every: u32,
 }
@@ -74,6 +77,12 @@ pub(crate) const BUILT_IN: Odds = Odds {
         [200, 400, 300, 85, 15],
         [0, 250, 450, 250, 50],
         [0, 0, 300, 500, 200],
+    ],
+    beta_tier: [
+        [300, 450, 200, 40, 10],
+        [0, 550, 330, 95, 25],
+        [0, 0, 450, 400, 150],
+        [0, 0, 0, 500, 500],
     ],
     pity_every: 10,
 };
@@ -111,6 +120,10 @@ fn of_hub(kyber: &sjk_identity::KyberTables) -> Option<Odds> {
             return None;
         }
         odds.shader_tier[index].copy_from_slice(&tier.shader_tier);
+        // A hub before Beta crystals had their own odds keeps the built-in ones.
+        if tier.beta_tier.len() == SHADER_TIERS && tier.beta_tier.iter().sum::<u32>() == 1_000 {
+            odds.beta_tier[index].copy_from_slice(&tier.beta_tier);
+        }
     }
     if let Some(pity) = &kyber.pity {
         odds.pity_every = pity.every;
@@ -396,6 +409,9 @@ mod tests {
     #[test]
     fn the_odds_are_the_hubs_and_fit() {
         assert_eq!(BUILT_IN.pity_every, 10);
+        for shares in BUILT_IN.beta_tier {
+            assert_eq!(shares.iter().sum::<u32>(), 1_000);
+        }
         for shares in BUILT_IN.shader_tier {
             assert_eq!(shares.iter().sum::<u32>(), 1_000);
             assert!(shares[4] > 0, "a small chance of a Mythical shader");
@@ -405,10 +421,11 @@ mod tests {
         let wire = |odds: &Odds, pity: Option<(u32, u32)>| sjk_identity::KyberTables {
             tiers: TIERS
                 .iter()
-                .zip(odds.shader_tier)
-                .map(|(tier, shares)| sjk_identity::KyberTier {
+                .zip(odds.shader_tier.iter().zip(odds.beta_tier))
+                .map(|(tier, (shares, beta))| sjk_identity::KyberTier {
                     tier: tier.id.to_owned(),
                     shader_tier: shares.to_vec(),
+                    beta_tier: beta.to_vec(),
                 })
                 .collect(),
             pity: pity.map(|(every, since)| sjk_identity::KyberPity { every, since }),
@@ -416,8 +433,13 @@ mod tests {
         assert_eq!(of_hub(&wire(&BUILT_IN, Some((10, 3)))), Some(BUILT_IN));
         let mut changed = BUILT_IN;
         changed.shader_tier[1] = [100, 400, 400, 85, 15];
+        changed.beta_tier[3] = [0, 0, 0, 400, 600];
         changed.pity_every = 8;
         assert_eq!(of_hub(&wire(&changed, Some((8, 0)))), Some(changed));
+        // A hub without Beta crystal odds keeps the built-in ones.
+        let mut old = wire(&changed, None);
+        old.tiers.iter_mut().for_each(|tier| tier.beta_tier.clear());
+        assert_eq!(of_hub(&old).unwrap().beta_tier, BUILT_IN.beta_tier);
         assert_eq!(
             of_hub(&wire(&changed, None)).map(|odds| odds.pity_every),
             Some(10),

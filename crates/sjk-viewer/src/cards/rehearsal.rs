@@ -242,13 +242,21 @@ pub(crate) fn parse(args: &[String]) -> Result<Vec<Opened>, String> {
     Ok(opened)
 }
 
-/// A rehearsed Beta holocron's extras (`beta`): a droppable shader of its tier or near
-/// from Legendary (index 2) on, a pile of shards, and a second card from a Mythical one.
+/// A rehearsed Beta holocron's extras (`beta`): a droppable shader at or above its floor
+/// (Rare holocron Uncommon, Legendary Rare, Mythical Legendary), a pile of shards, and a
+/// second card from a Mythical one.
 fn beta_extras(tier: usize, at: usize) -> Vec<sjk_identity::OpenedExtra> {
+    use crate::unlockables::Rarity;
     let mut extra = Vec::new();
-    if tier >= 2 {
+    let floor = match tier {
+        1 => Some(Rarity::Uncommon),
+        2 => Some(Rarity::Rare),
+        3.. => Some(Rarity::Legendary),
+        _ => None,
+    };
+    if let Some(floor) = floor {
         let skins: Vec<_> = crate::unlockables::blade_skins()
-            .filter(|skin| skin.droppable && skin.tier >= crate::unlockables::Rarity::Rare)
+            .filter(|skin| skin.droppable && skin.tier >= floor)
             .collect();
         if let Some(skin) = skins.get(at % skins.len().max(1)) {
             extra.push(sjk_identity::OpenedExtra {

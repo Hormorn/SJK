@@ -144,8 +144,8 @@ includes:
   better every tenth crystal; the old kyber prism became the crystal and the Mythical
   holocron a faceted gold engram whose plates breathe round a glowing core;
 - holocron seasons (05/11/2026 design, built 10/11/2026): Beta holocrons of Rare and up
-  give a card with a rarity floor, a shader with a tier floor from Legendary on and bonus
-  rolls on top, with a pity (Legendary or better every 15, Mythical every 80) and card
+  give a card with a rarity floor, a shader with a tier floor (Uncommon, Rare, Legendary;
+  Beta's own odds, and better Beta kyber crystal odds, 10/11/2026) and bonus rolls on top, with a pity (Legendary or better every 15, Mythical every 80) and card
   faces not held yet; shown prize by prize, best last;
 - the Legendary holocron's Sith pyramid sculpted anew (05/11/2026, art by Sol,
   AI-assisted): a 58-triangle low poly with its colour, glow and normal maps baked from
