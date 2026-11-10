@@ -17,8 +17,8 @@ pub(crate) const DELAY: Duration = Duration::from_millis(300);
 /// How long the card takes to fade in.
 const FADE: f32 = 0.12;
 /// The card's width, its padding and the gap to its thing (frame pixels).
-const WIDTH: f32 = 400.0;
-const PAD: f32 = 20.0;
+pub(crate) const WIDTH: f32 = 400.0;
+pub(crate) const PAD: f32 = 20.0;
 const GAP: f32 = 14.0;
 /// The frame's margin the card keeps.
 const MARGIN: f32 = 16.0;
@@ -189,16 +189,30 @@ const NOTE_FILL: Color = Color::new(0.015, 0.022, 0.05, 0.99);
 /// Draw `card` beside `anchor` (window pixels, the thing's pointer area), faded in to
 /// `alpha`.
 pub(crate) fn draw(canvas: &mut MenuCanvas, frame: &Frame, anchor: Rect, card: &Card, alpha: f32) {
-    draw_filled(canvas, frame, anchor, card, alpha, FILL);
+    let _ = draw_filled(canvas, frame, anchor, card, alpha, FILL, 0.0);
 }
 
 /// Draw `card` as a note a click opened beside `anchor` (window pixels): as a hover
 /// card, over everything, on a darker fill.
 pub(crate) fn draw_note(canvas: &mut MenuCanvas, frame: &Frame, anchor: Rect, card: &Card) {
-    draw_filled(canvas, frame, anchor, card, 1.0, NOTE_FILL);
+    let _ = draw_filled(canvas, frame, anchor, card, 1.0, NOTE_FILL, 0.0);
 }
 
-/// Draw `card` beside `anchor` on `fill`, faded in to `alpha`.
+/// Draw `card` as a note with `room` (frame pixels) left under its lines for the
+/// caller's own rows (10/11/2026, the Extra features note's ticks). Returns the note's
+/// rect and where the room starts (frame pixels), for the rows and their pointer areas.
+pub(crate) fn draw_note_with_room(
+    canvas: &mut MenuCanvas,
+    frame: &Frame,
+    anchor: Rect,
+    card: &Card,
+    room: f32,
+) -> ([f32; 4], f32) {
+    draw_filled(canvas, frame, anchor, card, 1.0, NOTE_FILL, room)
+}
+
+/// Draw `card` beside `anchor` on `fill`, faded in to `alpha`, `room` taller than its
+/// lines. Returns its rect and the room's top (frame pixels).
 fn draw_filled(
     canvas: &mut MenuCanvas,
     frame: &Frame,
@@ -206,7 +220,8 @@ fn draw_filled(
     card: &Card,
     alpha: f32,
     fill: Color,
-) {
+    room: f32,
+) -> ([f32; 4], f32) {
     let s = frame.s;
     let anchor = [
         (anchor.x - frame.origin[0]) / s,
@@ -215,7 +230,7 @@ fn draw_filled(
         anchor.height / s,
     ];
     let laid = laid(card);
-    let size = [WIDTH, height(&laid)];
+    let size = [WIDTH, height(&laid) + room];
     let [x, y] = place(anchor, size);
     canvas.cover(frame.rect(x, y, size[0], size[1]));
     canvas.push_opacity(alpha);
@@ -275,6 +290,7 @@ fn draw_filled(
         line_y += LINE_STEP;
     }
     canvas.pop_opacity();
+    ([x, y, size[0], size[1]], line_y + LINE_GAP)
 }
 
 #[cfg(test)]

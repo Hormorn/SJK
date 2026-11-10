@@ -26,19 +26,23 @@ impl Panel {
             self.nameplate_showcase(frame, inputs);
             return;
         }
-        // So does the Locked features note, while its chip shows (the same shader).
-        if self.locked_note
+        // So does the Extra features note, while its chip shows (the same shader): what
+        // the extras are and what unlocks them, or, unlocked, a tick each.
+        if self.extras_note
             && self.tab == Tab::Shaders
             && !self.finishers_shown
-            && let (Some(anchor), Some(card)) = (
-                self.ui.rect_for(LOCKED_NOTE_TOKEN),
-                self.locked_card.clone(),
-            )
+            && let Some(anchor) = self.ui.rect_for(EXTRAS_NOTE_TOKEN)
         {
-            hover::draw_note(&mut self.ui, frame, anchor, &card);
-            return;
+            if let Some(card) = self.extras_card.clone() {
+                hover::draw_note(&mut self.ui, frame, anchor, &card);
+                return;
+            }
+            if !self.extras_rows.is_empty() {
+                self.extras_ticks(frame, anchor);
+                return;
+            }
         }
-        self.locked_note = false;
+        self.extras_note = false;
         // The New note a click opened stands over the page in place of a hover card.
         if self.tab != Tab::Shaders || self.finishers_shown {
             self.new_note = false;

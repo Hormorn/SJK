@@ -1867,13 +1867,13 @@ impl Panel {
         if let Some(skin) = row.skin.filter(|_| row.owned)
             && let Some(look) = self.skins.get(skin.id)
         {
-            let extras = crate::blade_extras::of(skin.id).map_or(0, |extras| extras.list.len());
-            // Locked extras are not listed: their padlock chip stands on the "Parts" line.
-            let locked = extras > 0 && !extras_unlocked(skin.id, inputs);
-            let options = look.options().len() + if locked { 0 } else { extras };
-            if options > 0 || locked {
-                let columns = if options > 4 { 3 } else { 2 };
-                height += 10.0 + 28.0 + options.div_ceil(columns).max(1) as f32 * 34.0 * k.max(1.0);
+            // The extras are not listed: their chip stands on the "Parts" line.
+            let extras =
+                crate::blade_extras::of(skin.id).is_some_and(|extras| !extras.list.is_empty());
+            let parts = look.options().len();
+            if parts > 0 || extras {
+                let columns = if parts > 4 { 3 } else { 2 };
+                height += 10.0 + 28.0 + parts.div_ceil(columns).max(1) as f32 * 34.0 * k.max(1.0);
             }
         }
         height + 12.0 + 44.0 + CARD_PAD
@@ -2144,7 +2144,8 @@ impl Panel {
         let button_y = card_y + card_height - CARD_PAD - 44.0;
         let shown_row = self.shader_rows.get(self.shader).copied();
         self.shader_options.clear();
-        self.locked_card = None;
+        self.extras_card = None;
+        self.extras_rows.clear();
         if let Some(skin) = row.skin.filter(|_| row.owned) {
             self.shader_parts(
                 frame,
@@ -2632,11 +2633,12 @@ impl Panel {
     /// The chosen shader's parts its wearer may switch off, under its words from `y`:
     /// a tick each in two columns (three past four), named as its file names them,
     /// ticked while on; a click or its number key switches it, on the model at once and,
-    /// worn, for every SJK player. Its extras follow (`blade_extras.rs`), off until
-    /// switched on. While the player lacks the card that unlocks them they are not
-    /// listed: a gold padlock chip at the right of "Parts", breathing as the tier frames
-    /// do, opens a note naming them and what unlocks them (10/11/2026: greyed in the
-    /// list, with a line under it, they ran into the buttons on a full card).
+    /// worn, for every SJK player. Its extras (`blade_extras.rs`) are behind the Extra
+    /// features chip at the right of "Parts", breathing as the tier frames do: red with a
+    /// shut padlock while the player lacks the card that unlocks them, its note naming
+    /// them and what unlocks them; gold with an open one once unlocked, its note a tick
+    /// each that switches them as the parts' do (10/11/2026: listed with the parts, they
+    /// ran into the buttons on a full card). The extras' number keys follow the parts'.
     fn shader_parts(
         &mut self,
         frame: &Frame,
@@ -2648,69 +2650,48 @@ impl Panel {
         let Some(look) = self.skins.get(skin) else {
             return;
         };
-        let extras = crate::blade_extras::of(skin);
+        let extras = crate::blade_extras::of(skin).filter(|extras| !extras.list.is_empty());
         let unlocked = extras_unlocked(skin, inputs);
-        // Each part, then each extra the player may switch: id, name and whether it is
-        // locked (never now: the locked ones are in the note).
-        let options: Vec<(&str, &str, bool)> = look
+        #[cfg(test)]
+        let unlocked = unlocked || self.extras_for_shot;
+        // Each part, then each unlocked extra: skin, id, whether it is on, name.
+        let is_on = |id: &str| crate::saber_skin_options::is_on(inputs.options, skin, id);
+        let parts: Vec<(&'static str, String, bool, String)> = look
             .options()
             .iter()
-            .map(|option| (option.id.as_str(), option.name.as_str(), false))
-            .chain(
-                extras
-                    .filter(|_| unlocked)
-                    .into_iter()
-                    .flat_map(|extras| extras.list.iter())
-                    .map(|extra| (extra.id.as_str(), extra.name.as_str(), false)),
-            )
+            .map(|option| (skin, option.id.clone(), is_on(&option.id), option.name.clone()))
             .collect();
-        let locked = extras.filter(|extras| !unlocked && !extras.list.is_empty());
-        if options.is_empty() && locked.is_none() {
+        if parts.is_empty() && extras.is_none() {
             return;
         }
         let s = frame.s;
-        let columns = if options.len() > 4 { 3 } else { 2 };
+        let columns = if parts.len() > 4 { 3 } else { 2 };
         let column = width / columns as f32;
         // Never under `bottom` (the card's button): the rows close up when room is short.
-        let rows = options.len().div_ceil(columns).max(1);
+        let rows = parts.len().div_ceil(columns).max(1);
         let step = ((bottom - (y + 28.0)) / rows as f32).clamp(26.0, 36.0);
-        text(
-            &mut self.ui,
-            TextFamily::Body,
-            format_args!("Parts"),
-            frame.rect(x, y, width, 22.0),
-            16.0 * s,
-            color::HOLO,
-            FontWeight::Semibold,
-            TextAlign::Start,
-        );
-        let shown: Vec<(&'static str, String, bool, String, bool)> = options
-            .iter()
-            .map(|(id, name, locked)| {
-                let on = !locked && crate::saber_skin_options::is_on(inputs.options, skin, id);
-                (skin, (*id).to_owned(), on, (*name).to_owned(), *locked)
-            })
-            .collect();
-        if let Some(extras) = locked {
-            self.locked_chip(frame, extras, [x + width, y - 3.0], seconds);
+        if !parts.is_empty() {
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("Parts"),
+                frame.rect(x, y, width, 22.0),
+                16.0 * s,
+                color::HOLO,
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
         }
-        for (index, (_, _, on, name, locked)) in shown.iter().enumerate() {
+        for (index, (_, _, on, name)) in parts.iter().enumerate() {
             let token = OPTION_BASE + index as u16;
             let left = x + (index % columns) as f32 * column;
             let middle = y + 28.0 + (index / columns) as f32 * step + step * 0.5;
-            let hovered = !locked && self.ui.token_hovered(token);
+            let hovered = self.ui.token_hovered(token);
             let after = kit::tick(&mut self.ui, frame, left, middle, *on, hovered);
             text(
                 &mut self.ui,
                 TextFamily::Body,
-                format_args!(
-                    "{}{name}",
-                    if *locked {
-                        format!("{}  ", symbols::LOCK)
-                    } else {
-                        String::new()
-                    }
-                ),
+                format_args!("{name}"),
                 frame.rect(
                     after + 10.0,
                     middle - 11.0,
@@ -2722,71 +2703,116 @@ impl Panel {
                 FontWeight::Semibold,
                 TextAlign::Start,
             );
-            if !locked && index < OPTION_TOKENS {
+            if index < OPTION_TOKENS {
                 self.ui.hit_region(
                     token,
                     frame.rect(left - 4.0, middle - step * 0.5, column - 8.0, step),
                 );
             }
         }
-        self.shader_options = shown
+        let first = parts.len();
+        let mut options = parts;
+        if let Some(extras) = extras {
+            if unlocked {
+                options.extend(extras.list.iter().map(|extra| {
+                    (skin, extra.id.clone(), is_on(&extra.id), extra.name.clone())
+                }));
+                self.extras_rows = options[first..]
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (_, _, on, name))| (first + index, name.clone(), *on))
+                    .collect();
+            }
+            self.extras_chip(frame, extras, unlocked, [x + width, y - 3.0], seconds);
+        }
+        self.shader_options = options
             .into_iter()
-            .map(|(skin, option, on, _, locked)| {
-                (skin, if locked { String::new() } else { option }, on)
-            })
+            .map(|(skin, option, on, _)| (skin, option, on))
             .collect();
     }
 }
 
-/// The Locked features chip's height and red, and its words' lighter red (10/11/2026).
-const LOCKED_CHIP: f32 = 36.0;
+/// The Extra features chip's height, its red while the extras are locked and its words'
+/// lighter red (10/11/2026).
+const EXTRAS_CHIP: f32 = 36.0;
 const LOCKED_RED: sjk_ui::Color = sjk_ui::Color::new(0.92, 0.26, 0.28, 1.0);
 const LOCKED_RED_TEXT: sjk_ui::Color = sjk_ui::Color::new(1.0, 0.5, 0.5, 1.0);
+/// The padlock drawn on the chip: its width and the gap to the words (frame pixels).
+const PADLOCK: f32 = 16.0;
+const PADLOCK_GAP: f32 = 10.0;
+/// An Extra features note's tick row (frame pixels).
+const EXTRAS_ROW: f32 = 34.0;
 
 impl Panel {
-    /// The padlock chip of the chosen shader's locked extras, its right end at `[right,
-    /// y]` (the "Parts" line's top): red and taller than the line so it is not missed
-    /// (10/11/2026), breathing as the tier frames do (still with `ui_rarityEffects` off),
-    /// lit while its note shows. Keeps the note's card (`Panel::locked_card`).
-    fn locked_chip(
+    /// The Extra features chip of the chosen shader, its right end at `[right, y]` (the
+    /// "Parts" line's top): taller than the line so it is not missed, breathing as the
+    /// tier frames do (still with `ui_rarityEffects` off), lit while its note shows; red
+    /// with a shut padlock while the extras are locked, gold with an open one once
+    /// unlocked (10/11/2026). Keeps what its note shows: locked, the card
+    /// (`Panel::extras_card`); unlocked, the ticks `shader_parts` keeps.
+    fn extras_chip(
         &mut self,
         frame: &Frame,
         extras: &crate::blade_extras::Extras,
+        unlocked: bool,
         [right, y]: [f32; 2],
         seconds: f32,
     ) {
         use crate::menu::sjk::hover::{Card, Line};
         let s = frame.s;
-        let label = format!("{}  Locked features ({})", symbols::LOCK, extras.list.len());
-        let width = label_width(&label, 16.0, self.widen) + 34.0;
+        let (tint, words_tint) = if unlocked {
+            (color::GOLD, color::GOLD_BRIGHT)
+        } else {
+            (LOCKED_RED, LOCKED_RED_TEXT)
+        };
+        let label = format!("Extra features ({})", extras.list.len());
+        let words = label_width(&label, 16.0, self.widen);
+        let width = 16.0 + PADLOCK + PADLOCK_GAP + words + 18.0;
+        let left = right - width;
         let top = y - 7.0;
-        let rect = frame.rect(right - width, top, width, LOCKED_CHIP);
+        let rect = frame.rect(left, top, width, EXTRAS_CHIP);
         let pulse = rarity_fx::breath_pulse(seconds);
-        let lit = self.locked_note || self.ui.token_hovered(LOCKED_NOTE_TOKEN);
+        let lit = self.extras_note || self.ui.token_hovered(EXTRAS_NOTE_TOKEN);
         let _ = self.ui.draw_list_mut().push(DrawCommand::RoundedRect {
             rect,
-            radius: LOCKED_CHIP * 0.5 * s,
-            color: color::alpha(LOCKED_RED, if lit { 0.28 } else { 0.12 + 0.08 * pulse }),
+            radius: EXTRAS_CHIP * 0.5 * s,
+            color: color::alpha(tint, if lit { 0.28 } else { 0.12 + 0.08 * pulse }),
         });
         let _ = self.ui.draw_list_mut().push(DrawCommand::Border {
             rect,
-            radius: LOCKED_CHIP * 0.5 * s,
+            radius: EXTRAS_CHIP * 0.5 * s,
             width: 1.6 * s,
-            color: color::alpha(LOCKED_RED, if lit { 1.0 } else { 0.6 + 0.4 * pulse }),
+            color: color::alpha(tint, if lit { 1.0 } else { 0.6 + 0.4 * pulse }),
         });
+        let ink = color::alpha(words_tint, 0.82 + 0.18 * pulse);
+        padlock(
+            self.ui.draw_list_mut(),
+            frame,
+            [left + 16.0 + PADLOCK * 0.5, top + EXTRAS_CHIP * 0.5 + 2.0],
+            unlocked,
+            ink,
+        );
         text(
             &mut self.ui,
             TextFamily::Display,
             format_args!("{label}"),
-            frame.rect(right - width, top + 6.0, width, LOCKED_CHIP - 12.0),
+            frame.rect(
+                left + 16.0 + PADLOCK + PADLOCK_GAP,
+                top + 6.0,
+                words + 12.0,
+                EXTRAS_CHIP - 12.0,
+            ),
             16.0 * s,
-            color::alpha(LOCKED_RED_TEXT, 0.82 + 0.18 * pulse),
+            ink,
             FontWeight::Semibold,
-            TextAlign::Center,
+            TextAlign::Start,
         );
-        self.ui.hit_region(LOCKED_NOTE_TOKEN, rect);
+        self.ui.hit_region(EXTRAS_NOTE_TOKEN, rect);
+        if unlocked {
+            return;
+        }
         let mut lines = vec![Line::status(
-            "Extras of this shader. Once unlocked they join its parts, off until you switch them on.",
+            "This shader's extras, locked. Once unlocked this chip turns gold and its note switches them on and off.",
         )];
         lines.extend(
             extras
@@ -2798,12 +2824,102 @@ impl Panel {
             "To unlock: {}.",
             extras.gate.unlocks().trim_end_matches(" unlocks them")
         )));
-        self.locked_card = Some(Card {
-            title: "Locked features".to_owned(),
+        self.extras_card = Some(Card {
+            title: "Extra features".to_owned(),
             colour: LOCKED_RED_TEXT,
             lines,
         });
     }
+
+    /// The unlocked Extra features note beside its chip (`anchor`, window pixels): over
+    /// the page, a tick each that switches the extra as the parts' ticks do, on the model
+    /// at once and, worn, for every SJK player. A click on the note stays in it.
+    pub(super) fn extras_ticks(&mut self, frame: &Frame, anchor: sjk_ui::Rect) {
+        use crate::menu::sjk::hover::{self, Card, Line};
+        let s = frame.s;
+        let card = Card {
+            title: "Extra features".to_owned(),
+            colour: color::GOLD_BRIGHT,
+            lines: vec![Line::status(
+                "Unlocked. Switch them on or off: on, they show on your blade for every SJK player.",
+            )],
+        };
+        let rows = std::mem::take(&mut self.extras_rows);
+        let room = rows.len() as f32 * EXTRAS_ROW + 6.0;
+        let ([x, y, width, height], top) =
+            hover::draw_note_with_room(&mut self.ui, frame, anchor, &card, room);
+        self.ui
+            .hit_region(EXTRAS_BODY_TOKEN, frame.rect(x, y, width, height));
+        let left = x + hover::PAD;
+        let inner = width - hover::PAD * 2.0;
+        for (row, (index, name, on)) in rows.iter().enumerate() {
+            let token = OPTION_BASE + *index as u16;
+            let middle = top + row as f32 * EXTRAS_ROW + EXTRAS_ROW * 0.5;
+            let hovered = self.ui.token_hovered(token);
+            let after = kit::tick(&mut self.ui, frame, left, middle, *on, hovered);
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{name}"),
+                frame.rect(after + 10.0, middle - 11.0, inner - kit::TICK_BOX - 10.0, 22.0),
+                16.0 * s,
+                if *on { color::TEXT } else { color::MUTED },
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+            if *index < OPTION_TOKENS {
+                self.ui.hit_region(
+                    token,
+                    frame.rect(left - 6.0, middle - EXTRAS_ROW * 0.5, inner + 12.0, EXTRAS_ROW),
+                );
+            }
+        }
+        self.extras_rows = rows;
+    }
+}
+
+/// A padlock centred at `[x, y]` (frame pixels), [`PADLOCK`] wide, in `ink`: its
+/// shackle shut, or lifted with one leg out when `open` (the Extra features chip,
+/// 10/11/2026; SJK Symbols has no open padlock).
+fn padlock(
+    list: &mut sjk_ui::DrawList,
+    frame: &Frame,
+    [x, y]: [f32; 2],
+    open: bool,
+    ink: sjk_ui::Color,
+) {
+    let s = frame.s;
+    let half = PADLOCK * 0.5;
+    let body_top = y - 2.0;
+    let _ = list.push(DrawCommand::RoundedRect {
+        rect: frame.rect(x - half, body_top, PADLOCK, 11.0),
+        radius: 2.5 * s,
+        color: ink,
+    });
+    let radius = half - 3.5;
+    let lift = if open { 5.0 } else { 0.0 };
+    let bend = body_top - 4.0 - lift;
+    let _ = list.push(DrawCommand::Arc {
+        center: frame.point(x, bend),
+        radius: radius * s,
+        width: 2.2 * s,
+        start: std::f32::consts::PI,
+        sweep: std::f32::consts::PI,
+        color: ink,
+        knockout: None,
+    });
+    // The left leg reaches the body; shut, so does the right one, while open it stops
+    // short of it.
+    let leg = |list: &mut sjk_ui::DrawList, leg_x: f32, end: f32| {
+        let _ = list.push(DrawCommand::Line {
+            from: frame.point(leg_x, bend),
+            to: frame.point(leg_x, end),
+            width: 2.2 * s,
+            color: ink,
+        });
+    };
+    leg(list, x - radius, body_top + 0.5);
+    leg(list, x + radius, if open { bend + 2.0 } else { body_top + 0.5 });
 }
 
 /// Whether the player holds the card that unlocks blade skin `skin`'s extras

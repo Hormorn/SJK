@@ -1,7 +1,7 @@
 //! World shots of the Collection's menu text fixes of 10/11/2026 (`docs/sjk-ui.md`,
 //! Collection): the Cards tab's headline, the Forge's section chips, "i" chip and
 //! balances, the Shaders tab's New sticker and "?" note, a full shader card (the Sun
-//! blade) with its Locked features chip and note, and the Nameplates tab with Showcase
+//! blade) with its Extra features chip and note (locked), and the Nameplates tab with Showcase
 //! current set and its card. At 1080p with `ui_textScale 1.2` and `ui_letterSpacing
 //! 0.06`, where labels measured without the letter spacing were cut or ran into each
 //! other. Off-screen renders, ignored like the other world shots: they need a GPU adapter,
@@ -156,8 +156,14 @@ fn duel6_sjk_menu_text_shots() {
             console.collection_notes_for_shot(false, true, false);
         }
         keep(&mut gpu, 30, "shaders-locked-note");
+        // The same extras unlocked: the gold chip and its note's ticks.
+        if let Some(console) = gpu.console.as_mut() {
+            console.collection_extras_for_shot(true);
+        }
+        keep(&mut gpu, 30, "shaders-extras-note");
         if let Some(console) = gpu.console.as_mut() {
             console.collection_notes_for_shot(false, false, false);
+            console.collection_extras_for_shot(false);
         }
         // The Nameplates tab: the plate (before, over the model's head) or Showcase
         // current set and its card.

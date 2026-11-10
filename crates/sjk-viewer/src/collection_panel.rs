@@ -216,8 +216,11 @@ const SEEN_ALL_TOKEN: u16 = 1_374;
 const NEW_NOTE_TOKEN: u16 = 1_371;
 /// The Nameplates tab's Showcase current set (10/11/2026).
 const SHOWCASE_TOKEN: u16 = 1_370;
-/// The chosen shader's Locked features chip on the Shaders tab's card (10/11/2026).
-const LOCKED_NOTE_TOKEN: u16 = 1_369;
+/// The chosen shader's Extra features chip on the Shaders tab's card (10/11/2026), and
+/// the open note's own area (a click on it neither closes it nor reaches the page under
+/// it).
+const EXTRAS_NOTE_TOKEN: u16 = 1_369;
+const EXTRAS_BODY_TOKEN: u16 = 1_368;
 /// The Shaders tab's view switches: the list and the wall of tiles.
 const LIST_VIEW_TOKEN: u16 = 1_312;
 const GRID_VIEW_TOKEN: u16 = 1_313;
@@ -963,11 +966,17 @@ pub(crate) struct Panel {
     /// The Nameplates tab's showcase card shows: Showcase current set opened it; a click
     /// but on it, Style or See & share nameplates, Escape or leaving the tab closes it.
     showcase_open: bool,
-    /// The chosen shader's Locked features note shows (a click on its chip opened it;
-    /// another click, Escape or another shader or tab closes it), and its card, as this
-    /// frame's card drew the chip.
-    locked_note: bool,
-    locked_card: Option<crate::menu::sjk::hover::Card>,
+    /// Every shader's extras count as unlocked, for a world shot of the gold chip.
+    #[cfg(test)]
+    extras_for_shot: bool,
+    /// The chosen shader's Extra features note shows (a click on its chip opened it; a
+    /// click off it, Escape or another shader or tab closes it), and what this frame's
+    /// card drew the chip for: while the extras are locked, the note's card (what they
+    /// are, what unlocks them); unlocked, its ticks (the extra's index in
+    /// [`Panel::shader_options`], its name and whether it is on).
+    extras_note: bool,
+    extras_card: Option<crate::menu::sjk::hover::Card>,
+    extras_rows: Vec<(usize, String, bool)>,
     /// The count of the last refused change of a mark the console was told of.
     mark_refusal_seen: u64,
     /// The marks a world shot or a test shows in place of the live ones.
@@ -1122,8 +1131,11 @@ impl Panel {
             clicked_shader: false,
             new_note: false,
             showcase_open: false,
-            locked_note: false,
-            locked_card: None,
+            #[cfg(test)]
+            extras_for_shot: false,
+            extras_note: false,
+            extras_card: None,
+            extras_rows: Vec::new(),
             mark_refusal_seen: 0,
             #[cfg(test)]
             preview_marks: None,
@@ -1976,8 +1988,9 @@ impl Panel {
         if std::mem::take(&mut self.new_note) && key == KeyCode::Escape {
             return PanelAction::None;
         }
-        // And the Locked features note.
-        if std::mem::take(&mut self.locked_note) && key == KeyCode::Escape {
+        // Escape closes the Extra features note; other keys (its number keys too) leave it.
+        if self.extras_note && key == KeyCode::Escape {
+            self.extras_note = false;
             return PanelAction::None;
         }
         // Escape closes the showcase card first; other keys (Style's too) leave it.
@@ -2308,8 +2321,14 @@ impl Panel {
         if event.kind == UiEventKind::Activate && event.token != Some(NEW_NOTE_TOKEN) {
             self.new_note = false;
         }
-        if event.kind == UiEventKind::Activate && event.token != Some(LOCKED_NOTE_TOKEN) {
-            self.locked_note = false;
+        // The Extra features note stays open while its ticks switch the extras.
+        let keeps_extras = event.token.is_some_and(|token| {
+            token == EXTRAS_NOTE_TOKEN
+                || token == EXTRAS_BODY_TOKEN
+                || (OPTION_BASE..OPTION_BASE + OPTION_TOKENS as u16).contains(&token)
+        });
+        if event.kind == UiEventKind::Activate && !keeps_extras {
+            self.extras_note = false;
         }
         // The showcase card stays open while Style or See & share changes what it shows.
         let keeps_showcase = event.token.is_some_and(|token| {
@@ -2593,10 +2612,11 @@ impl Panel {
                 self.new_note = !self.new_note;
                 PanelAction::None
             }
-            LOCKED_NOTE_TOKEN => {
-                self.locked_note = !self.locked_note;
+            EXTRAS_NOTE_TOKEN => {
+                self.extras_note = !self.extras_note;
                 PanelAction::None
             }
+            EXTRAS_BODY_TOKEN => PanelAction::None,
             SHOWCASE_TOKEN => {
                 self.showcase_open = !self.showcase_open;
                 PanelAction::None
@@ -2745,13 +2765,19 @@ impl Panel {
         self.hover.pin(index.map(|index| base + index as u16));
     }
 
-    /// Open (or close) the New note, the Locked features note and the showcase card,
-    /// for a world shot.
+    /// Open (or close) the New note, the Extra features note and the showcase card, for
+    /// a world shot.
     #[cfg(test)]
-    pub(crate) fn notes_for_shot(&mut self, new_note: bool, locked_note: bool, showcase: bool) {
+    pub(crate) fn notes_for_shot(&mut self, new_note: bool, extras_note: bool, showcase: bool) {
         self.new_note = new_note;
-        self.locked_note = locked_note;
+        self.extras_note = extras_note;
         self.showcase_open = showcase;
+    }
+
+    /// Let every shader's extras count as unlocked (`unlocked`), for a world shot.
+    #[cfg(test)]
+    pub(crate) fn extras_unlocked_for_shot(&mut self, unlocked: bool) {
+        self.extras_for_shot = unlocked;
     }
 
     /// Choose the Toys tab's toy `index` (0 Illuminate), for a world shot.
