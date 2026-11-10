@@ -210,6 +210,9 @@ const STALE_MILLIS: i64 = 250;
 const WALL_OPACITY: f32 = 0.35;
 /// Allowed overshoot of the screen (in half-screens) before a plate is dropped.
 const SCREEN_MARGIN: f32 = 1.15;
+/// Conservative vertical extent of a nameplate above its bottom, in scaled HUD pixels.
+/// Keep a moved plate clear of a team logo until the whole plate has passed it.
+const PLATE_COLLISION_HEIGHT: f32 = 100.0;
 /// Smallest size, as a share of full, a plate at the end of its range shrinks to.
 const MIN_SCALE: f32 = 0.6;
 /// Opacity of a name too far for a plate.
@@ -662,9 +665,8 @@ pub(crate) struct State {
     focus: Option<(u16, i64)>,
     /// The mode just chosen and when, to show its name for a moment.
     announced: Option<(Mode, i64)>,
-    /// Each slot's team logo top this frame ([`super::team_logo`]): the plate stands
-    /// above it.
-    logo_tops: [Option<f32>; MAX_PLAYER_TAGS],
+    /// Each slot's team logo range this frame ([`super::team_logo`]), to avoid covering it.
+    logo_bounds: [Option<(f32, f32)>; MAX_PLAYER_TAGS],
     /// Each slot's duel colour this frame ([`super::duel_pairs`]).
     duel_colours: [Option<u8>; MAX_PLAYER_TAGS],
     /// Each slot's SJK picture, read with the marks ([`Self::refresh_marks`]).
@@ -698,7 +700,7 @@ impl Default for State {
             own_origin: None,
             focus: None,
             announced: None,
-            logo_tops: [None; MAX_PLAYER_TAGS],
+            logo_bounds: [None; MAX_PLAYER_TAGS],
             duel_colours: [None; MAX_PLAYER_TAGS],
             pictures: [None; MAX_PLAYER_TAGS],
             heads: [Head::default(); MAX_PLAYER_TAGS],
@@ -1020,9 +1022,9 @@ impl State {
         fade.alpha
     }
 
-    /// This frame's team logo tops, by client slot.
-    pub(crate) fn set_logo_tops(&mut self, tops: [Option<f32>; MAX_PLAYER_TAGS]) {
-        self.logo_tops = tops;
+    /// The team logos' vertical ranges this frame, by client slot.
+    pub(crate) fn set_logo_bounds(&mut self, bounds: [Option<(f32, f32)>; MAX_PLAYER_TAGS]) {
+        self.logo_bounds = bounds;
     }
 
     /// This frame's duel colours, by client slot ([`super::duel_pairs`]).
@@ -1669,19 +1671,33 @@ impl State {
             let u = unit * entry.scale;
             let [x, y] = entry.point;
             // Over a team logo (drawn by `super::team_logo` at the same anchor).
-            let logo_top = if entry.npc_class == 0 {
-                self.logo_tops
+            let logo_bounds = if entry.npc_class == 0 {
+                self.logo_bounds
                     .get(usize::from(entry.number))
                     .copied()
                     .flatten()
             } else {
                 None
             };
+            // First honour the user's projected position exactly as with no logo.
+            // A plate grows upward from this bottom, so its collision range continues
+            // below the logo by the plate's height. Only positions in that range are
+            // an exception: there the plate goes to its usual safe spot above the logo.
+            let desired_bottom = y - 2.0 * u;
+            let bottom = match logo_bounds {
+                Some((top, logo_bottom))
+                    if desired_bottom > top
+                        && desired_bottom < logo_bottom + PLATE_COLLISION_HEIGHT * self.settings.scale * u =>
+                {
+                    top - 2.0 * u
+                }
+                _ => desired_bottom,
+            };
             let place = Place {
                 index,
                 id: Self::text_id(&entry),
                 x,
-                bottom: logo_top.map_or(y, |top| top.min(y)) - 2.0 * u,
+                bottom,
                 size: 36.0 * self.settings.scale * u,
                 u,
                 unit,

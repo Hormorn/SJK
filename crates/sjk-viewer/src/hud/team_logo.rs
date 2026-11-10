@@ -102,6 +102,8 @@ pub(crate) struct State {
     enabled: bool,
     /// Each client slot's logo top this frame, in pixels, if it has one.
     tops: [Option<f32>; MAX_CLIENTS],
+    /// Each client slot's logo bounds this frame, from top to bottom in pixels.
+    bounds: [Option<(f32, f32)>; MAX_CLIENTS],
     /// A world shot's staged team game, in place of the recorded one.
     #[cfg(test)]
     shot: Option<super::team_outline::ShotTeams>,
@@ -113,6 +115,7 @@ impl Default for State {
             list: DrawList::new(MAX_CLIENTS),
             enabled: true,
             tops: [None; MAX_CLIENTS],
+            bounds: [None; MAX_CLIENTS],
             #[cfg(test)]
             shot: None,
         }
@@ -132,6 +135,11 @@ impl State {
         self.tops
     }
 
+    /// Every logo's vertical range this frame, from its top to its bottom.
+    pub(crate) fn bounds(&self) -> [Option<(f32, f32)>; MAX_CLIENTS] {
+        self.bounds
+    }
+
     /// Play `shot`'s team game over a recorded one, for world shots.
     #[cfg(test)]
     pub(crate) fn stage_for_shot(&mut self, shot: super::team_outline::ShotTeams) {
@@ -142,6 +150,7 @@ impl State {
     pub(crate) fn clear(&mut self) {
         self.list.clear();
         self.tops = [None; MAX_CLIENTS];
+        self.bounds = [None; MAX_CLIENTS];
     }
 
     /// Place this frame's logos with the rendered `camera`, unless `hidden`; `texture`
@@ -258,6 +267,7 @@ impl State {
                 color: Color::new(1.0, 1.0, 1.0, 1.0),
             });
             self.tops[usize::from(slot)] = Some(top);
+            self.bounds[usize::from(slot)] = Some((top, top + size));
         }
     }
 }
