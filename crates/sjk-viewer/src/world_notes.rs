@@ -68,6 +68,9 @@ const VIEW_HEIGHT: f32 = 36.0;
 /// 16,384 vertices, six a dot).
 const HIGHLIGHT_EDGES: usize = 512;
 pub(crate) const HIGHLIGHT_DOTS: usize = 600;
+/// Most dots the map editor's hover outline draws a frame (in the outline's list, before
+/// the selection's).
+pub(crate) const HOVER_DOTS: usize = 240;
 /// Most triangles a shade keeps, and most strips it draws a frame.
 const FILL_TRIANGLES: usize = 512;
 pub(crate) const FILL_STRIPS: usize = 800;
@@ -727,7 +730,13 @@ pub(crate) fn pick(
             .is_some_and(|shader| shader.surface_flags & crate::map_edits::faces::SURF_SKY != 0)
     });
     let face = if nodraw_first {
-        crate::map_edits::faces::pick(bsp, eye, direction, REACH)
+        // The pick goes through clips and triggers; what it finds behind them must still
+        // be nearer than the drawn surface (a merged model has no brush to stop it).
+        crate::map_edits::faces::pick(bsp, eye, direction, REACH).filter(|face| {
+            world
+                .as_ref()
+                .is_none_or(|hit| face.distance + FACE_MARGIN < hit.distance)
+        })
     } else if sky_first {
         crate::map_edits::faces::pick(bsp, eye, direction, REACH).filter(|face| {
             face.sky
@@ -767,12 +776,7 @@ pub(crate) fn pick(
             index: hit.surface,
             shader: shader_name(surface.shader),
             remapped: None,
-            kind: match surface.kind {
-                sjk_bsp::SurfaceKind::Planar => "planar",
-                sjk_bsp::SurfaceKind::Patch => "patch",
-                sjk_bsp::SurfaceKind::TriangleSoup => "triangle soup",
-                sjk_bsp::SurfaceKind::Flare => "flare",
-            },
+            kind: surface_kind(surface.kind),
             lightmap: surface.lightmaps[0],
             vertices: surface.vertices.len(),
             material: shader.map_or(0, |s| s.surface_flags & 0x1f),
@@ -917,6 +921,61 @@ fn project(view_projection: &glam::Mat4, viewport: [f32; 2], point: Vec3) -> Opt
 /// A selection's outline and shade, borrowed or gathered from several.
 type Outline<'a> = (Cow<'a, [[Vec3; 2]]>, Cow<'a, [[Vec3; 3]]>);
 
+/// A selection of drawn surface `index` of `bsp` met at `point` with `normal` from the
+/// eye of `camera` (the map editor's box and Same shader, which pick no ray of their
+/// own): named, outlined and shaded as a click's.
+fn surface_selection(
+    scene: &Scene<'_>,
+    camera: &CameraUniform,
+    index: usize,
+    point: Vec3,
+    normal: Vec3,
+) -> Option<Selection> {
+    let render = scene.bsp.render();
+    let surface = render.surfaces().get(index)?;
+    let shader = scene.bsp.shaders().get(surface.shader);
+    let eye = Vec3::from_array(camera.camera_position);
+    Some(Selection {
+        map: scene.map.to_owned(),
+        pose: camera.viewpos(),
+        eye,
+        forward: Vec3::from_array(camera.view_forward),
+        hit: point,
+        normal,
+        distance: point.distance(eye),
+        surface: Some(Surface {
+            index,
+            shader: shader.map_or_else(
+                || format!("shader {}", surface.shader),
+                |s| s.name_lossy().into_owned(),
+            ),
+            remapped: None,
+            kind: surface_kind(surface.kind),
+            lightmap: surface.lightmaps[0],
+            vertices: surface.vertices.len(),
+            material: shader.map_or(0, |s| s.surface_flags & 0x1f),
+        }),
+        entity: None,
+        collision: None,
+        face: None,
+        edges: scene.surfaces.surface_edges(index, HIGHLIGHT_EDGES),
+        triangles: scene.surfaces.surface_triangles(index, FILL_TRIANGLES),
+        selected: Instant::now(),
+        model: None,
+        remaps: Vec::new(),
+    })
+}
+
+/// A BSP surface kind as a selection names it.
+fn surface_kind(kind: sjk_bsp::SurfaceKind) -> &'static str {
+    match kind {
+        sjk_bsp::SurfaceKind::Planar => "planar",
+        sjk_bsp::SurfaceKind::Patch => "patch",
+        sjk_bsp::SurfaceKind::TriangleSoup => "triangle soup",
+        sjk_bsp::SurfaceKind::Flare => "flare",
+    }
+}
+
 /// A selection of caulk, nodraw or sky face `face` as seen from `eye` looking along
 /// `forward`: met at its middle, outlined and shaded whole.
 fn face_selection(
@@ -1010,6 +1069,10 @@ pub(crate) struct Notes {
     viewport: [f32; 2],
     /// The map editor is on: the selection waits until it is replaced or dropped.
     held: bool,
+    /// What the map editor's pointer is over, outlined faintly, and whether it is
+    /// selected ([`Self::recheck_hover`]).
+    hover: Option<Selection>,
+    hover_selected: bool,
 }
 
 impl Default for Notes {
@@ -1019,7 +1082,7 @@ impl Default for Notes {
             more: Vec::new(),
             writing: None,
             camera: None,
-            highlight: sjk_ui::DrawList::new(HIGHLIGHT_DOTS),
+            highlight: sjk_ui::DrawList::new(HIGHLIGHT_DOTS + HOVER_DOTS),
             fill: sjk_ui::DrawList::new(FILL_STRIPS),
             started: Instant::now(),
             sent_waiting: false,
@@ -1027,6 +1090,8 @@ impl Default for Notes {
             models: ModelCache::default(),
             viewport: [0.0; 2],
             held: false,
+            hover: None,
+            hover_selected: false,
         }
     }
 }
@@ -1124,6 +1189,73 @@ pub(crate) enum Toggled {
     Full(usize),
     /// Nothing there.
     Nothing,
+}
+
+/// How a box or a Select command meets the selection there is.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Combine {
+    /// They become the selection.
+    Replace,
+    /// They join it (Shift).
+    Add,
+    /// Those in it leave it (Ctrl).
+    Remove,
+}
+
+/// Meet the selection `primary` (the newest) and `more` with `found` (the first the
+/// newest) as `combine` says, each thing once (by `key`), within [`SET_LIMIT`] and
+/// [`PLACED_LIMIT`]: how many it holds after, and whether a limit left some out. A map
+/// prop or another thing selected alone gives way, as with Shift+click.
+pub(crate) fn combine_in<T>(
+    primary: &mut Option<T>,
+    more: &mut Vec<T>,
+    found: Vec<T>,
+    combine: Combine,
+    key: impl Fn(&T) -> Option<Member>,
+) -> (usize, bool) {
+    let count = |primary: &Option<T>, more: &Vec<T>| usize::from(primary.is_some()) + more.len();
+    if combine == Combine::Remove {
+        let gone: Vec<Member> = found.iter().filter_map(&key).collect();
+        more.retain(|kept| key(kept).is_none_or(|member| !gone.contains(&member)));
+        if primary
+            .as_ref()
+            .and_then(&key)
+            .is_some_and(|member| gone.contains(&member))
+        {
+            *primary = more.pop();
+        }
+        return (count(primary, more), false);
+    }
+    if combine == Combine::Replace || primary.as_ref().is_some_and(|p| key(p).is_none()) {
+        *primary = None;
+        more.clear();
+    }
+    let mut members: Vec<Member> = primary.iter().chain(more.iter()).filter_map(&key).collect();
+    let mut placed = members
+        .iter()
+        .filter(|member| matches!(member, Member::Placed(_)))
+        .count();
+    let mut capped = false;
+    // Added oldest first, so the first found ends the newest.
+    for candidate in found.into_iter().rev() {
+        let Some(member) = key(&candidate) else {
+            continue;
+        };
+        if members.contains(&member) {
+            continue;
+        }
+        let is_placed = matches!(member, Member::Placed(_));
+        if members.len() >= SET_LIMIT || (is_placed && placed >= PLACED_LIMIT) {
+            capped = true;
+            continue;
+        }
+        placed += usize::from(is_placed);
+        members.push(member);
+        if let Some(previous) = primary.replace(candidate) {
+            more.push(previous);
+        }
+    }
+    (count(primary, more), capped)
 }
 
 /// Add `candidate` to the multiple selection `primary` (the newest) and `more`, or take
@@ -1399,6 +1531,129 @@ impl Notes {
         )
     }
 
+    /// The map editor's box, Same shader and Select all placed: `found` (the first the
+    /// newest) meets the selection as `combine` says ([`combine_in`]): how many it holds
+    /// after, and whether a limit left some out.
+    pub(crate) fn combine_for_edit(
+        &mut self,
+        found: Vec<Selection>,
+        combine: Combine,
+    ) -> (usize, bool) {
+        if self.waiting_selection().is_none() {
+            self.selection = None;
+            self.more.clear();
+        }
+        combine_in(
+            &mut self.selection,
+            &mut self.more,
+            found,
+            combine,
+            Selection::member,
+        )
+    }
+
+    /// Whether the map editor's selection holds `member`.
+    pub(crate) fn holds_member(&self, member: Member) -> bool {
+        self.edit_selection()
+            .any(|selection| selection.member() == Some(member))
+    }
+
+    /// What is under `point` (physical pixels) as a click would select it, without
+    /// selecting it: Ctrl+click's candidate, and the hover's.
+    pub(crate) fn candidate_at(&mut self, scene: Scene<'_>, point: [f32; 2]) -> Option<Selection> {
+        let camera = self.camera?;
+        let direction = screen_ray(&camera, self.viewport, point)?;
+        self.select(scene, &camera, direction)
+    }
+
+    /// Drawn surface `index` met at `point` with `normal`, as a selection from the last
+    /// rendered view (the map editor's box and Same shader).
+    pub(crate) fn surface_for_edit(
+        &self,
+        scene: &Scene<'_>,
+        index: usize,
+        point: Vec3,
+        normal: Vec3,
+    ) -> Option<Selection> {
+        surface_selection(scene, self.camera.as_ref()?, index, point, normal)
+    }
+
+    /// Caulk, nodraw or sky face `face` as a selection from the last rendered view.
+    pub(crate) fn face_for_edit(
+        &self,
+        map: &str,
+        face: crate::map_edits::faces::Face,
+    ) -> Option<Selection> {
+        let camera = self.camera?;
+        Some(face_selection(
+            map,
+            Vec3::from_array(camera.camera_position),
+            Vec3::from_array(camera.view_forward),
+            face,
+        ))
+    }
+
+    /// The model of entity `number` of `scene`'s entities (a placed model's) as a
+    /// selection from the last rendered view, met at its first triangle.
+    pub(crate) fn model_for_edit(&mut self, scene: &Scene<'_>, number: usize) -> Option<Selection> {
+        let camera = self.camera?;
+        let vfs = scene.vfs?;
+        let entities = scene.entities.as_deref()?;
+        let eye = Vec3::from_array(camera.camera_position);
+        let model = models::model_of(entities, &mut self.models, vfs, scene.map, number, eye)?;
+        Some(Selection {
+            map: scene.map.to_owned(),
+            pose: camera.viewpos(),
+            eye,
+            forward: Vec3::from_array(camera.view_forward),
+            hit: model.hit,
+            normal: model.normal,
+            distance: model.distance,
+            surface: None,
+            entity: None,
+            collision: None,
+            face: None,
+            edges: Vec::new(),
+            triangles: Vec::new(),
+            selected: Instant::now(),
+            model: Some(model),
+            remaps: Vec::new(),
+        })
+    }
+
+    /// The last rendered main view's eye, view-projection and frame size (physical
+    /// pixels), for the map editor's box.
+    pub(crate) fn view_for_box(&self) -> Option<(Vec3, glam::Mat4, [f32; 2])> {
+        let camera = self.camera?;
+        Some((
+            Vec3::from_array(camera.camera_position),
+            glam::Mat4::from_cols_array_2d(&camera.view_projection),
+            self.viewport,
+        ))
+    }
+
+    /// The map editor's hover: what is under the pointer, outlined faintly over the
+    /// scene ([`Self::draw_highlight`]); `None` drops it.
+    pub(crate) fn set_hover(&mut self, hover: Option<Selection>) {
+        self.hover = hover;
+        self.recheck_hover();
+    }
+
+    /// Note again whether the hover is selected (it is then not outlined): when it or the
+    /// selection changes, never per frame.
+    pub(crate) fn recheck_hover(&mut self) {
+        self.hover_selected = self
+            .hover
+            .as_ref()
+            .and_then(Selection::member)
+            .is_some_and(|member| self.holds_member(member));
+    }
+
+    /// The map editor's hover, when there is one.
+    pub(crate) fn hover(&self) -> Option<&Selection> {
+        self.hover.as_ref()
+    }
+
     /// The map editor's placed models drawn elsewhere than their selection's outline (a
     /// gizmo's preview, a commit, an undo, a grab): the outline follows. `at` gives a
     /// placed edit's origin, angles and scale as drawn. Once a frame while the editor is
@@ -1571,6 +1826,22 @@ impl Notes {
             self.selection = None;
             self.more.clear();
         }
+        if !self.held {
+            // the hover is the map editor's alone
+            self.hover = None;
+        }
+        if let (Some(hover), Some(camera), None) = (&self.hover, self.camera, &self.writing) {
+            // Faint and steady, under the selection's dots; not on what is selected.
+            if !self.hover_selected {
+                let view_projection = glam::Mat4::from_cols_array_2d(&camera.view_projection);
+                Self::draw_hover(
+                    &mut self.highlight,
+                    hover.outline().0,
+                    &view_projection,
+                    viewport,
+                );
+            }
+        }
         let (Some(selection), Some(camera)) = (
             self.writing.as_ref().or(self.selection.as_ref()),
             self.camera,
@@ -1641,6 +1912,44 @@ impl Notes {
         }
     }
 
+    /// The map editor's hover outline: `edges` as faint white dots, at most
+    /// [`HOVER_DOTS`], spaced by their length on screen.
+    fn draw_hover(
+        list: &mut sjk_ui::DrawList,
+        edges: &[[Vec3; 2]],
+        view_projection: &glam::Mat4,
+        viewport: [f32; 2],
+    ) {
+        let on_screen = |point: Vec3| project(view_projection, viewport, point);
+        let length = |[a, b]: &[Vec3; 2]| match (on_screen(*a), on_screen(*b)) {
+            (Some(a), Some(b)) => ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt(),
+            _ => 120.0,
+        };
+        let total: f32 = edges.iter().map(length).sum();
+        let spacing = (total / HOVER_DOTS as f32).max(9.0);
+        let size = (viewport[1] / 540.0).clamp(2.0, 3.5);
+        let mut drawn = 0;
+        for edge in edges {
+            let steps = ((length(edge) / spacing).ceil() as usize).clamp(1, 48);
+            for step in 0..=steps {
+                if drawn == HOVER_DOTS {
+                    return;
+                }
+                let Some([x, y]) = on_screen(edge[0].lerp(edge[1], step as f32 / steps as f32))
+                else {
+                    continue;
+                };
+                drawn += 1;
+                if !list.push(sjk_ui::DrawCommand::SolidRect {
+                    rect: sjk_ui::Rect::new(x - size * 0.5, y - size * 0.5, size, size),
+                    color: sjk_ui::Color::new(0.85, 0.95, 1.0, 0.65),
+                }) {
+                    return;
+                }
+            }
+        }
+    }
+
     /// Shade the selection's triangles in horizontal strips, spaced so the whole of it
     /// keeps within [`FILL_STRIPS`].
     fn draw_fill(
@@ -1669,7 +1978,8 @@ impl Notes {
             })
             .sum();
         let step = (covered / FILL_STRIPS as f32).max((viewport[1] / 360.0).max(3.0));
-        let thickness = (step * 0.55).max(1.0);
+        // Thin lines however far apart: a box's or Same shader's big set stays a shade.
+        let thickness = (step * 0.55).clamp(1.0, (viewport[1] / 360.0).max(3.0));
         for polygon in &polygons {
             let (low, high) = rows(polygon);
             // Rows on one grid for the whole selection, so the strips line up.

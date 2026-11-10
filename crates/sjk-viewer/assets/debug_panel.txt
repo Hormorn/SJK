@@ -91,6 +91,23 @@ test: Character page: pick an RGB model, set a dark colour (60 30 30): stage sho
 test: Online, look at a player on an RGB model: colour matches what they see in EJK.
 test: Force shells (protect, absorb) and pickups look as before.
 
+[mapedit-ingame-guesses-selections]
+area: Menus & settings
+title: Map editor: texture guesses, live preview, hover, box select, Same shader, Ctrl+D
+change: Every shader list starts with Suggested rows (nearby, same family, on map); resting on one
+change: previews it on the map. Hover outline and tip, box select (drag), Same shader, Ctrl+D copies.
+change: A click on a physics clip or trigger now selects what is behind it.
+test: mapedit, click a wall: the list starts with rows marked "% nearby", "same family", "on map".
+test: Rest the pointer on one: the wall (and every wall of its shader) shows it; move off: back.
+test: Remap after a preview: one Ctrl+Z takes it back; the preview alone saves nothing.
+test: Move over the scene: faint white dots and a tip ("Surface: ...") follow the pointer.
+test: Drag on the scene: a box selects what it covers; Shift+drag adds, Ctrl+drag removes.
+test: Ctrl+click a selected surface: it leaves the selection.
+test: Same shader: every surface of that shader is selected (the answer says how many).
+test: Select a placed model, Ctrl+D: a copy 16 units to the right, selected; G moves it.
+test: Place > Select all: every placed model is selected.
+test: duel6: click a physics clip wall: the wall or caulk behind is selected, not "Hidden face".
+
 [mapedit-ingame-pictures-lights]
 area: Menus & settings
 title: Map editor panel: texture pictures, tiles, Lights page, things, brushes, copy and paste

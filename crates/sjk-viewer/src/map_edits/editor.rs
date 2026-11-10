@@ -42,6 +42,7 @@ const CHANGES: &[&str] = &[
     "mapedit_sky",
     "mapedit_delete",
     "mapedit_fill",
+    "mapedit_duplicate",
     "mapedit_weather",
     "mapedit_light",
     "mapedit_light_set",
@@ -268,6 +269,14 @@ pub(crate) const COMMANDS: &[(&str, &str)] = &[
         "Map editor: draw the selected faces with the texture the surfaces round them use (or the shader given), one step to undo",
     ),
     (
+        "mapedit_select",
+        "Map editor: select every surface and seen caulk face drawn with the selected one's shader ('shader'), or every placed model ('placed'); 'add' or 'remove' after it joins or leaves the selection",
+    ),
+    (
+        "mapedit_duplicate",
+        "Map editor: copy the selected placed models, offset (dx dy dz; 16 units to your right by default), in one step to undo; the copies are selected",
+    ),
+    (
         "mapedit_weather",
         "Map editor: keep this map's weather: what you see now, or the weather commands given (heavyrain, gustingwind, mist; '-' gives the map its own back)",
     ),
@@ -448,6 +457,8 @@ impl GpuState {
             "mapedit_sky" => self.map_edit_sky(args),
             "mapedit_link" => self.map_edit_link(args),
             "mapedit_fill" => self.map_edit_fill(args),
+            "mapedit_select" => self.map_edit_select_command(args),
+            "mapedit_duplicate" => self.map_edit_duplicate(args),
             "mapedit_scope" => self.map_edit_scope(args),
             "mapedit_weather" => self.map_edit_weather(args),
             "mapedit_light" => self.map_edit_light(args),
@@ -701,6 +712,18 @@ impl GpuState {
             .edit_selection()
             .filter_map(|selection| match selection.edit_target() {
                 EditTarget::Face { brush, side, .. } => Some([brush, side]),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The selected drawn surfaces (BSP numbers), newest first: what the surface vote
+    /// asks for ([`super::suggest`]).
+    pub(super) fn map_edit_selected_surfaces(&self) -> Vec<usize> {
+        self.world_notes
+            .edit_selection()
+            .filter_map(|selection| match selection.edit_target() {
+                EditTarget::Surface { index, .. } => Some(index),
                 _ => None,
             })
             .collect()

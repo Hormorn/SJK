@@ -37,7 +37,10 @@ pub(crate) mod panel;
 pub(crate) mod panel_lights;
 mod panel_view;
 pub(crate) mod pictures;
+pub(crate) mod preview;
 pub(crate) mod recent;
+pub(crate) mod select;
+pub(crate) mod suggest;
 pub(crate) mod web;
 
 use crate::{ActorInstance, GpuState};
@@ -79,6 +82,9 @@ pub(crate) struct State {
     pub(crate) lights: Vec<lights::EditLight>,
     /// The shown faces drawn now: each one's mesh in `object_meshes` and where it is lit.
     faces: Vec<(usize, ActorInstance)>,
+    /// The remap edits applied now (from, to): what a remap preview stands over and goes
+    /// back to ([`preview`]).
+    pub(crate) remaps: Vec<(String, String)>,
     /// `object_meshes.len()` when [`Self::placed`] last looked their meshes up.
     meshes_seen: usize,
     /// The hub copies' revision last read, and when the hub's state was last read.
@@ -619,6 +625,9 @@ impl GpuState {
         }
         self.map_edits.applied = Applied { props, surfaces };
         self.map_edits.placed = placed;
+        // A remap preview the panel drew is gone with these.
+        self.map_edits.panel.preview.dropped();
+        self.map_edits.remaps.clone_from(&remaps);
         if let Some(vfs) = self.vfs.clone() {
             let refused = self.world_materials.set_edit_remaps(
                 &vfs,
