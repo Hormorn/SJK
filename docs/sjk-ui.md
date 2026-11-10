@@ -673,8 +673,8 @@ overlay routes their text to the UI's families (`console_sjk_pages.rs`).
   (`profile_panel::Mode`). Three columns: who the player is (their picture, a disc 104
   across with "Add a picture" or "Change picture" under it, beside the hub name in its
   colours at 38, verified, member since, other names; then, on the Profile screen,
-  Change name (it opens the Character tab's Name field, the hub's name being the one
-  worn in game; hub report #202, 30/10/2026), the Name emoji button and Staff tools
+  Change name (it opens the name panel in the bio's place, setting the custom SJK name;
+  hub report #202, 30/10/2026, and Sol 10/11/2026), the Name emoji button and Staff tools
   for a staff key) over "Your record" (eight numbers in two columns) and "Unlocked lately"; "About
   you", the bio's box (620 by 300, Exo 2 at 18, wrapped by measured width, the end
   being written kept in view) with its counts, Revert and Save (gold) and the rules;
@@ -1612,7 +1612,8 @@ grown to four. The same module serves the Collection screen's row
 - **SJK Profile tab:** the page without its top bar's title (the keyboard starts on
   the picture), its medals left to the Collection and its Identity settings button
   gone (the identity is in Settings, Network); Change name, before the Name emoji and
-  Staff tools buttons, opens the Character tab's Name field (`PanelAction::EditName`);
+  Staff tools buttons, opens the name panel: "Your SJK name", a one-line field on the
+  hub name (24 characters at most), Save (`PanelAction::SetName`) and Done;
   See the board and See the collection open the Collection screen on Achievements and
   Medals.
 - **Opened by:** the in-game menu's Profile (the tab shown last in the run, Character

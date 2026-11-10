@@ -24,6 +24,25 @@
 
 # ---- Console & chat ----
 
+[verified-gifs-pictures]
+area: Console & chat
+title: Only verified players' GIFs play; only they upload pictures
+change: An unverified sender's GIPHY link stays a link (chat box, docks, SJK chat page).
+change: The hub refuses a picture from a key that is not verified or staff.
+test: From an unverified key, post a GIPHY link: it shows as text on every client.
+test: From a verified key, the same link plays.
+test: Unverified, Profile > change picture > Use this picture: "Not sent: only players...".
+note: Needs the hub branch verified-pictures deployed for the picture rule.
+
+[change-sjk-name]
+area: Menus & settings
+title: Change name sets the SJK name
+change: SJK Profile tab > Change name opens "Your SJK name" in the bio's place.
+change: Save sends it to the hub as the custom name, shown instead of the worn one.
+test: Profile > SJK Profile > Change name: the field holds your hub name.
+test: Type a new name, Save: "Saved..."; the SJK chat and your card show it.
+test: Try another player's name: "Not saved: ..." with the hub's reason.
+
 [holocron-seasons]
 area: Menus & settings
 title: Holocron seasons: Beta holocrons, guaranteed prizes, bonus rolls, pity

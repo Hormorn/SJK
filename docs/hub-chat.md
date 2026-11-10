@@ -358,6 +358,11 @@ links should just display the GIF in chat (not through the hub)"). The hub carri
 the text, as for any message; each reader's client fetches the GIF from GIPHY itself.
 Only GIPHY: Tenor's API shut down on 30/06/2026.
 
+Only verified senders' GIFs play (Sol, 10/11/2026): a message from a player the SJK
+team has not verified (nor staff, nor the creator) keeps its link as typed and its GIF
+is never fetched, in the chat box, the docks and the SJK chat page
+(`chat_gifs::plays_from`, from the message's `verified`, `staff` and `creator`).
+
 - **Links recognised** ([link.rs](../crates/sjk-viewer/src/chat_gifs/link.rs)): `https://`
   (or `http://`) with the host compared whole and lower-cased, no user or port:
   `giphy.com/gifs/<slug>-<id>` and `giphy.com/gifs/<id>` (also `stickers/`, and

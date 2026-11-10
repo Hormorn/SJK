@@ -721,20 +721,6 @@ impl GpuState {
         self.sync_cursor_policy();
     }
 
-    /// The SJK Profile tab's Change name: the Character tab shows with its Name field
-    /// open, the screen still returning where it did. The hub's name is the one worn in
-    /// game (`name`), so this is where it changes.
-    pub(crate) fn edit_name_on_profile_hub(&mut self) {
-        if self.profile_hub_tab() != Some(Tab::Profile) {
-            return;
-        }
-        self.switch_profile_hub(Tab::Character);
-        if let Some(menu) = &mut self.client_menu {
-            menu.edit_player_hub_name();
-        }
-        self.sync_cursor_policy();
-    }
-
     /// Switch the screen on show to its tab `tab`, keeping where it returns.
     fn switch_profile_hub(&mut self, tab: Tab) {
         let Some(current) = self.profile_hub_tab() else {

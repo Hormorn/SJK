@@ -35,6 +35,8 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
 
+- Change name on your SJK profile now sets your SJK name (shown in the SJK chat, on cards and on the hub) instead of sending you to the in-game name _(Sol)_
+- Only verified players' GIFs play in the SJK chat; anyone else's link stays a link. Only verified players can upload a profile picture _(Sol)_
 - The map editor guesses textures: every selection's shader list starts with suggestions (what surrounds it, the same family of names, what the map uses most), and resting on one shows it on the map before you keep it. Better selections too: what is under the pointer is outlined with a tip, a drag draws a box to select, Ctrl+click takes one out, Same shader selects every surface of a texture, Ctrl+D duplicates placed models, and clicking a clip brush no longer selects it _(Sol)_
 - GIF tags: a new Rare Blank tag drops from holocrons; verified players spend it once on a GIPHY link for a tag that plays that GIF on walls, theirs for good (a GIF GIPHY removes is a tag lost). GIF tags are off until you turn them on (`cg_toyGifTags`, on the tag's card or Settings > Gameplay) _(Sol)_
 - PK3s no longer have to sit in `base`: make a `GameData/assets` folder and sort them into subfolders as you like (`assets/jof`, `assets/personal`), every one loads as if it were in `base` _(Sol)_

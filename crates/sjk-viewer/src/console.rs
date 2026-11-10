@@ -406,9 +406,6 @@ pub(crate) struct ViewerConsole {
     /// The last line `viewpos` or `mark` answered, for Ctrl+C on an empty prompt.
     copied: String,
     pending_quit: bool,
-    /// The Profile page's Change name was pressed: the Profile screen shows its
-    /// Character tab with the Name field open ([`Self::take_name_edit`]).
-    pending_name_edit: bool,
     pending_input: Vec<String>,
     pending_chat: std::collections::VecDeque<(String, u16, u32)>,
     /// Sent whisper recipients paired with their eventual console echo.

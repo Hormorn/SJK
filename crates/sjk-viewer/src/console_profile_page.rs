@@ -155,7 +155,6 @@ impl ViewerConsole {
                     self.staff_panel_owns_console();
                 }
             }
-            PanelAction::EditName => self.pending_name_edit = true,
             PanelAction::Hub(tab) if self.profile_panel.mode() == Mode::Hub => {
                 let target = self.profile_hub_return;
                 self.open_profile_hub_page(tab, target);
@@ -169,6 +168,12 @@ impl ViewerConsole {
                 // The page shows the hub's answer, or why nothing could be sent.
                 if !crate::player_identity::set_bio(bio) {
                     self.push_log("^3profile: the identity is not running yet");
+                }
+            }
+            PanelAction::SetName { name } => {
+                if !crate::player_identity::set_custom_name(name) {
+                    self.profile_panel
+                        .name_failed("Not sent: turn the SJK identity on first (cl_identity 1)");
                 }
             }
             PanelAction::SetEmoji { emoji } => {

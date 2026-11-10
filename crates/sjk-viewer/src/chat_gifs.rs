@@ -112,6 +112,13 @@ pub(crate) fn shown_revision() -> u64 {
     sources::revision().wrapping_add(hidden::revision().rotate_left(32))
 }
 
+/// Whether the GIFs a sender links play: only from players the SJK team verified, staff
+/// and the creator (Sol, 10/11/2026). Anyone else's link shows as typed and is never
+/// fetched, as a muted sender's.
+pub(crate) fn plays_from(verified: bool, staff: bool, creator: bool) -> bool {
+    verified || staff || creator
+}
+
 /// The GIF of a chosen message whose sender is not muted (`muted`), hidden or not, for
 /// its buttons: the first link from a trusted source while GIFs are on.
 pub(crate) fn chosen_gif(text: &str, muted: bool) -> Option<GifId> {

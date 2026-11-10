@@ -482,6 +482,13 @@ pub trait Hub: Send {
             "this hub client does not send name emoji".to_owned(),
         ))
     }
+    /// Set the identity's custom SJK name ([`crate::wire::custom_name`], checked),
+    /// shown instead of the name worn in game; the hub answers with the key's profile.
+    fn set_name(&mut self, _identity: &Identity, _name: &str) -> Result<Profile, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not send names".to_owned(),
+        ))
+    }
     /// The PNG of `version` of `key_id`'s picture, as the hub serves it.
     fn avatar(&mut self, _key_id: &str, _version: &str) -> Result<Vec<u8>, HubError> {
         Err(HubError::Protocol(
@@ -1814,6 +1821,11 @@ impl Hub for HttpHub {
 
     fn set_emoji(&mut self, identity: &Identity, emoji: &str) -> Result<Profile, HubError> {
         let body = json!({ "emoji": emoji });
+        parse(self.send(Some(identity), "PUT", "/v1/profile", Some(body))?)
+    }
+
+    fn set_name(&mut self, identity: &Identity, name: &str) -> Result<Profile, HubError> {
+        let body = json!({ "name": name });
         parse(self.send(Some(identity), "PUT", "/v1/profile", Some(body))?)
     }
 

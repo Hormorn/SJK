@@ -865,6 +865,8 @@ enum Command {
     SetBanner(String),
     /// The name emoji to show at the right of the player's name, empty for none.
     SetEmoji(String),
+    /// The custom SJK name, shown instead of the name worn in game.
+    SetName(String),
     /// The counts the client keeps for its achievements, by id.
     Achievements(BTreeMap<String, u64>),
     /// A staff request.
@@ -1893,6 +1895,7 @@ impl Worker {
             Command::SetBio(bio) => self.set_bio(&bio),
             Command::SetBanner(id) => self.set_banner(&id),
             Command::SetEmoji(emoji) => self.set_emoji(&emoji),
+            Command::SetName(name) => self.set_custom_name(&name),
             Command::Achievements(counts) => self.counts = counts,
             Command::Staff(request) => self.staff(&request),
             Command::StaffQuery(query) => self.staff_query(&query),
@@ -2627,6 +2630,32 @@ impl Worker {
                 } else {
                     "emoji saved".to_owned()
                 });
+            }
+            Err(error) => snapshot.notice = Some(error.to_string()),
+        });
+    }
+
+    fn set_custom_name(&mut self, name: &str) {
+        let name = match crate::wire::custom_name(name) {
+            Ok(name) => name,
+            Err(error) => {
+                self.update(|snapshot| snapshot.notice = Some(error.to_owned()));
+                return;
+            }
+        };
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => hub.set_name(&self.identity, &name),
+            _ => {
+                self.update(|snapshot| {
+                    snapshot.notice = Some("not connected to the hub".to_owned())
+                });
+                return;
+            }
+        };
+        self.update(|snapshot| match outcome {
+            Ok(profile) => {
+                snapshot.set_me(profile);
+                snapshot.notice = Some("name saved".to_owned());
             }
             Err(error) => snapshot.notice = Some(error.to_string()),
         });
@@ -4918,6 +4947,12 @@ impl Service {
     /// away.
     pub fn set_emoji(&self, emoji: String) {
         let _ = self.commands.send(Command::SetEmoji(emoji));
+    }
+
+    /// Set the player's custom SJK name at the hub ([`crate::wire::custom_name`]),
+    /// shown instead of the name worn in game.
+    pub fn set_custom_name(&self, name: String) {
+        let _ = self.commands.send(Command::SetName(name));
     }
 
     /// Make `png` (cropped and scaled to [`crate::avatar::SIZE`] square) the player's

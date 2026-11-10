@@ -730,7 +730,6 @@ impl ViewerConsole {
             marks: config_directory.join("marks.txt"),
             copied: String::new(),
             pending_quit: false,
-            pending_name_edit: false,
             pending_input: Vec::with_capacity(64),
             pending_chat: std::collections::VecDeque::with_capacity(16),
             whisper_hover: Default::default(),
