@@ -566,12 +566,6 @@ mod tests {
             .collect()
     }
 
-    fn click(chat: &mut ChatOverlay, position: Vec2) {
-        let button = PointerButton::Primary;
-        chat.pointer(InputEvent::PointerPress { position, button });
-        chat.pointer(InputEvent::PointerRelease { position, button });
-    }
-
     #[test]
     fn a_click_on_a_lines_text_translates_it_and_one_on_its_name_opens_the_card() {
         let mut chat = chat();
