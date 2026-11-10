@@ -1024,6 +1024,16 @@ pub(crate) fn set_emoji(emoji: String) -> bool {
         .is_some()
 }
 
+/// Ask the hub to make `name` the player's custom SJK name; false when the service has
+/// not started. The result shows in [`Snapshot::notice`].
+pub(crate) fn set_custom_name(name: String) -> bool {
+    lock()
+        .service
+        .as_ref()
+        .map(|service| service.set_custom_name(name))
+        .is_some()
+}
+
 /// Ask the hub to make `png` the player's picture; false when the service has not
 /// started (the identity is off). The outcome shows in [`Snapshot::avatar`].
 pub(crate) fn set_avatar(png: Vec<u8>) -> bool {

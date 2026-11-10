@@ -1,3 +1,15 @@
+## Verified-only pictures and GIFs, Change name sets the SJK name
+
+10/11/2026, `personal/verified-pictures-name` (Sol: "we don't accept profile pictures from
+unverified people no more + we don't play their gifs in chat. Also fix the change name in
+the SJK profile"). Hub branch `verified-pictures` refuses `PUT /v1/avatar` from a key that
+is not verified, staff or the creator (403 `not_verified`); it must be deployed for the
+picture rule to hold (the client has no check of its own). Client: `chat_gifs::plays_from`
+keeps an unverified sender's GIF link as text in the chat box, docks and SJK chat page;
+the SJK Profile tab's Change name opens a name panel that sends `PUT /v1/profile {"name"}`
+(the old route to the Character tab's Name field is gone). Existing pictures of unverified
+players stay up. Untested in game.
+
 ## Forge fusion, deal of the day, wishlist (10/11/2026)
 
 10/11/2026, client `personal/forge-shop` based on `main` `c10f6aab7`, against the hub branch

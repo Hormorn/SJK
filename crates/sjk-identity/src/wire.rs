@@ -2134,6 +2134,27 @@ pub fn authorization(
     )
 }
 
+/// The most characters a custom SJK name holds (the hub's rule, `PROTOCOL.md`,
+/// "Profile fields").
+pub const CUSTOM_NAME_MAX: usize = 24;
+
+/// A custom SJK name as the hub takes it: trimmed, 1 to [`CUSTOM_NAME_MAX`]
+/// characters, no control characters, and a letter or digit once colour codes are
+/// dropped ([`normal_form`]). The hub still refuses one another player holds.
+pub fn custom_name(raw: &str) -> Result<String, &'static str> {
+    let name = raw.trim();
+    if name.is_empty() {
+        return Err("Type a name first");
+    }
+    if name.chars().count() > CUSTOM_NAME_MAX {
+        return Err("A name holds at most 24 characters");
+    }
+    if name.chars().any(char::is_control) || normal_form(name).is_empty() {
+        return Err("A name needs a letter or digit");
+    }
+    Ok(name.to_owned())
+}
+
 /// The form two player names are compared in: lower case, Quake colour codes
 /// removed, only letters and digits kept (the hub uses the same rule for
 /// display names).

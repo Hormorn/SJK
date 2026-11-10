@@ -234,13 +234,6 @@ impl crate::GpuState {
     pub(crate) fn poll_client_shell(&mut self) {
         self.poll_resident_connection();
         self.rejoin_on_new_password();
-        if self
-            .console
-            .as_mut()
-            .is_some_and(crate::console::ViewerConsole::take_name_edit)
-        {
-            self.edit_name_on_profile_hub();
-        }
         if let Some(menu) = &mut self.client_menu {
             if let Some(console) = &mut self.console {
                 menu.configure_browser(console);

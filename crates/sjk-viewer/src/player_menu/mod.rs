@@ -328,15 +328,6 @@ impl PlayerMenu {
         self.set_page(ProfilePage::ALL[index.min(2)]);
     }
 
-    /// Show the Character page with its Name field open for typing (the SJK Profile
-    /// tab's Change name), as Enter on the Name row opens it.
-    pub(crate) fn open_name_field(&mut self) {
-        self.set_page(ProfilePage::Character);
-        self.name_before_edit.clone_from(&self.draft.name);
-        self.search_editing = false;
-        self.name_editing = true;
-    }
-
     /// Whether the page on show is the Force page, the classic one or the
     /// SJK UI's.
     fn force_page_on_show(&self) -> bool {

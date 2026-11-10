@@ -9,6 +9,10 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 10/11/2026 | - | Verified-only GIFs, Change name sets the SJK name
+- b8cb802 |  | Verified-only GIFs, Change name sets the SJK name
++ 10/11/2026 | - | Credits history after Slash's PR #407
+- eea6e7b |  | Credits history after Slash's PR #407
 + 10/11/2026 | - | Forge fusion, deal of the day and a wishlist (client)
 - 19a22ac |  | Forge fusion, deal of the day and a wishlist (client)
 + 10/11/2026 | - | Credits history: the map editor guesses and selections round
