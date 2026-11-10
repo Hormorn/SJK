@@ -2,6 +2,14 @@
 
 # Sol JK (SJK)
 
+<p align="center">
+  <a href="https://sol-vulpes.github.io/SJK/"><img alt="Website" src="https://img.shields.io/badge/Website-Sol%20JK-D4AF37?style=for-the-badge"></a>
+  <a href="https://github.com/Sol-Vulpes/SJK/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/Sol-Vulpes/SJK?style=for-the-badge&label=Download&color=D4AF37"></a>
+  <a href="https://sol-vulpes.github.io/SJK/#launcher"><img alt="SJK Launcher" src="https://img.shields.io/badge/SJK%20Launcher-Get%20it-D4AF37?style=for-the-badge"></a>
+  <a href="https://discord.gg/dGBdMygvJw"><img alt="Discord" src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white"></a>
+  <a href="https://ko-fi.com/soljk"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white"></a>
+</p>
+
 **Sol JK**, or **SJK** for short, is Sol's client for **Star Wars Jedi
 Knight: Jedi Academy** multiplayer: the game as Sol sees it, developed by Sol in
 Rust.
@@ -15,6 +23,23 @@ SJK includes a graphical client and a dedicated server, with support for the
 legacy protocol, PK3 content, maps, models, movement and combat. The renderer
 uses wgpu. The client includes a server browser, console, configurable controls,
 HUD, audio, screenshots and demo playback.
+
+More screenshots are on the [SJK website](https://sol-vulpes.github.io/SJK/).
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="site/screenshots/main-menu.jpg" alt="The SJK UI main page over a live map"><br><sub>The SJK UI, over the live map</sub></td>
+    <td width="50%" align="center"><img src="site/screenshots/scoreboard.jpg" alt="The scoreboard over a match"><br><sub>The scoreboard</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="site/screenshots/collection-shaders.jpg" alt="The Collection Shaders tab with a blade lit on the menu map"><br><sub>Collection: blade shaders</sub></td>
+    <td width="50%" align="center"><img src="site/screenshots/collection-toys.jpg" alt="The Collection Toys tab"><br><sub>Collection: toys</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="site/screenshots/servers.jpg" alt="The server browser"><br><sub>The server browser</sub></td>
+    <td width="50%" align="center"><img src="site/screenshots/profile.jpg" alt="The Profile screen with medals and achievements"><br><sub>Profile, medals and achievements</sub></td>
+  </tr>
+</table>
 
 ## Highlights
 
@@ -57,7 +82,8 @@ build for Macs with Apple Silicon, are on the
 [releases page](https://github.com/Sol-Vulpes/SJK/releases) and the
 [SJK website](https://sol-vulpes.github.io/SJK/). Extract the ZIP for your
 platform into Jedi Academy's `GameData` folder, beside `base`, and launch
-`sjk` (`sjk.exe` on Windows, `SJK.app` on a Mac).
+`sjk` (`sjk.exe` on Windows, `SJK.app` on a Mac). Or let the
+[SJK Launcher](https://sol-vulpes.github.io/SJK/#launcher) install, update and start it for you.
 
 Releases are built by the [SJK release workflow](.github/workflows/release.yml)
 when a tag named `sjk-v<version>` (for example `sjk-v0.2.0`) is pushed. It builds
