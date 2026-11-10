@@ -9,6 +9,40 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 10/11/2026 | - | Map editor: clips, triggers and invisible walls are no hidden faces
+- 84e69d3 |  | Map editor: clips, triggers and invisible walls are no hidden faces
++ 10/11/2026 | - | Map editor: texture guesses, a live remap preview and better selections
+- eee07a0 |  | Map editor: texture guesses, a live remap preview and better selections
++ 10/11/2026 | - | Map editor guesses and selections: world shot, docs, test list and changelog
+- 636b103 |  | Map editor guesses and selections: world shot, docs, test list and changelog
++ 10/11/2026 | - | Beta season: a guaranteed shader in every Rare+ holocron, Beta kyber crystal odds
+- d7a349e |  | Beta season: a guaranteed shader in every Rare+ holocron, Beta kyber crystal odds
++ 10/11/2026 | - | JoF and Sith content: count the files tidied into GameData/assets
+- 3db375f |  | JoF and Sith content: count the files tidied into GameData/assets
++ 10/11/2026 | - | Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer's Low to Ultra
+- 08560d0 |  | Graphics presets: Vanilla, Vanilla Plus and the Solar Renderer's Low to Ultra
++ 10/11/2026 | - | Holocron seasons: Beta holocrons' prizes one by one, the Beta loot page and the pity
+- 38ab2e2 |  | Holocron seasons: Beta holocrons' prizes one by one, the Beta loot page and the pity
++ 10/11/2026 | - | GIF tags: a blank tag spent once on a GIPHY GIF, played on walls
+- 42e3168 |  | GIF tags: a blank tag spent once on a GIPHY GIF, played on walls
++ 10/11/2026 | - | GIF tags: test list entry, changelog and credits
+- 2bbcc80 |  | GIF tags: test list entry, changelog and credits
++ 10/11/2026 | - | debug_panel: fold the acoustics fix into three change lines (the panel's limit)
+- fc9b0fb |  | debug_panel: fold the acoustics fix into three change lines (the panel's limit)
++ 10/11/2026 | - | Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
+- f683f43 |  | Richer rain: wet streets mirror the city, spray, waves, settling snow, sliders
++ 10/11/2026 | - | README: buttons for the site, downloads and launcher, and screenshots
+- 6bb008f |  | README: buttons for the site, downloads and launcher, and screenshots
++ 10/11/2026 | - | Sith cloud card: follow the launcher into assets/S
+- 8404e84 |  | Sith cloud card: follow the launcher into assets/S
++ 10/11/2026 | - | Sith cloud card: format the new test
+- 1451d9a |  | Sith cloud card: format the new test
++ 10/11/2026 | - | Load PK3s from GameData/assets and its subfolders
+- c8096b6 |  | Load PK3s from GameData/assets and its subfolders
++ 09/11/2026 | - | Your SJK page: identity site, identity link, the Videographer medal
+- 4d1c792 |  | Your SJK page: identity site, identity link, the Videographer medal
++ 09/11/2026 | - | 3D sound: the room echo sits under the sounds instead of over them
+- 5eb7ecb |  | 3D sound: the room echo sits under the sounds instead of over them
 + 09/11/2026 | - | +grapple's release lasts two commands; an emote's music waits for its decoder
 - a90b7df |  | +grapple's release lasts two commands; an emote's music waits for its decoder
 + 09/11/2026 | - | s_language voices; the strafe helper on jaPRO servers
@@ -3516,10 +3550,10 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
-+ 09/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
-- 2d5ae54 |  | Credits: count pull requests merged as "Merge PR #N (Author): title" or "Merge PR #N"
-+ 09/11/2026 | - | Release 2026.1109.3 (Alpha)
++ 10/11/2026 | - | Release 2026.1109.3 (Alpha)
 - a692047 |  | Release 2026.1109.3 (Alpha)
++ 10/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
+- 2d5ae54 |  | Credits: count pull requests merged as "Merge PR #N (Author): title" or "Merge PR #N"
 + 09/11/2026 | SJK #399 | Jedi Knight II HUD (cg_hudFiles 2)
 - 7b8cd0d |  | Jedi Knight II HUD (cg_hudFiles 2), pictures from EternalJK
 - b4b513e |  | Format menu_stage, which fails the CI formatting check on main
