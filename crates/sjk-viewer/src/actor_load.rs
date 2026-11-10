@@ -204,33 +204,86 @@ pub(crate) fn rig_gpu_vertex(
     }
 }
 
-/// Load `appearance`, falling back to Kyle when it cannot be loaded.
+/// Load `appearance`, falling back to `stand_in` ([`stand_in`]) when it cannot be
+/// loaded.
 fn load_or_fallback(
     vfs: &VirtualFileSystem,
     appearance: &Appearance,
+    stand_in: &Appearance,
     fallback: &Appearance,
     cache: &mut crate::player_assets::GlaCache,
 ) -> Result<PlayerPreview, Box<dyn Error>> {
-    let mut load = |appearance: &Appearance| {
-        crate::player_assets::load_player_appearance_with(
-            vfs,
-            &appearance.model,
-            &appearance.variant,
-            [0.0; 3],
-            0.0,
-            cache,
-        )
-    };
-    match load(appearance) {
+    match load_appearance(vfs, appearance, cache) {
         Ok(actor) => Ok(actor),
         Err(error) if appearance != fallback => {
             eprintln!(
-                "could not load actor appearance {}/{}: {error}; using Kyle",
-                appearance.model, appearance.variant
+                "could not load actor appearance {}/{}: {error}; using {}/{}",
+                appearance.model, appearance.variant, stand_in.model, stand_in.variant
             );
-            load(fallback)
+            load_stand_in(vfs, stand_in, fallback, cache)
         }
         Err(error) => Err(error),
+    }
+}
+
+/// Load `stand_in`, or Kyle (`fallback`) if even the stand-in cannot be loaded.
+pub(crate) fn load_stand_in(
+    vfs: &VirtualFileSystem,
+    stand_in: &Appearance,
+    fallback: &Appearance,
+    cache: &mut crate::player_assets::GlaCache,
+) -> Result<PlayerPreview, Box<dyn Error>> {
+    match load_appearance(vfs, stand_in, cache) {
+        Ok(actor) => Ok(actor),
+        Err(error) if stand_in != fallback => {
+            eprintln!(
+                "could not load stand-in {}/{}: {error}; using Kyle",
+                stand_in.model, stand_in.variant
+            );
+            load_appearance(vfs, fallback, cache)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn load_appearance(
+    vfs: &VirtualFileSystem,
+    appearance: &Appearance,
+    cache: &mut crate::player_assets::GlaCache,
+) -> Result<PlayerPreview, Box<dyn Error>> {
+    crate::player_assets::load_player_appearance_with(
+        vfs,
+        &appearance.model,
+        &appearance.variant,
+        [0.0; 3],
+        0.0,
+        cache,
+    )
+}
+
+/// Whether `cg_defaultModelRandom` is on: a missing model is drawn as a retail model
+/// picked from its name rather than as Kyle (`sjk_client::default_model_random`).
+pub(crate) fn random_stand_ins(console: Option<&crate::console::ViewerConsole>) -> bool {
+    console
+        .and_then(|c| c.bool_cvar("cg_defaultmodelrandom"))
+        .unwrap_or(false)
+}
+
+/// The model drawn for `client`'s `requested` appearance if it cannot be loaded:
+/// Kyle, or with `random` a retail model picked from its name.
+pub(crate) fn stand_in(
+    game_state: Option<&GameState>,
+    client: Option<u16>,
+    requested: &Appearance,
+    random: bool,
+) -> Appearance {
+    match (game_state, client) {
+        (Some(game_state), Some(client)) => {
+            sjk_client::default_model_random::legacy_client_stand_in(
+                game_state, client, requested, random,
+            )
+        }
+        _ => fallback_appearance(),
     }
 }
 
@@ -251,6 +304,7 @@ pub(crate) fn load_actor_meshes(
     // was outside the first snapshot's PVS. Otherwise a later arrival
     // can only use the shared Kyle fallback and cannot hold its own pose.
     let options = model_options(console);
+    let random = random_stand_ins(console);
     let mut actors = BTreeMap::new();
     if let Some(game_state) = game_state {
         for client_num in 0..32_u16 {
@@ -289,6 +343,7 @@ pub(crate) fn load_actor_meshes(
         let saber_names = client_num
             .map(|client_num| client_saber_names(game_state, client_num))
             .unwrap_or_else(|| [Some("single_1".to_owned()), None]);
+        let stand_in = stand_in(game_state, client_num, &appearance, random);
         // A failed build leaves the scene as it was, so the Kyle fallback does
         // not sit behind half-appended geometry and materials.
         let build = |scene: &mut FlattenedScene, actor: PlayerPreview, appearance: &Appearance| {
@@ -323,25 +378,18 @@ pub(crate) fn load_actor_meshes(
             }
             Ok::<_, Box<dyn Error>>(pair)
         };
-        match load_or_fallback(vfs, &appearance, &fallback, &mut cache) {
+        match load_or_fallback(vfs, &appearance, &stand_in, &fallback, &mut cache) {
             // One player's model must not fail the map: a mesh that loads but
-            // cannot be built is replaced by Kyle like one that cannot load.
+            // cannot be built is replaced by its stand-in like one that cannot load.
             Ok(actor) => match build(scene, actor, &appearance) {
                 Ok(pair) => meshes.extend(pair),
                 Err(error) if appearance != fallback => {
                     eprintln!(
-                        "could not build actor appearance {}/{}: {error}; using Kyle",
-                        appearance.model, appearance.variant
+                        "could not build actor appearance {}/{}: {error}; using {}/{}",
+                        appearance.model, appearance.variant, stand_in.model, stand_in.variant
                     );
-                    let kyle = crate::player_assets::load_player_appearance_with(
-                        vfs,
-                        &fallback.model,
-                        &fallback.variant,
-                        [0.0; 3],
-                        0.0,
-                        &mut cache,
-                    )?;
-                    meshes.extend(build(scene, kyle, &appearance)?);
+                    let stand_in = load_stand_in(vfs, &stand_in, &fallback, &mut cache)?;
+                    meshes.extend(build(scene, stand_in, &appearance)?);
                 }
                 Err(error) => return Err(error),
             },

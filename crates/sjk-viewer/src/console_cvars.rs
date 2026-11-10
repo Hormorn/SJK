@@ -1685,6 +1685,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Respect installed player-model eligibility metadata",
         ),
         CvarDefinition::new(
+            sjk_client::default_model_random::CVAR,
+            false,
+            archive,
+            "Draw a missing player model as a retail model picked from its name, not Kyle",
+        ),
+        CvarDefinition::new(
             "cg_forceModel",
             false,
             archive,

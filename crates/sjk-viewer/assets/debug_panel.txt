@@ -4956,6 +4956,13 @@ change: Another player's swings, saber hits, blocks and footsteps pick their sou
 test: Watch another player or a bot swing: the swings sound different, not one sound each.
 test: Their saber hits and blocks vary too, and their footsteps alternate.
 
+[s-language-player-voices]
+area: Audio
+title: s_language reaches the players' voices (Slash, PR #409, hub #298)
+change: The game's sound tables read pain, death and taunt voices in the language's folder.
+test: s_language francais, snd_restart: taunts and the bots' pain and death voices are French.
+test: s_language english, snd_restart: they are English again.
+
 # ---- Gameplay ----
 
 [gif-tags]
@@ -5169,6 +5176,13 @@ area: Gameplay
 title: JA+ duellers pass through other players in prediction
 change: Walking through players in a private duel (or out of yours) no longer snaps back.
 test: JA+: two players duel, walk through them; while duelling, walk through a bystander.
+
+[default-model-random]
+area: Gameplay
+title: cg_defaultModelRandom: a stock model for a missing one (Slash, PR #406, hub #302)
+change: Off by default (Kyle). On: a player whose model you lack gets a stock model from its name.
+test: On a server with a model you lack (shown as Kyle): cg_defaultModelRandom 1 swaps it at once.
+test: The same model always gets the same stand-in; cg_defaultModelRandom 0 brings Kyle back.
 
 # ---- More changes ----
 

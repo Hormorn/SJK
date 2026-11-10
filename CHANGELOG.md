@@ -36,6 +36,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
 
 - Chat translation on request: with the chat open, click a line's text (game, SJK or clan chat) to put it into English; `/tr` in the chat (or `tr` in the console) does it for the newest foreign line, `/tr <text>` the text you give, and the SJK chat page has Translate on a chosen message. Only the lines you choose go to the SJK hub, which asks Microsoft's translator; `cl_chatTranslateSkip` lists languages never offered. Needs the updated hub _(Slash, after Creo's idea)_
+- `s_language` reaches the players' own voices too: with `s_language francais` (or `deutsch`, `espanol`) and `snd_restart`, their pain, death and taunt voices are French as well, not only some of the other voices _(Slash, PR #409, hub report #298, after jof'mg.perso's report)_
 - The Forge's Craft search tells you when the shader you looked for is yours already (it crafts only shaders you lack; another copy comes from holocrons), instead of finding nothing _(Slash, hub report #305, after SimpleSmokie's report)_
 - Change name on your SJK profile now sets your SJK name (shown in the SJK chat, on cards and on the hub) instead of sending you to the in-game name _(Sol)_
 - Only verified players' GIFs play in the SJK chat; anyone else's link stays a link. Only verified players can upload a profile picture _(Sol)_
@@ -52,6 +53,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - The Jedi Knight II HUD (`cg_hudFiles 2`) opens its selector bar when you change weapon, Force power or item: the bar slides open behind the icons between its lit prongs and closes after, and the unlit prongs wait at its ends _(Slash, PR #407, hub report #301, after EternalJK)_
 - The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
 - The disruptor's beam leaves the gun's tip: another player's shot, and yours in third person, now starts at the barrel instead of in front of the chest, and a zoomed sniper shot no longer starts where your gun was before you zoomed in (hub report #294) _(Slash, PR #405, after Sol's report)_
+- `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, PR #406, after mg.perso's report, hub report #302; after JoF EJK)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
 

@@ -3576,6 +3576,12 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 10/11/2026 | SJK #409 | s_language reaches the players' voices after snd_restart (hub report #298)
+- 229cff5 |  | s_language: the game's sound tables read the voices in the language (hub report #298)
+- 66248d0 |  | Changelog: PR number for the s_language voices
++ 10/11/2026 | SJK #406 | cg_defaultModelRandom: a missing player model shows as a retail model, not always Kyle (hub report #302)
+- 527cf43 |  | cg_defaultModelRandom: a missing player model stands in as a retail model picked from its name (hub report #302)
+- c555dcf |  | cg_defaultModelRandom: switching it redraws players since the world load
 + 10/11/2026 | SJK #404 | Saber swings play every swing sound again (hub report #303)
 - 1c21f08 |  | Saber swings: pick each swing's sound at random, not one per player (hub report #303)
 - 20965ac |  | CHANGELOG: PR number for the swing sound fix
