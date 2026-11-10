@@ -667,3 +667,22 @@ fn with_skin_sounds_only_dual_and_thrown_sabers_hum_with_the_set_alone() {
         [(LegacyLoopKind::SaberHumSkin, SET.hum.to_owned())]
     );
 }
+
+#[test]
+fn one_players_swings_play_every_stock_swing_sound() {
+    // Hub report #303: EV_SABER_ATTACK's parameter is the same on every swing, so a
+    // pick fixed by the player and the event gave them one swing sound only.
+    let mut adapter = adapter();
+    let mut heard = std::collections::BTreeSet::new();
+    for round in 0..64_u16 {
+        let event = 29 | (round % 4) << 8;
+        let sounds = played(
+            &mut adapter,
+            vec![with_event(player_entity(STOCK, AT_STOCK), event, 0)],
+        );
+        assert_eq!(sounds.len(), 1, "{sounds:?}");
+        assert!(sounds[0].1.starts_with("sound/weapons/saber/saberhup"));
+        heard.insert(sounds[0].1.clone());
+    }
+    assert_eq!(heard.len(), 8, "{heard:?}");
+}

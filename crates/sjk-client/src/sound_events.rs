@@ -616,6 +616,10 @@ pub struct LegacySoundAdapter {
     npc: npc_sounds::NpcSounds,
     client_teams: [u8; MAX_CLIENTS],
     taunt_random: crate::animation_events::Random,
+    /// Picks a swing's, hit's, block's or footstep's sample, as codemp's
+    /// `Q_irand` does: a fixed pick per player gave them one swing sound only
+    /// (hub report #303).
+    variant_random: crate::animation_events::Random,
     saber_attack: [Option<u16>; 8],
     saber_hit: [Option<u16>; 3],
     saber_block: [Option<u16>; 9],
@@ -884,6 +888,7 @@ impl LegacySoundAdapter {
             client_teams,
             predicted_events: Default::default(),
             taunt_random: Default::default(),
+            variant_random: Default::default(),
             saber_attack,
             saber_hit,
             saber_block,
@@ -1184,7 +1189,7 @@ impl LegacySoundAdapter {
         };
         let voice = self.voice_of(&entity, speaker);
         let custom = self.voice_set(voice);
-        let variant = deterministic_variant(source, event, parameter);
+        let variant = self.variant_random.index(1 << 16);
         // Event-maintained loops live in centity state and are re-added to the
         // backend every frame (`cg_ents.c:109-110,141-192,244-285`).
         match maintained_rule(event, entity.general_channel) {
@@ -1997,14 +2002,6 @@ pub(crate) fn normalize_voice_channel(channel: u32) -> u32 {
     } else {
         channel
     }
-}
-
-fn deterministic_variant(entity: u16, event: u16, parameter: u8) -> usize {
-    // codemp uses the client rand() stream. Per-entity hashing is deliberately
-    // replay deterministic; only variant choice differs, never table/content.
-    usize::from(entity).wrapping_mul(1_103_515_245)
-        ^ usize::from(event).wrapping_mul(12_345)
-        ^ usize::from(parameter)
 }
 
 fn footstep_kind(material: u8) -> usize {

@@ -814,7 +814,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 140 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 141 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1056,6 +1056,8 @@ medal pictures carry their own labels in `vram` and crash reports.
   inventory selector shows, between lit prongs, as EternalJK draws it (hub report #301).
 - #405 Disruptor beams leave the gun's tip: another player's, yours in third person, and a
   zoomed sniper shot, from the world gun's flash point as stock does (hub report #294).
+- #404 Saber swings play every swing sound again: each swing, saber hit, block and footstep
+  picks its sound at random as codemp's `Q_irand` does, not one fixed per player (hub report #303).
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

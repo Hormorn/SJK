@@ -4932,6 +4932,13 @@ test: In a game, stand with a wall or player on one side: their sounds (steps, s
 test: Turn round with a sound running: it moves to the other ear.
 test: Fire at a wall on your left: the impact plays mostly in the left ear.
 
+[saber-swing-variants]
+area: Audio
+title: Saber swings play every swing sound again (Slash, PR #404, hub #303)
+change: Another player's swings, saber hits, blocks and footsteps pick their sound at random.
+test: Watch another player or a bot swing: the swings sound different, not one sound each.
+test: Their saber hits and blocks vary too, and their footsteps alternate.
+
 # ---- Gameplay ----
 
 [gif-tags]
