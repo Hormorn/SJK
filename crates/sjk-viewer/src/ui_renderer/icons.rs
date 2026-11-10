@@ -229,17 +229,27 @@ impl IconAtlas {
     }
 }
 
+/// How far inside its cell a picture's corners sample, in texels: the cells touch,
+/// so linear filtering at a corner on the cell's edge would blend in the
+/// neighbouring picture's edge row, a thin line above or beside an icon drawn
+/// larger than its cell (hub report #311). Half a texel keeps every sample in the
+/// cell.
+const CELL_INSET: f32 = 0.5;
+
 /// Atlas UV corners of `texture`; the map preview spans its own texture.
 pub(super) fn uv_range(texture: TextureId) -> ([f32; 2], [f32; 2]) {
     if texture == super::LEVELSHOT_TEXTURE {
         return ([0.0, 0.0], [1.0, 1.0]);
     }
-    let atlas = ATLAS_SIZE as f32;
     let index = texture.0.min(TOTAL_CELLS - 1);
-    let x = (index % COLUMNS) * ICON_SIZE;
-    let y = (index / COLUMNS) * ICON_SIZE;
-    let uv = |x: u32, y: u32| [x as f32 / atlas, y as f32 / ATLAS_HEIGHT as f32];
-    (uv(x, y), uv(x + ICON_SIZE, y + ICON_SIZE))
+    let x = ((index % COLUMNS) * ICON_SIZE) as f32;
+    let y = ((index / COLUMNS) * ICON_SIZE) as f32;
+    let uv = |x: f32, y: f32| [x / ATLAS_SIZE as f32, y / ATLAS_HEIGHT as f32];
+    let size = ICON_SIZE as f32;
+    (
+        uv(x + CELL_INSET, y + CELL_INSET),
+        uv(x + size - CELL_INSET, y + size - CELL_INSET),
+    )
 }
 
 /// Push one textured quad sampling `uv` (top-left and bottom-right corners)
@@ -353,6 +363,28 @@ pub(super) fn push_quad_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A cell's corners sample half a texel inside it, so filtering never reaches the
+    /// picture above, below or beside it in the atlas (hub report #311).
+    #[test]
+    fn a_cell_never_samples_its_neighbours() {
+        let texel = [1.0 / ATLAS_SIZE as f32, 1.0 / ATLAS_HEIGHT as f32];
+        for index in [0, 1, COLUMNS, COLUMNS + 1, ICON_CELLS + 5, TOTAL_CELLS - 1] {
+            let (low, high) = uv_range(TextureId(index));
+            let x = ((index % COLUMNS) * ICON_SIZE) as f32 * texel[0];
+            let y = ((index / COLUMNS) * ICON_SIZE) as f32 * texel[1];
+            let size = [ICON_SIZE as f32 * texel[0], ICON_SIZE as f32 * texel[1]];
+            for axis in 0..2 {
+                let start = [x, y][axis];
+                assert!((low[axis] - (start + texel[axis] / 2.0)).abs() < 1e-6);
+                assert!((high[axis] - (start + size[axis] - texel[axis] / 2.0)).abs() < 1e-6);
+            }
+        }
+        assert_eq!(
+            uv_range(super::super::LEVELSHOT_TEXTURE),
+            ([0.0, 0.0], [1.0, 1.0])
+        );
+    }
 
     /// `RB_RotatePic` turns about the given point: a quarter turn of a square to the
     /// left of its pivot puts it above the pivot.
