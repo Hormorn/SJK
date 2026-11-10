@@ -2683,6 +2683,8 @@ test: Have a JoF EternalJK player say the same: SJK shows the % and the quotes t
 test: Type 60 percent signs: the box stops at 15, and the sent line is never cut mid-escape.
 note: The console copy of a chat line keeps the escapes, as in EternalJK.
 
+[browser-select-all]\narea: Console & chat\ntitle: Ctrl+A and double click select in the F3 list (Slash, PR #411, hub #308)\nchange: The menu drops a text selection only when its own field closes, not every frame.\ntest: Open the console, F3, type a search, Ctrl+A: it is highlighted; typing replaces it.\ntest: Double click the search: it is selected. Enter on a cvar, Ctrl+A selects its value.\ntest: Settings search: Ctrl+A and a double click still select, Esc still leaves.\n
+
 # ---- Input ----
 
 [toggle-binds]
