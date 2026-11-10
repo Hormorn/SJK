@@ -29,6 +29,13 @@
 //!   heading and the tag's card names it; it changes nothing in drops (unlike a
 //!   blade's edition, `editions.rs`), so the hub does not know it.
 //!
+//! - **GIF tags** (10/11/2026, Sol's decisions): a blank tag ([`BLANK`], dropped as the
+//!   others) is spent once on a GIPHY GIF of the player's choosing, a GIF tag for good,
+//!   stuck as `gif:<id>` ([`gif_id`]) and played on the wall. Verified players only (the
+//!   hub's rule); a GIF GIPHY removes is lost with its tag. Opt-in: [`GIF_SHOW_CVAR`] is
+//!   off by default and, off, no GIF tag is fetched, drawn or stuck on this PC; a GIF the
+//!   player hid in chat never shows on a wall either (`chat_gifs::wall`).
+//!
 //! The pictures are art in the hub's `sjk_tags` pack (`gfx/tags/<id>.png`) and, for a
 //! card, its picture in the card packs; the client projects a tag onto the world as a
 //! lasting decal of its own (`decal_store.rs`, [`crate::decal_store::DecalStore::set_tag`])
@@ -50,6 +57,13 @@ pub(crate) const DEFAULT: &str = "tag_sjk";
 /// Archived: other players' tags are drawn (0 hides them on this PC; the own still
 /// shows and is still sent).
 pub(crate) const SHOW_CVAR: &str = "cg_toyTags";
+/// Archived, off by default (10/11/2026, Sol: opt-in): GIF tags are fetched from GIPHY
+/// and drawn, the own and other players'; off, none is, and none is stuck.
+pub(crate) const GIF_SHOW_CVAR: &str = "cg_toyGifTags";
+/// The blank tag: spent on a GIPHY GIF it becomes a GIF tag; never stuck itself.
+pub(crate) const BLANK: &str = "tag_blank";
+/// What a GIF tag's id begins with in looks and `cg_tag`: `gif:` and the GIPHY id.
+pub(crate) const GIF_PREFIX: &str = "gif:";
 /// The toy's icon (quick wheel, Collection, key bindings).
 pub(crate) const ICON: &str = "gfx/sjk/toy_tag.png";
 /// How far the crosshair reaches for a wall, in units.
@@ -194,10 +208,26 @@ pub(crate) const CATALOGUE: &[Tag] = &[
     community("tag_ez", "EZ tag", Rarity::Rare),
     tag("tag_saber_skull", "Saber Skull tag", Rarity::Rare, false),
     community("tag_geyon", "Geyon tag", Rarity::Rare),
+    tag(BLANK, "Blank tag", Rarity::Rare, false),
     tag("tag_force_push", "Force Push tag", Rarity::Legendary, false),
     tag("tag_dark_mask", "Dark Mask tag", Rarity::Legendary, false),
     tag("tag_solar_fox", "Solar Fox tag", Rarity::Mythical, false),
 ];
+
+/// The GIPHY GIF of GIF tag `id` (`gif:<giphy id>`), if it is one.
+pub(crate) fn gif_id(id: &str) -> Option<crate::chat_gifs::GifId> {
+    crate::chat_gifs::GifId::new(id.strip_prefix(GIF_PREFIX)?)
+}
+
+/// GIF tag id of GIPHY GIF `giphy`.
+pub(crate) fn gif_tag_id(giphy: &str) -> String {
+    format!("{GIF_PREFIX}{giphy}")
+}
+
+/// The GIF tags of profile `me`, newest first; `None` on a hub before GIF tags.
+pub(crate) fn gif_tags(me: Option<&sjk_identity::Profile>) -> Option<&[sjk_identity::GifTag]> {
+    me?.gif_tags.as_deref()
+}
 
 /// The tag called `id`, if this client knows it.
 pub(crate) fn get(id: &str) -> Option<&'static Tag> {
@@ -259,6 +289,13 @@ impl Held {
         unlocks: Option<&[sjk_identity::Unlock]>,
         me: Option<&sjk_identity::Profile>,
     ) -> Self {
+        if let Some(giphy) = id.strip_prefix(GIF_PREFIX) {
+            let held = gif_tags(me).is_some_and(|tags| tags.iter().any(|tag| tag.id == giphy));
+            return Self {
+                copies: u32::from(held),
+                ..Self::default()
+            };
+        }
         if let Some(tag) = get(id) {
             if tag.free {
                 return Self {
@@ -338,6 +375,12 @@ pub(crate) fn tag_cards(me: Option<&sjk_identity::Profile>) -> Vec<String> {
 /// Whether the player may stick tag or card `id` in `finish`, holding `held` of it.
 pub(crate) fn may_stick(held: Held, finish: &crate::cards::Finish) -> bool {
     held.has(finish)
+}
+
+/// Whether `id` can be stuck at all: a tag of the catalogue but the blank, a card, or a
+/// GIF tag.
+pub(crate) fn stickable(id: &str) -> bool {
+    id != BLANK && (get(id).is_some() || is_card_id(id) || gif_id(id).is_some())
 }
 
 /// The turn about `normal`, in degrees from 0 up to 360, that stands a tag's top along
@@ -470,7 +513,7 @@ pub(crate) fn mount(vfs: &mut sjk_vfs::VirtualFileSystem) -> Result<(), sjk_vfs:
 /// Where a placed tag lies on the world, when this client knows the tag or it names a
 /// card (`tag_render.rs` draws the picture; a card whose face is missing draws nothing).
 pub(crate) fn decal(tag: &sjk_identity::PlacedTag) -> Option<crate::decal_marks::DecalRequest> {
-    (get(&tag.id).is_some() || is_card_id(&tag.id)).then(|| crate::decal_marks::DecalRequest {
+    stickable(&tag.id).then(|| crate::decal_marks::DecalRequest {
         origin: Vec3::from_array(tag.at),
         direction: Vec3::from_array(tag.normal),
         orientation: tag.spin,
@@ -573,6 +616,67 @@ mod tests {
             .collect();
         me.tag_cards = tag_cards.iter().map(|kind| (*kind).to_owned()).collect();
         me
+    }
+
+    /// GIF tags (10/11/2026): `gif:` and a GIPHY id, held when the profile lists the GIF,
+    /// never on a hub before them; the blank tag is held as a tag but never stuck.
+    #[test]
+    fn a_gif_tag_is_held_from_the_profile_and_the_blank_never_sticks() {
+        let normal = &crate::cards::FINISHES[0];
+        assert_eq!(gif_id("gif:TestGif1").unwrap().as_str(), "TestGif1");
+        assert_eq!(gif_tag_id("TestGif1"), "gif:TestGif1");
+        for not in [
+            "TestGif1",
+            "gif:",
+            "gif:birthday",
+            "gif:Te",
+            "GIF:TestGif1",
+            "tag_gg",
+        ] {
+            assert!(gif_id(not).is_none(), "{not}");
+        }
+        assert!(!is_card_id("gif:TestGif1"));
+        assert!(stickable("gif:TestGif1"));
+        assert!(stickable("tag_gg") && stickable("sjk_alpha_001"));
+        assert!(!stickable(BLANK) && !stickable("tag_nope") && !stickable("gif:x"));
+        let mut me = profile(&[(BLANK, 2, 0, 0)], &[], &[]);
+        assert_eq!(gif_tags(Some(&me)), None, "a hub before GIF tags");
+        assert!(!may_stick(Held::of("gif:TestGif1", Some(&me)), normal));
+        assert_eq!(Held::of(BLANK, Some(&me)).copies, 2);
+        me.gif_tags = Some(vec![sjk_identity::GifTag {
+            id: "TestGif1".to_owned(),
+            made: 1,
+        }]);
+        let held = Held::of("gif:TestGif1", Some(&me));
+        assert!(may_stick(held, normal));
+        assert!(
+            !held.has(&crate::cards::FINISHES[1]),
+            "a GIF tag has no finish"
+        );
+        assert!(!may_stick(Held::of("gif:OtherGif2", Some(&me)), normal));
+        // The own GIF tag stands while it is held.
+        let mut tags = Tags::default();
+        let server: std::net::SocketAddr = "127.0.0.1:29070".parse().unwrap();
+        let tag = sjk_identity::PlacedTag {
+            id: "gif:TestGif1".to_owned(),
+            map: "mp/ffa3".to_owned(),
+            at: [0.0; 3],
+            normal: [0.0, 0.0, 1.0],
+            spin: 0.0,
+            finish: None,
+        };
+        assert!(decal(&tag).is_some());
+        tags.stick(server, tag, Instant::now());
+        assert!(
+            tags.own(Some(server), Some("mp/ffa3"), |id| Held::of(id, Some(&me)))
+                .is_some()
+        );
+        me.gif_tags = Some(Vec::new());
+        assert!(
+            tags.own(Some(server), Some("mp/ffa3"), |id| Held::of(id, Some(&me)))
+                .is_none(),
+            "a GIF tag the hub took off goes"
+        );
     }
 
     #[test]

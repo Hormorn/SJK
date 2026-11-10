@@ -104,6 +104,9 @@ pub(crate) fn outcome_words(outcome: &sjk_identity::TagOutcome) -> String {
             copy_name(&TagCopy::new(&crafted.id, &crafted.finish))
         ),
         (sjk_identity::TagTrade::Craft(_), None) => "Crafted a new tag.".to_owned(),
+        (sjk_identity::TagTrade::Gif(_), _) => {
+            "Made: your GIF tag. It is yours for good.".to_owned()
+        }
     }
 }
 

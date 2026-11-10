@@ -190,6 +190,44 @@ pub struct Profile {
     /// refuse a card's id or a finish in a look's tag: a client offers neither then.
     #[serde(default)]
     pub tag_cards: Vec<String>,
+    /// The GIF tags the person made (`PROTOCOL.md`, "GIF tags", 10/11/2026), newest
+    /// first: each a blank tag spent on a GIPHY GIF for good. `None` from hubs before
+    /// GIF tags, which refuse a `gif:` tag in a look: a client offers none then.
+    #[serde(default)]
+    pub gif_tags: Option<Vec<GifTag>>,
+}
+
+/// A GIF tag the person made (`PROTOCOL.md`, "GIF tags"): a GIPHY GIF's id, stuck in a
+/// look as `gif:<id>`.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GifTag {
+    /// The GIPHY GIF's id.
+    pub id: String,
+    /// When it was made, in Unix seconds.
+    #[serde(default)]
+    pub made: u64,
+}
+
+/// The hub's answer to `POST /v1/tags/gif` (10/11/2026): the GIF tag a blank tag became.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct GifTagAnswer {
+    /// What was made.
+    pub made: GifTagMade,
+    /// The person's profile after.
+    pub profile: Profile,
+}
+
+/// The GIF tag `POST /v1/tags/gif` made.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct GifTagMade {
+    /// Its id in looks, `gif:<giphy>`.
+    pub id: String,
+    /// The GIPHY GIF's id.
+    #[serde(default)]
+    pub giphy: String,
+    /// When it was made, in Unix seconds.
+    #[serde(default)]
+    pub made: u64,
 }
 
 /// Decode once on the worker; cloning profiles shares immutable banner storage.

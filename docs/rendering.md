@@ -4378,6 +4378,11 @@ stretched over 56 units of wall.
   are. The main view's effect rectangle takes them in (`effect_bounds.rs`); mirror and
   portal views draw them too.
 
+GIF tags (10/11/2026) take the chat's decoded GIF (`chat_gifs::wall`, at most 480
+pixels a side) into a square texture of their own, one level, the GIF centred on
+transparency, written again only when the animation reaches a new frame; they have no
+finish, so a one-texel outline stands in.
+
 Cost: one draw per tag on show with its picture ready, a few hundred vertices at most;
 Holo and Solar shade a few dozen operations a pixel (Solar three noise lookups and three
 flares) over the tags' own pixels only. Video memory: about 1.75 MB a tag and 7 MB a card

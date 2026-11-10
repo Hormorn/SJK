@@ -2147,6 +2147,7 @@ mod tests {
         };
         sjk_identity::Profile {
             tag_cards: Vec::new(),
+            gif_tags: None,
             credits: 0,
             cards: Vec::new(),
             keys: Vec::new(),

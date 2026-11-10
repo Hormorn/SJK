@@ -1177,6 +1177,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Other players' tags are seen (0: no tag but your own is drawn on this PC; SJK)",
         ),
         CvarDefinition::new(
+            crate::tags::GIF_SHOW_CVAR,
+            false,
+            archive,
+            "GIF tags are fetched from GIPHY and played on walls, yours and other players' (off by default; off, none is drawn or stuck on this PC; SJK)",
+        ),
+        CvarDefinition::new(
             crate::boombox::RANGE_CVAR,
             crate::boombox::DEFAULT_RANGE,
             archive,

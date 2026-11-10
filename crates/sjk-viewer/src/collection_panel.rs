@@ -254,6 +254,11 @@ const TAG_FINISH_BASE: u16 = 8_090;
 /// The Tags tab card's Break down and Craft buttons (tag copies, 03/11/2026).
 const TAG_BREAK_TOKEN: u16 = 8_096;
 const TAG_CRAFT_TOKEN: u16 = 8_097;
+/// The Tags tab card's GIF tags switch, and the blank tag's Paste link and Make buttons
+/// (GIF tags, 10/11/2026).
+const TAG_GIF_SWITCH_TOKEN: u16 = 8_093;
+const TAG_GIF_PASTE_TOKEN: u16 = 8_094;
+const TAG_GIF_MAKE_TOKEN: u16 = 8_095;
 const OPTION_TOKENS: usize =
     crate::blade_skin_file::extras::MAX_OPTIONS + crate::blade_extras::MAX_EXTRAS;
 /// The Shaders tab's rows: the stock blade, then every blade skin, the rarest first
@@ -483,6 +488,10 @@ pub(crate) enum PanelAction {
     ShatterTag(sjk_identity::TagCopy),
     /// Give two tag copies of one tier and finish for a tag not held yet.
     CraftTags([sjk_identity::TagCopy; 2]),
+    /// Turn GIF tags on or off on this PC (`cg_toyGifTags`).
+    GifTags(bool),
+    /// Spend a blank tag on this GIPHY GIF (its id) for a GIF tag.
+    MakeGifTag(String),
     /// Ask the hub to equip an owned banner, empty to unequip.
     Banner(&'static str),
     /// Show a tab another page draws: the Holocrons page.
@@ -707,6 +716,8 @@ pub(crate) struct Inputs<'a> {
     pub(crate) tag_finish: &'a str,
     /// `cg_saberFinisher`: the finisher worn, when held (`crate::finishers`).
     pub(crate) finisher: &'a str,
+    /// `cg_toyGifTags`: GIF tags are on on this PC (off by default).
+    pub(crate) gif_tags: bool,
 }
 
 /// What the last frame showed of a shader's row, for keys and clicks.
@@ -776,6 +787,9 @@ pub(crate) struct Panel {
     /// that waits for its second press (03/11/2026).
     tag_tools: tags::Tools,
     tag_confirm: Option<tags::Confirm>,
+    /// The GIF tags part of the card (10/11/2026): what the hub and the player allow, the
+    /// GIPHY link pasted for the blank tag and its second press.
+    tag_gif: tags::GifCard,
     /// The player was in the cardboard box, as the last frame's inputs said.
     box_on: bool,
     /// Order 66 was on, as the last frame's inputs said.
@@ -1011,6 +1025,7 @@ impl Panel {
             tag_finish_for: None,
             tag_tools: tags::Tools::default(),
             tag_confirm: None,
+            tag_gif: tags::GifCard::default(),
             tag_in_use: None,
             box_on: false,
             order66_on: false,
@@ -2382,6 +2397,16 @@ impl Panel {
             if token == TAG_CRAFT_TOKEN {
                 return self.press_tag_tool(tags::Tool::Craft);
             }
+            if token == TAG_GIF_SWITCH_TOKEN {
+                return PanelAction::GifTags(!self.tag_gif.on);
+            }
+            if token == TAG_GIF_PASTE_TOKEN {
+                self.paste_gif_link();
+                return PanelAction::None;
+            }
+            if token == TAG_GIF_MAKE_TOKEN {
+                return self.press_make_gif_tag();
+            }
             if let Some(page) = token
                 .checked_sub(ACHIEVEMENT_PAGE_BASE)
                 .and_then(|index| crate::achievements::Page::ALL.get(usize::from(index)))
@@ -2772,6 +2797,7 @@ mod tests {
             tag: "",
             tag_finish: "",
             finisher: "",
+            gif_tags: false,
         }
     }
 
