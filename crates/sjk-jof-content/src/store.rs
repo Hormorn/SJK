@@ -1,5 +1,5 @@
-//! What is on disk: SJK's JoF folder (`<root>/base`) and the game's `base`,
-//! measured against the manifest.
+//! What is on disk: SJK's JoF folder (`<root>/base`), the game's `base` and the
+//! `assets` folder beside it, measured against the manifest.
 //!
 //! Hashing gigabytes on every look would be slow, so each file's MD5 is kept in
 //! `<root>/sjk-jof-content.json` with the size and modification time it was
@@ -18,14 +18,16 @@ use std::time::UNIX_EPOCH;
 pub const RECORD: &str = "sjk-jof-content.json";
 /// Where the files go under the root, as the game's own `base`.
 pub const CONTENT: &str = "base";
+/// The tidy folder beside the game's `base`: its PK3s load as `base`'s, at any depth.
+const ASSETS: &str = "assets";
 
 /// Where one manifest file stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AssetState {
     /// In SJK's JoF folder, matching the manifest.
     Installed,
-    /// In the game's `base` with the manifest's MD5 (JoF's launcher put it
-    /// there): used as it is, never fetched.
+    /// In the game's `base` or `assets` with the manifest's MD5 (JoF's launcher
+    /// put it there, or the player tidied it): used as it is, never fetched.
     InGameFolder,
     /// In SJK's JoF folder, but not the manifest's file (an older version).
     Outdated,
@@ -126,16 +128,9 @@ impl Store {
     /// Whether `<root>/base` is the game's own `base` (a `jof.contentFolder`
     /// set to the game's folder): SJK then refuses to work there.
     pub fn is_game_folder(&self) -> bool {
-        let Some(game) = &self.game_base else {
-            return false;
-        };
-        let same = |a: &Path, b: &Path| match (a.canonicalize(), b.canonicalize()) {
-            (Ok(a), Ok(b)) => a == b,
-            _ => a
-                .to_string_lossy()
-                .eq_ignore_ascii_case(&b.to_string_lossy()),
-        };
-        same(&self.content(), game)
+        self.game_base
+            .as_deref()
+            .is_some_and(|game| same_folder(&self.content(), game))
     }
 
     /// Write the record back; a failure only costs hashing again next time.
@@ -219,7 +214,11 @@ impl Store {
         on_progress: &mut dyn FnMut(u64, u64),
     ) -> Snapshot {
         let ours = pk3s(&self.content());
-        let game = self.game_base.as_deref().map(pk3s).unwrap_or_default();
+        let game = self
+            .game_base
+            .as_deref()
+            .map(|base| game_pk3s(base, &self.content()))
+            .unwrap_or_default();
         let candidates = |asset: &Asset| {
             let name = asset.name.to_ascii_lowercase();
             [ours.get(&name), game.get(&name)]
@@ -339,6 +338,44 @@ fn pk3s(directory: &Path) -> HashMap<String, PathBuf> {
             name.ends_with(".pk3").then(|| (name, entry.path()))
         })
         .collect()
+}
+
+/// The PK3s the game has by lower-case name: its `base`, then the `assets` folder
+/// beside it at any depth, leaving out `content` (the store's own folder). Links
+/// are not followed.
+fn game_pk3s(base: &Path, content: &Path) -> HashMap<String, PathBuf> {
+    let mut found = pk3s(base);
+    let mut waiting: Vec<PathBuf> = base
+        .parent()
+        .map(|game| game.join(ASSETS))
+        .into_iter()
+        .collect();
+    while let Some(directory) = waiting.pop() {
+        if same_folder(&directory, content) {
+            continue;
+        }
+        for (name, path) in pk3s(&directory) {
+            found.entry(name).or_insert(path);
+        }
+        waiting.extend(
+            std::fs::read_dir(&directory)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                .map(|entry| entry.path()),
+        );
+    }
+    found
+}
+
+fn same_folder(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&b.to_string_lossy()),
+    }
 }
 
 /// The record's key for a path: `/` separators, and lower case on Windows,
@@ -461,5 +498,28 @@ pub(crate) mod tests {
         let snapshot = store.scan(manifest(), &cancel, &mut |_, total| hashed = total);
         assert_eq!(snapshot.state(0, 1), AssetState::Installed);
         assert_eq!(hashed, 4, "only the changed file was hashed again");
+    }
+
+    #[test]
+    fn a_file_tidied_into_the_assets_folder_is_not_fetched_again() {
+        let directory = tempfile::tempdir().unwrap();
+        let game_data = directory.path();
+        let deep = game_data.join("assets/jof/models");
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::create_dir_all(game_data.join("base")).unwrap();
+        std::fs::write(deep.join("a.pk3"), "aaa").unwrap();
+        let root = game_data.join("SJK/jof");
+        let mut store = Store::open(&root, Some(game_data.join("base")));
+        let snapshot = store.scan(manifest(), &AtomicBool::new(false), &mut |_, _| {});
+        assert_eq!(snapshot.state(0, 0), AssetState::InGameFolder);
+        assert_eq!(snapshot.state(0, 1), AssetState::Missing);
+
+        // A store that lives in the assets folder finds its own files as its own.
+        let root = game_data.join("assets/jof");
+        std::fs::create_dir_all(root.join(CONTENT)).unwrap();
+        std::fs::rename(deep.join("a.pk3"), root.join("base/a.pk3")).unwrap();
+        let mut store = Store::open(&root, Some(game_data.join("base")));
+        let snapshot = store.scan(manifest(), &AtomicBool::new(false), &mut |_, _| {});
+        assert_eq!(snapshot.state(0, 0), AssetState::Installed);
     }
 }

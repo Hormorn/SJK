@@ -34,8 +34,8 @@ off, or a finished download, applies from the next map, with no restart. The JoF
 packs also show in the asset browser, and server downloads (`cl_allowDownload`) see
 them, so a map already in the JoF folder is not downloaded from the server again.
 
-A file the game's `base` already holds with the manifest's MD5 (JoF's launcher put it
-there) counts as here and is never fetched again. SJK leaves the game folder's files
+A file the game's `base` or `assets` folder (at any depth) already holds with the
+manifest's MD5 (JoF's launcher put it there, or you tidied it) counts as here and is never fetched again. SJK leaves the game folder's files
 alone: it never updates, moves or removes them.
 
 ## The repository
