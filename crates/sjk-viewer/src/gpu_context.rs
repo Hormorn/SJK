@@ -96,6 +96,19 @@ impl Context {
         let (adapter, device, queue) = open_device(&instance, surface.as_deref()).await?;
         let adapter_info = adapter.get_info();
         crate::crash_report::set_gpu(&adapter_info);
+        // The pipelines compiled in earlier runs (`pipeline_cache.rs`), for the windowed
+        // client only: off-screen renders (tests, world shots) leave the player's file alone.
+        if window.is_some()
+            && let Some(console) = console
+        {
+            crate::pipeline_cache::open_for_client(
+                &device,
+                &adapter_info,
+                &console
+                    .config_directory()
+                    .join(crate::pipeline_cache::FOLDER),
+            );
+        }
         let hdr = crate::frame_target::aa::hdr::Settings::sample(console);
         crate::gpu_guard::name_uncaptured(&device);
         crate::world_materials::filtering::mips::compress::set_device(device.features());
@@ -237,6 +250,8 @@ fn device_descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static>
         // The stage table binds every world texture in one group, where offered.
         required_features: (adapter.features() & wgpu::Features::TEXTURE_COMPRESSION_BC)
             | crate::gpu_phases::features(adapter)
+            // A pipeline cache kept on disk, where offered (Vulkan, `pipeline_cache.rs`).
+            | crate::pipeline_cache::feature(adapter)
             | if stage_table {
                 crate::world_materials::stage_table::FEATURES
             } else {

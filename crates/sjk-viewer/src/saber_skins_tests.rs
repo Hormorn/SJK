@@ -1365,3 +1365,51 @@ fn sounds_are_taken_apart_from_the_blade_for_others_and_the_local_player() {
     assert_eq!(skins.sound_sets(), [None; MAX_CLIENTS]);
     assert_eq!(skins.sound_of(3), None);
 }
+
+#[test]
+fn the_skins_built_ahead_are_those_worn_in_the_slots_and_by_the_local_player() {
+    let skin = |index| SkinColor {
+        index,
+        ..sample_color()
+    };
+    let worn = |skins: &SaberSkins| {
+        let (revision, worn) = skins.worn_ahead();
+        let mut worn: Vec<SkinIndex> = worn.collect();
+        worn.sort_unstable();
+        worn.dedup();
+        (revision, worn)
+    };
+    let mut skins = SaberSkins::default();
+    assert_eq!(worn(&skins), (0, vec![]));
+    // In the menus: the local player's own, before any session.
+    skins.set_local_each(None, Some(skin(4)), Second::Own(Some(skin(9))), None);
+    let (menus, ahead) = worn(&skins);
+    assert_eq!(ahead, [4, 9]);
+    // In a session: the other slots' skins on both sabers, the local one's in its slot.
+    skins.follow_looks_each(1, 1, |client| match client {
+        3 => (Some(skin(1)), Second::Same, None),
+        5 => (Some(skin(2)), Second::Own(Some(skin(7))), None),
+        // The hub's look for the local slot loses to the local choice.
+        8 => (Some(skin(30)), Second::Same, None),
+        _ => (None, Second::Same, None),
+    });
+    skins.set_local_each(Some(8), Some(skin(4)), Second::Own(Some(skin(9))), None);
+    let (session, ahead) = worn(&skins);
+    assert!(session > menus);
+    assert_eq!(ahead, [1, 2, 4, 7, 9]);
+    // Nothing changed: the same revision, so nothing is asked again.
+    skins.follow_looks_each(1, 1, |_| unreachable!());
+    skins.set_stock(crate::stock_blades::StockBlades::Off);
+    assert_eq!(worn(&skins).0, session);
+    // Others drawn stock: theirs are not built; the own blade still is.
+    skins.set_stock(crate::stock_blades::StockBlades::Others);
+    let (stocked, ahead) = worn(&skins);
+    assert!(stocked > session);
+    assert_eq!(ahead, [4, 9]);
+    skins.set_stock(crate::stock_blades::StockBlades::All);
+    assert_eq!(worn(&skins).1, Vec::<SkinIndex>::new());
+    // A duel's stock blades end: its skins are kept ahead.
+    skins.set_stock(crate::stock_blades::StockBlades::Off);
+    skins.set_plain(true);
+    assert_eq!(worn(&skins).1, [1, 2, 4, 7, 9]);
+}

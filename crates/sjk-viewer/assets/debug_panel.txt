@@ -4184,6 +4184,18 @@ test: Join a server: the log has signature builds only for blades people wear.
 test: Open the Collection's blades: each shows its blade (its own effects after a moment).
 test: Wear a signature blade you never showed before: it draws plain for a moment, then its own.
 
+[shader-cache]
+area: Rendering & effects
+title: Blade shaders kept in a pipeline cache on disk and built ahead for blades worn
+change: Vulkan: compiled blade/world pipelines saved to GameData/SJK/cache/ and loaded next start.
+change: Skins worn on the server (and your own) are built ahead, before their blade first draws.
+change: Each "signature shader built" line gives each pipeline's ms and how long it waited.
+test: Join a server: log has "pipeline cache: ..." at start, build lines with "waited ... wanted".
+test: Restart and join again: "pipeline cache: loaded N bytes", builds faster than the 1st time.
+test: Blades people wear show their own effects at once, not plain for a few seconds first.
+test: Set WGPU_BACKEND=dx12 and start: "pipeline cache: unsupported on Dx12", nothing breaks.
+note: A slow build with small "waited" is the driver compiling; large "waited" is the queue.
+
 [fps-fixes]
 area: Rendering & effects
 title: Map changes keep the blade signatures; vsync with supersampling no longer crashes

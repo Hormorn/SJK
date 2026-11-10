@@ -18,6 +18,7 @@ members = [
     "crates/sjk-materialgen",
     "crates/sjk-mediafoundation",
     "crates/sjk-gpu-memory",
+    "crates/sjk-pipeline-cache",
     "crates/sjk-effect",
     "crates/sjk-model",
     "crates/sjk-nav",
@@ -60,6 +61,7 @@ sjk-mod-jof = { path = "crates/sjk-mod-jof" }
 sjk-effect = { path = "crates/sjk-effect" }
 sjk-mediafoundation = { path = "crates/sjk-mediafoundation" }
 sjk-gpu-memory = { path = "crates/sjk-gpu-memory" }
+sjk-pipeline-cache = { path = "crates/sjk-pipeline-cache" }
 sjk-model = { path = "crates/sjk-model" }
 sjk-nav = { path = "crates/sjk-nav" }
 sjk-network = { path = "crates/sjk-network" }

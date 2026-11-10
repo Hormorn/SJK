@@ -84,6 +84,9 @@ pub(crate) struct Runtime {
     /// How many times `saber_loadall` had asked for every signature when these skins last
     /// asked ([`crate::blade_load_all::asked`]); 0 for not since they loaded.
     load_all_asked: u64,
+    /// The revision of the worn skins last asked for ahead ([`Self::build_ahead`]); 0 for
+    /// none since the skins loaded.
+    ahead_asked: u64,
 }
 
 /// A loaded skin's signature shader and its pipelines: built from its own module off the
@@ -144,7 +147,8 @@ const WANTED_LATER: u8 = 0;
 /// threads building them (`BuildQueue::start`): a blade worn or in the preview
 /// first, then the Collection's pictures.
 struct BuildQueue {
-    jobs: std::sync::Mutex<Vec<(u8, u64, Signed)>>,
+    /// How soon, the order asked, when first asked (for the log's wait), and the signature.
+    jobs: std::sync::Mutex<Vec<(u8, u64, std::time::Instant, Signed)>>,
     ready: std::sync::Condvar,
     asked: std::sync::atomic::AtomicU64,
 }
@@ -171,11 +175,13 @@ impl BuildQueue {
                     loop {
                         // The first builder waits for the blade in hand or in the preview alone, so it
                         // never queues behind the Collection's pictures (update 22).
-                        let (wanted, signed) = queue.next(worker == 0);
+                        let (wanted, asked, signed) = queue.next(worker == 0);
                         if signed.claim() {
-                            let _ = signed
-                                .built
-                                .set(builder.build(signed.signature, wanted == WANTED_NOW));
+                            let _ = signed.built.set(builder.build(
+                                signed.signature,
+                                wanted,
+                                asked.elapsed(),
+                            ));
                             if let Some(Some(built)) = signed.built.get() {
                                 builder.build_menu(signed.signature, built);
                             }
@@ -206,7 +212,7 @@ impl BuildQueue {
         };
         if let Some(job) = jobs
             .iter_mut()
-            .find(|job| Arc::ptr_eq(&job.2.built, &signed.built))
+            .find(|job| Arc::ptr_eq(&job.3.built, &signed.built))
         {
             job.0 = job.0.max(wanted);
             return;
@@ -214,13 +220,14 @@ impl BuildQueue {
         let order = self
             .asked
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        jobs.push((wanted, order, signed.clone()));
+        jobs.push((wanted, order, std::time::Instant::now(), signed.clone()));
         drop(jobs);
         self.ready.notify_all();
     }
 
-    /// The build wanted soonest (the first asked among those), waiting for one.
-    fn next(&self, only_now: bool) -> (u8, Signed) {
+    /// The build wanted soonest (the first asked among those) and when it was asked, waiting
+    /// for one.
+    fn next(&self, only_now: bool) -> (u8, std::time::Instant, Signed) {
         let mut jobs = self
             .jobs
             .lock()
@@ -230,8 +237,8 @@ impl BuildQueue {
                 (0..jobs.len()).max_by_key(|&i| (jobs[i].0, std::cmp::Reverse(jobs[i].1)))
                 && (!only_now || jobs[best].0 == WANTED_NOW)
             {
-                let (wanted, _, signed) = jobs.swap_remove(best);
-                return (wanted, signed);
+                let (wanted, _, asked, signed) = jobs.swap_remove(best);
+                return (wanted, asked, signed);
             }
             jobs = self
                 .ready
@@ -321,25 +328,29 @@ impl SignatureBuilder {
             "vertex_main",
             "fragment_main_deep",
             Some(wgpu::BlendState::ADDITIVE),
-            None,
+            crate::pipeline_cache::of(&self.device).as_ref(),
         );
         if pollster::block_on(scope.pop()).is_none() {
             let _ = built.main.set(pipeline);
         }
     }
 
-    /// `signature`'s pipelines; `None` (logged) when its module does not build. With
-    /// `side_by_side` (a blade worn or shown now) its two pipelines are built at once, the solid
-    /// one on a thread of its own (round 19: a blade's effects took seconds to come in), each
-    /// thread catching its own errors (error scopes are the thread's own).
+    /// `signature`'s pipelines, asked `waited` ago `wanted` this soon; `None` (logged) when its
+    /// module does not build. Wanted now (a blade worn or shown now) its two pipelines are built
+    /// at once, the solid one on a thread of its own (round 19: a blade's effects took seconds
+    /// to come in), each thread catching its own errors (error scopes are the thread's own).
+    /// Every pipeline is made with the pipeline cache kept on disk, where there is one.
     fn build(
         &self,
         signature: &crate::blade_signatures::Signature,
-        side_by_side: bool,
+        wanted: u8,
+        waited: std::time::Duration,
     ) -> Option<SignaturePipelines> {
+        let side_by_side = wanted == WANTED_NOW;
         let started = std::time::Instant::now();
         let source = signature.module_source();
-        let cache = None;
+        let cache = crate::pipeline_cache::of(&self.device);
+        let cache = cache.as_ref();
         let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = self
             .device
@@ -347,29 +358,32 @@ impl SignatureBuilder {
                 label: Some(signature.id),
                 source: wgpu::ShaderSource::Wgsl(source.into()),
             });
-        let module_ms = started.elapsed().as_millis();
+        let module_time = started.elapsed();
         let mut failed = pollster::block_on(scope.pop()).map(|error| error.to_string());
+        // Each pipeline with how long it took to make.
         let checked = |vertex: &str, fragment: &str, blend: wgpu::BlendState| {
+            let began = std::time::Instant::now();
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
             let pipeline =
                 self.pipeline(signature.id, &module, vertex, fragment, Some(blend), cache);
             (
                 pipeline,
                 pollster::block_on(scope.pop()).map(|error| error.to_string()),
+                began.elapsed(),
             )
         };
         // A new blade draws in a view with `view_of`'s two: its whole-blade pipeline waits (`build_menu`).
         let lazy = signature.meta("raycache") == Some("fast") && !side_by_side;
         let main_of = || {
             if lazy {
-                (None, None)
+                (None, None, None)
             } else {
-                let (pipeline, error) = checked(
+                let (pipeline, error, took) = checked(
                     "vertex_main",
                     "fragment_main_deep",
                     wgpu::BlendState::ADDITIVE,
                 );
-                (Some(pipeline), error)
+                (Some(pipeline), error, Some(took))
             }
         };
         let solid_of = || {
@@ -388,8 +402,9 @@ impl SignatureBuilder {
         // The view's two: the main pass without its effects in the air, and those at half size.
         let view_of = || {
             if signature.meta("raycache") != Some("fast") {
-                return (None, None);
+                return (None, None, None);
             }
+            let began = std::time::Instant::now();
             let scope = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
             let split = blade_pipeline_with(
                 &self.device,
@@ -403,6 +418,7 @@ impl SignatureBuilder {
                 cache,
                 &[("SIG_SPLIT", 1.0)],
             );
+            let split_took = began.elapsed();
             let volume = volume::pipeline(
                 &self.device,
                 &self.volume_layout,
@@ -411,9 +427,11 @@ impl SignatureBuilder {
                 Instance::layout(),
                 cache,
             );
+            let volume_took = began.elapsed() - split_took;
             (
                 Some((split, volume)),
                 pollster::block_on(scope.pop()).map(|error| error.to_string()),
+                Some((split_took, volume_took)),
             )
         };
         let (view, (main, solid)) = std::thread::scope(|threads| {
@@ -450,7 +468,7 @@ impl SignatureBuilder {
             failed.clone_from(&main.1);
         }
         if failed.is_none()
-            && let Some((_, error)) = &solid
+            && let Some((_, error, _)) = &solid
         {
             failed.clone_from(error);
         }
@@ -461,6 +479,15 @@ impl SignatureBuilder {
             ));
             return None;
         }
+        let times = BuildTimes {
+            waited,
+            module: module_time,
+            main: main.2,
+            view: view.2.map(|(split, _)| split),
+            volume: view.2.map(|(_, volume)| volume),
+            solid: solid.as_ref().map(|(_, _, took)| *took),
+            total: started.elapsed(),
+        };
         let pipelines = SignaturePipelines {
             main: {
                 let cell = OnceLock::new();
@@ -470,15 +497,56 @@ impl SignatureBuilder {
                 cell
             },
             view: view.0,
-            solid: solid.map(|(pipeline, _)| pipeline),
+            solid: solid.map(|(pipeline, _, _)| pipeline),
         };
-        crate::log::progress(format_args!(
-            "blade skins: {}'s signature shader built in {} ms (module {module_ms} ms)",
-            signature.id,
-            started.elapsed().as_millis(),
-        ));
+        crate::log::progress(format_args!("{}", build_line(signature.id, wanted, &times)));
         Some(pipelines)
     }
+}
+
+/// How long a signature build waited and took, part by part, for its log line.
+#[derive(Clone, Copy, Debug, Default)]
+struct BuildTimes {
+    /// From the first ask to a builder taking it (behind other builds).
+    waited: std::time::Duration,
+    module: std::time::Duration,
+    /// Each pipeline made, `None` for those the signature has none of (or not yet).
+    main: Option<std::time::Duration>,
+    view: Option<std::time::Duration>,
+    volume: Option<std::time::Duration>,
+    solid: Option<std::time::Duration>,
+    /// From the builder taking it to its pipelines ready (the pipelines side by side).
+    total: std::time::Duration,
+}
+
+/// A build's one log line: the total first (as before 10/11/2026), then the module and each
+/// pipeline made, then how long it waited to start and how soon it was wanted, so a slow build
+/// shows whether it queued or compiled.
+fn build_line(id: &str, wanted: u8, times: &BuildTimes) -> String {
+    use std::fmt::Write;
+    let ms = |time: std::time::Duration| time.as_millis();
+    let mut line = format!(
+        "blade skins: {id}'s signature shader built in {} ms (module {} ms",
+        ms(times.total),
+        ms(times.module)
+    );
+    for (name, time) in [
+        ("main", times.main),
+        ("view", times.view),
+        ("volume", times.volume),
+        ("solid", times.solid),
+    ] {
+        if let Some(time) = time {
+            let _ = write!(line, ", {name} {} ms", ms(time));
+        }
+    }
+    let wanted = match wanted {
+        WANTED_NOW => "now",
+        WANTED_PICTURE => "picture",
+        _ => "ahead",
+    };
+    let _ = write!(line, "; waited {} ms, wanted {wanted})", ms(times.waited));
+    line
 }
 
 /// A blade pipeline over the instances: `vertex` and `fragment` of `module`, depth-tested
@@ -679,6 +747,7 @@ impl Runtime {
             ],
             immediate_size: 0,
         });
+        let cache = crate::pipeline_cache::of(device);
         let create = |fragment| {
             blade_pipeline(
                 device,
@@ -689,7 +758,7 @@ impl Runtime {
                 "vertex_main",
                 fragment,
                 Some(wgpu::BlendState::ADDITIVE),
-                None,
+                cache.as_ref(),
             )
         };
         let pipeline = create("fragment_main");
@@ -699,7 +768,15 @@ impl Runtime {
         // black hole's lens and horizon blend over what is there.
         let special = |label, layout, vertex, fragment, blend| {
             blade_pipeline(
-                device, layout, format, label, &shader, vertex, fragment, blend, None,
+                device,
+                layout,
+                format,
+                label,
+                &shader,
+                vertex,
+                fragment,
+                blend,
+                cache.as_ref(),
             )
         };
         let haze_pipeline = special(
@@ -822,6 +899,7 @@ impl Runtime {
             signatures: signatures.clone(),
             signed: Vec::new(),
             load_all_asked: 0,
+            ahead_asked: 0,
             trails,
             ribbons: crate::saber_ribbons::Gpu::new(device, camera_layout, format),
         })
@@ -869,6 +947,7 @@ impl Runtime {
         self.signed = signed;
         // Skins loaded since `saber_loadall` asked: theirs are asked for too.
         self.load_all_asked = 0;
+        self.ahead_asked = 0;
         // The skins' slots only: the black pair sits after them (2026.1021.2 lost it here,
         // black blades drawn with the neutral pair's opaque squares).
         let first = crate::saber_rgb::SKIN_MATERIAL as usize;
@@ -925,6 +1004,29 @@ impl Runtime {
         }
         let (built, total) = self.signatures_built();
         crate::blade_load_all::count(built, total);
+    }
+
+    /// Ask for the signature pipelines of the skins `worn` (players in the server's slots and
+    /// the local player, [`crate::saber_skins::SaberSkins::worn_ahead`]) with the lowest
+    /// urgency, once each time their `revision` changes: built by the second builder while the
+    /// map loads or plays, so a blade first drawn finds its pipelines ready instead of drawing
+    /// plain for the build (10/11/2026). Only what is worn, never every signature: the memory
+    /// and build time `upload_skins` saves stay saved. A blade drawn meanwhile moves its build
+    /// up ([`BuildQueue::ask`]).
+    pub(crate) fn build_ahead(
+        &mut self,
+        revision: u64,
+        worn: impl Iterator<Item = crate::saber_skins::SkinIndex>,
+    ) {
+        if revision == self.ahead_asked || self.signed.is_empty() {
+            return;
+        }
+        self.ahead_asked = revision;
+        for index in worn {
+            if let Some(Some(signed)) = self.signed.get(usize::from(index)) {
+                self.builds.ask(signed, WANTED_LATER);
+            }
+        }
     }
 
     /// Ask for every loaded signature's pipelines, as a blade worn later would (the world
@@ -1477,3 +1579,45 @@ fn draw_instances<'pass>(
 #[cfg(test)]
 #[path = "blade_signatures_cost_test.rs"]
 mod cost_test;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn a_build_line_tells_waiting_from_compiling_on_one_line() {
+        let ms = Duration::from_millis;
+        let times = BuildTimes {
+            waited: ms(6_800),
+            module: ms(13),
+            main: Some(ms(9)),
+            view: Some(ms(4)),
+            volume: Some(ms(3)),
+            solid: Some(ms(7)),
+            total: ms(25),
+        };
+        assert_eq!(
+            build_line("saber_abyssal_eye", WANTED_NOW, &times),
+            "blade skins: saber_abyssal_eye's signature shader built in 25 ms (module 13 ms, \
+             main 9 ms, view 4 ms, volume 3 ms, solid 7 ms; waited 6800 ms, wanted now)"
+        );
+        // Pipelines a signature does not have are left out; the old start stays for greps.
+        let lazy = BuildTimes {
+            main: None,
+            solid: None,
+            ..times
+        };
+        let line = build_line("saber_eclipse", WANTED_LATER, &lazy);
+        assert_eq!(
+            line,
+            "blade skins: saber_eclipse's signature shader built in 25 ms (module 13 ms, \
+             view 4 ms, volume 3 ms; waited 6800 ms, wanted ahead)"
+        );
+        assert!(!line.contains('\n'));
+        assert!(
+            build_line("x", WANTED_PICTURE, &BuildTimes::default())
+                .ends_with("built in 0 ms (module 0 ms; waited 0 ms, wanted picture)")
+        );
+    }
+}
