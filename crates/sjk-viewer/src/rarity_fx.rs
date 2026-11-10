@@ -75,6 +75,16 @@ pub(crate) fn enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
+/// How far into its breath a frame is at `seconds`, 0 to 1 and back each
+/// [`BREATH_SECONDS`], as the frames' glow breathes; 1 while the effects are off.
+pub(crate) fn breath_pulse(seconds: f32) -> f32 {
+    if enabled() {
+        0.5 - 0.5 * (seconds / BREATH_SECONDS * TAU).cos()
+    } else {
+        1.0
+    }
+}
+
 /// How much of the show a frame gets, by how large it is.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Size {

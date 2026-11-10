@@ -1873,9 +1873,9 @@ impl Panel {
                 let columns = if options > 4 { 3 } else { 2 };
                 height += 10.0 + 28.0 + options.div_ceil(columns) as f32 * 34.0 * k.max(1.0);
             }
-            // The line saying what unlocks the extras.
+            // The line under the buttons saying what unlocks the extras.
             if extras > 0 && !extras_unlocked(skin.id, inputs) {
-                height += LINE_SIZE * 1.42 * k + 4.0;
+                height += (LINE_SIZE * 1.42 * k - 10.0).max(0.0);
             }
         }
         height + 12.0 + 44.0 + CARD_PAD
@@ -2142,8 +2142,46 @@ impl Panel {
             self.drops(frame, skin, [x, y + 12.0]);
         }
         // Equip or Unequip at the foot of the card, then the second saber's, its parts
-        // between.
-        let button_y = card_y + card_height - CARD_PAD - 44.0;
+        // between; under the buttons, inside the frame, what unlocks the extras while
+        // they are locked (10/11/2026: a line under the parts, it ran into the buttons).
+        let extras_note = row
+            .skin
+            .filter(|skin| row.owned && self.skins.get(skin.id).is_some())
+            .and_then(|skin| {
+                crate::blade_extras::of(skin.id)
+                    .filter(|extras| !extras.list.is_empty())
+                    .filter(|_| !extras_unlocked(skin.id, inputs))
+            })
+            .map(|extras| {
+                format!(
+                    "{}  Extras: {}.",
+                    symbols::LOCK,
+                    capitalised(&extras.gate.unlocks())
+                )
+            });
+        let note_height = LINE_SIZE * 1.42 * text_scale();
+        let button_y = card_y + card_height
+            - CARD_PAD
+            - 44.0
+            - if extras_note.is_some() {
+                (note_height - 10.0).max(0.0)
+            } else {
+                0.0
+            };
+        if let Some(note) = &extras_note {
+            // Gold, breathing as the tier frames do, and never dimmer than easy reading.
+            let pulse = rarity_fx::breath_pulse(seconds);
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{note}"),
+                frame.rect(x, button_y + 44.0 + 6.0, width, note_height),
+                LINE_SIZE * s,
+                color::alpha(color::GOLD_BRIGHT, 0.72 + 0.28 * pulse),
+                FontWeight::Semibold,
+                TextAlign::Start,
+            );
+        }
         let shown_row = self.shader_rows.get(self.shader).copied();
         self.shader_options.clear();
         if let Some(skin) = row.skin.filter(|_| row.owned) {
@@ -2634,7 +2672,7 @@ impl Panel {
     /// ticked while on; a click or its number key switches it, on the model at once and,
     /// worn, for every SJK player. Its extras follow (`blade_extras.rs`), off until
     /// switched on; while the player lacks the card that unlocks them each is greyed
-    /// behind a padlock, takes no click, and a line under them says what unlocks them.
+    /// behind a padlock and takes no click (what unlocks them, the card's foot says).
     fn shader_parts(
         &mut self,
         frame: &Frame,
@@ -2665,19 +2703,6 @@ impl Panel {
         let s = frame.s;
         let columns = if options.len() > 4 { 3 } else { 2 };
         let column = width / columns as f32;
-        // The line saying what unlocks the extras takes the foot while they are locked.
-        let note = extras.filter(|_| !unlocked).map(|extras| {
-            format!(
-                "{}  Extras: {}.",
-                symbols::LOCK,
-                capitalised(&extras.gate.unlocks())
-            )
-        });
-        let bottom = if note.is_some() {
-            bottom - LINE_SIZE * 1.42 * text_scale() - 4.0
-        } else {
-            bottom
-        };
         // Never under `bottom` (the card's button): the rows close up when room is short.
         let rows = options.len().div_ceil(columns);
         let step = ((bottom - (y + 28.0)) / rows as f32).clamp(26.0, 36.0);
@@ -2698,12 +2723,10 @@ impl Panel {
                 (skin, (*id).to_owned(), on, (*name).to_owned(), *locked)
             })
             .collect();
-        let mut last_middle = y + 28.0;
         for (index, (_, _, on, name, locked)) in shown.iter().enumerate() {
             let token = OPTION_BASE + index as u16;
             let left = x + (index % columns) as f32 * column;
             let middle = y + 28.0 + (index / columns) as f32 * step + step * 0.5;
-            last_middle = middle;
             let hovered = !locked && self.ui.token_hovered(token);
             let after = kit::tick(&mut self.ui, frame, left, middle, *on, hovered);
             text(
@@ -2734,18 +2757,6 @@ impl Panel {
                     frame.rect(left - 4.0, middle - step * 0.5, column - 8.0, step),
                 );
             }
-        }
-        if let Some(note) = note {
-            text(
-                &mut self.ui,
-                TextFamily::Body,
-                format_args!("{note}"),
-                frame.rect(x, last_middle + step * 0.5 + 4.0, width, LINE_SIZE * 1.42),
-                LINE_SIZE * s,
-                color::MUTED,
-                FontWeight::Regular,
-                TextAlign::Start,
-            );
         }
         // A locked extra is listed (for the number keys' order) but never switched.
         self.shader_options = shown
