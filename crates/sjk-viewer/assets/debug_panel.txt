@@ -2771,6 +2771,8 @@ test: Hold SPACE, press C: the jump is let go and you crouch; release C: you sta
 test: With cl_idrive 2: hold C, then SPACE: you jump; let go of SPACE: you crouch again.
 note: A roll on landing while crouched (PM_CrashLand) is not prevented, in EJK either.
 
+[held-weapnext-repeats]\narea: Input\ntitle: A held weapnext key keeps cycling (Slash, PR #412, hub #309)\nchange: A held key repeats its bind's down-only commands (weapnext); +commands stay held.\ntest: With several weapons, hold the key bound to weapnext: the weapons keep cycling.\ntest: Hold +attack: it fires as before. Hold a chord bound to weapnext: it cycles too.\n
+
 # ---- Menus & settings ----
 [classic-collection-camera]
 area: Menus & settings

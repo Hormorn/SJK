@@ -36,6 +36,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 = r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
 
 - Ctrl+A and a double click select the search again in the console's commands and cvars list (F3), and a cvar value being edited there: the selection no longer vanishes on the next frame _(Slash, PR #411, hub report #308, after akr's report)_
+- Holding a key bound to `weapnext` or `weapprev` keeps cycling the weapons, as in base JKA: a held key's repeat runs its bind's commands again (a `+command` such as `+attack` stays held) _(Slash, PR #412, hub report #309, after akr's report)_
 - `s_language` reaches the players' own voices too: with `s_language francais` (or `deutsch`, `espanol`) and `snd_restart`, their pain, death and taunt voices are French as well, not only some of the other voices _(Slash, PR #409, hub report #298, after jof'mg.perso's report)_
 - The Forge's Craft search tells you when the shader you looked for is yours already (it crafts only shaders you lack; another copy comes from holocrons), instead of finding nothing _(Slash, hub report #305, after SimpleSmokie's report)_
 - Change name on your SJK profile now sets your SJK name (shown in the SJK chat, on cards and on the hub) instead of sending you to the in-game name _(Sol)_

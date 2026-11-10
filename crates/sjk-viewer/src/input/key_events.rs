@@ -310,6 +310,13 @@ impl GpuState {
             return;
         }
         if event.repeat {
+            // Stock runs a held key's down-only bind again on each repeat, so a held
+            // `weapnext` keeps cycling; `+commands` stay held (hub report #309).
+            if event.state == ElementState::Pressed
+                && let Some(console) = &mut self.console
+            {
+                console.repeat_bound_key(key);
+            }
             return;
         }
         // Releases were handled before routing, including the ones swallowed by

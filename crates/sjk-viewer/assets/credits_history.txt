@@ -3576,6 +3576,9 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 10/11/2026 | SJK #411 | Commands and cvars list: Ctrl+A and a double click select again (hub report #308)
+- 4eb6bda |  | Commands and cvars list: Ctrl+A and a double click select again (hub report #308)
+- 6952bab |  | Changelog: PR number for hub report #308
 + 10/11/2026 | SJK #409 | s_language reaches the players' voices after snd_restart (hub report #298)
 - 229cff5 |  | s_language: the game's sound tables read the voices in the language (hub report #298)
 - 66248d0 |  | Changelog: PR number for the s_language voices
@@ -3599,6 +3602,9 @@
 - a692047 |  | Release 2026.1109.3 (Alpha)
 + 10/11/2026 | SJK #403 | Credits: count the pull requests merged under older merge names
 - 2d5ae54 |  | Credits: count pull requests merged as "Merge PR #N (Author): title" or "Merge PR #N"
++ 10/11/2026 | SJK #412 | A held weapnext key keeps cycling the weapons (hub report #309)
+- 03295c2 |  | A held weapnext key keeps cycling the weapons (hub report #309)
+- d76ec54 |  | Changelog: PR number for hub report #309
 + 09/11/2026 | SJK #399 | Jedi Knight II HUD (cg_hudFiles 2)
 - 7b8cd0d |  | Jedi Knight II HUD (cg_hudFiles 2), pictures from EternalJK
 - b4b513e |  | Format menu_stage, which fails the CI formatting check on main
