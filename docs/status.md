@@ -1,3 +1,15 @@
+## Tactical and Do not disturb in duels (11/11/2026)
+
+11/11/2026, `personal/duel-modes` based on `main` `2a7dfebd3` (Sol: "a setting to allow them to
+auto enable it in duels with the quiet setting too (rename the quiet setting to something
+else also, nothing that starts with q)"). `cg_tacticalDuel` 0-3 raises Tactical while the
+player duels (`duel_blades::in_duel`: a private duel or a Duel/Power Duel server), never
+written into `cg_tactical`; `cg_doNotDisturbDuel` turns do not disturb on for each duel and
+off after it, never against the player's own choice. Quiet mode is renamed Do not disturb
+(`dnd`, `cg_doNotDisturb`, "DND" on the scoreboard); `quiet` is gone, no alias
+([client.md](client.md#tactical-mode)). Verified: `cargo test -p sjk-viewer` (the duel's
+level, never saved, the duel steps for do not disturb). Not verified: no duel was played.
+
 ## Tactical mode (11/11/2026)
 
 11/11/2026, `personal/tactical` based on `main` `6176b0658` (Sol: "a Tactical mode that has a

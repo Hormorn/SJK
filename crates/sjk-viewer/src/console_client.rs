@@ -78,7 +78,7 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
     ),
     (
         crate::chat::quiet::COMMAND,
-        "Toggle quiet mode until the map changes (only your duel partner and whispers): quiet [on|off]",
+        "Toggle do not disturb until the map changes (only your duel partner and whispers): dnd [on|off]",
     ),
     ("messagemode", "Compose global chat"),
     ("messagemode2", "Compose team chat"),

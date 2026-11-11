@@ -34,7 +34,7 @@ use std::fmt::{self, Write as _};
 /// `GT_DUEL`, `GT_POWERDUEL`, `GT_TEAM`, `GT_SIEGE`, `GT_CTF`, `GT_CTY`.
 const DUEL: i32 = 3;
 /// The word after the name of a player in quiet mode (`chat/quiet.rs`), and its room.
-const QUIET_MARK: &str = "Quiet";
+const QUIET_MARK: &str = "DND";
 const QUIET_WIDTH: f32 = 50.0;
 const POWER_DUEL: i32 = 4;
 const TEAM: i32 = 6;
@@ -1937,7 +1937,7 @@ impl Painter<'_> {
             );
             after += 60.0;
         }
-        // Quiet mode: a muted "Quiet" after the marks, as "Ready" stands.
+        // Do not disturb: a muted "DND" after the marks, as "Ready" stands.
         if quiet_mark {
             self.run(
                 TextFamily::Body,

@@ -249,6 +249,10 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     (crate::tactical::CVAR, "1", "Minimal"),
     (crate::tactical::CVAR, "2", "Medium"),
     (crate::tactical::CVAR, "3", "Max"),
+    (crate::tactical::DUEL_CVAR, "0", "Off"),
+    (crate::tactical::DUEL_CVAR, "1", "Minimal"),
+    (crate::tactical::DUEL_CVAR, "2", "Medium"),
+    (crate::tactical::DUEL_CVAR, "3", "Max"),
     (crate::stock_blades::CVAR, "0", "Off"),
     (crate::stock_blades::CVAR, "1", "Others"),
     (crate::stock_blades::CVAR, "2", "All"),
@@ -614,7 +618,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::chat::quiet::CVAR,
-        "Hides all chat but your duel partner's and whispers, and their sounds, until the map changes. Also `quiet`.",
+        "Hides all chat but your duel partner's and whispers, and their sounds, until the map changes. Also `dnd`.",
     ),
     (
         crate::audio::SKIN_SOUNDS_CVAR,
@@ -1217,6 +1221,14 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::tactical::CVAR,
         "Minimal: no emotes, toys, pop-ups. Medium: low graphics, no weather, fog, blade skins. Max: flat world, one model.",
+    ),
+    (
+        crate::tactical::DUEL_CVAR,
+        "Tactical rises to this level while you duel, back to yours when the duel ends.",
+    ),
+    (
+        crate::chat::quiet::DUEL_CVAR,
+        "Do not disturb turns on as each duel starts and off as it ends.",
     ),
     (
         crate::tactical::MODEL_CVAR,

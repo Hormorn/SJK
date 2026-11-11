@@ -1025,7 +1025,12 @@ pub(super) const HUD: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "Quiet mode",
+        label: "Do not disturb in duels",
+        cvar: crate::chat::quiet::DUEL_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "Do not disturb",
         cvar: crate::chat::quiet::CVAR,
         kind: ValueKind::Bool,
     },
@@ -1248,6 +1253,11 @@ pub(super) const GAME: &[Setting] = &[
     Setting {
         label: "Tactical mode",
         cvar: crate::tactical::CVAR,
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
+    },
+    Setting {
+        label: "Tactical in duels",
+        cvar: crate::tactical::DUEL_CVAR,
         kind: ValueKind::Choice(&["0", "1", "2", "3"]),
     },
     Setting {

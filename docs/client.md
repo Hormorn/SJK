@@ -1031,6 +1031,15 @@ or off from it) set it. Each level holds the ones below it:
 | Medium (2) | Also the Vanilla graphics preset, no weather, clouds, lightning, weather sounds or map fog (`r_drawfog 0`), every blade stock (`cg_stockBlades 2`), no finishers, Force Speed afterimages or toon shading |
 | Max (3) | Also the flat world (`r_flatWorld`), no server or shared remaps, and every other player drawn plain: in `cg_tacticalModel` (`kyle` by default, `model` or `model/skin`; a team game's red or blue kept), the default saber (the stock staff for a staff) in the default blue, without hat, cape or blade skin, as a [blocked player](hub-chat.md#blocking-a-player) is drawn, their names, chat and sounds untouched |
 
+**Tactical in duels** (`cg_tacticalDuel`, archived, 0 by default) is the level Tactical
+rises to while the player is in a duel (a private duel, or a Duel or Power Duel server, as
+`duel_blades::in_duel` says), dropping back to `cg_tactical`'s when it ends; it never lowers
+the level and is never written into `cg_tactical`. A client closed during a duel gives the
+duel's settings back on its next start. The graphics settings Medium changes that are read
+only at the graphics' start wait for a reload, so in a duel they stay as they were (the
+reload card offers it in the game menu); the rest switches live, and Max loads the others'
+Tactical model as the duel starts.
+
 The settings a level changes are put aside first, as `cvar=value` pairs in
 `cg_tacticalRestore`, and given back when the level drops, as `renderer vanilla` does: off
 leaves the player's settings as they were, and a profile saved at a level comes back at it
@@ -3302,9 +3311,13 @@ and returns when the switch is off; console history/logs, centre notices and
 SJK hub chat are independent. Moving to another map resets the choice; a graphics
 reload preserves it. Unmarked private formats from other mods are not guessed.
 
-`quiet` toggles **quiet mode** (`cg_quietMode`, not archived; Settings > Chat > Quiet
-mode, both styles; `quiet on`/`off` and 1/0), after Lex Deifaber's idea of 30/10/2026,
-and says ON or OFF in the console. Until it is turned off or the map changes, the chat box
+`dnd` toggles **do not disturb** (`cg_doNotDisturb`, not archived; Settings > Chat > Do
+not disturb, both styles; `dnd on`/`off` and 1/0), after Lex Deifaber's idea of 30/10/2026
+(quiet mode, `quiet` and `cg_quietMode` until Sol renamed it on 11/11/2026; the old command
+is gone, so a bind of `quiet` needs remaking). **Do not disturb in duels**
+(`cg_doNotDisturbDuel`, archived, off) turns it on as each duel starts (a private duel, or a
+Duel or Power Duel server) and off as that duel ends; a player who had it on already keeps
+it, and one who turns it off in the duel keeps it off. `dnd` and says ON or OFF in the console. Until it is turned off or the map changes, the chat box
 hides public, team, SJK and admin chat, their beeps and the SJK chat sound, and keeps
 them out of the console's alert words, but for whispers (server tells, encrypted SJK
 whispers), the player's own lines (the gamestate's slot, never a followed player's) and
@@ -3317,8 +3330,8 @@ marker is not taken for a tell (this holds for `pmonly` too). The console scroll
 every line. Whether a line passes is decided when it arrives, so turning it off brings the
 hidden history back ([quiet.rs](../crates/sjk-viewer/src/chat/quiet.rs), the shared rules
 in [quiet_chat.rs](../crates/sjk-client/src/quiet_chat.rs)). The SJK scoreboard writes a muted
-"Quiet" after the player's own name while it is on; showing it on other players' rows
-needs the hub to relay the flag (for example a `quiet` field in the look of
+"DND" after the player's own name while it is on; showing it on other players' rows
+needs the hub to relay the flag (for example a `dnd` field in the look of
 `POST /v1/look`, given back in presence and look events), which it does not yet.
 
 Chat remains connected to the real server during intermission, including
