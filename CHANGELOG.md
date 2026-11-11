@@ -30,7 +30,15 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1111.4 (Alpha) | 11/11/2026
+
+Share your skins in game with model sync, Tactical mode for a clean fight, playstyle badges and faster joins.
+
+> Model sync: JoF and S verified players share and update their skins from Settings > Mods > Model sync; everyone can download them, or turn on automatic downloads.
+> Tactical mode: One setting strips SJK's extras for a fight, from Minimal to Max, and can rise by itself while you duel.
+> Playstyle: Say how you like to play, saber duels to goofing around, and see it as badges over SJK players' nameplates.
+> Do not disturb: Quiet mode is now Do not disturb (`dnd`), and it can turn on by itself for each duel.
+> Faster joins: JA+ servers load faster, and World brightness and Nameplate height are new sliders.
 
 = cg_doNotDisturbDuel: Do not disturb (quiet mode before) turns on as each duel starts and off as it ends, hiding all chat but your opponent's and whispers.
 = cl_autoModels: Download by themselves the models other players shared through the Sith cloud, for the players you meet, and their updates.
@@ -42,7 +50,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Nameplates can move up or down with a new Settings > HUD slider, Nameplate height (`cg_nameplateOffset`) _(Hormorn, PR #401)_
 - Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
 - World brightness: the Renderer page's HDR exposure is now called World brightness and brightens the 3D world without touching the HUD, also with HDR scene off (`r_hdrExposure`, which there only brightens). Brightness in Graphics stays the whole screen's curve _(Sol)_
-- Model sync: JoF and Sith verified players share the model they wear through the Sith cloud (Profile > Share my model, or `sharemodel`); others fetch it with `getmodel <name>`, or by themselves with `cl_autoModels` (off by default). Every pack is checked on both sides: one model folder, its own shaders only, size limits. Krovos runs the Sith cloud side. _(Sol, Krovos)_
+- Model sync: JoF and Sith verified players share and update their models through the Sith cloud from the Model sync page (Settings > Mods > Model sync, `modelsync`, or Profile > Share my model), even a newer version of a skin in the Sith cloud's own packs; others download them there, with `getmodel <name>`, or by themselves with `cl_autoModels` (off by default). Every pack is checked on both sides: one model folder, its own shaders only, size limits. Krovos runs the Sith cloud side. _(Sol, Krovos)_
 
 ## 2026.1111.3 (Alpha) | 11/11/2026
 
