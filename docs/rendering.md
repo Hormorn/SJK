@@ -618,7 +618,7 @@ when they are drawn.
 | `r_renderScale` | The world's size in percent of the window per axis, 50 to 100 (default) in steps of 5, stretched to the window; ignored while `r_superSample` is above 1; applies after a graphics reload. See [Render scale and supersampling](#render-scale-and-supersampling) |
 | `r_sharpen` | Scene sharpening, 0 (default, off) to 100 %; live, the HUD and menus untouched. See [Sharpening](#sharpening) |
 | `r_highDpi` | 1 the window's size (`r_resolution`) and the world count the screen's pixels, 0 its points; default 0 on a Mac, 1 elsewhere. The window resizes at once, the world after a graphics reload. See [Render scale and supersampling](#render-scale-and-supersampling) |
-| `r_hdrExposure` | Base exposure multiplier, 0.25–4; live. Eye adaptation adjusts around it; `r_sceneHdr 0` ignores it |
+| `r_hdrExposure` | World brightness (Renderer page, IMAGE tab, "World brightness"): base exposure multiplier, 0.25–4, default 1; live. The 3D view only, never the HUD or menus (`r_gamma`, "Brightness", is the whole screen's curve). Eye adaptation adjusts around it. With `r_sceneHdr 0` it only brightens, through the 8-bit shoulder; below 1 it is 1 there (`post_exposure::base_of`) |
 | `r_autoExposure` | Eye adaptation, default 1 (on); 0 holds `r_hdrExposure`. Live; see [eye adaptation](#eye-adaptation) |
 | `r_autoExposureMin`, `r_autoExposureMax` | Adaptation range in EV around the base: -2–0 (default -0.5) and 0–2 (default 1). Live |
 | `r_autoExposureToBright`, `r_autoExposureToDark` | Seconds to settle when the view gets brighter (default 0.4) or darker (default 2.5); 0 is instant. Live, console only |
@@ -1426,7 +1426,8 @@ the exposure to the maximum.
 
 With `r_sceneHdr 0` the scene is 8-bit and already clipped at white, so
 darkening would only grey its highlights: the minimum is 0 EV (it only
-brightens), `r_hdrExposure` still does not apply, and brightening uses a
+brightens), `r_hdrExposure` only brightens (a value below 1 counts as 1, since
+the clipped whites and the effect layer's 8-bit encode cannot be darkened), and brightening uses a
 shoulder that keeps white at white (identity up to an exposed value of 0.5,
 then a rational curve). Darkening needs `r_sceneHdr 1`, the default.
 

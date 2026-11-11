@@ -66,7 +66,7 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), CvarError> {
         "r_hdrExposure",
         1.0,
         CvarFlags::ARCHIVE,
-        "HDR exposure 0.25..4, the base r_autoExposure adjusts; applies immediately",
+        "World brightness 0.25..4 (1 neutral): the 3D view only, not the HUD; the base r_autoExposure adjusts; an 8-bit scene (r_sceneHdr 0) only brightens; applies immediately",
     ))?;
     cvars.on_change("r_sceneHdr", |_| {
         crate::log::progress(format_args!(

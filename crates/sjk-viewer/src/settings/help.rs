@@ -564,7 +564,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         "r_gamma",
-        "Brightness curve of the whole display, HUD included. 1 is neutral; higher lifts dark areas.",
+        "Brightness curve of the whole screen, HUD included; higher lifts dark areas. For the 3D world only: Renderer, World brightness.",
     ),
     // AUDIO
     (
@@ -1695,7 +1695,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         "r_hdrExposure",
-        "How bright the scene is drawn; eye adaptation works around this value.",
+        "How bright the 3D world is drawn, HUD and menus untouched; eye adaptation works around it.",
     ),
     (
         crate::frame_target::aa::exposure::ENABLED,
