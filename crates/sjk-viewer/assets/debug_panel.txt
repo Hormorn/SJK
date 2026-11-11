@@ -5539,6 +5539,15 @@ test: Cooked looking at the sky: it never darkens.
 test: r_autoExposure 0: the level changes nothing.
 note: Adaptation holds still while the Renderer page is open: close it to see the new level.
 
+[world-brightness]
+area: Rendering & effects
+title: World brightness (r_hdrExposure), also with HDR scene off
+change: Renderer > IMAGE: HDR exposure renamed World brightness; the HUD never changes with it.
+change: With r_sceneHdr 0 it now brightens too (it did nothing); below 1 it stays as at 1.
+test: World brightness 2: the map is brighter, HUD, chat and menus are not.
+test: r_sceneHdr 0, restart: World brightness 2 brightens, whites stay white, 0.5 looks like 1.
+test: World brightness 1 with HDR scene off: the picture exactly as before.
+
 [emission-maps]
 area: Rendering & effects
 title: Emission maps: light panels, lamps and screens glow and light the room

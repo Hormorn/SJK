@@ -22,7 +22,7 @@
 //!
 //! With `r_sceneHdr 0` the scene is 8-bit and its highlights are already clipped, so
 //! darkening would only grey them: the range is limited to brightening (min 0 EV) and
-//! `r_hdrExposure` does not apply, as before.
+//! `r_hdrExposure` (World brightness) only brightens, below 1 it is 1 ([`base_of`]).
 
 use bytemuck::{Pod, Zeroable};
 use sjk_shell::{CvarDefinition, CvarError, CvarFlags, CvarRegistry, CvarValue};
@@ -64,6 +64,12 @@ struct FloatCvar {
     default: f32,
     range: (f32, f32),
     help: &'static str,
+}
+
+/// The base exposure a scene shows: `r_hdrExposure`, at least 1 on an 8-bit scene
+/// (`hdr` false), whose clipped whites and effect layer cannot be darkened.
+fn base_of(base: f32, hdr: bool) -> f32 {
+    if hdr { base } else { base.max(1.0) }
 }
 
 /// Float cvars in [`Settings`] slot order (slot 0 is [`ENABLED`]).
@@ -388,11 +394,11 @@ pub(crate) struct Params {
 
 impl Params {
     /// Parameters for one frame `delta` seconds after the last. `hdr` is `r_sceneHdr`:
-    /// an 8-bit scene only brightens and keeps exposure 1.
+    /// an 8-bit scene only brightens, its base included.
     pub(crate) fn new(values: Values, mode: Mode, delta: f32, hdr: bool) -> Self {
         let (aim, brighten, darken) = values.level.shape();
         Self {
-            base: if hdr { values.base } else { 1.0 },
+            base: base_of(values.base, hdr),
             min_ev: if hdr {
                 values.min_ev.min(0.0) * darken
             } else {
@@ -496,7 +502,7 @@ impl Exposure {
         hdr: bool,
         base: f32,
     ) -> Self {
-        let base = if hdr { base } else { 1.0 };
+        let base = base_of(base, hdr);
         let state = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("SJK eye adaptation state"),
             contents: bytemuck::bytes_of(&State::fresh(base)),
@@ -642,7 +648,7 @@ impl Exposure {
     ) {
         if self.fresh {
             self.fresh = false;
-            let base = if self.hdr { values.base } else { 1.0 };
+            let base = base_of(values.base, self.hdr);
             queue.write_buffer(&self.state, 0, bytemuck::bytes_of(&State::fresh(base)));
         }
         self.mode = self.cuts.mode(frame, view);
@@ -830,6 +836,13 @@ mod tests {
 
     #[test]
     fn hdr_uses_the_range_and_base_ldr_only_brightens() {
+        // World brightness below 1 leaves an 8-bit scene as it is.
+        let dim = Values {
+            base: 0.5,
+            ..Values::default()
+        };
+        assert_eq!(Params::new(dim, Mode::Metering, 0.016, false).base, 1.0);
+        assert_eq!(Params::new(dim, Mode::Metering, 0.016, true).base, 0.5);
         let values = Values {
             base: 1.5,
             ..Values::default()
@@ -839,7 +852,7 @@ mod tests {
         assert!((hdr.log_key - 0.18_f32.log2()).abs() < 1e-6);
         assert_eq!(hdr.mode, 2);
         let ldr = Params::new(values, Mode::Snap, 0.016, false);
-        assert_eq!((ldr.base, ldr.min_ev, ldr.max_ev), (1.0, 0.0, 1.0));
+        assert_eq!((ldr.base, ldr.min_ev, ldr.max_ev), (1.5, 0.0, 1.0));
         assert_eq!(ldr.mode, 3);
     }
 

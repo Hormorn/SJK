@@ -2062,7 +2062,7 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "HDR exposure",
+        label: "World brightness",
         cvar: "r_hdrExposure",
         kind: ValueKind::Float {
             min: 0.25,
