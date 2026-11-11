@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- A spawning NPC or vehicle no longer flashes as an unarmed Kyle while its model loads (the next tauntaun, an admin's NPC): it shows nothing until its own model is in _(Slash, after Lex's report)_
+
 ## 2026.1111.2 (Alpha) | 11/11/2026
 
 Chat translation: read a chat line in another language in English, only when you ask.

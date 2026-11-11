@@ -140,3 +140,63 @@ impl GpuState {
 fn refreshable(number: u16, kind: u8, weapon: u8) -> bool {
     kind == 13 || (kind == 1 && number >= 32 && weapon == 0)
 }
+
+/// `true` while an NPC (or unarmed display copy) waits for its own model to load:
+/// it is drawn as nothing then, not as the shared Kyle stand-in. Its model loads on
+/// a worker over several frames (`npc_loads.rs`), so each fresh spawn (a tauntaun
+/// that respawns, an admin's NPC) used to flash as an unarmed Kyle first. One whose
+/// model failed to load keeps the stand-in, as before.
+pub(crate) fn awaits_own_mesh(
+    state: &sjk_protocol::EntityState,
+    appearance: Option<&Appearance>,
+    failed: &BTreeSet<Appearance>,
+) -> bool {
+    refreshable(state.number(), state.entity_type(), state.weapon())
+        && appearance.is_some_and(|appearance| !failed.contains(appearance))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sjk_protocol::{EntityState, LEGACY_ENTITY_FIELDS};
+
+    fn state(number: u16, kind: u32, weapon: u32) -> EntityState {
+        let mut state = EntityState::zero(number, &LEGACY_ENTITY_FIELDS);
+        state.set_raw_field(8, kind);
+        state.set_raw_field(14, weapon);
+        state
+    }
+
+    fn look(model: &str) -> Appearance {
+        Appearance {
+            model: model.to_owned(),
+            variant: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_loading_npc_is_hidden_rather_than_drawn_as_kyle() {
+        let none = BTreeSet::new();
+        let tauntaun = look("$tauntaun");
+        // A fresh tauntaun (Lex, 11/11/2026: an unarmed Kyle flashed before each one).
+        assert!(awaits_own_mesh(&state(80, 13, 0), Some(&tauntaun), &none));
+        // An unarmed display copy of a player waits the same way.
+        assert!(awaits_own_mesh(&state(40, 1, 0), Some(&look("jan")), &none));
+        // A model that failed to load keeps the stand-in.
+        let failed = BTreeSet::from([tauntaun.clone()]);
+        assert!(!awaits_own_mesh(
+            &state(80, 13, 0),
+            Some(&tauntaun),
+            &failed
+        ));
+        // No appearance known: the stand-in, as before.
+        assert!(!awaits_own_mesh(&state(80, 13, 0), None, &none));
+        // Players keep their own rules.
+        assert!(!awaits_own_mesh(&state(3, 1, 0), Some(&look("jan")), &none));
+        assert!(!awaits_own_mesh(
+            &state(40, 1, 2),
+            Some(&look("jan")),
+            &none
+        ));
+    }
+}
