@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- A female player whose model you lack (shown as a female stand-in with `cg_defaultModelRandom`) now speaks with the female voice instead of the male one _(Slash, PR #418, hub report #312, after jof'mg.perso's report; after JoF EJK)_
 - Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
 - World brightness: the Renderer page's HDR exposure is now called World brightness and brightens the 3D world without touching the HUD, also with HDR scene off (`r_hdrExposure`, which there only brightens). Brightness in Graphics stays the whole screen's curve _(Sol)_
 
