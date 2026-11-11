@@ -1735,6 +1735,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Tactical mode: 0 off, 1 minimal (no emotes, toys or pop-ups from others), 2              medium (also Vanilla graphics, no weather, fog or blade skins), 3 max (also a              flat world, others plain in cg_tacticalModel with a blue stock saber); your              settings come back when it drops",
         ),
         CvarDefinition::new(
+            crate::tactical::DUEL_CVAR,
+            0_i64,
+            archive,
+            "Tactical mode while you duel (a private duel, or a Duel server): 0 none, 1              minimal, 2 medium, 3 max; back to cg_tactical when the duel ends",
+        ),
+        CvarDefinition::new(
             crate::tactical::MODEL_CVAR,
             crate::tactical::MODEL_DEFAULT,
             archive,

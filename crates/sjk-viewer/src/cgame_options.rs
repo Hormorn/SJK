@@ -26,7 +26,13 @@ pub(crate) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         crate::chat::quiet::CVAR,
         false,
         CvarFlags::NONE,
-        "Quiet mode: hide public, team, SJK and admin chat but your duel partner's and whispers, until the map changes",
+        "Do not disturb: hide public, team, SJK and admin chat but your duel partner's and whispers, until the map changes",
+    ))?;
+    cvars.register(CvarDefinition::new(
+        crate::chat::quiet::DUEL_CVAR,
+        false,
+        CvarFlags::ARCHIVE,
+        "Turn do not disturb on as each duel starts and off as it ends",
     ))?;
     for (name, value, help) in [
         (

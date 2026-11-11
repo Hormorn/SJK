@@ -15,6 +15,9 @@
 //!   default saber in the default blue, without hat, cape or blade skin, as a muted
 //!   player is (`muted_players.rs`), their chat and sounds untouched.
 //!
+//! **Tactical in duels** ([`DUEL_CVAR`], Sol, 11/11/2026) raises the level while the
+//! player duels, and Do not disturb can follow duels too (`chat/quiet.rs`).
+//!
 //! The settings a level changes are put aside first, `cvar=value` pairs in
 //! [`RESTORE_CVAR`], and given back when the level drops, as `renderer vanilla` does
 //! (`graphics_quality::toggle_vanilla`): Tactical off leaves the player's settings as they
@@ -23,10 +26,14 @@
 //! the console, the Settings row and a config all switch it.
 
 use crate::console::ViewerConsole;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 /// Archived, default 0: 0 off, 1 minimal, 2 medium, 3 max.
 pub(crate) const CVAR: &str = "cg_tactical";
+/// Archived, default 0: the level Tactical rises to while the player is in a duel (a
+/// private duel, or a Duel or Power Duel server, as `duel_blades::in_duel` says), 0 none;
+/// it drops back to [`CVAR`]'s when the duel ends.
+pub(crate) const DUEL_CVAR: &str = "cg_tacticalDuel";
 /// Archived: the model other players are drawn in at Max, `model` or `model/skin`.
 pub(crate) const MODEL_CVAR: &str = "cg_tacticalModel";
 /// [`MODEL_CVAR`]'s default: Kyle, the game's own stand-in.
@@ -107,6 +114,11 @@ impl Level {
 
 /// The level in force, for code far from the console.
 static LEVEL: AtomicU8 = AtomicU8::new(0);
+/// Whether the player was in a duel at the last frame, for the console command.
+static IN_DUEL: AtomicBool = AtomicBool::new(false);
+/// Whether the level was followed once since the client started: a client closed in a
+/// duel gives the duel's settings back on its first frame.
+static STARTED: AtomicBool = AtomicBool::new(false);
 
 /// The level in force (the last one [`apply`] set).
 pub(crate) fn level() -> Level {
@@ -198,7 +210,8 @@ pub(crate) fn apply(console: &mut ViewerConsole, level: Level) {
     LEVEL.store(level as u8, Ordering::Relaxed);
 }
 
-/// [`apply`]'s settings, without telling the rest of the client.
+/// [`apply`]'s settings, without telling the rest of the client. [`CVAR`] is the player's
+/// choice and is left as it is: a duel's level ([`DUEL_CVAR`]) is never saved there.
 fn set(console: &mut ViewerConsole, level: Level) {
     let kept = console
         .cvar(RESTORE_CVAR)
@@ -220,10 +233,6 @@ fn set(console: &mut ViewerConsole, level: Level) {
         .collect::<Vec<_>>()
         .join(";");
     console.set_cvars(values.into_iter().chain([(RESTORE_CVAR, kept.as_str())]));
-    let value = level.value().to_string();
-    if console.integer_cvar(CVAR) != Some(level.value()) {
-        console.set_cvar(CVAR, &value);
-    }
 }
 
 /// Take up `level` without touching a setting when the profile already holds it: every
@@ -260,6 +269,17 @@ pub(crate) fn asked(console: &ViewerConsole) -> Level {
     Level::of(console.integer_cvar(CVAR))
 }
 
+/// The level in force: [`CVAR`]'s, or [`DUEL_CVAR`]'s while the player is `in_duel` when
+/// that one is higher.
+pub(crate) fn wanted(console: &ViewerConsole, in_duel: bool) -> Level {
+    let duel = if in_duel {
+        Level::of(console.integer_cvar(DUEL_CVAR))
+    } else {
+        Level::Off
+    };
+    asked(console).max(duel)
+}
+
 /// The model other players are drawn in at Max, as `model/skin` (`default` when the
 /// cvar names no skin; Kyle when it is empty).
 pub(crate) fn model(console: Option<&ViewerConsole>) -> String {
@@ -287,9 +307,14 @@ pub(crate) fn command(console: &mut ViewerConsole, args: &[String]) -> Result<Ve
         [name] => {
             let level =
                 Level::parse(name).ok_or_else(|| format!("usage: {COMMAND} [{}]", names()))?;
-            let graphics = (level >= Level::Medium) != (self::level() >= Level::Medium);
-            apply(console, level);
+            console.set_cvar(CVAR, &level.value().to_string());
+            let in_force = wanted(console, IN_DUEL.load(Ordering::Relaxed));
+            let graphics = (in_force >= Level::Medium) != (self::level() >= Level::Medium);
+            apply(console, in_force);
             let mut lines = vec![shown(level)];
+            if in_force != level {
+                lines.push(format!("In this duel: {} ({DUEL_CVAR})", in_force.name()));
+            }
             if graphics {
                 lines.push(
                     "Some graphics settings apply after a graphics reload (vid_restart), the \
@@ -304,16 +329,27 @@ pub(crate) fn command(console: &mut ViewerConsole, args: &[String]) -> Result<Ve
 }
 
 impl crate::GpuState {
-    /// Follow [`CVAR`]: when it asks for another level than the one in force, apply it.
-    /// A profile saved at a level comes back at it, its settings already set and the
-    /// originals still put aside: then the level is only taken up ([`adopt`]).
+    /// Follow [`CVAR`], and [`DUEL_CVAR`] while the player is in a duel: when they ask
+    /// for another level than the one in force, apply it. A profile saved at a level
+    /// comes back at it, its settings already set and the originals still put aside:
+    /// then the level is only taken up ([`adopt`]). Do not disturb follows the duel too
+    /// (`chat/quiet.rs`).
     pub(crate) fn update_tactical(&mut self) {
+        let in_duel = self.live_session.as_ref().is_some_and(|session| {
+            crate::duel_blades::in_duel(
+                Some(session.game_state()),
+                Some(&session.latest_snapshot().player),
+            )
+        });
+        IN_DUEL.store(in_duel, Ordering::Relaxed);
         let Some(console) = self.console.as_mut() else {
             return;
         };
-        let asked = asked(console);
-        if asked != level() && !adopt(console, asked) {
-            apply(console, asked);
+        crate::chat::quiet::follow_duel(console, in_duel);
+        let wanted = wanted(console, in_duel);
+        let started = STARTED.swap(true, Ordering::Relaxed);
+        if (wanted != level() || !started) && !adopt(console, wanted) {
+            apply(console, wanted);
         }
     }
 }
@@ -384,7 +420,6 @@ mod tests {
         set(&mut console, Level::Max);
         assert_eq!(text(&console, crate::stock_blades::CVAR), "2");
         assert_eq!(text(&console, crate::flat_world::CVAR), "1");
-        assert_eq!(console.integer_cvar(CVAR), Some(3));
         // Down a level: Max's own settings come back, Medium's stay held.
         set(&mut console, Level::Medium);
         assert_eq!(text(&console, crate::flat_world::CVAR), "0");
@@ -400,6 +435,7 @@ mod tests {
     fn a_saved_level_comes_back_without_losing_the_originals() {
         let (_directory, mut console) = console();
         console.set_cvar(crate::stock_blades::CVAR, "1");
+        console.set_cvar(CVAR, "2");
         set(&mut console, Level::Medium);
         // A restart: the profile holds Medium's values and the originals, and
         // following the cvar applies Medium again.
@@ -420,6 +456,26 @@ mod tests {
         // A setting changed while the game was closed: set the level again.
         console.set_cvar(crate::stock_blades::CVAR, "0");
         assert!(!holds(&console, Level::Medium));
+    }
+
+    #[test]
+    fn a_duel_raises_the_level_and_never_lowers_it() {
+        let (_directory, mut console) = console();
+        assert_eq!(wanted(&console, true), Level::Off);
+        console.set_cvar(DUEL_CVAR, "2");
+        assert_eq!(wanted(&console, false), Level::Off);
+        assert_eq!(wanted(&console, true), Level::Medium);
+        console.set_cvar(CVAR, "3");
+        assert_eq!(wanted(&console, true), Level::Max);
+        // The duel's level is not the player's choice: it is never written to the cvar.
+        console.set_cvar(CVAR, "0");
+        let level = wanted(&console, true);
+        set(&mut console, level);
+        assert_eq!(console.integer_cvar(CVAR), Some(0));
+        assert_eq!(text(&console, crate::stock_blades::CVAR), "2");
+        let level = wanted(&console, false);
+        set(&mut console, level);
+        assert_eq!(text(&console, crate::stock_blades::CVAR), "0");
     }
 
     #[test]

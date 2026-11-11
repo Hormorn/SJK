@@ -32,8 +32,10 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+= cg_doNotDisturbDuel: Do not disturb (quiet mode before) turns on as each duel starts and off as it ends, hiding all chat but your opponent's and whispers.
 = cl_autoModels: Download by themselves the models other players shared through the Sith cloud, for the players you meet, and their updates.
 
+- Duels: Tactical in duels (`cg_tacticalDuel`) raises Tactical mode to the level you pick while you duel, back to yours after; Do not disturb in duels (`cg_doNotDisturbDuel`) turns Do not disturb on for each duel. Quiet mode is now Do not disturb: `dnd` and `cg_doNotDisturb` (the `quiet` command is gone, remake its bind), DND on the scoreboard _(Sol)_
 - Tactical mode: one setting to strip SJK's extras for a fight (`tactical` or `cg_tactical`, Settings > Game options, and the quick wheel). Minimal hides other players' emotes, toys, tags and status balloons and holds the unlock cards; Medium also sets Vanilla graphics, no weather or fog and stock blades; Max also draws the world in flat colours (`r_flatWorld`) without remaps, and everyone else in one model (`cg_tacticalModel`, Kyle) with a blue stock saber. Turning it off gives your settings back _(Sol)_
 - Playstyle badges: say how you like to play (saber duels, Force duels, FFA chaos, goofing around, teaching) in Settings next to the nameplates' rows, and SJK players see small badges over your nameplate; aim at a player to read theirs. Purely social, nothing is blocked (`cg_playSaberDuels`, `cg_playForceDuels`, `cg_playFfa`, `cg_playGoofing`, `cg_playTeaching`; `cg_nameplatePlaystyle` hides the badges) _(Sol)_
 - Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_

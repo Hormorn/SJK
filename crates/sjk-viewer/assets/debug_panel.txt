@@ -749,7 +749,7 @@ change: Slash: #295 move HUD with the mouse; #301 sound sonar; #302 quiet; #303 
 change: Creyon: #317 scoreboard IDs + deaths rank; #321 trade toast; #236 JoF hats from EJK.
 change: #316 SJK chat emoji reactions (Lumaya); #306 long chat drafts in up to 4 pieces (Lukas).
 test: hud_edit: drag the health and chat boxes, reset one; positions kept after a restart.
-test: cg_soundSonar 1: arcs point at footsteps/shots behind you. quiet: only duel + whispers.
+test: cg_soundSonar 1: arcs point at footsteps/shots behind you. dnd: only duel + whispers.
 test: Settings > Chat font: pick a PC font, long list scrolls; a sideways wheel does not move.
 test: cg_scoreboardIDs 1 + cg_scoreboardDeathsRank 1 on SJK's board. Finish a trade: toast.
 test: Profile with a JoF hat: its own picture. SJK chat: react to a message, count shows.
@@ -5025,6 +5025,18 @@ test: s_language francais, snd_restart: taunts and the bots' pain and death voic
 test: s_language english, snd_restart: they are English again.
 
 # ---- Gameplay ----
+
+[duel-modes]
+area: Gameplay
+title: Tactical in duels, Do not disturb in duels (quiet mode renamed dnd)
+change: cg_tacticalDuel 0-3: Tactical rises to that level in a duel, back to cg_tactical after.
+change: cg_doNotDisturbDuel 1: do not disturb on for each duel, off after it.
+change: Quiet mode is Do not disturb: dnd, cg_doNotDisturb; the scoreboard mark says DND.
+test: cg_tacticalDuel 3, start a private duel: flat world, others plain; duel ends: all back.
+test: cg_tactical stays 0 during the duel (the duel level is not saved).
+test: cg_doNotDisturbDuel 1, duel: only the partner's chat and whispers; after: all chat back.
+test: dnd before the duel: still on after it. dnd off in the duel: stays off.
+test: Settings > Chat: Do not disturb + Do not disturb in duels; Game options: Tactical in duels.
 
 [tactical-mode]
 area: Gameplay

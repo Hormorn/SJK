@@ -1,4 +1,5 @@
-//! Quiet mode (Lex Deifaber's idea, 30/10/2026): until it is turned off or the map
+//! Do not disturb (Lex Deifaber's idea, 30/10/2026, as quiet mode; renamed by Sol on
+//! 11/11/2026, who also had it follow duels, [`follow_duel`]): until it is turned off or the map
 //! changes, the chat feed hides public, team, SJK and admin chat and their sounds, but
 //! for the player's private duel partner, whispers (server tells and encrypted SJK
 //! whispers) and the player's own lines. What no player sent (the server's own chat
@@ -11,25 +12,69 @@
 //! that history again.
 use crate::console::ViewerConsole;
 
-/// `cg_quietMode`: quiet mode on. Not archived: every map starts with it off.
-pub(crate) const CVAR: &str = "cg_quietMode";
+/// `cg_doNotDisturb`: do not disturb on. Not archived: every map starts with it off.
+pub(crate) const CVAR: &str = "cg_doNotDisturb";
 /// The console command that toggles it (bindable as any command).
-pub(crate) const COMMAND: &str = "quiet";
+pub(crate) const COMMAND: &str = "dnd";
+/// Archived, default off: do not disturb turns on as each duel starts (a private duel, or
+/// a Duel or Power Duel server, as `duel_blades::in_duel` says) and off as it ends.
+pub(crate) const DUEL_CVAR: &str = "cg_doNotDisturbDuel";
 
-/// `quiet [on|off]`: toggle quiet mode, or set it; says ON or OFF.
+/// Whether the duel turned do not disturb on, so its end turns it off again; a player
+/// who turns it off in the duel, or had it on before, keeps their choice.
+static SET_BY_DUEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Follow the duel (`in_duel`) for [`DUEL_CVAR`]: each frame, from the Tactical hook
+/// (`tactical.rs`).
+pub(crate) fn follow_duel(console: &mut ViewerConsole, in_duel: bool) {
+    use std::sync::atomic::Ordering;
+    let on = console.bool_cvar(CVAR).unwrap_or(false);
+    let by_duel = SET_BY_DUEL.load(Ordering::Relaxed);
+    match duel_step(
+        in_duel,
+        console.bool_cvar(DUEL_CVAR).unwrap_or(false),
+        on,
+        by_duel,
+    ) {
+        Some(true) => {
+            console.set_cvar(CVAR, "1");
+            SET_BY_DUEL.store(true, Ordering::Relaxed);
+        }
+        Some(false) => {
+            console.set_cvar(CVAR, "0");
+            SET_BY_DUEL.store(false, Ordering::Relaxed);
+        }
+        // Turned off by hand in the duel (or a new map): the duel no longer holds it.
+        None if by_duel && !on => SET_BY_DUEL.store(false, Ordering::Relaxed),
+        None => {}
+    }
+}
+
+/// What the duel does to do not disturb: turn it on (`Some(true)`) as a duel starts with
+/// the setting on, off (`Some(false)`) once the duel that turned it on ends, else nothing.
+/// `by_duel` says the duel turned it on.
+fn duel_step(in_duel: bool, enabled: bool, on: bool, by_duel: bool) -> Option<bool> {
+    match (in_duel, by_duel) {
+        (true, false) if enabled && !on => Some(true),
+        (false, true) if on => Some(false),
+        _ => None,
+    }
+}
+
+/// `dnd [on|off]`: toggle do not disturb, or set it; says ON or OFF.
 pub(crate) fn command(console: &mut ViewerConsole, args: &[String]) -> Result<Vec<String>, String> {
     let value = match args {
         [] => !console.bool_cvar(CVAR).unwrap_or(false),
         [arg] if arg == "1" || arg.eq_ignore_ascii_case("on") => true,
         [arg] if arg == "0" || arg.eq_ignore_ascii_case("off") => false,
-        _ => return Err("Usage: quiet [on|off]".into()),
+        _ => return Err("Usage: dnd [on|off]".into()),
     };
     console.set_cvar(CVAR, if value { "1" } else { "0" });
     Ok(vec![
         if value {
-            "Quiet mode ON: only your duel partner and whispers until the map changes."
+            "Do not disturb ON: only your duel partner and whispers until the map changes."
         } else {
-            "Quiet mode OFF."
+            "Do not disturb OFF."
         }
         .to_owned(),
     ])
@@ -114,6 +159,19 @@ mod tests {
     use crate::chat::marks::SlotMark;
     use sjk_client::ServerEventKind;
     use std::time::Instant;
+
+    #[test]
+    fn a_duel_turns_it_on_and_its_end_off_but_never_against_the_player() {
+        // The setting on: a duel turns it on, its end off.
+        assert_eq!(duel_step(true, true, false, false), Some(true));
+        assert_eq!(duel_step(false, true, true, true), Some(false));
+        // The setting off, or already on by the player's hand: nothing.
+        assert_eq!(duel_step(true, false, false, false), None);
+        assert_eq!(duel_step(true, true, true, false), None);
+        assert_eq!(duel_step(false, true, true, false), None);
+        // Turned off by hand in the duel: it stays off for that duel.
+        assert_eq!(duel_step(true, true, false, true), None);
+    }
 
     #[test]
     fn the_command_toggles_parses_says_on_or_off_and_resets() {
