@@ -36,6 +36,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 - Prospector can reach 9 of 9 again: a clean strike now gives the rarer of two ores instead of always lifting the ore a tier, so iron still turns up for a player who strikes the glint on every boulder _(Slash, PR #414, hub report #286, after Nib's report)_
 - A spawning NPC or vehicle no longer flashes as an unarmed Kyle while its model loads (the next tauntaun, an admin's NPC): it shows nothing until its own model is in _(Slash, PR #415, after Lex's report)_
 - A female player whose model you lack (shown as a female stand-in with `cg_defaultModelRandom`) now speaks with the female voice instead of the male one _(Slash, PR #418, hub report #312, after jof'mg.perso's report; after JoF EJK)_
+- Easier fishing: bites come every 12 to 25 seconds (were 15 to 40) and give 1.5 to 2 seconds to press Use (were about one), a hooked bite comes up empty 5% of the time (was 15%, the rest are fish), pulling too soon scares the fish for 5 to 10 seconds (were 10 to 20), and an Echo bite gives 3 seconds and three tries, 30 to 90 seconds apart (were 1.5 seconds and two, 60 to 180 apart). Echoes still drop as often as before _(Slash, PR #419)_
 
 ## 2026.1111.6 (Alpha) | 11/11/2026
 

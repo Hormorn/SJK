@@ -6642,10 +6642,10 @@ brings up are the ones the hub drops anyway.
   for the cast: the toy fishes anywhere, since few maps have water. The pond is drawn
   with the installed game's own swamp textures (Hidden Evil's lake layers over the stock
   water, Yavin's mud, mossy rock and ground plants), so the game must be installed.
-- **Bites** come every 15 to 40 seconds (20 to 60 until 04/11/2026): the float dips, a splash plays, and `+use` within
-  0.8 to 1.2 seconds hooks it. Too soon scares the fish (the next bite waits 10 to 20
-  seconds more); too late lets it go. A hooked bite comes up empty 15% of the time, with
-  junk 30% (six kinds) and a fish 55% (twelve kinds, from the Silver darter to Old
+- **Bites** come every 12 to 25 seconds (20 to 60 until 04/11/2026, 15 to 40 until 11/11/2026): the float dips, a splash plays, and `+use` within
+  1.5 to 2 seconds (0.8 to 1.2 until 11/11/2026) hooks it. Too soon scares the fish (the next bite waits 5 to 10
+  seconds more); too late lets it go. A hooked bite comes up empty 5% of the time (15% until 11/11/2026), with
+  junk 30% (six kinds) and a fish 65% (twelve kinds, from the Silver darter to Old
   Whiskers, the great catfish, one fish in about 106), reeled in to the tip hanging by
   its mouth, and said in the centre of the screen. Old Whiskers has bad luck protection
   (04/11/2026): its weight among the fish rises by one for every 10 fish landed since the
@@ -6663,8 +6663,9 @@ brings up are the ones the hub drops anyway.
   one floats on its side on the water, a longer one stands head down with its tail out
   over the rim. Other players' buckets are empty, since their catches are not sent.
 - **Echoes:** when the hub drops the player an Echo while they fish, its card waits, and
-  a golden bite comes 5 to 15 seconds later (1.5 seconds to hook it, two tries); hooked,
-  the holocron comes up on the line and its card shows. Missed twice, or with the rod put
+  a golden bite comes 5 to 15 seconds later (3 seconds to hook it, three tries 30 to 90 seconds apart;
+  1.5 seconds and two tries until 11/11/2026); hooked,
+  the holocron comes up on the line and its card shows. Missed every try, or with the rod put
   away, the card shows all the same. Fishing never brings an Echo the hub did not drop:
   the caps stay as they are ([holocrons.md](holocrons.md)).
 - **Play time** (04/11/2026, headshotsmcgee117's question in #ideas): each bite hooked in

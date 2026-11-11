@@ -1,13 +1,13 @@
 //! Fishing, SJK's own toy (`toy_fishing`; Sanji's idea from #ideas, 29/10/2026, phase 1
 //! of Slash's design): facing water, the player props a rod beside them, sets a bucket at
-//! their feet and casts. Every 15 to 40 seconds the float bobs under (a bite) and `+use`
-//! within about a second hooks the catch: nothing, junk or a fish, counted in the
+//! their feet and casts. Every 12 to 25 seconds the float bobs under (a bite) and `+use`
+//! within about two seconds hooks the catch: nothing, junk or a fish, counted in the
 //! player's fish log (`fishing_log.txt`). Moving, jumping, attacking, taking damage or
 //! dying puts the rod away.
 //!
 //! An Echo (holocron) the hub drops while the player fishes does not pop up at once: it
 //! bites as an Echo bite ([`Bite::echo`], its own sound, a longer window) and hooking it
-//! brings its card. Missed twice, or the rod put away, the card comes as it always does.
+//! brings its card. Missed three times, or the rod put away, the card comes as it always does.
 //! Phase 1 changes nothing at the hub: the Echo is the player's from the moment the hub
 //! drops it, by the usual clock and caps, and the fish are a local log, no credits, no
 //! shards. So fishing earns nothing that playing does not. Since 04/11/2026 a bite
@@ -208,19 +208,25 @@ const REEL_BEND: f32 = 0.18;
 /// The torso's pose while holding the rod: a two-handed weapon's ready pose, both hands
 /// before the chest (`TORSO_WEAPONREADY3`, the rifles').
 const HOLD_POSE: &str = "TORSO_WEAPONREADY3";
-/// The wait for a bite, in seconds (20 to 60 until 04/11/2026: too long a stare at the
-/// float).
-const BITE_WAIT: (f32, f32) = (15.0, 40.0);
-/// A fish's bite holds this long (seconds): the time to press `+use`.
-const BITE_WINDOW: (f32, f32) = (0.8, 1.2);
-/// An Echo's bite holds longer, and comes this soon after the Echo dropped.
-const ECHO_WINDOW: f32 = 1.5;
+/// The wait for a bite, in seconds (20 to 60 until 04/11/2026, 15 to 40 until 11/11/2026:
+/// players said fishing brought nothing). Not below 12: with the cast and the catch shown
+/// a bite comes at most every 15 seconds or so, the hub's allowance for Angler (240 an
+/// hour) and its least spacing of hooked bites (10 seconds).
+const BITE_WAIT: (f32, f32) = (12.0, 25.0);
+/// A fish's bite holds this long (seconds): the time to press `+use` (0.8 to 1.2 until
+/// 11/11/2026, too short to answer).
+const BITE_WINDOW: (f32, f32) = (1.5, 2.0);
+/// An Echo's bite holds longer, and comes this soon after the Echo dropped (1.5 seconds
+/// until 11/11/2026).
+const ECHO_WINDOW: f32 = 3.0;
 const ECHO_WAIT: (f32, f32) = (5.0, 15.0);
-/// A missed Echo comes back after this long, at most [`ECHO_TRIES`] times in all.
-const ECHO_AGAIN: (f32, f32) = (60.0, 180.0);
-const ECHO_TRIES: u8 = 2;
-/// Pulling with no bite scares the fish: the next bite waits this much longer.
-const SCARED: (f32, f32) = (10.0, 20.0);
+/// A missed Echo comes back after this long, at most [`ECHO_TRIES`] times in all (60 to
+/// 180 seconds and two tries until 11/11/2026).
+const ECHO_AGAIN: (f32, f32) = (30.0, 90.0);
+const ECHO_TRIES: u8 = 3;
+/// Pulling with no bite scares the fish: the next bite waits this much longer (10 to 20
+/// seconds until 11/11/2026).
+const SCARED: (f32, f32) = (5.0, 10.0);
 /// Another player's float is looked for again once they stand this far from where it
 /// was found.
 const SPOT_MOVED: f32 = 24.0;
@@ -300,8 +306,9 @@ pub(crate) const CATCHES: [Catch; 18] = [
     fish("old_whiskers", "Old Whiskers, the great catfish", 1),
 ];
 
-/// The chance a hooked bite brings nothing, junk or a fish, in percent.
-const NOTHING_CHANCE: u32 = 15;
+/// The chance a hooked bite brings nothing, junk or a fish, in percent (nothing 15 until
+/// 11/11/2026; the rest went to the fish).
+const NOTHING_CHANCE: u32 = 5;
 const JUNK_CHANCE: u32 = 30;
 /// Bad luck protection for Old Whiskers (04/11/2026): its weight rises by one for every
 /// this many fish landed since the last one ([`Log::whiskers_wait`]). At its weight of 1
@@ -1830,7 +1837,7 @@ mod tests {
         let Some(Phase::Waiting { bite }) = fishing.phase else {
             unreachable!()
         };
-        assert!(bite - later >= Duration::from_secs(24));
+        assert!(bite - later >= Duration::from_secs(16));
     }
 
     #[test]
@@ -1877,7 +1884,7 @@ mod tests {
     }
 
     #[test]
-    fn an_echo_missed_twice_or_the_rod_put_away_lets_its_card_come() {
+    fn an_echo_missed_every_try_or_the_rod_put_away_lets_its_card_come() {
         let now = Instant::now();
         let mut fishing = Fishing::default();
         cast(&mut fishing, now);
@@ -1891,7 +1898,7 @@ mod tests {
                 fishing.phase,
                 Some(Phase::Biting(Bite { echo: true, .. }))
             ));
-            at += Duration::from_secs(2);
+            at += Duration::from_secs(4);
             fishing.update(frame(true), at, || None);
         }
         assert!(!fishing.holds_echo());
@@ -1913,7 +1920,7 @@ mod tests {
                 Some(_) => fish += 1,
             }
         }
-        assert_eq!((nothing, junk, fish), (15, 30, 55));
+        assert_eq!((nothing, junk, fish), (5, 30, 65));
         // Every catch can come up, and ids are distinct.
         for catch in &CATCHES {
             let kind_roll = if catch.kind == Kind::Junk { 30 } else { 90 };
