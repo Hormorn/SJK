@@ -30,6 +30,14 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Mystery boxes are never empty and never just give the price back: a holocron (green or better) nearly one time in two, credits as piles of gold coins, the Ray Gun, and very rarely a kyber crystal; no more box in the box _(Sol)_
+- Everyone sees the real holocron or kyber crystal a box gives, never a placeholder _(Sol)_
+- The Ray Gun: a box may put it in your hand for 30 s; its bolts knock players down once, then a green shell shields them; box hunters you hit pay you credits _(Sol)_
+- The teddy bear brings a DOOM coin _(Sol)_
+- WHEELS OF DOOM stand on maps: spin one with Use for a DOOM coin, to the end of its music; a holocron of every tier on it, and your coin back _(Sol)_
+
 ## 2026.1111.6 (Alpha) | 11/11/2026
 
 Model sync: download a shared version of a model you already have.

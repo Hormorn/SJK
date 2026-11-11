@@ -79,6 +79,8 @@ struct Sinks<'a> {
     propgun: [Option<crate::propgun_frame::HeldDraw>; crate::looks::SLOTS],
     /// How bright each player's Screen Saver shell is ([`crate::monitor::saver`]).
     screen_savers: crate::monitor::Glows,
+    /// The Ray Gun's shields (`propgun_frame.rs`): the same shell, green.
+    ray_shields: crate::monitor::Glows,
     world: &'a sjk_runtime::World,
     actor_meshes: &'a [ActorMesh],
     object_meshes: &'a [StaticModelMesh],
@@ -283,6 +285,11 @@ pub(crate) fn submit(
         .and_then(|info| sjk_client::LegacyClientInfo::new(info).integer("g_gametype"))
         .unwrap_or(0);
     let propgun = gpu.propgun_held_draws();
+    let ray_shields = if gpu.demo_session.is_none() {
+        gpu.ray_shield_glows()
+    } else {
+        crate::monitor::Glows::default()
+    };
     // A demo plays without the hub: stock's balloons.
     let status_balloons = if gpu.demo_session.is_none() {
         gpu.status_balloons.shown
@@ -317,6 +324,7 @@ pub(crate) fn submit(
         } else {
             crate::monitor::Glows::default()
         },
+        ray_shields,
         boombox: (
             gpu.object_meshes
                 .iter()
@@ -1246,22 +1254,36 @@ fn submit_actor(
             .mark_drawn(entity.id, presentation_time);
         // The Monitor's Screen Saver: Force Absorb's body shell, gold, as bright as the
         // toy says (it pulses, and flickers before it ends).
-        let glow = usize::try_from(entity.id.get().wrapping_sub(1))
-            .ok()
+        // The Ray Gun's shield the same, green (the Screen Saver's gold first).
+        let slot = usize::try_from(entity.id.get().wrapping_sub(1)).ok();
+        let saver = slot
             .and_then(|slot| sinks.screen_savers.0.get(slot).copied())
             .unwrap_or(0);
+        let ray = slot
+            .and_then(|slot| sinks.ray_shields.0.get(slot).copied())
+            .unwrap_or(0);
+        let glow = saver.max(ray);
         if glow > 0
             && draw_actor
             && !inside_body
             && entity.kind == EntityKind::Actor
             && let Some(material) = sinks.material_overrides.force("gfx/misc/personalshield")
         {
-            let gold = [
-                glow,
-                (f32::from(glow) * 0.72) as u8,
-                (f32::from(glow) * 0.12) as u8,
-                255,
-            ];
+            let gold = if saver > 0 {
+                [
+                    glow,
+                    (f32::from(glow) * 0.72) as u8,
+                    (f32::from(glow) * 0.12) as u8,
+                    255,
+                ]
+            } else {
+                [
+                    (f32::from(glow) * 0.25) as u8,
+                    glow,
+                    (f32::from(glow) * 0.2) as u8,
+                    255,
+                ]
+            };
             for _ in 0..sinks.shield_passes.max(1) {
                 if sinks.overrides.len() == sinks.overrides.capacity() {
                     break;

@@ -33,6 +33,15 @@ pub(crate) const FOLDER: &str = "propguns";
 pub(crate) const EXTENSION: &str = ".gun";
 /// The longest gun id.
 pub(crate) const MAX_ID: usize = 24;
+/// The mystery box's Ray Gun (SJK's own, bundled, 11/11/2026; `mystery_box.rs`): a gun
+/// read from [`RAYGUN_FILE`], not `propguns/`, so it is never chosen as a prop gun. A box's
+/// opener holds it [`PropGun::raygun_until`] whether the toy is on or not, and its bolts
+/// knock down any SJK player in play, the toy on or not, once: a player it struck is
+/// shielded from every Ray Gun for [`RAY_SHIELD_MS`].
+pub(crate) const RAYGUN: &str = "raygun";
+pub(crate) const RAYGUN_FILE: &str = "sjk/raygun.gun";
+/// How long a player struck by a Ray Gun is shielded from them all (game server ms).
+pub(crate) const RAY_SHIELD_MS: i64 = 30_000;
 /// One relay event every this long (the relay takes 40 a second a player, shared).
 pub(crate) const SEND_GAP: Duration = Duration::from_millis(30);
 /// What a player holds is told again this often, and forgotten when not told this long.
@@ -324,11 +333,21 @@ pub(crate) fn catalogue(vfs: &VirtualFileSystem) -> (Vec<Gun>, Vec<String>) {
     let mut problems = Vec::new();
     let mut names = vfs.list_files(FOLDER, EXTENSION);
     names.sort();
+    // The box's Ray Gun, read from its own place (a `propguns/raygun.gun` is skipped).
+    if let Some(asset) = vfs.read(RAYGUN_FILE).ok().flatten() {
+        match Gun::parse(RAYGUN, &String::from_utf8_lossy(&asset.bytes)) {
+            Ok(gun) => guns.push(gun),
+            Err(problem) => problems.push(problem),
+        }
+    }
     for name in names {
         let Some(id) = name.strip_suffix(EXTENSION).filter(|id| !id.contains('/')) else {
             continue;
         };
         let id = id.to_ascii_lowercase();
+        if id == RAYGUN {
+            continue;
+        }
         let Some(asset) = vfs.read(&format!("{FOLDER}/{name}")).ok().flatten() else {
             continue;
         };
@@ -625,6 +644,15 @@ pub(crate) struct PropGun {
     pub(crate) unseen: bool,
     pub(crate) sounds_registered: Option<u64>,
     pub(crate) gun_cvar_read: bool,
+    /// The box's Ray Gun is held until then ([`RAYGUN`]).
+    pub(crate) raygun_until: Option<Instant>,
+    /// The game server time the player's own Ray Gun shield ends ([`RAY_SHIELD_MS`]).
+    pub(crate) ray_shield_until: Option<i64>,
+    /// When the shield rose, for its glow.
+    pub(crate) ray_shield_since: i64,
+    /// Others' Ray Gun shields, by slot: when each rose and ends (game server time), from
+    /// the hub's hit events.
+    pub(crate) others_ray_shield: Vec<Option<(i64, i64)>>,
     /// For the world shots: every player holds the chosen gun.
     #[cfg(test)]
     pub(crate) shot_all: bool,
@@ -643,15 +671,44 @@ impl PropGun {
         self.on = !self.on;
     }
 
-    /// The chosen gun, if it is among the guns read.
+    /// The chosen gun, if it is among the guns read (never the box's Ray Gun).
     pub(crate) fn gun(&self) -> Option<(usize, &Gun)> {
-        let id = self.chosen.as_deref()?;
+        let id = self.chosen.as_deref().filter(|id| *id != RAYGUN)?;
         self.guns.iter().enumerate().find(|(_, gun)| gun.id == id)
     }
 
-    /// The gun the player holds now: on, and a gun chosen.
+    /// The gun the player holds now: the box's Ray Gun while it lasts, else with the toy
+    /// on the gun chosen.
     pub(crate) fn holding(&self) -> Option<(usize, &Gun)> {
+        if self.raygun_held() {
+            return self
+                .guns
+                .iter()
+                .enumerate()
+                .find(|(_, gun)| gun.id == RAYGUN);
+        }
         self.on.then(|| self.gun()).flatten()
+    }
+
+    /// The box's Ray Gun is in the player's hand now.
+    pub(crate) fn raygun_held(&self) -> bool {
+        self.raygun_until
+            .is_some_and(|until| Instant::now() < until)
+    }
+
+    /// The prop guns a player may choose: every gun read but the box's Ray Gun.
+    pub(crate) fn choosable(&self) -> impl Iterator<Item = &Gun> {
+        self.guns.iter().filter(|gun| gun.id != RAYGUN)
+    }
+
+    /// Whether gun `gun` (an index) is the box's Ray Gun.
+    pub(crate) fn is_raygun(&self, gun: usize) -> bool {
+        self.guns.get(gun).is_some_and(|gun| gun.id == RAYGUN)
+    }
+
+    /// Whether the player's own Ray Gun shield holds at game server time `time`.
+    pub(crate) fn ray_shielded(&self, time: i64) -> bool {
+        self.ray_shield_until.is_some_and(|until| time < until)
     }
 
     pub(crate) fn gun_index(&self, id: &str) -> Option<usize> {
@@ -697,6 +754,9 @@ impl PropGun {
         self.struck_by.clear();
         self.last_struck = None;
         self.last_shot = None;
+        self.raygun_until = None;
+        self.ray_shield_until = None;
+        self.others_ray_shield.clear();
     }
 
     /// Keep a bolt, the oldest going past [`MAX_BOLTS`].
@@ -867,6 +927,31 @@ refire 300
         toy.shape_command(&mut command);
         assert_eq!(command.buttons, 4);
         assert!(toy.pressed && toy.held);
+    }
+
+    #[test]
+    fn the_box_ray_gun_is_held_while_it_lasts_whatever_the_switch_and_never_chosen() {
+        let mut toy = PropGun::default();
+        toy.guns.push(Gun::parse("zapper", GUN).unwrap());
+        toy.guns.push(Gun::parse(RAYGUN, GUN).unwrap());
+        toy.chosen = Some(RAYGUN.to_owned());
+        assert!(toy.gun().is_none(), "the Ray Gun is no prop gun");
+        assert_eq!(toy.choosable().count(), 1);
+        assert!(toy.holding().is_none());
+        toy.raygun_until = Some(Instant::now() + Duration::from_secs(30));
+        let (index, gun) = toy.holding().expect("the Ray Gun");
+        assert_eq!(gun.id, RAYGUN);
+        assert!(toy.is_raygun(index) && !toy.is_raygun(0));
+        let mut command = sjk_protocol::UserCommand {
+            buttons: 1,
+            ..Default::default()
+        };
+        toy.shape_command(&mut command);
+        assert_eq!(command.buttons, 0, "attack fires the Ray Gun");
+        toy.raygun_until = Some(Instant::now() - Duration::from_secs(1));
+        assert!(toy.holding().is_none(), "gone at its end");
+        toy.ray_shield_until = Some(1_000 + RAY_SHIELD_MS);
+        assert!(toy.ray_shielded(1_000) && !toy.ray_shielded(1_000 + RAY_SHIELD_MS));
     }
 
     #[test]

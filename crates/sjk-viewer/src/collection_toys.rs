@@ -360,14 +360,14 @@ const TOYS: [Toy; TOY_COUNT] = [
     Toy {
         icon: "wheel_of_doom",
         name: "WHEEL OF DOOM",
-        tag: "Spin it for credits: a Mythical holocron, or doom.",
+        tag: "Spin it for a DOOM coin: a holocron, or doom.",
         title: "WHEEL OF DOOM",
-        what: "A big dark wheel rises before you and spins. It may land on a Mythical holocron, on nothing, or on something terrible: your keys or mouse turned against you, the world mirrored or upside down, darkness, no saber, quacks, a curse, or a blast. Other SJK players see it spin.",
+        what: "Big dark wheels stand on some maps. Press Use at one to spin it for a DOOM coin (the teddy bear in a mystery box brings one): it spins to the end of its music and may land on a holocron of any tier, your coin back, nothing, or something terrible: your keys or mouse turned against you, the world mirrored or upside down, darkness, no saber, quacks, a curse, or a blast. Everyone near sees and hears it spin.",
         more: Some(
-            "Its switch shows the price; press it again within 5 s to pay and spin. One spin every 5 minutes, not in a duel. What it does lasts a few seconds and ends on a new map or when you die.",
+            "Its switch tells your DOOM coins and the wheels of the map. One spin of a wheel at a time, not in a duel. What it does lasts a few seconds and ends on a new map or when you die.",
         ),
         commands: &[(crate::wheel_of_doom::COMMAND, "Your key")],
-        switch: "Spin",
+        switch: "Coins",
         sight: None,
         options: &[],
         token: WHEEL_OF_DOOM_TOKEN,

@@ -1,10 +1,9 @@
 //! What the WHEEL OF DOOM draws on the screen: the words over each wheel (hidden behind
-//! walls and far away, as the mystery boxes' are), the price card a first press shows by
-//! the crosshair, the effect running and its seconds on a small line of the HUD, and the
-//! Blind effect's darkness with its pinhole. The words are kept in a fixed set of strings
+//! walls and far away, as the mystery boxes' are), the effect running and its seconds on
+//! a small line of the HUD, and the Blind effect's darkness with its pinhole. The words are kept in a fixed set of strings
 //! written in place, so a frame allocates nothing once they have grown.
 
-use super::{AXLE, CONFIRM, MOST, RADIUS};
+use super::{AXLE, MOST, RADIUS};
 use crate::GpuState;
 use glam::Vec3;
 use sjk_ui::{Color, DrawCommand, DrawList, FontWeight, Rect, TextAlign, TextId, TextOverflow};
@@ -16,9 +15,8 @@ const RISE: f32 = AXLE + RADIUS + 28.0;
 /// Farthest a wheel's words are read from, and where they start to fade.
 const RANGE: f32 = 1_600.0;
 const FADE_FROM: f32 = 1_100.0;
-/// The words' slots: the price card's two lines, the HUD's line, then two a wheel.
-const CARD_HEAD: usize = 0;
-const CARD_LINE: usize = 1;
+/// The words' slots: two spare (the price card's, before 11/11/2026), the HUD's line,
+/// then two a wheel.
 const HUD_LINE: usize = 2;
 const WHEEL_BASE: usize = 3;
 const TEXTS: usize = WHEEL_BASE + MOST * 2;
@@ -175,61 +173,7 @@ impl GpuState {
             toy.draw
                 .line(rect, text, size, RED, unit, FontWeight::Semibold);
         }
-        // The price a first press shows, by the crosshair, until the second or its time.
-        let armed = toy
-            .armed
-            .is_some_and(|armed| now.saturating_duration_since(armed) < CONFIRM);
-        if armed {
-            let price = crate::player_identity::with_snapshot(|snapshot| {
-                snapshot.wheel_of_doom.as_ref().map(|wheel| wheel.price)
-            })
-            .flatten()
-            .unwrap_or(0);
-            let width = 360.0 * unit;
-            let height = 64.0 * unit;
-            let rect = Rect::new(
-                crosshair[0] - width * 0.5,
-                crosshair[1] + 48.0 * unit,
-                width,
-                height,
-            );
-            let radius = 8.0 * unit;
-            let _ = toy.draw.list.push(DrawCommand::RoundedRect {
-                rect,
-                radius,
-                color: Color::new(0.05, 0.03, 0.04, 0.86),
-            });
-            let _ = toy.draw.list.push(DrawCommand::Border {
-                rect,
-                radius,
-                width: 2.0 * unit,
-                color: RED,
-            });
-            let head = toy.draw.set(CARD_HEAD, format_args!("WHEEL OF DOOM"));
-            let line = toy.draw.set(
-                CARD_LINE,
-                format_args!("{price} credits: run it again to spin"),
-            );
-            let size = 22.0 * unit;
-            let small = 16.0 * unit;
-            toy.draw.line(
-                Rect::new(rect.x, rect.y + 7.0 * unit, width, size * 1.3),
-                head,
-                size,
-                GOLD,
-                unit,
-                FontWeight::Semibold,
-            );
-            toy.draw.line(
-                Rect::new(rect.x, rect.y + 36.0 * unit, width, small * 1.3),
-                line,
-                small,
-                Color::new(1.0, 1.0, 1.0, 0.95),
-                unit,
-                FontWeight::Regular,
-            );
-        }
-        self.append_wheel_of_doom_words(viewport, unit, now);
+        self.append_wheel_of_doom_words(viewport, unit);
         let draw = &self.wheel_of_doom.draw;
         if draw.list.commands().is_empty() {
             return;
@@ -251,20 +195,19 @@ impl GpuState {
         );
     }
 
-    /// The words over each wheel seen: "WHEEL OF DOOM" while it spins, then what it
-    /// landed on.
-    fn append_wheel_of_doom_words(&mut self, viewport: [f32; 2], unit: f32, now: Instant) {
+    /// The words over each wheel seen: "WHEEL OF DOOM" and what a spin costs, "Spinning..."
+    /// while it spins, then what it landed on.
+    fn append_wheel_of_doom_words(&mut self, viewport: [f32; 2], unit: f32) {
         let Some(camera) = self.frame_view else {
             return;
         };
         let width = (440.0 * unit).min(viewport[0]);
-        for index in 0..self.wheel_of_doom.spinning.len() {
-            let wheel = &self.wheel_of_doom.spinning[index];
-            let point = wheel.at + Vec3::Z * RISE;
-            let sight = wheel.at + Vec3::Z * AXLE;
-            let fade = wheel.scale(now).unwrap_or(0.0);
+        for index in 0..self.wheel_of_doom.placed.len().min(MOST) {
+            let placed = &self.wheel_of_doom.placed[index];
+            let point = placed.at + Vec3::Z * RISE;
+            let sight = placed.at + Vec3::Z * AXLE;
             let distance = point.distance(camera.eye);
-            if distance > RANGE || fade <= 0.0 {
+            if distance > RANGE {
                 continue;
             }
             let Some(at) = camera.project(point) else {
@@ -280,29 +223,33 @@ impl GpuState {
             if trace.fraction < 1.0 || trace.start_solid || trace.all_solid {
                 continue;
             }
-            let alpha = fade * (1.0 - (distance - FADE_FROM) / (RANGE - FADE_FROM)).clamp(0.0, 1.0);
+            let alpha = (1.0 - (distance - FADE_FROM) / (RANGE - FADE_FROM)).clamp(0.0, 1.0);
             let near = (1.0 - distance / RANGE).clamp(0.45, 1.0);
             let head = 28.0 * unit * near;
             let small = 18.0 * unit * near;
             let x = (at[0] - width * 0.5).clamp(0.0, (viewport[0] - width).max(0.0));
-            let wheel = &self.wheel_of_doom.spinning[index];
-            let (stopped, slot) = (wheel.stopped, WHEEL_BASE + index * 2);
+            let slot = WHEEL_BASE + index * 2;
+            let placed = &self.wheel_of_doom.placed[index];
+            let stopped = placed.spin.as_ref().map(|spin| spin.stopped);
             let draw = &mut self.wheel_of_doom.draw;
-            let (first, second) = if stopped {
-                let wheel = &self.wheel_of_doom.spinning[index];
-                let (title, line) = (wheel.title.as_str(), wheel.line.as_str());
-                draw.texts[slot].clear();
-                draw.texts[slot].push_str(title);
-                draw.texts[slot + 1].clear();
-                draw.texts[slot + 1].push_str(line);
-                (TextId(slot as u32), TextId(slot as u32 + 1))
-            } else {
-                (
+            let (first, second) = match (stopped, &placed.spin) {
+                (Some(true), Some(spin)) => {
+                    draw.texts[slot].clear();
+                    draw.texts[slot].push_str(&spin.title);
+                    draw.texts[slot + 1].clear();
+                    draw.texts[slot + 1].push_str(&spin.line);
+                    (TextId(slot as u32), TextId(slot as u32 + 1))
+                }
+                (Some(false), _) => (
                     draw.set(slot, format_args!("WHEEL OF DOOM")),
                     draw.set(slot + 1, format_args!("Spinning...")),
-                )
+                ),
+                _ => (
+                    draw.set(slot, format_args!("WHEEL OF DOOM")),
+                    draw.set(slot + 1, format_args!("A DOOM coin a spin: press Use")),
+                ),
             };
-            let headline = if stopped { GOLD } else { RED };
+            let headline = if stopped == Some(true) { GOLD } else { RED };
             draw.line(
                 Rect::new(x, at[1] - head * 1.3 - small * 1.4, width, head * 1.3),
                 first,

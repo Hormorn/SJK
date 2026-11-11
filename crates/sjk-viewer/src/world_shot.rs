@@ -1399,6 +1399,7 @@ Found the fog bug, ask me about it!"
             junk: None,
             junk_sale: None,
             wheel_of_doom: None,
+            wheel_of_doom_revision: 0,
             wheel_of_doom_spin: None,
             box_hunt: None,
             quests: None,

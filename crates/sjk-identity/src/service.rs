@@ -144,11 +144,15 @@ pub enum SecretDone {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BoxDone {
     /// The box was opened: what came out.
-    Opened(crate::mystery_box::Opened),
+    Opened(Box<crate::mystery_box::Opened>),
     /// SJK's creator placed a box: its id.
     Placed(i64),
     /// SJK's creator removed box `id`.
     Removed(i64),
+    /// SJK's creator placed a WHEEL OF DOOM: its id.
+    WheelPlaced(i64),
+    /// SJK's creator removed WHEEL OF DOOM `id`.
+    WheelRemoved(i64),
 }
 /// How often the hub's list of asset packs is read while registered.
 const ASSETS_EVERY: Duration = Duration::from_secs(6 * 3_600);
@@ -317,6 +321,8 @@ pub struct Snapshot {
     /// The WHEEL OF DOOM's price, cooldown and segments as the hub last said
     /// ([`Service::read_wheel_of_doom`]): `None` until read, or with a hub that has none.
     pub wheel_of_doom: Option<crate::wheel_of_doom::Wheel>,
+    /// Counts the times [`Snapshot::wheel_of_doom`] changed (its wheels, the coins).
+    pub wheel_of_doom_revision: u64,
     /// The answer to the last [`Service::spin_wheel_of_doom`], by serial, or why it was
     /// refused (in the player's words, with the cooldown's seconds left).
     pub wheel_of_doom_spin: Option<(
@@ -786,6 +792,7 @@ impl Snapshot {
             junk: None,
             junk_sale: None,
             wheel_of_doom: None,
+            wheel_of_doom_revision: 0,
             wheel_of_doom_spin: None,
             box_hunt: None,
             quests: None,
@@ -958,9 +965,19 @@ enum Command {
     ReadJunk,
     /// Read the WHEEL OF DOOM's price, cooldown and segments.
     ReadWheelOfDoom,
-    /// Spin the WHEEL OF DOOM on `server`.
+    /// Spin placed WHEEL OF DOOM `wheel` on `server`.
     SpinWheelOfDoom {
+        wheel: i64,
         server: String,
+    },
+    /// SJK's creator: place a WHEEL OF DOOM (its id is ignored).
+    PlaceWheelOfDoom(crate::mystery_box::MysteryBox),
+    /// SJK's creator: remove WHEEL OF DOOM `id`.
+    RemoveWheelOfDoom(i64),
+    /// The player on `server` was struck by the Ray Gun of the player on slot `by`.
+    RaygunHit {
+        server: String,
+        by: u8,
     },
     /// Sell these pieces of fished junk, by id.
     SellJunk(std::collections::BTreeMap<String, u32>),
@@ -2075,8 +2092,12 @@ impl Worker {
                 edits,
             } => self.publish_map_edits(&map, checksum, &edits, now),
             Command::OpenMysteryBox { id, server } => self.mystery_box(now, |hub, identity| {
-                hub.open_mystery_box(identity, id, &server)
-                    .map(|answer| (BoxDone::Opened(answer.opened), Some(answer.profile)))
+                hub.open_mystery_box(identity, id, &server).map(|answer| {
+                    (
+                        BoxDone::Opened(Box::new(answer.opened)),
+                        Some(answer.profile),
+                    )
+                })
             }),
             Command::PlaceMysteryBox(placed) => self.mystery_box(now, |hub, identity| {
                 hub.place_mystery_box(identity, &placed)
@@ -2096,7 +2117,18 @@ impl Worker {
             }),
             Command::ReadJunk => self.read_junk(),
             Command::ReadWheelOfDoom => self.read_wheel_of_doom(),
-            Command::SpinWheelOfDoom { server } => self.spin_wheel_of_doom(&server, now),
+            Command::SpinWheelOfDoom { wheel, server } => {
+                self.spin_wheel_of_doom(wheel, &server, now);
+            }
+            Command::PlaceWheelOfDoom(placed) => self.mystery_box(now, |hub, identity| {
+                hub.place_wheel_of_doom(identity, &placed)
+                    .map(|id| (BoxDone::WheelPlaced(id), None))
+            }),
+            Command::RemoveWheelOfDoom(id) => self.mystery_box(now, |hub, identity| {
+                hub.remove_wheel_of_doom(identity, id)
+                    .map(|_| (BoxDone::WheelRemoved(id), None))
+            }),
+            Command::RaygunHit { server, by } => self.raygun_hit(&server, by),
             Command::SellJunk(held) => self.sell_junk(&held),
             Command::UseSecret {
                 id,
@@ -3599,6 +3631,8 @@ impl Worker {
                 }
             });
         }
+        // The placed wheels of doom (since 11/11/2026) on the same beat.
+        self.read_wheel_of_doom();
     }
 
     /// Send a mystery box request: its outcome goes in [`Snapshot::mystery_box`], the
@@ -3616,16 +3650,37 @@ impl Worker {
             _ => Err(self.not_connected()),
         };
         let reread = match &outcome {
-            Ok((BoxDone::Placed(_) | BoxDone::Removed(_), _)) => true,
+            Ok((
+                BoxDone::Placed(_)
+                | BoxDone::Removed(_)
+                | BoxDone::WheelPlaced(_)
+                | BoxDone::WheelRemoved(_),
+                _,
+            )) => true,
             Err(HubError::Rejected { code, .. }) => code == "no_such_box",
             _ => false,
         };
+        // A box's crystal or holocron shows in the Collection at once.
+        if matches!(&outcome, Ok((BoxDone::Opened(opened), _))
+            if opened.holocron.is_some() || opened.kyber.is_some())
+        {
+            self.due_holocrons = self.due_holocrons.min(now);
+        }
         if reread {
             self.due_mystery_boxes = now;
         }
         self.update(|snapshot| {
             let outcome = match outcome {
                 Ok((done, profile)) => {
+                    // The DOOM coins a box that blew up brought (since 11/11/2026).
+                    if let BoxDone::Opened(opened) = &done
+                        && let (Some(coins), Some(wheel)) =
+                            (opened.doom_coins, snapshot.wheel_of_doom.as_mut())
+                        && wheel.coins != coins
+                    {
+                        wheel.coins = coins;
+                        snapshot.wheel_of_doom_revision += 1;
+                    }
                     if let Some(profile) = profile {
                         if let Some(shop) = snapshot.shop.as_mut() {
                             shop.day.credits = profile.credits;
@@ -3650,18 +3705,34 @@ impl Worker {
             _ => None,
         };
         if let Some(wheel) = wheel {
-            self.update(|snapshot| snapshot.wheel_of_doom = Some(wheel));
+            self.update(|snapshot| {
+                if snapshot.wheel_of_doom.as_ref() != Some(&wheel) {
+                    snapshot.wheel_of_doom = Some(wheel);
+                    snapshot.wheel_of_doom_revision += 1;
+                }
+            });
         }
     }
 
-    /// Spin the WHEEL OF DOOM on `server`: the answer goes in
-    /// [`Snapshot::wheel_of_doom_spin`], the profile after it (the credits, a holocron) in
-    /// [`Snapshot::me`]; a holocron won is read at once for the Collection.
-    fn spin_wheel_of_doom(&mut self, server: &str, now: Instant) {
+    /// Tell the hub the player on `server` was struck by the Ray Gun of the player on
+    /// slot `by`. The shooter learns what it paid from the hub's feed event; a failure is
+    /// let go (the fall happened anyway).
+    fn raygun_hit(&mut self, server: &str, by: u8) {
+        let (Some(hub), true) = (self.hub.as_mut(), self.registered) else {
+            return;
+        };
+        let _ = hub.raygun_hit(&self.identity, server, by);
+    }
+
+    /// Spin placed wheel `wheel` on `server`: the answer goes in
+    /// [`Snapshot::wheel_of_doom_spin`], the profile after it (a holocron) in
+    /// [`Snapshot::me`] and the DOOM coins left in [`Snapshot::wheel_of_doom`]; a holocron
+    /// won is read at once for the Collection.
+    fn spin_wheel_of_doom(&mut self, wheel: i64, server: &str, now: Instant) {
         self.wheel_serial += 1;
         let serial = self.wheel_serial;
         let outcome = match (self.hub.as_mut(), self.registered) {
-            (Some(hub), true) => hub.spin_wheel_of_doom(&self.identity, server),
+            (Some(hub), true) => hub.spin_wheel_of_doom(&self.identity, wheel, server),
             _ => Err(self.not_connected()),
         };
         if matches!(&outcome, Ok(answer) if answer.spin.holocron.is_some()) {
@@ -3672,6 +3743,12 @@ impl Worker {
                 Ok(answer) => {
                     if let Some(shop) = snapshot.shop.as_mut() {
                         shop.day.credits = answer.profile.credits;
+                    }
+                    if let (Some(coins), Some(wheel)) =
+                        (answer.spin.coins, snapshot.wheel_of_doom.as_mut())
+                    {
+                        wheel.coins = coins;
+                        snapshot.wheel_of_doom_revision += 1;
                     }
                     snapshot.set_me(answer.profile);
                     Ok(answer.spin)
@@ -4816,10 +4893,28 @@ impl Service {
         let _ = self.commands.send(Command::ReadWheelOfDoom);
     }
 
-    /// Spin the WHEEL OF DOOM, the player on `server`: what it landed on arrives in
-    /// [`Snapshot::wheel_of_doom_spin`], the credits after in the profile.
-    pub fn spin_wheel_of_doom(&self, server: String) {
-        let _ = self.commands.send(Command::SpinWheelOfDoom { server });
+    /// Spin placed WHEEL OF DOOM `wheel`, the player on `server`, for a DOOM coin: what it
+    /// landed on arrives in [`Snapshot::wheel_of_doom_spin`].
+    pub fn spin_wheel_of_doom(&self, wheel: i64, server: String) {
+        let _ = self
+            .commands
+            .send(Command::SpinWheelOfDoom { wheel, server });
+    }
+
+    /// SJK's creator: place a WHEEL OF DOOM at `placed` (its id is ignored); the answer
+    /// arrives in [`Snapshot::mystery_box`] and the wheels are read again.
+    pub fn place_wheel_of_doom(&self, placed: crate::mystery_box::MysteryBox) {
+        let _ = self.commands.send(Command::PlaceWheelOfDoom(placed));
+    }
+
+    /// SJK's creator: remove WHEEL OF DOOM `id`.
+    pub fn remove_wheel_of_doom(&self, id: i64) {
+        let _ = self.commands.send(Command::RemoveWheelOfDoom(id));
+    }
+
+    /// The player on `server` was struck by the Ray Gun of the player on slot `by`.
+    pub fn raygun_hit(&self, server: String, by: u8) {
+        let _ = self.commands.send(Command::RaygunHit { server, by });
     }
 
     /// Sell `held`, pieces of fished junk by id: what the hub took arrives in

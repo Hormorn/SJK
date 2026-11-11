@@ -1,6 +1,7 @@
 """Make the WHEEL OF DOOM's placeholder model and pictures (`docs/wheel-of-doom.md`, SJK's own).
 
-A dark wheel of sixteen segments on a stand, a red pointer over its top. Sol models the
+A dark wheel of twenty segments (sixteen before 11/11/2026) on a stand, a red pointer over
+its top; the holocron segments in their tiers' colours. Sol models the
 final one: this one keeps the contract the client draws by (docs/wheel-of-doom.md, "The
 model"), so the files can be swapped one for one. Nothing here comes from another game:
 the colours, the words and the shapes are drawn here. This script writes, into the output
@@ -34,11 +35,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mystery_box_model as md3  # noqa: E402
 
 # The client's numbers (`wheel_of_doom.rs`): the wheel's radius, its thickness and how
-# high its axle stands over the stand's origin, in game units; 16 segments.
+# high its axle stands over the stand's origin, in game units; 20 segments.
 RADIUS = 40.0
 THICK = 4.0
 AXLE = 64.0
-SEGMENTS = 16
+SEGMENTS = 20
 SHADER = "models/sjk/wheel_of_doom"
 ATLAS = 1024
 JPEG_QUALITY = 90
@@ -51,8 +52,9 @@ RED = (768, 512, 1024, 640)
 WOOD = (768, 640, 1024, 768)
 # What each segment says, in the client's segment order, and its colour.
 WORDS = [
-    "MYTHICAL", "NOTHING", "REVERSE", "INVERT", "MIRROR", "FLIP", "BLIND", "DRUNK",
-    "TINY FOV", "HUGE FOV", "NO SABER", "QUACK", "WALK", "BUNNY", "BOOM", "CURSE",
+    "MYTHICAL", "REVERSE", "UNCOMMON", "INVERT", "BOOM", "RARE", "MIRROR", "FLIP",
+    "COIN", "BLIND", "LEGENDARY", "DRUNK", "TINY FOV", "NOTHING", "HUGE FOV", "NO SABER",
+    "QUACK", "WALK", "BUNNY", "CURSE",
 ]
 GOLD = (214, 168, 58)
 BLOOD = (104, 14, 16)
@@ -62,8 +64,21 @@ FIRE = (170, 70, 16)
 PLUM = (70, 20, 92)
 
 
+# The holocron tiers' colours (docs/holocrons.md), dimmed to sit on the dark wheel, and
+# the DOOM coin's bronze.
+UNCOMMON = (30, 140, 86)
+RARE = (30, 86, 190)
+LEGENDARY = (118, 52, 182)
+BRONZE = (150, 96, 40)
+
+
 def segment_colour(index: int) -> tuple:
-    return {0: GOLD, 1: GREY, 14: FIRE, 15: PLUM}.get(index, BLOOD if index % 2 else COAL)
+    special = {0: GOLD, 2: UNCOMMON, 4: FIRE, 5: RARE, 8: BRONZE, 10: LEGENDARY, 13: GREY, 19: PLUM}
+    return special.get(index, BLOOD if index % 2 else COAL)
+
+
+# The segments whose words glow, as the jackpot's: the holocrons and the coin.
+GLOWING = {0, 2, 5, 8, 10}
 
 
 def font(size: int):
@@ -86,7 +101,7 @@ def face(glow: bool) -> Image.Image:
         start = -90 + k * step - step / 2
         colour = segment_colour(k)
         if glow:
-            colour = tuple(c // 2 for c in GOLD) if k == 0 else (0, 0, 0)
+            colour = tuple(c // 2 for c in segment_colour(k)) if k in GLOWING else (0, 0, 0)
         draw.pieslice((centre - r, centre - r, centre + r, centre + r), start, start + step, fill=colour)
     # Gold dividers, an outer ring and a hub.
     for k in range(SEGMENTS):
@@ -97,7 +112,7 @@ def face(glow: bool) -> Image.Image:
     draw.ellipse((centre - r, centre - r, centre + r, centre + r), outline=ring, width=12)
     draw.ellipse((centre - 60, centre - 60, centre + 60, centre + 60), fill=(0, 0, 0) if glow else (30, 26, 28), outline=ring, width=8)
     # Each segment's word along its radius, reading outwards.
-    words = font(34)
+    words = font(28)
     for k, word in enumerate(WORDS):
         box = draw.textbbox((0, 0), word, font=words)
         w, h = box[2] - box[0] + 8, box[3] - box[1] + 8
@@ -110,7 +125,7 @@ def face(glow: bool) -> Image.Image:
         y = centre - at * math.cos(math.radians(a)) - turned.height / 2
         ink = (40, 26, 4) if k == 0 else (232, 210, 170)
         if glow:
-            ink = (120, 90, 30) if k == 0 else (70, 60, 50)
+            ink = (120, 90, 30) if k in GLOWING else (70, 60, 50)
         img.paste(Image.new("RGB", turned.size, ink), (int(x), int(y)), turned)
     return img
 

@@ -25,6 +25,17 @@ pub(crate) const MODEL: &str = "models/sjk/mystery_box.md3";
 pub(crate) const LID_MODEL: &str = "models/sjk/mystery_box_lid.md3";
 /// What the roll stops on when the box blows up (bundled, `scripts/teddy_bear_model.py`).
 const TEDDY_MODEL: &str = "models/sjk/teddy_bear.md3";
+/// The piles of gold coins credits come as (Sol, 11/11/2026: crystals before; bundled,
+/// `scripts/box_loot_model.py`): 50, 200 and 500 credits.
+const COINS_SMALL: &str = "models/sjk/coins_small.md3";
+const COINS_MEDIUM: &str = "models/sjk/coins_medium.md3";
+const COINS_BIG: &str = "models/sjk/coins_big.md3";
+/// The Ray Gun a box may hand its opener (bundled, `scripts/box_loot_model.py`; held and
+/// fired as a prop gun, `propgun.rs`).
+const RAYGUN_MODEL: &str = "models/sjk/raygun.md3";
+/// Heard as a Ray Gun's shield rises round the player it struck (bundled,
+/// `scripts/box_loot_assets.py`).
+pub(crate) const RAY_SHIELD_SOUND: &str = "sound/sjk/raygun/shield.wav";
 /// The chest's height and depth (across its front), and how far the lid reaches past it.
 const HEIGHT: f32 = 24.0;
 const DEPTH: f32 = 26.0;
@@ -177,25 +188,36 @@ const HOLOCRONS: [Item; 4] = [
     holocron(3, 1.8),
 ];
 
+/// The four kyber crystals as the roll shows them (Sol, 11/11/2026: a box may give one,
+/// very rarely), drawn as the Holocrons tab draws them (forms 4 to 7).
+const KYBERS: [Item; 4] = [
+    holocron(4, 2.0),
+    holocron(5, 2.0),
+    holocron(6, 2.0),
+    holocron(7, 2.0),
+];
+
 /// The kyber crystal a pile of shards is drawn with: the Rare kyber's, the shards' cyan.
 const SHARD_MODEL: &str = "models/sjk/holocron_kyber_rare_crystal.md3";
 
-/// What the roll stops on, by outcome: bolts (empty), a blue crystal (refund), a green
-/// one (double), a red one (jackpot), a teddy bear (it blows up; Sol, 30/10/2026, after
-/// Call of Duty zombies' boxes: a thermal detonator before), SJK's holocron
-/// (a holocron of a tier not told: another player's; the opener's stops on its tier's,
-/// [`HOLOCRONS`]), and since 29/10/2026 a pile of kyber shards (shards; [`BIG_PILE`] for
-/// a big one), a little mystery box (a free opening) and a saber hilt (the boxes' blade).
-const PRIZES: [Item; 9] = [
+/// What the roll stops on, by outcome: bolts (an older hub's `empty`), piles of gold coins
+/// (`coins`, `double`, `jackpot`; Sol, 11/11/2026: a blue, green and red crystal
+/// before), a teddy bear (it blows up; Sol, 30/10/2026, after Call of Duty zombies'
+/// boxes: a thermal detonator before), SJK's holocron (a holocron of a tier not told, from
+/// an older hub; every client stops on its tier's since 11/11/2026, [`HOLOCRONS`]), a pile
+/// of kyber shards (shards; [`BIG_PILE`] for a big one), a little mystery box (a free
+/// opening, before 11/11/2026), a saber hilt (the boxes' blade) and the Ray Gun.
+const PRIZES: [Item; 10] = [
     item("models/items/metallic_bolts.md3", 1.5),
-    item("models/map_objects/mp/crystal_blue.md3", 0.8),
-    item("models/map_objects/mp/crystal_green.md3", 0.8),
-    item("models/map_objects/mp/crystal_red.md3", 1.0),
+    item(COINS_SMALL, 4.0),
+    item(COINS_MEDIUM, 3.2),
+    item(COINS_BIG, 2.8),
     item(TEDDY_MODEL, 1.6),
     item(crate::illuminate::MODEL, 3.0),
     pile(SHARD_MODEL, 1.5, 3),
     item(MODEL, 0.45),
     item("models/weapons2/saber/saber_w.md3", 2.6),
+    item(RAYGUN_MODEL, 2.2),
 ];
 
 /// A big pile of shards: more than [`BIG_PILE_FROM`] (the boxes' blade for a player who
@@ -204,44 +226,48 @@ const BIG_PILE: Item = pile(SHARD_MODEL, 1.7, 7);
 const BIG_PILE_FROM: u64 = 15;
 
 /// What rolls over an opened box before it stops: only what a box can give (Sol,
-/// 29/10/2026: the game's weapons rolled before, which no box gave), the four tiers'
-/// holocrons and both piles of shards among them; not the teddy bear, which only comes
-/// at the end.
+/// 29/10/2026: the game's weapons rolled before, which no box gave), the three piles of
+/// coins, the four tiers' holocrons, two kyber crystals, both piles of shards, the hilt
+/// and the Ray Gun (11/11/2026: the bolts, the little box and SJK's placeholder
+/// holocron rolled before); not the teddy bear, which only comes at the end.
 const REEL: [Item; 13] = [
-    PRIZES[0],
     PRIZES[1],
     PRIZES[2],
     PRIZES[3],
     PRIZES[6],
-    PRIZES[7],
     PRIZES[8],
+    PRIZES[9],
     BIG_PILE,
     HOLOCRONS[0],
     HOLOCRONS[1],
     HOLOCRONS[2],
     HOLOCRONS[3],
-    PRIZES[5],
+    KYBERS[1],
+    KYBERS[3],
 ];
 
-/// The prize the roll stops on for `outcome` (a holocron of `tier`, when the player
-/// knows it); a newer hub's outcome by whether it pays.
+/// The prize the roll stops on for `outcome` (a holocron or kyber crystal of `tier`, when
+/// told: the opener's answer, or since 11/11/2026 the hub's event); a newer hub's outcome
+/// by whether it pays.
 fn prize(outcome: &str, pays: bool, tier: Option<&str>) -> Item {
+    let form = tier.and_then(crate::holocrons::stage::form_index);
     match outcome {
         "empty" => PRIZES[0],
-        "refund" => PRIZES[1],
+        wire::COINS | "refund" => PRIZES[1],
         "double" => PRIZES[2],
         "jackpot" => PRIZES[3],
         wire::EXPLODE => PRIZES[4],
         wire::SHARD_PILE => PRIZES[6],
         wire::AGAIN => PRIZES[7],
         wire::BLADE => PRIZES[8],
-        wire::HOLOCRON => tier
-            .and_then(|tier| {
-                FORMS[..HOLOCRONS.len()]
-                    .iter()
-                    .position(|form| form.id == tier)
-            })
+        wire::RAYGUN => PRIZES[9],
+        wire::HOLOCRON => form
+            .filter(|slot| *slot < HOLOCRONS.len())
             .map_or(PRIZES[5], |slot| HOLOCRONS[slot]),
+        wire::KYBER => form
+            .and_then(|slot| slot.checked_sub(HOLOCRONS.len()))
+            .filter(|slot| *slot < KYBERS.len())
+            .map_or(KYBERS[1], |slot| KYBERS[slot]),
         _ if pays => PRIZES[2],
         _ => PRIZES[0],
     }
@@ -254,9 +280,13 @@ fn models() -> impl Iterator<Item = &'static str> {
     MODELS
         .get_or_init(|| {
             let mut models: Vec<&'static str> = Vec::new();
-            let every = [MODEL, LID_MODEL]
-                .into_iter()
-                .chain(PRIZES.iter().chain(&REEL).flat_map(|item| item.models()));
+            let every = [MODEL, LID_MODEL].into_iter().chain(
+                PRIZES
+                    .iter()
+                    .chain(&REEL)
+                    .chain(&KYBERS)
+                    .flat_map(|item| item.models()),
+            );
             for model in every {
                 if !models.contains(&model) {
                     models.push(model);
@@ -298,7 +328,7 @@ macro_rules! bundled {
 
 /// The bundled files at their game paths (made by `scripts/mystery_box_assets.py` and
 /// `scripts/mystery_box_model.py`; the shader by hand).
-const FILES: [(&str, &[u8]); 10] = [
+const FILES: [(&str, &[u8]); 22] = [
     (ROLL_SOUND, bundled!("roll.wav")),
     (TAKE_SOUND, bundled!("take.wav")),
     (MODEL, bundled!("mystery_box.md3")),
@@ -318,6 +348,21 @@ const FILES: [(&str, &[u8]); 10] = [
         "shaders/sjk_mystery_box.shader",
         bundled!("mystery_box.shader"),
     ),
+    ("models/sjk/box_loot.jpg", bundled!("box_loot.jpg")),
+    (
+        "models/sjk/box_loot_glow.jpg",
+        bundled!("box_loot_glow.jpg"),
+    ),
+    (COINS_SMALL, bundled!("coins_small.md3")),
+    (COINS_MEDIUM, bundled!("coins_medium.md3")),
+    (COINS_BIG, bundled!("coins_big.md3")),
+    (RAYGUN_MODEL, bundled!("raygun.md3")),
+    ("models/sjk/raygun_bolt.md3", bundled!("raygun_bolt.md3")),
+    ("sound/sjk/raygun/fire.wav", bundled!("raygun_fire.wav")),
+    ("sound/sjk/raygun/impact.wav", bundled!("raygun_impact.wav")),
+    ("sound/sjk/raygun/raise.wav", bundled!("raygun_raise.wav")),
+    (RAY_SHIELD_SOUND, bundled!("raygun_shield.wav")),
+    (crate::propgun::RAYGUN_FILE, bundled!("raygun.gun")),
 ];
 
 /// Mount the bundled files.
@@ -340,6 +385,12 @@ struct Prize {
     shards: Option<u64>,
     /// The saber shader it gave.
     blade: Option<String>,
+    /// The tier of the kyber crystal it gave (`kyber_rare`).
+    kyber: Option<String>,
+    /// The seconds of the Ray Gun it gave.
+    raygun: Option<u64>,
+    /// The DOOM coins held after (a box that blew up gave one).
+    doom_coins: Option<u64>,
 }
 
 /// A box's opening under way: the roll, then what came out waiting to be taken.
@@ -455,8 +506,9 @@ struct Taken {
 /// What the player is told of their own opening.
 #[derive(Debug, PartialEq)]
 enum Moment {
-    /// The roll stopped on what came out.
+    /// The roll stopped on what came out of box `id`.
     Stopped {
+        id: i64,
         outcome: String,
         prize: Prize,
     },
@@ -619,14 +671,17 @@ impl MysteryBoxes {
     }
 
     /// Box `id` opened at `now` on `outcome` by the player on slot `opener`: the roll
-    /// starts. `mine` is what the player gets from their own opening; `seed` varies what
+    /// starts. `mine` is what the player gets from their own opening; `told` the tier of
+    /// a holocron or crystal the hub's event names (another player's); `seed` varies what
     /// the roll shows.
+    #[allow(clippy::too_many_arguments)]
     fn opened(
         &mut self,
         id: i64,
         outcome: &str,
         mine: Option<Prize>,
         opener: Option<u8>,
+        told: Option<&str>,
         seed: u32,
         now: Instant,
     ) {
@@ -634,7 +689,10 @@ impl MysteryBoxes {
             return;
         };
         let pays = outcome != "empty" && mine.as_ref().is_none_or(|prize| prize.won > 0);
-        let tier = mine.as_ref().and_then(|prize| prize.holocron.as_deref());
+        let tier = mine
+            .as_ref()
+            .and_then(|prize| prize.holocron.as_deref().or(prize.kyber.as_deref()))
+            .or(told);
         let mut stops = prize(outcome, pays, tier);
         // The opener's pile of shards as big as it is (the boxes' blade, held already,
         // pays a pile too).
@@ -681,7 +739,7 @@ impl MysteryBoxes {
                 // A box that blows up stops on the teddy bear and laughs; it blows up
                 // [`BLAST_DELAY`] later.
                 let path = match opening.outcome.as_str() {
-                    "jackpot" | wire::BLADE => JACKPOT,
+                    "jackpot" | wire::BLADE | wire::KYBER => JACKPOT,
                     wire::EXPLODE => LAUGH,
                     _ if opening.prize == PRIZES[0] => EMPTY,
                     _ => WIN,
@@ -693,6 +751,7 @@ impl MysteryBoxes {
                 });
                 if let Some(prize) = opening.mine.as_ref().filter(|_| !explodes) {
                     moments.push(Moment::Stopped {
+                        id: here.id,
                         outcome: opening.outcome.clone(),
                         prize: prize.clone(),
                     });
@@ -711,6 +770,7 @@ impl MysteryBoxes {
                 });
                 if let Some(prize) = &opening.mine {
                     moments.push(Moment::Stopped {
+                        id: here.id,
                         outcome: opening.outcome.clone(),
                         prize: prize.clone(),
                     });
@@ -892,19 +952,37 @@ fn cooldown_left(last: Option<Instant>, cooldown: u64, now: Instant) -> Option<u
 /// How an opening reads for the opener: [`result_text`], or for a box that blew up or
 /// gave a holocron, what became of it.
 fn prize_text(outcome: &str, prize: &Prize) -> String {
+    // The teddy bear brings a DOOM coin (11/11/2026), the WHEEL OF DOOM's only price.
+    let coin = if prize.doom_coins.is_some() {
+        ". ^1+1 DOOM coin^7: spin a WHEEL OF DOOM"
+    } else {
+        ""
+    };
     match (outcome, &prize.gift, &prize.holocron) {
         (wire::EXPLODE, Some(gift), _) if gift.credits > 0 => format!(
-            "BOOM! The box blew up: your {} credits went to {}^7",
+            "BOOM! The box blew up: your {} credits went to {}^7{coin}",
             gift.credits, gift.name
         ),
         (wire::EXPLODE, None, _) if prize.price > 0 => {
-            format!("BOOM! The box blew up: -{} credits", prize.price)
+            format!("BOOM! The box blew up: -{} credits{coin}", prize.price)
         }
-        (wire::EXPLODE, ..) => "BOOM! The box blew up: your free roll is spent".to_owned(),
+        (wire::EXPLODE, ..) => format!("BOOM! The box blew up: your free roll is spent{coin}"),
         (wire::HOLOCRON, _, Some(tier)) => {
             let name = crate::holocrons::name(tier).unwrap_or("A holocron");
             format!("{name}! In your Collection")
         }
+        (wire::KYBER, ..) => {
+            let name = prize
+                .kyber
+                .as_deref()
+                .and_then(crate::kyber::from_id)
+                .map_or("A kyber crystal", |tier| tier.name);
+            format!("{name}! In your Collection")
+        }
+        (wire::RAYGUN, ..) => format!(
+            "THE RAY GUN! {} s in your hand: attack fires it",
+            prize.raygun.unwrap_or(30)
+        ),
         (wire::BLADE, ..) if prize.blade.is_some() => {
             "The Mystery blade! In your Collection".to_owned()
         }
@@ -926,7 +1004,7 @@ fn result_text(outcome: &str, price: u64, won: u64) -> String {
     if price == 0 {
         return match outcome {
             "jackpot" => format!("JACKPOT! +{won} credits"),
-            "double" => format!("Double! +{won} credits"),
+            "double" => format!("A pile of gold! +{won} credits"),
             _ if won > 0 => format!("+{won} credits"),
             _ => "The box was empty: your free roll is spent".to_owned(),
         };
@@ -934,7 +1012,8 @@ fn result_text(outcome: &str, price: u64, won: u64) -> String {
     match outcome {
         "empty" => format!("The box was empty: -{price} credits"),
         "refund" => format!("Your {price} credits back"),
-        "double" => format!("Double! +{won} credits"),
+        wire::COINS => format!("Gold coins! +{won} credits"),
+        "double" => format!("A pile of gold! +{won} credits"),
         "jackpot" => format!("JACKPOT! +{won} credits"),
         _ if won > 0 => format!("+{won} credits"),
         _ => format!("Nothing inside: -{price} credits"),
@@ -1129,9 +1208,16 @@ impl GpuState {
             if event.toy != wire::TOY || Some(event.slot) == own {
                 continue;
             }
-            if let Some((id, outcome)) = wire::parse_event(&event.event) {
-                self.mystery_boxes
-                    .opened(id, outcome, None, Some(event.slot), seed(), now);
+            if let Some(told) = wire::parse_event(&event.event) {
+                self.mystery_boxes.opened(
+                    told.id,
+                    told.outcome,
+                    None,
+                    Some(event.slot),
+                    told.tier.as_deref(),
+                    seed(),
+                    now,
+                );
             }
         }
         // Their takes: the opener's client says so through the toy relay.
@@ -1282,6 +1368,9 @@ impl GpuState {
                         .map(|holocron| holocron.tier.clone()),
                     shards: opened.shards,
                     blade: opened.blade.clone(),
+                    kyber: opened.kyber.as_ref().map(|kyber| kyber.tier.clone()),
+                    raygun: opened.raygun,
+                    doom_coins: opened.doom_coins,
                 };
                 let own = self
                     .live_session
@@ -1293,6 +1382,7 @@ impl GpuState {
                     &opened.outcome,
                     Some(mine),
                     own,
+                    None,
                     seed(),
                     now,
                 );
@@ -1303,6 +1393,12 @@ impl GpuState {
             Ok(BoxDone::Removed(id)) => {
                 self.mystery_box_print(format!("Mystery box {id} removed"));
             }
+            Ok(BoxDone::WheelPlaced(id)) => {
+                self.mystery_box_print(format!("WHEEL OF DOOM {id} placed"));
+            }
+            Ok(BoxDone::WheelRemoved(id)) => {
+                self.mystery_box_print(format!("WHEEL OF DOOM {id} removed"));
+            }
             Err(why) if asked.is_some() => self.mystery_box_centre(why),
             Err(why) => self.mystery_box_print(format!("Mystery box: {why}")),
         }
@@ -1312,11 +1408,22 @@ impl GpuState {
     fn mystery_box_moment(&mut self, moment: Moment) {
         match moment {
             Moment::Blast { opener, at } => self.mystery_box_blast(opener, at),
-            Moment::Stopped { outcome, prize } => {
-                // The Use prompt says to take it.
+            Moment::Stopped { id, outcome, prize } => {
+                // The Use prompt says to take it; the Ray Gun jumps into the hand at once.
                 self.mystery_box_centre(prize_text(&outcome, &prize));
+                if outcome == wire::RAYGUN
+                    && let Some(taken) = self.mystery_boxes.take_prize(id)
+                {
+                    self.mystery_boxes.takes.push((id, u64::MAX));
+                    self.mystery_box_moment(Moment::Taken(taken));
+                }
             }
             Moment::Taken(taken) => {
+                if taken.outcome == wire::RAYGUN
+                    && let Some(seconds) = taken.prize.raygun
+                {
+                    self.raygun_start(seconds);
+                }
                 let text = prize_text(&taken.outcome, &taken.prize);
                 let how = if taken.by_itself {
                     " (taken for you)"
@@ -1632,6 +1739,22 @@ impl GpuState {
         self.shot_mystery_box_prizes(boxes, since, &[PRIZES[6], BIG_PILE, PRIZES[7], PRIZES[8]]);
     }
 
+    /// [`Self::shot_mystery_boxes`], stopped on the loot of 11/11/2026: the three piles of
+    /// gold coins and the Ray Gun, or with `kybers` the four kyber crystals.
+    pub(crate) fn shot_mystery_box_rework(
+        &mut self,
+        boxes: &[([f32; 3], f32)],
+        since: Duration,
+        kybers: bool,
+    ) {
+        let loot = if kybers {
+            KYBERS
+        } else {
+            [PRIZES[1], PRIZES[2], PRIZES[3], PRIZES[9]]
+        };
+        self.shot_mystery_box_prizes(boxes, since, &loot);
+    }
+
     /// For the world shots: the first of `boxes` closed, the others stopped on the teddy
     /// bear of a box that blows up (30/10/2026).
     pub(crate) fn shot_mystery_box_teddy(&mut self, boxes: &[([f32; 3], f32)], since: Duration) {
@@ -1795,10 +1918,25 @@ mod tests {
         assert_eq!(prize(wire::BLADE, false, None), PRIZES[8]);
         for item in REEL {
             assert!(
-                PRIZES.contains(&item) || HOLOCRONS.contains(&item) || item == BIG_PILE,
+                PRIZES.contains(&item)
+                    || HOLOCRONS.contains(&item)
+                    || KYBERS.contains(&item)
+                    || item == BIG_PILE,
                 "{}",
                 item.model
             );
+        }
+        // 11/11/2026: coins for credits, the Ray Gun, the crystals, and never the
+        // placeholder holocron, the bolts or the little box rolling by.
+        assert_eq!(prize(wire::COINS, true, None).model, COINS_SMALL);
+        assert_eq!(prize("double", true, None).model, COINS_MEDIUM);
+        assert_eq!(prize("jackpot", true, None).model, COINS_BIG);
+        assert_eq!(prize(wire::RAYGUN, false, None), PRIZES[9]);
+        assert_eq!(prize(wire::KYBER, false, Some("kyber_mythical")), KYBERS[3]);
+        assert_eq!(prize(wire::KYBER, false, Some("rare")), KYBERS[1]);
+        assert_eq!(prize(wire::KYBER, false, None), KYBERS[1]);
+        for gone in [PRIZES[0], PRIZES[5], PRIZES[7]] {
+            assert!(!REEL.contains(&gone), "{}", gone.model);
         }
         assert_eq!(pile_spots(1).count(), 1);
         assert_eq!(pile_spots(BIG_PILE.copies).count(), 7);
@@ -1809,6 +1947,7 @@ mod tests {
         );
         assert_eq!(prize(wire::HOLOCRON, false, None), PRIZES[5]);
         assert_eq!(prize(wire::HOLOCRON, false, Some("later_tier")), PRIZES[5]);
+        assert_eq!(prize(wire::HOLOCRON, false, Some("kyber_rare")), PRIZES[5]);
         // Every part of every tier's holocron is among the models the boxes load.
         for item in HOLOCRONS {
             assert_eq!(FORMS[item.form.unwrap()].parts[0].model, item.model);
@@ -1829,7 +1968,7 @@ mod tests {
             ..Default::default()
         };
         let now = Instant::now();
-        state.opened(7, "double", Some(prize_of(200)), Some(3), 1, now);
+        state.opened(7, "double", Some(prize_of(200)), Some(3), None, 1, now);
         // Each at the box, on the box's own source: never an entity's, which the audio
         // moves to where that entity is (#185).
         assert!(
@@ -1858,6 +1997,7 @@ mod tests {
         assert_eq!(
             moments,
             [Moment::Stopped {
+                id: 7,
                 outcome: "double".to_owned(),
                 prize: prize_of(200),
             }]
@@ -1881,9 +2021,9 @@ mod tests {
             ..Default::default()
         };
         let now = Instant::now();
-        state.opened(7, "empty", Some(prize_of(0)), Some(3), 1, now);
+        state.opened(7, "empty", Some(prize_of(0)), Some(3), None, 1, now);
         // Another player's opening: rolls and goes, nothing taken for the player.
-        state.opened(8, "jackpot", None, Some(5), 2, now);
+        state.opened(8, "jackpot", None, Some(5), None, 2, now);
         let moments = state.tick(now + ROLL);
         assert_eq!(moments.len(), 1);
         let stops: Vec<&str> = state.cues[4..].iter().map(|cue| cue.path).collect();
@@ -1985,8 +2125,37 @@ mod tests {
                     ..paid(None)
                 }
             ),
-            "Double! +200 credits"
+            "A pile of gold! +200 credits"
         );
+        assert_eq!(
+            prize_text(
+                wire::COINS,
+                &Prize {
+                    won: 50,
+                    ..paid(None)
+                }
+            ),
+            "Gold coins! +50 credits"
+        );
+        let crystal = Prize {
+            kyber: Some("kyber_rare".to_owned()),
+            ..Prize::default()
+        };
+        assert_eq!(
+            prize_text(wire::KYBER, &crystal),
+            "Rare Kyber Crystal! In your Collection"
+        );
+        let gun = Prize {
+            raygun: Some(30),
+            ..Prize::default()
+        };
+        assert!(prize_text(wire::RAYGUN, &gun).starts_with("THE RAY GUN! 30 s"));
+        // The teddy bear's DOOM coin.
+        let coined = Prize {
+            doom_coins: Some(1),
+            ..paid(None)
+        };
+        assert!(prize_text(wire::EXPLODE, &coined).contains("+1 DOOM coin"));
         // What the roll stops on, and the models it loads.
         assert_eq!(prize(wire::EXPLODE, false, None), PRIZES[4]);
         assert_eq!(prize(wire::HOLOCRON, false, None), PRIZES[5]);
@@ -2006,7 +2175,7 @@ mod tests {
             balance: 400,
             ..Prize::default()
         };
-        state.opened(7, wire::EXPLODE, Some(paid.clone()), Some(3), 1, now);
+        state.opened(7, wire::EXPLODE, Some(paid.clone()), Some(3), None, 1, now);
         state.cues.clear();
         // The bear only comes at the end: the roll never shows it before.
         assert!(!REEL.contains(&PRIZES[4]));
@@ -2028,6 +2197,7 @@ mod tests {
                     at: Vec3::ZERO,
                 },
                 Moment::Stopped {
+                    id: 7,
                     outcome: wire::EXPLODE.to_owned(),
                     prize: paid,
                 },
@@ -2095,9 +2265,9 @@ mod tests {
             ..Default::default()
         };
         let started = now - ROLL;
-        state.opened(1, "double", None, Some(5), 1, now);
-        state.opened(2, "double", Some(prize_of(200)), Some(3), 1, now);
-        state.opened(3, "double", Some(prize_of(200)), Some(3), 1, started);
+        state.opened(1, "double", None, Some(5), None, 1, now);
+        state.opened(2, "double", Some(prize_of(200)), Some(3), None, 1, now);
+        state.opened(3, "double", Some(prize_of(200)), Some(3), None, 1, started);
         assert_eq!(
             at(&state.here[0], &wallet, None, false),
             Some(("Someone is opening it".to_owned(), None, false))
@@ -2108,7 +2278,15 @@ mod tests {
             Some(("Take it".to_owned(), None, true))
         );
         // A box that blows up says nothing: the player is about to die.
-        state.opened(1, wire::EXPLODE, Some(prize_of(0)), Some(3), 1, started);
+        state.opened(
+            1,
+            wire::EXPLODE,
+            Some(prize_of(0)),
+            Some(3),
+            None,
+            1,
+            started,
+        );
         assert_eq!(at(&state.here[0], &wallet, None, false), None);
     }
 
@@ -2131,7 +2309,7 @@ mod tests {
             here: vec![here(7, [0.0; 3])],
             ..Default::default()
         };
-        watcher.opened(7, "double", None, Some(5), 1, now);
+        watcher.opened(7, "double", None, Some(5), None, 1, now);
         watcher.cues.clear();
         watcher.taken_by(7, 6, now + ROLL);
         assert!(watcher.here[0].opening.is_some(), "not the opener");

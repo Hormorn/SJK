@@ -6423,7 +6423,11 @@ a PK3 with the same paths replaces them
 The Prop gun (Sol's idea, 01/11/2026) is a toy for every SJK player: a fake weapon held
 instead of the real one, whose bolts knock down the players who have the toy on too, as
 the [Monitor](#monitor) does. SJK ships no gun: each is a file in a pk3 the player adds
-themselves, and other players see and hear a gun only when they have the same file.
+themselves, and other players see and hear a gun only when they have the same file. The
+one exception is the mystery box's Ray Gun (11/11/2026, [mystery-boxes.md](mystery-boxes.md)):
+bundled as `sjk/raygun.gun` (never listed or chosen by `propgun`), held 30 seconds by the
+box's opener whatever the toy's switch, its bolts knocking down any SJK player in play
+once, then shielding them from every Ray Gun for 30 seconds (a green shell).
 
 - **The guns** are `propguns/<id>.gun` in any pk3 or the game folder; `<id>` is 1 to 24
   of `a` to `z`, `0` to `9` and `_`. One setting a line, its name then its values (`//`
