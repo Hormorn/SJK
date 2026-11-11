@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Tactical mode: one setting to strip SJK's extras for a fight (`tactical` or `cg_tactical`, Settings > Game options, and the quick wheel). Minimal hides other players' emotes, toys, tags and status balloons and holds the unlock cards; Medium also sets Vanilla graphics, no weather or fog and stock blades; Max also draws the world in flat colours (`r_flatWorld`) without remaps, and everyone else in one model (`cg_tacticalModel`, Kyle) with a blue stock saber. Turning it off gives your settings back _(Sol)_
 - Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
 - World brightness: the Renderer page's HDR exposure is now called World brightness and brightens the 3D world without touching the HUD, also with HDR scene off (`r_hdrExposure`, which there only brightens). Brightness in Graphics stays the whole screen's curve _(Sol)_
 

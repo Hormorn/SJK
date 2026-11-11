@@ -119,7 +119,7 @@ impl Settings {
         world.update_scene_lighting_mode(
             queue,
             lights,
-            self.1.bits(),
+            self.1.bits() | crate::flat_world::bits(),
             self.2.bits(),
             self.shadows(),
         );

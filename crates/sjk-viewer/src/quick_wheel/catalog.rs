@@ -448,6 +448,32 @@ pub(crate) const ACTIONS: &[Action] = &[
         Some("weather_off"),
     ),
     // Beyond the first two pages.
+    // Tactical mode (`tactical.rs`): each goes to its level, or off from it; the duel's
+    // crossed sabers stand for all three.
+    action(
+        "tactical_minimal",
+        "Tactical minimal",
+        "toggle cg_tactical 1 0",
+        Interface,
+        State::Equals(crate::tactical::CVAR, 1),
+        Some("duel"),
+    ),
+    action(
+        "tactical_medium",
+        "Tactical medium",
+        "toggle cg_tactical 2 0",
+        Interface,
+        State::Equals(crate::tactical::CVAR, 2),
+        Some("duel"),
+    ),
+    action(
+        "tactical_max",
+        "Tactical max",
+        "toggle cg_tactical 3 0",
+        Interface,
+        State::Equals(crate::tactical::CVAR, 3),
+        Some("duel"),
+    ),
     action(
         "free_camera",
         "Free camera",

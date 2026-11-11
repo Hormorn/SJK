@@ -554,8 +554,8 @@ pub(crate) fn recommend_command(console: &mut ViewerConsole) -> Result<Vec<Strin
     command(console, &["recommended".to_owned()])
 }
 
-/// The cvars `level` sets, for measurements that build a client at a preset.
-#[cfg(test)]
+/// The cvars `level` sets: for measurements that build a client at a preset, and
+/// Tactical mode's Medium (`tactical.rs`).
 pub(crate) fn preset_cvars(level: Level) -> Vec<(&'static str, &'static str)> {
     VALUES
         .iter()

@@ -64,8 +64,10 @@ struct Inputs {
 pub(crate) struct MutedPlayers {
     slots: Slots,
     inputs: Option<Inputs>,
-    /// Slots whose actor and sabers were last rebuilt muted.
+    /// Slots whose actor and sabers were last rebuilt plain ([`Self::plain`]).
     pub(crate) applied: u32,
+    /// The Tactical model they were rebuilt in, at Tactical Max.
+    pub(crate) applied_model: Option<String>,
 }
 
 impl MutedPlayers {
@@ -77,6 +79,34 @@ impl MutedPlayers {
     /// Whether `client` is muted.
     pub(crate) fn contains(&self, client: u16) -> bool {
         self.slots.contains(usize::from(client))
+    }
+
+    /// The slots drawn plain (Kyle or the Tactical model, the default saber in the
+    /// default colour, no hat, cape or blade skin): the muted ones, and at Tactical Max
+    /// every player but this one (`tactical.rs`). Their chat and sounds follow the mute
+    /// alone.
+    pub(crate) fn plain(&self) -> u32 {
+        plain_slots(
+            self.slots.muted,
+            self.inputs.as_ref().map(|inputs| inputs.own),
+            crate::tactical::plain_players(),
+        )
+    }
+
+    /// Whether `client` is drawn plain ([`Self::plain`]).
+    pub(crate) fn drawn_plain(&self, client: u16) -> bool {
+        usize::from(client) < SLOTS && self.plain() & (1 << client) != 0
+    }
+
+    /// Whether other players' emotes and toys from `client` are hidden here: a muted
+    /// player's, and at Tactical Minimal and up every player's but this one's.
+    pub(crate) fn hides_fun(&self, client: u16) -> bool {
+        self.contains(client)
+            || (crate::tactical::hides_fun()
+                && self
+                    .inputs
+                    .as_ref()
+                    .is_some_and(|inputs| inputs.own != i32::from(client)))
     }
 
     /// Work the slots out again when what they come from changed: the mute list's, the
@@ -121,21 +151,52 @@ impl MutedPlayers {
     }
 }
 
-/// What a muted player is drawn as, from `appearance`, what the game would draw with
-/// Kyle forced: Kyle in his default skin, or in the red or blue one a team game's
-/// colours give him, so the teams still show.
-pub(crate) fn appearance(appearance: &Appearance) -> Appearance {
-    let skin = appearance.variant.to_ascii_lowercase();
-    let variant = if skin == "red" || skin.ends_with("_red") {
+/// The slots drawn plain from the `muted` ones, this player's slot `own` (none off a
+/// server: then only the muted) and whether Tactical draws the others plain.
+fn plain_slots(muted: u32, own: Option<i32>, tactical: bool) -> u32 {
+    match own {
+        Some(own) if tactical => {
+            let own = u32::try_from(own)
+                .ok()
+                .filter(|own| *own < SLOTS as u32)
+                .map_or(0, |own| 1 << own);
+            muted | !own
+        }
+        _ => muted,
+    }
+}
+
+/// What a player drawn plain at Tactical Max is drawn as: `model` (`name/skin`,
+/// [`crate::tactical::model`]) from `appearance` as the game resolved it with that model
+/// forced, a team game's red or blue kept as for a muted player ([`appearance`]).
+pub(crate) fn tactical_appearance(appearance: &Appearance, model: &str) -> Appearance {
+    let (name, skin) = model.split_once('/').unwrap_or((model, "default"));
+    let team = team_variant(&appearance.variant);
+    Appearance {
+        model: format!("models/players/{name}"),
+        variant: if team == "default" { skin } else { team }.to_owned(),
+    }
+}
+
+/// The red or blue a team game's skin `variant` names, else `default`.
+fn team_variant(variant: &str) -> &'static str {
+    let skin = variant.to_ascii_lowercase();
+    if skin == "red" || skin.ends_with("_red") {
         "red"
     } else if skin == "blue" || skin.ends_with("_blue") {
         "blue"
     } else {
         "default"
-    };
+    }
+}
+
+/// What a muted player is drawn as, from `appearance`, what the game would draw with
+/// Kyle forced: Kyle in his default skin, or in the red or blue one a team game's
+/// colours give him, so the teams still show.
+pub(crate) fn appearance(appearance: &Appearance) -> Appearance {
     Appearance {
         model: MODEL_PATH.to_owned(),
-        variant: variant.to_owned(),
+        variant: team_variant(&appearance.variant).to_owned(),
     }
 }
 
@@ -181,6 +242,24 @@ mod tests {
             model: format!("models/players/{model}"),
             variant: variant.to_owned(),
         }
+    }
+
+    #[test]
+    fn tactical_max_draws_every_other_player_plain() {
+        assert_eq!(plain_slots(0b100, Some(0), false), 0b100);
+        assert_eq!(plain_slots(0b100, Some(0), true), !1);
+        // Off a server only the muted, whatever Tactical says.
+        assert_eq!(plain_slots(0b100, None, true), 0b100);
+        // A spectator's own slot out of range: everyone.
+        assert_eq!(plain_slots(0, Some(-1), true), u32::MAX);
+        assert_eq!(
+            tactical_appearance(&worn("reborn", "default"), "jedi_hm/blue"),
+            worn("jedi_hm", "blue")
+        );
+        assert_eq!(
+            tactical_appearance(&worn("kyle", "red"), "kyle/default"),
+            worn("kyle", "red")
+        );
     }
 
     #[test]

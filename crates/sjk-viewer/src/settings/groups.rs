@@ -395,6 +395,9 @@ impl Group {
             Self::GameOptions => &[
                 "assetbrowser",
                 "cg_simpleItems",
+                crate::tactical::CVAR,
+                crate::tactical::MODEL_CVAR,
+                crate::flat_world::CVAR,
                 "cg_forceModel",
                 sjk_client::player_model_eligibility::METADATA_CVAR,
                 sjk_client::default_model_random::CVAR,

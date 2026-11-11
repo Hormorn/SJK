@@ -674,7 +674,7 @@ impl GpuState {
             if event.toy != TOY
                 || event.event != EVENT_SPOTTED
                 || Some(event.slot) == own
-                || self.muted_players.contains(u16::from(event.slot))
+                || self.muted_players.hides_fun(u16::from(event.slot))
             {
                 continue;
             }

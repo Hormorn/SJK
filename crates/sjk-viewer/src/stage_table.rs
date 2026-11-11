@@ -134,6 +134,15 @@ pub(super) fn program_source(source: &str) -> String {
             "textureSampleLevel(lightmap_image, secondary_sampler, input.secondary_uv, 0.0)",
             "textureSampleLevel(table_lightmaps[table_index.z], table_samplers[(table_index.w >> 1u) & 1u], input.secondary_uv, 0.0)",
         ),
+        // The flat world's average colours (`flat_world.rs`).
+        (
+            "textureSampleLevel(stage_images, stage_sampler, input.stage_uv, frame, 16.0)",
+            "textureSampleLevel(table_images[table_index.x], table_samplers[table_index.w & 1u], input.stage_uv, frame, 16.0)",
+        ),
+        (
+            "textureSampleLevel(secondary_images, secondary_sampler, input.secondary_uv, frame, 16.0)",
+            "textureSampleLevel(table_images[table_index.y], table_samplers[(table_index.w >> 1u) & 1u], input.secondary_uv, frame, 16.0)",
+        ),
     ] {
         assert_eq!(
             source.matches(from).count(),

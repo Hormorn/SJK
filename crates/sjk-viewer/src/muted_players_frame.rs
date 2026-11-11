@@ -98,8 +98,9 @@ impl GpuState {
             player_identity::is_staff(),
         );
         self.chat.set_muted_slots(muted);
-        // Their look too: the stock blade and its sounds, no holocron (`looks.rs`).
-        self.looks.set_muted(muted);
+        // Their look too: the stock blade and its sounds, no holocron (`looks.rs`); at
+        // Tactical Max every other player's (`tactical.rs`).
+        self.looks.set_muted(self.muted_players.plain());
         // The toys hidden on other players here (Collection > Toys).
         let console = self.console.as_ref();
         let seen = |cvar| crate::toy_sight::seen(console, cvar);
@@ -129,11 +130,19 @@ impl GpuState {
         if let Some(audio) = audio {
             audio.set_muted_clients(muted | self.sound_mutes.players.own_slots());
         }
-        let changed = muted ^ self.muted_players.applied;
+        // Drawn plain: the muted, and at Tactical Max the others in its model.
+        let plain = self.muted_players.plain();
+        let mut changed = plain ^ self.muted_players.applied;
+        let model =
+            crate::tactical::plain_players().then(|| crate::tactical::model(self.console.as_ref()));
+        if model.is_some() && model != self.muted_players.applied_model {
+            changed |= plain & !muted;
+        }
         if changed == 0 || self.live_session.is_none() {
             return;
         }
-        self.muted_players.applied = muted;
+        self.muted_players.applied = plain;
+        self.muted_players.applied_model = model;
         for client in 0..muted_players::SLOTS as u16 {
             if changed & (1 << client) != 0
                 && let Err(error) = self.apply_clientinfo(client)

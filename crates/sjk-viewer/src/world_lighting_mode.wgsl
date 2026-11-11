@@ -6,8 +6,12 @@ fn apply_lighting_mode(input: VertexOutput, primary: vec4<f32>, secondary: vec4<
     let fullbright = (mode & 1u) != 0u;
     let lightmap_only = (mode & 2u) != 0u;
     let flags = u32(stage.wave_functions.w);
-    // Stock stops the stage loop at the first later non-lightmap stage.
-    if lightmap_only && (flags & 2u) != 0u { discard; }
+    // `r_flatWorld` (`flat_world.rs`): world surfaces only, the flag being per draw.
+    let flat_world = (point_lights.metadata.y & 16u) != 0u && input.light_ambient.a == 0.0 &&
+        input.entity_control.x <= 0.5;
+    // Stock stops the stage loop at the first later non-lightmap stage; so does the
+    // flat world, which draws no overlay.
+    if (lightmap_only || flat_world) && (flags & 2u) != 0u { discard; }
     var color = generated_color(input);
     // Apply texture-bundle radiance before the expensive lighting paths. Straight
     // arithmetic avoids another control-flow split in the shared material shader.
@@ -20,6 +24,19 @@ fn apply_lighting_mode(input: VertexOutput, primary: vec4<f32>, secondary: vec4<
     var extra = vec4(secondary.rgb*gains.y, secondary.a);
     let base_lightmap = i32(stage.animation.w) == 1;
     let extra_lightmap = i32(stage.secondary_animation.w) == 1;
+    if flat_world {
+        // A texture's smallest mip is its average colour; alpha still cuts.
+        if !base_lightmap {
+            let frame = animated_image_frame(stage.animation, input.animation_index);
+            let flat = textureSampleLevel(stage_images, stage_sampler, input.stage_uv, frame, 16.0);
+            base = vec4(flat.rgb*gains.x, base.a);
+        }
+        if stage.secondary_control.z > 0.5 && !extra_lightmap {
+            let frame = animated_image_frame(stage.secondary_animation, input.animation_index);
+            let flat = textureSampleLevel(secondary_images, secondary_sampler, input.secondary_uv, frame, 16.0);
+            extra = vec4(flat.rgb*gains.y, extra.a);
+        }
+    }
     if fullbright {
         // R_BindAnimatedImage binds tr.whiteImage: actual white, never neutral gray.
         if base_lightmap { base = vec4(1.0); }

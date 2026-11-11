@@ -245,6 +245,10 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     (crate::effect_aux::saber_rain_steam::CVAR, "0", "Off"),
     (crate::effect_aux::saber_rain_steam::CVAR, "1", "Everyone"),
     (crate::effect_aux::saber_rain_steam::CVAR, "2", "Only mine"),
+    (crate::tactical::CVAR, "0", "Off"),
+    (crate::tactical::CVAR, "1", "Minimal"),
+    (crate::tactical::CVAR, "2", "Medium"),
+    (crate::tactical::CVAR, "3", "Max"),
     (crate::stock_blades::CVAR, "0", "Off"),
     (crate::stock_blades::CVAR, "1", "Others"),
     (crate::stock_blades::CVAR, "2", "All"),
@@ -1185,6 +1189,18 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::duel_blades::CVAR,
         "In a duel you play or follow, and on Duel servers, every blade is a normal one in its own colour.",
+    ),
+    (
+        crate::tactical::CVAR,
+        "Minimal: no emotes, toys, pop-ups. Medium: low graphics, no weather, fog, blade skins. Max: flat world, one model.",
+    ),
+    (
+        crate::tactical::MODEL_CVAR,
+        "The model everyone else wears at Tactical Max: model or model/skin, kyle by default. Teams keep red and blue.",
+    ),
+    (
+        crate::flat_world::CVAR,
+        "The map in flat colours under its own light, no shader effects (Tactical Max turns it on).",
     ),
     (
         crate::stock_blades::CVAR,
