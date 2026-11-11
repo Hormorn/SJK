@@ -10093,3 +10093,11 @@ area: Menus & settings
 title: Credits count the pull requests of older merge names (#403)
 change: Merges named "Merge PR #N (Author): title" or "Merge PR #N" count as pull requests.
 test: Main menu > Credits: Slash's card shows 138 pull requests, Sol's 32.
+
+[npc-loading-no-kyle]
+area: Rendering & effects
+title: A loading NPC or vehicle no longer flashes as an unarmed Kyle (Lex)
+change: While an NPC's model loads on the worker it is drawn as nothing, not the Kyle stand-in.
+change: An NPC whose model failed to load still shows the stand-in.
+test: Kill tauntauns where they respawn: no Kyle appears before the next one.
+test: devmap, npc spawn reborn and a vehicle from the spawn list: no Kyle for a moment.
