@@ -30,7 +30,13 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1111.5 (Alpha) | 11/11/2026
+
+Model sync fixes: more skins can be shared, rig models too.
+
+> Model sync: Skins that were refused share now: packs with many files, file names with spaces, and shader files shared by several skins.
+> Rig models: Your own models with an Unreal-style skeleton can be shared too, once you confirm they are yours or their author lets you.
+> Update: Press Share or Update again on the Model sync page if it refused your skin before.
 
 - Model sync takes rig models (your own models with an Unreal-style skeleton, `sjk_rig.cfg` with its glTF): sharing one asks you to confirm it is yours or its author lets you share it. More community packs pass: up to 512 files, file names with spaces and brackets, and a shader file that also defines other models' shaders keeps only the model's own _(Sol)_
 
