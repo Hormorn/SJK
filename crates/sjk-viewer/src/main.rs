@@ -212,6 +212,8 @@ mod mining_sell;
 mod missile_trails;
 mod mod_notice_card;
 mod model_materials;
+#[cfg(feature = "mod-jof")]
+mod model_sync;
 mod mods;
 mod monitor;
 mod movement_collision;

@@ -1817,6 +1817,13 @@ pub(super) const GAME: &[Setting] = &[
         cvar: crate::sith_cloud::AUTO,
         kind: ValueKind::Bool,
     },
+    // Model sync (`docs/model-sync.md`): players' shared models from the Sith cloud.
+    #[cfg(feature = "mod-jof")]
+    Setting {
+        label: "Shared player models",
+        cvar: crate::model_sync::AUTO,
+        kind: ValueKind::Bool,
+    },
     Setting {
         label: "Invisible brushes",
         cvar: crate::brush_view::CVAR,

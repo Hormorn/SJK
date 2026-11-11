@@ -109,6 +109,8 @@ impl GpuState {
         self.update_player_trades();
         #[cfg(feature = "mod-jof")]
         self.update_content_auto();
+        #[cfg(feature = "mod-jof")]
+        self.update_model_sync();
         if !due {
             return;
         }

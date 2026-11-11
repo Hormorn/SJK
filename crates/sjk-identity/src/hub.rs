@@ -355,6 +355,29 @@ pub trait Hub: Send {
             "this hub client does not check models".to_owned(),
         ))
     }
+    /// An upload ticket for model `model` with content `md5` (`docs/model-sync.md`,
+    /// "Wire"): signed by the hub, for the Sith cloud.
+    fn model_sync_ticket(
+        &mut self,
+        _identity: &Identity,
+        _model: &str,
+        _md5: &str,
+    ) -> Result<String, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not sync models".to_owned(),
+        ))
+    }
+    /// A staff rollback ticket making `version` of `model` current again.
+    fn model_rollback_ticket(
+        &mut self,
+        _identity: &Identity,
+        _model: &str,
+        _version: u32,
+    ) -> Result<String, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not sync models".to_owned(),
+        ))
+    }
     /// Share (or stop sharing) the player's vitals on `server` and read the sharers
     /// there (`PROTOCOL.md`, "Vitals").
     fn vitals(
@@ -2673,6 +2696,33 @@ impl Hub for HttpHub {
             .ok_or_else(|| HubError::Protocol("the models answer has no count".to_owned()))
     }
 
+    fn model_sync_ticket(
+        &mut self,
+        identity: &Identity,
+        model: &str,
+        md5: &str,
+    ) -> Result<String, HubError> {
+        let body = json!({ "model": model, "md5": md5 });
+        let answer = self.send(Some(identity), "POST", "/v1/model-sync/ticket", Some(body))?;
+        ticket_of(&answer)
+    }
+
+    fn model_rollback_ticket(
+        &mut self,
+        identity: &Identity,
+        model: &str,
+        version: u32,
+    ) -> Result<String, HubError> {
+        let body = json!({ "model": model, "version": version });
+        let answer = self.send(
+            Some(identity),
+            "POST",
+            "/v1/staff/model-sync/rollback",
+            Some(body),
+        )?;
+        ticket_of(&answer)
+    }
+
     fn model_check(
         &mut self,
         server: &str,
@@ -2952,6 +3002,15 @@ impl Hub for HttpHub {
         let path = feed_path(after, server, channels, wait);
         parse(self.send(Some(identity), "GET", &path, None)?)
     }
+}
+
+/// The ticket of a model sync answer (`{"ticket":"..","expires":..}`).
+fn ticket_of(answer: &Value) -> Result<String, HubError> {
+    answer["ticket"]
+        .as_str()
+        .filter(|ticket| !ticket.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| HubError::Protocol("the ticket answer has no ticket".to_owned()))
 }
 
 #[cfg(test)]

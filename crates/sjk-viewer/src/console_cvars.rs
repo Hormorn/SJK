@@ -90,6 +90,8 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
     crate::jof_content::register(cvars)?;
     #[cfg(feature = "mod-jof")]
     crate::sith_cloud::register(cvars)?;
+    #[cfg(feature = "mod-jof")]
+    crate::model_sync::register(cvars)?;
     super::client_options::register(cvars)?;
     super::ui_options::register(cvars)?;
     crate::hud::icons::register(cvars)?;

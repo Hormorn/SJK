@@ -73,6 +73,8 @@ const EMOJI_TOKEN: u16 = 1_023;
 const REMOVE_EMOJI_TOKEN: u16 = 1_024;
 const NAME_TOKEN: u16 = 1_025;
 const NAME_FIELD_TOKEN: u16 = 1_026;
+/// Share my model (model sync, `docs/model-sync.md`).
+const SHARE_MODEL_TOKEN: u16 = 1_027;
 const NAME_SAVE_TOKEN: u16 = 1_027;
 /// The emoji grid's first cell; the others follow.
 const EMOJI_CELL_TOKEN: u16 = 1_100;
@@ -131,6 +133,8 @@ enum Focus {
     Board,
     Unlockables,
     Holocrons,
+    /// Share my model (on the Profile screen, for JoF and Sith verified players).
+    ShareModel,
 }
 
 /// What the Profile tab's middle column shows.
@@ -177,6 +181,8 @@ pub(crate) enum PanelAction {
     },
     /// Open the Staff page.
     Staff,
+    /// Share the model the player wears through the Sith cloud (`sharemodel`).
+    ShareModel,
     /// Send this PNG to the hub as the player's picture.
     SetAvatar {
         png: Vec<u8>,
@@ -231,6 +237,8 @@ pub(crate) struct Panel {
     writable: bool,
     /// The hub made the player's key staff: Staff tools are offered.
     staff: bool,
+    /// Share my model is offered: a JoF or Sith tick (or staff), on the Profile screen.
+    share_model: bool,
     /// The Profile tab's middle column: the bio or the picture panel.
     middle: Middle,
     /// A picture file being read, the picture ready to send (its file's name and PNG)
@@ -366,6 +374,7 @@ impl Panel {
             message: String::new(),
             writable: false,
             staff: false,
+            share_model: false,
             middle: Middle::Bio,
             reading: None,
             ready: None,
@@ -794,6 +803,17 @@ impl Panel {
             .and_then(|snapshot| snapshot.me.as_ref());
         self.writable = inputs.enabled && me.is_some();
         self.staff = self.writable && me.is_some_and(|me| me.staff);
+        self.share_model = cfg!(feature = "mod-jof")
+            && self.mode == Mode::Hub
+            && self.writable
+            && me.is_some_and(|me| {
+                me.verified
+                    && (me.staff
+                        || matches!(me.tick, sjk_identity::Tick::Jof | sjk_identity::Tick::Sith))
+            });
+        if !self.share_model && self.focus == Focus::ShareModel {
+            self.focus = Focus::Picture;
+        }
         self.sync_picture(inputs);
         if !self.staff && self.focus == Focus::Staff {
             self.focus = Focus::Picture;
@@ -977,6 +997,9 @@ impl Panel {
         if self.staff {
             order.push(Focus::Staff);
         }
+        if self.share_model {
+            order.push(Focus::ShareModel);
+        }
         match (self.middle, self.writable) {
             (Middle::Bio, true) => order.extend([Focus::Bio, Focus::Save, Focus::Revert]),
             (Middle::Bio, false) => {}
@@ -1020,6 +1043,7 @@ impl Panel {
                 PanelAction::None
             }
             Focus::Staff => PanelAction::Staff,
+            Focus::ShareModel => PanelAction::ShareModel,
             Focus::Name => {
                 self.show_name();
                 PanelAction::None
@@ -1204,6 +1228,10 @@ impl Panel {
                 self.focus = Focus::Staff;
                 PanelAction::Staff
             }
+            Some(SHARE_MODEL_TOKEN) if self.share_model => {
+                self.focus = Focus::ShareModel;
+                PanelAction::ShareModel
+            }
             Some(BOARD_TOKEN) => {
                 self.focus = Focus::Board;
                 self.see_board()
@@ -1266,6 +1294,7 @@ impl Panel {
             Focus::EmojiGrid => EMOJI_CELL_TOKEN + self.emoji_cursor as u16,
             Focus::RemoveEmoji => REMOVE_EMOJI_TOKEN,
             Focus::Staff => STAFF_TOKEN,
+            Focus::ShareModel => SHARE_MODEL_TOKEN,
             Focus::Bio => BIO_TOKEN,
             Focus::Save => SAVE_TOKEN,
             Focus::Revert => REVERT_TOKEN,

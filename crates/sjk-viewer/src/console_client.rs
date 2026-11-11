@@ -379,6 +379,7 @@ fn jof_commands() -> impl Iterator<Item = &'static (&'static str, &'static str)>
         crate::jof_content::COMMANDS
             .iter()
             .chain(crate::sith_cloud::COMMANDS)
+            .chain(crate::model_sync::COMMANDS)
     }
     #[cfg(not(feature = "mod-jof"))]
     {
@@ -1152,6 +1153,21 @@ impl crate::GpuState {
                     console.open_jof_content(&self.game_data);
                 }
                 self.sync_cursor_policy();
+            }
+            #[cfg(feature = "mod-jof")]
+            crate::model_sync::GET | crate::model_sync::SHARE | crate::model_sync::ROLLBACK => {
+                let Some(console) = self.console.as_ref() else {
+                    return Ok(Vec::new());
+                };
+                let worn = crate::player_identity::own_model_folder();
+                return crate::model_sync::command(
+                    &name,
+                    args,
+                    console,
+                    &self.game_data,
+                    self.vfs.as_deref(),
+                    worn,
+                );
             }
             #[cfg(feature = "mod-jof")]
             crate::sith_cloud::COMMAND => {

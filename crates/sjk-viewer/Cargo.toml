@@ -43,6 +43,7 @@ sjk-mod-japlus = { workspace = true, optional = true }
 sjk-mod-japro = { workspace = true, optional = true }
 sjk-mod-jof = { workspace = true, optional = true }
 sjk-jof-content = { workspace = true, optional = true }
+sjk-model-sync = { workspace = true, optional = true, features = ["client"] }
 sjk-network.workspace = true
 sjk-protocol.workspace = true
 sjk-runtime.workspace = true
@@ -88,7 +89,7 @@ sjk-dedicated = { path = "../sjk-dedicated" }
 default = ["mod-japlus", "mod-japro", "mod-jof"]
 mod-japlus = ["dep:sjk-mod-japlus"]
 mod-japro = ["dep:sjk-mod-japro"]
-mod-jof = ["dep:sjk-mod-jof", "dep:sjk-jof-content"]
+mod-jof = ["dep:sjk-mod-jof", "dep:sjk-jof-content", "dep:sjk-model-sync"]
 
 [target.'cfg(unix)'.dependencies]
 # Raise the process file-descriptor headroom before mounting PK3 archives. This safe

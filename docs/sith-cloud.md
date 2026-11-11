@@ -14,6 +14,8 @@ presses Download on the card (`sith.downloads`, Settings > General or Advanced >
 Sith cloud), or also turns on automatic updates. Optional groups (SJK Extras) are never
 chosen by default.
 
+Verified players' own models come through it too: see [model sync](model-sync.md).
+
 ## Where the files go
 
 Straight into the game's `base`, where the SJK Launcher puts them, so the game,

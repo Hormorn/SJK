@@ -32,8 +32,11 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+= cl_autoModels: Download by themselves the models other players shared through the Sith cloud, for the players you meet, and their updates.
+
 - Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
 - World brightness: the Renderer page's HDR exposure is now called World brightness and brightens the 3D world without touching the HUD, also with HDR scene off (`r_hdrExposure`, which there only brightens). Brightness in Graphics stays the whole screen's curve _(Sol)_
+- Model sync: JoF and Sith verified players share the model they wear through the Sith cloud (Profile > Share my model, or `sharemodel`); others fetch it with `getmodel <name>`, or by themselves with `cl_autoModels` (off by default). Every pack is checked on both sides: one model folder, its own shaders only, size limits. Krovos runs the Sith cloud side. _(Sol, Krovos)_
 
 ## 2026.1111.3 (Alpha) | 11/11/2026
 
