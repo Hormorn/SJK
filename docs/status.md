@@ -14,6 +14,14 @@ muted players' stand-in path with `cg_tacticalModel`, and the world through the 
 flat samples, settings rows, wheel). Not verified: nothing was run in the client: the flat
 world's look, the plain players and the held cards are unseen.
 
+## Playstyle card (11/11/2026)
+
+`personal/playstyle-card`, based on `main` `2a7dfebd3`: a card once a start asks every
+player for their playstyles, offers to turn nameplates on, and has "Don't show this
+again" (`ui_playstyleCard`). Verified on Windows x64: unit tests and the GPU world shot
+`playstyle_card_shot` (shows at start, keys, Save writes the switches and the never
+flag). Not verified: real game start with other cards queued.
+
 ## Playstyle badges (11/11/2026)
 
 `personal/playstyle`, based on `main` `6176b0658`: five switches (`cg_playSaberDuels`,

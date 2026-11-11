@@ -2443,6 +2443,20 @@ not drawn and take no input. The same look in every menu style, on the 16:9 fram
   without its buttons: "Reloading the graphics..." and that it takes a few seconds.
   On a server the loading screen shows instead.
 
+## Playstyle card
+
+11/11/2026, Sol's request ([playstyle_card.rs](../crates/sjk-viewer/src/playstyle_card.rs)):
+once a start, on the main menu or the game menu, after the other cards (the what's-new
+panel included), a pop-up card asks "How do you like to play?" for the
+[playstyle badges](client.md#playstyle-badges). A row per playstyle: a tick, the badge
+as nameplates draw it, its name and what it means; the ticks start from the player's
+own switches. A player whose nameplates are off (`cg_nameplate` 0) also gets a tick to
+turn them on, which says that it shares their health too. Last, "Don't show this
+again". Save (gold, Enter) writes the ticks; Not now (Escape) changes nothing. Either
+puts the card away until the next start, and for good with "Don't show this again"
+ticked (`ui_playstyleCard` 1; 0 asks again). Keys: 1 to 5 the playstyles, 6 the
+nameplates, 0 "Don't show this again".
+
 ## Small graphics cards
 
 [small_card_notice.rs](../crates/sjk-viewer/src/small_card_notice.rs): the pop-up that

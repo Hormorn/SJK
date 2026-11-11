@@ -3843,6 +3843,16 @@ test: An SJK player sharing: real bars and gold contour as before.
 test: Settings, Nameplates: no Bars on everyone row; help has no entry for it.
 note: NPC plates (cg_nameplateNpcs) keep their bars.
 
+[playstyle-card]
+area: Menus & settings
+title: Playstyle card at start: tick how you like to play (ui_playstyleCard)
+change: Once a start, after the other cards: a tick per playstyle with its badge and meaning.
+change: Nameplates off: a tick to turn them on. "Don't show this again" stops it for good.
+test: Start the game: the card shows on the main menu; ticks start from your settings.
+test: Tick 2 picks, Save: Settings shows them; restart: the card is back (not "never").
+test: Tick Don't show this again, Not now: picks unchanged, it never shows (ui_playstyleCard 1).
+test: With cg_nameplate 1 the nameplates tick is not there.
+
 [playstyle-badges]
 area: HUD
 title: Playstyle badges over nameplates (cg_playSaberDuels... cg_nameplatePlaystyle)

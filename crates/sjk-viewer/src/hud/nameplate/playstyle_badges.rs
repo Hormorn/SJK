@@ -115,7 +115,7 @@ impl State {
                 color: Color::new(r, g, b, 0.75),
             });
             let icon = Rect::new(rect.x, rect.y, rect.height, rect.height);
-            self.playstyle_icon(style, icon, colour);
+            draw_icon(&mut self.list, style, icon, colour);
             if focused {
                 let _ = self.list.push(DrawCommand::Text {
                     rect: Rect::new(
@@ -136,9 +136,12 @@ impl State {
         }
         let _ = self.list.push(DrawCommand::PopOpacity);
     }
+}
 
-    /// `style`'s icon in the round `cell`, drawn in strokes of `colour`.
-    fn playstyle_icon(&mut self, style: Playstyle, cell: Rect, colour: Color) {
+/// `style`'s icon in the round `cell`, drawn in strokes of `colour` (also on the
+/// playstyle card, `playstyle_card.rs`).
+pub(crate) fn draw_icon(list: &mut sjk_ui::DrawList, style: Playstyle, cell: Rect, colour: Color) {
+    {
         let r = cell.width * 0.5;
         let [cx, cy] = [cell.x + r, cell.y + r];
         let at = |x: f32, y: f32| [cx + x * r, cy + y * r];
@@ -151,7 +154,6 @@ impl State {
                 color: colour,
             });
         };
-        let list = &mut self.list;
         match style {
             // A lit saber, slanted: a thick hilt and a thin blade (not the duel
             // badge's crossed sabers).

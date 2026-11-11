@@ -114,6 +114,12 @@ impl GpuState {
             self.small_card_notice_choice(choice);
             return;
         }
+        // And the playstyle card.
+        if !console_open && self.playstyle_card.is_open() {
+            let choice = self.playstyle_card.handle_key(&event);
+            self.playstyle_card_choice(choice);
+            return;
+        }
         // And the emote help card.
         if !console_open && self.emote_help.card.is_open() {
             let choice = self.emote_help.card.handle_key(&event);

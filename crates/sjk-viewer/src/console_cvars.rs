@@ -1427,6 +1427,12 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Show Support SJK at the top left of the SJK UI's main page: links to SJK's GitHub Sponsors and Ko-fi pages (0 hides it, as its x does)",
         ),
         CvarDefinition::new(
+            crate::playstyle_card::CVAR,
+            0,
+            archive,
+            "1: the playstyle card (how you like to play, at start) never shows again; 0 asks once a start",
+        ),
+        CvarDefinition::new(
             crate::alpha_notice_card::CVAR,
             0,
             archive,

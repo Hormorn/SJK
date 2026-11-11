@@ -4699,7 +4699,9 @@ their nameplate. Five switches in Settings, next to the nameplates' rows, all of
 default ([playstyle.rs](../crates/sjk-viewer/src/playstyle.rs)): "I enjoy saber duels"
 (`cg_playSaberDuels`), "I enjoy Force duels" (`cg_playForceDuels`), "I'm up for FFA
 chaos" (`cg_playFfa`), "I'm here to goof around" (`cg_playGoofing`) and "I'm happy to
-teach" (`cg_playTeaching`). Any number may be on. They are purely social: nothing is
+teach" (`cg_playTeaching`). Any number may be on. The
+[playstyle card](sjk-ui.md#playstyle-card) asks every player once a start until they
+turn it off. They are purely social: nothing is
 blocked or enforced, as the server decides who can hit whom.
 
 The picks travel in the player's hub look as toys `play_saber`, `play_force`,

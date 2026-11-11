@@ -46,7 +46,7 @@ use sjk_ui::{
 
 pub(crate) mod capsule;
 pub(crate) mod classic;
-mod playstyle_badges;
+pub(crate) mod playstyle_badges;
 
 /// Text ids below this are player slots; above it, `NPC_TEXT + class_t`.
 const NPC_TEXT: u32 = 1024;
