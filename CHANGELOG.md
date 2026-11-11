@@ -30,7 +30,13 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1111.6 (Alpha) | 11/11/2026
+
+Model sync: download a shared version of a model you already have.
+
+> Download: The Model sync page offers Download for a model you already have when someone shared a version of it.
+> Refusals: A refused update says why: the model was updated less than an hour ago, or your 5 uploads of the day are used.
+> Console: Each model sync result shows once in the console, not twice.
 
 - Model sync: Download shows for a model you already have when someone shared a version you did not fetch, a refused update says why (the model was updated less than an hour ago, or your 5 uploads of the day are used), and each result is written once in the console _(Sol)_
 
