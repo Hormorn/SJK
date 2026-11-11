@@ -27,7 +27,13 @@ pub(crate) const AUTO: &str = "cl_autoModels";
 pub(crate) const GET: &str = "getmodel";
 pub(crate) const SHARE: &str = "sharemodel";
 pub(crate) const ROLLBACK: &str = "modelrollback";
+/// Opens the Model sync page (`console_model_sync.rs`).
+pub(crate) const PAGE: &str = "modelsync";
 pub(crate) const COMMANDS: &[(&str, &str)] = &[
+    (
+        PAGE,
+        "Open the Model sync page: share your models through the Sith cloud and download the ones others shared",
+    ),
     (
         GET,
         "Download a player model other players shared through the Sith cloud: getmodel <name>",
@@ -85,8 +91,12 @@ impl Place {
 }
 
 enum Job {
-    /// Fetch these models (`quiet`: met players', said only when fetched).
-    Fetch(Vec<String>, bool),
+    /// Fetch these models, each with whether the game already has it (`quiet`: met
+    /// players', said only when fetched, and one the game has only when it overrides
+    /// a host pack's).
+    Fetch(Vec<(String, bool)>, bool),
+    /// Read the index again (the Model sync page).
+    Index,
     /// Fetch what changed of the models fetched before.
     Update,
     Upload {
@@ -129,10 +139,14 @@ impl Worker {
         Ok(index)
     }
 
-    fn run(&mut self, job: Job, place: &Place) -> Vec<String> {
-        match self.try_run(job, place) {
+    fn run(&mut self, job: Job, place: &Place) -> Done {
+        let lines = match self.try_run(job, place) {
             Ok(lines) => lines,
             Err(why) => vec![format!("^3Model sync: {why}.")],
+        };
+        Done {
+            lines,
+            index: self.index.as_ref().map(|(_, _, index)| Arc::clone(index)),
         }
     }
 
@@ -143,8 +157,15 @@ impl Worker {
                 let index = self.index(&cloud, place, !quiet)?;
                 Ok(names
                     .iter()
-                    .filter_map(|name| self.fetch(&cloud, &index, place, name, quiet))
+                    .filter(|(name, installed)| {
+                        !(quiet && *installed && !index.packs.contains_key(name))
+                    })
+                    .filter_map(|(name, _)| self.fetch(&cloud, &index, place, name, quiet))
                     .collect())
+            }
+            Job::Index => {
+                self.index(&cloud, place, true)?;
+                Ok(Vec::new())
             }
             Job::Update => {
                 let index = self.index(&cloud, place, true)?;
@@ -169,7 +190,7 @@ impl Worker {
                 let uploaded = cloud
                     .upload(&self.agent, &name, &pk3, &ticket)
                     .map_err(|error| error.to_string())?;
-                self.index = None;
+                let _ = self.index(&cloud, place, true);
                 Ok(vec![if uploaded.linked {
                     format!(
                         "Model sync: {name} is already on the Sith cloud as it is (version {}).",
@@ -186,7 +207,7 @@ impl Worker {
                 let version = cloud
                     .rollback(&self.agent, &name, &ticket)
                     .map_err(|error| error.to_string())?;
-                self.index = None;
+                let _ = self.index(&cloud, place, true);
                 Ok(vec![format!(
                     "Model sync: {name} is back to version {version}."
                 )])
@@ -207,7 +228,7 @@ impl Worker {
         let Some(entry) = index.models.get(name) else {
             if index.packs.contains_key(name) {
                 return loud(format!(
-                    "Model sync: {name} is in the Sith cloud's own packs: take it from the Sith cloud card (sith.downloads)."
+                    "Model sync: nobody shared a newer {name}; the Sith cloud card (sith.downloads) has the hosts' pack."
                 ));
             }
             return loud(format!(
@@ -246,8 +267,17 @@ struct Waiting {
     rollback: bool,
 }
 
-/// The jobs sent to the thread and the console lines it sends back.
-type Channels = (Sender<(Job, Place)>, Receiver<Vec<String>>);
+/// What the thread sends back after a job: console lines and the index it holds.
+struct Done {
+    lines: Vec<String>,
+    index: Option<Arc<Index>>,
+}
+
+/// The jobs sent to the thread and what it sends back.
+type Channels = (Sender<(Job, Place)>, Receiver<Done>);
+
+/// Console lines the Model sync page shows, at most.
+const RECENT: usize = 6;
 
 struct State {
     jobs: Option<Channels>,
@@ -258,6 +288,15 @@ struct State {
     offered: BTreeSet<String>,
     met_at: Option<Instant>,
     update_at: Option<Instant>,
+    /// The index the thread last read, for the Model sync page.
+    index: Option<Arc<Index>>,
+    /// The last lines said, newest last, for the page.
+    recent: Vec<String>,
+    /// Jobs sent and not answered yet.
+    pending: usize,
+    /// Bumped whenever something the page shows may have changed (a line said, a job
+    /// answered), so it reads its rows again only then.
+    changes: u64,
 }
 
 static STATE: Mutex<State> = Mutex::new(State {
@@ -267,6 +306,10 @@ static STATE: Mutex<State> = Mutex::new(State {
     offered: BTreeSet::new(),
     met_at: None,
     update_at: None,
+    index: None,
+    recent: Vec::new(),
+    pending: 0,
+    changes: 0,
 });
 
 fn lock() -> std::sync::MutexGuard<'static, State> {
@@ -294,12 +337,41 @@ impl State {
                 .expect("the model sync thread starts");
             (jobs, results)
         });
-        let _ = jobs.send((job, place));
+        if jobs.send((job, place)).is_ok() {
+            self.pending += 1;
+            self.changes += 1;
+        }
+    }
+
+    fn say(&mut self, line: &str) {
+        if self.recent.len() == RECENT {
+            self.recent.remove(0);
+        }
+        self.recent.push(line.to_owned());
+        self.changes += 1;
     }
 }
 
-/// `getmodel`, `sharemodel` and `modelrollback`; lines for the console.
+/// `getmodel`, `sharemodel` and `modelrollback`; lines for the console, which the
+/// Model sync page shows too ([`recent_lines`]).
 pub(crate) fn command(
+    name: &str,
+    args: &[String],
+    console: &ViewerConsole,
+    game_data: &Path,
+    vfs: Option<&sjk_vfs::VirtualFileSystem>,
+    worn: Option<String>,
+) -> Result<Vec<String>, String> {
+    let result = run_command(name, args, console, game_data, vfs, worn);
+    let mut state = lock();
+    match &result {
+        Ok(lines) => lines.iter().for_each(|line| state.say(line)),
+        Err(why) => state.say(&format!("^3Model sync: {why}.")),
+    }
+    result
+}
+
+fn run_command(
     name: &str,
     args: &[String],
     console: &ViewerConsole,
@@ -315,18 +387,21 @@ pub(crate) fn command(
                 .map(|model| model.trim().to_ascii_lowercase())
                 .filter(|model| sjk_model_sync::valid_name(model))
                 .ok_or("usage: getmodel <name> (a-z 0-9 _ -)")?;
-            if installed(&model) && !Record::load(game_data).models.contains_key(&model) {
-                return Ok(vec![format!("Model sync: you already have {model}.")]);
-            }
             let mut state = lock();
             state.asked.insert(model.clone());
-            state.send(Job::Fetch(vec![model.clone()], false), place);
+            let has = installed(&model);
+            state.send(Job::Fetch(vec![(model.clone(), has)], false), place);
             Ok(vec![format!(
                 "Model sync: looking for {model} on the Sith cloud..."
             )])
         }
         SHARE => {
-            let model = worn.ok_or("you wear no model to share")?;
+            let model = match args.first() {
+                Some(model) => model.trim().to_ascii_lowercase(),
+                None => {
+                    worn.ok_or("you wear no model to share (sharemodel <name> shares another)")?
+                }
+            };
             if crate::installed_models::models()
                 .is_some_and(|models| models.retail.contains(&model))
             {
@@ -448,10 +523,19 @@ pub(crate) fn update(
     let now = Instant::now();
     let mut state = lock();
     let mut lines = Vec::new();
+    let mut answers = Vec::new();
     if let Some((_, results)) = &state.jobs {
         while let Ok(done) = results.try_recv() {
-            lines.extend(done);
+            answers.push(done);
         }
+    }
+    for done in answers {
+        state.pending = state.pending.saturating_sub(1);
+        state.changes += 1;
+        if done.index.is_some() {
+            state.index = done.index;
+        }
+        lines.extend(done.lines);
     }
     if let Some(waiting) = &state.waiting {
         let outcome = crate::player_identity::model_ticket()
@@ -491,14 +575,20 @@ pub(crate) fn update(
         {
             state.met_at = Some(now);
             let record = Record::load(game_data);
-            let wanted: Vec<String> = met()
+            let wanted: Vec<(String, bool)> = met()
                 .into_iter()
                 .filter(|model| sjk_model_sync::valid_name(model))
-                .filter(|model| !installed(model) && !record.models.contains_key(model))
+                .filter(|model| !record.models.contains_key(model))
                 .filter(|model| !state.asked.contains(model))
+                .map(|model| {
+                    let has = installed(&model);
+                    (model, has)
+                })
                 .collect();
             if !wanted.is_empty() {
-                state.asked.extend(wanted.iter().cloned());
+                state
+                    .asked
+                    .extend(wanted.iter().map(|(model, _)| model.clone()));
                 state.send(Job::Fetch(wanted, true), Place::of(console, game_data));
             }
         }
@@ -514,11 +604,186 @@ pub(crate) fn update(
             }
         }
     }
+    for line in &lines {
+        state.say(line);
+    }
     drop(state);
     for line in lines {
         crate::log::progress(format_args!("{line}"));
         console.push_log(line);
     }
+}
+
+/// Where a model stands, for the Model sync page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PageRow {
+    pub(crate) name: String,
+    /// The version on the Sith cloud, when someone shared it.
+    pub(crate) cloud: Option<u32>,
+    /// The version this game fetched through model sync, if any.
+    pub(crate) fetched: Option<u32>,
+    /// One of the hosts' own packs holds it too (an upload is a newer version of it).
+    pub(crate) host_pack: bool,
+    /// The game has it (from anywhere), so it can be shared from here.
+    pub(crate) installed: bool,
+    /// The model the player wears.
+    pub(crate) worn: bool,
+}
+
+/// What the Model sync page shows: the models this game has that are not the game's
+/// own, then those shared on the Sith cloud it lacks; the worn model first, then by
+/// name. `None` for the cloud's fields until the index has been read.
+pub(crate) fn page_rows(game_data: &Path, worn: Option<&str>) -> Vec<PageRow> {
+    let record = Record::load(game_data);
+    let index = lock().index.clone();
+    let installed_models = crate::installed_models::models();
+    let mut names: BTreeSet<String> = installed_models
+        .as_ref()
+        .map(|models| {
+            models
+                .all
+                .iter()
+                .filter(|name| !models.retail.contains(*name))
+                .filter(|name| sjk_model_sync::valid_name(name))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(index) = &index {
+        names.extend(index.models.keys().cloned());
+    }
+    names.extend(record.models.keys().cloned());
+    let mut rows: Vec<PageRow> = names
+        .into_iter()
+        .map(|name| PageRow {
+            cloud: index
+                .as_ref()
+                .and_then(|index| index.models.get(&name))
+                .map(|entry| entry.version),
+            fetched: record.models.get(&name).map(|fetched| fetched.version),
+            host_pack: index
+                .as_ref()
+                .is_some_and(|index| index.packs.contains_key(&name)),
+            installed: installed(&name) || record.models.contains_key(&name),
+            worn: worn == Some(name.as_str()),
+            name,
+        })
+        .collect();
+    rows.sort_by(|a, b| b.worn.cmp(&a.worn).then_with(|| a.name.cmp(&b.name)));
+    rows
+}
+
+/// What the Model sync page offers for a row: a button, and the console command it
+/// queues (`<command> <name>`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RowAction {
+    /// Upload a model nobody shared yet.
+    Share,
+    /// Upload a newer version of one already on the Sith cloud, or over the hosts'
+    /// pack that holds its name.
+    Update,
+    /// Fetch the cloud's version.
+    Download,
+}
+
+impl RowAction {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Share => "Share",
+            Self::Update => "Update",
+            Self::Download => "Download",
+        }
+    }
+
+    /// The console command that does it.
+    pub(crate) fn command(self) -> &'static str {
+        match self {
+            Self::Share | Self::Update => SHARE,
+            Self::Download => GET,
+        }
+    }
+}
+
+impl PageRow {
+    /// The row's buttons: Share or Update for a model the game has, when the player may
+    /// share (`can_share`, [`can_share`]); Download when the cloud has a version this
+    /// game lacks (not installed, an older fetched one, or only the hosts' pack's).
+    pub(crate) fn actions(&self, can_share: bool) -> [Option<RowAction>; 2] {
+        let upload =
+            (can_share && self.installed).then_some(if self.cloud.is_some() || self.host_pack {
+                RowAction::Update
+            } else {
+                RowAction::Share
+            });
+        let download = self.cloud.is_some_and(|cloud| {
+            !self.installed
+                || self.fetched.is_some_and(|fetched| fetched < cloud)
+                || (self.host_pack && self.fetched.is_none())
+        });
+        [upload, download.then_some(RowAction::Download)]
+    }
+
+    /// Where the model stands, in a few words (`has_index`: the cloud's list was read).
+    pub(crate) fn status(&self, has_index: bool) -> String {
+        match (self.cloud, self.fetched) {
+            (Some(cloud), Some(fetched)) if fetched >= cloud => format!("Downloaded v{fetched}"),
+            (Some(cloud), Some(fetched)) => format!("Downloaded v{fetched}, v{cloud} on the cloud"),
+            (Some(cloud), None) if self.host_pack => {
+                format!("On the cloud: v{cloud}, over the hosts' pack")
+            }
+            (Some(cloud), None) => format!("On the cloud: v{cloud}"),
+            (None, _) if self.host_pack => "In the Sith cloud's packs".to_owned(),
+            (None, Some(fetched)) => format!("Downloaded v{fetched}"),
+            (None, None) if has_index => "Not shared".to_owned(),
+            (None, None) => "Not checked yet".to_owned(),
+        }
+    }
+}
+
+/// Whether the player may share models: the SJK identity on (`identity_on`, its
+/// `cl_identity`) and online, verified with a JoF or Sith tick, or staff. The same test
+/// as the Profile page's Share my model.
+pub(crate) fn can_share(identity_on: bool) -> bool {
+    identity_on
+        && crate::player_identity::with_snapshot(|snapshot| {
+            snapshot.status == sjk_identity::Status::Online
+                && snapshot.me.as_ref().is_some_and(|me| {
+                    me.verified
+                        && (me.staff
+                            || matches!(
+                                me.tick,
+                                sjk_identity::Tick::Jof | sjk_identity::Tick::Sith
+                            ))
+                })
+        })
+        .unwrap_or(false)
+}
+
+/// A number that changes whenever what the page shows may have (a line said, a job
+/// sent or answered).
+pub(crate) fn changes() -> u64 {
+    lock().changes
+}
+
+/// Ask the Sith cloud for its list again (the page asks when it opens).
+pub(crate) fn refresh_index(console: &ViewerConsole, game_data: &Path) {
+    lock().send(Job::Index, Place::of(console, game_data));
+}
+
+/// Whether the index has been read once.
+pub(crate) fn has_index() -> bool {
+    lock().index.is_some()
+}
+
+/// Whether a job or an upload's ticket is still on its way.
+pub(crate) fn busy() -> bool {
+    let state = lock();
+    state.pending > 0 || state.waiting.is_some()
+}
+
+/// The last lines model sync said, newest last (colour codes kept).
+pub(crate) fn recent_lines() -> Vec<String> {
+    lock().recent.clone()
 }
 
 #[cfg(test)]

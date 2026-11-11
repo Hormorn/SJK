@@ -71,6 +71,11 @@ impl ViewerConsole {
             return;
         }
         #[cfg(feature = "mod-jof")]
+        if self.model_sync_page.is_open() {
+            self.append_model_sync(target, viewport);
+            return;
+        }
+        #[cfg(feature = "mod-jof")]
         if let Some(cloud) = self.open_cloud() {
             self.content_card(cloud).append(target, viewport);
             return;

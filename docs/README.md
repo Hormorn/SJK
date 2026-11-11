@@ -25,7 +25,7 @@ and changed together. Begin with the status page, then the architecture.
 | [Client mods](mods.md) | Mods kept out of the core client (`japlus.*`, `jof.*`): switches, names, what they may do |
 | [JoF content](jof-content.md) | JoF's maps, skins, hilts and packs from JoF's repository (`jof.downloads`), opt in |
 | [Sith cloud](sith-cloud.md) | The S community's maps, skins and extras from their own server, into the game's base (`sith.downloads`), opt in |
-| [Model sync](model-sync.md) | JoF- and Sith-verified players share the model they wear through the Sith cloud; checks in `sjk-model-sync`, the rest planned |
+| [Model sync](model-sync.md) | JoF- and Sith-verified players share their models through the Sith cloud, everyone downloads them; the Model sync page (`modelsync`), checks in `sjk-model-sync` |
 | [Rig models](rig-models.md) | glTF player models with their own skeleton, driven by the game's animations: manifest, bone maps, limits |
 | [Mystery boxes](mystery-boxes.md) | Boxes SJK's creator places on maps, opened by players for credits: the hub's roll, the reach, the creator's commands |
 | [WHEEL OF DOOM](wheel-of-doom.md) | The toy players spin for credits: the hub's spin, the sixteen outcomes and their effects on the spinner, the sounds, the model contract for Sol's wheel |

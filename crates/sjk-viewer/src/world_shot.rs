@@ -380,6 +380,9 @@ mod saber_kill;
 mod fps_help_shots;
 #[path = "world_shot_frame_timings.rs"]
 mod frame_timings_shots;
+#[cfg(feature = "mod-jof")]
+#[path = "world_shot_model_sync.rs"]
+mod model_sync_shots;
 #[path = "world_shot_playstyle_card.rs"]
 mod playstyle_card_shots;
 #[path = "world_shot_small_card.rs"]

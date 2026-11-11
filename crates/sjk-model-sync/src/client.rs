@@ -89,7 +89,6 @@ impl fmt::Display for CloudError {
             "" => return f.write_str(&self.why),
             "rejected" if !self.why.is_empty() => return write!(f, "refused: {}", self.why),
             "bad_ticket" => "the upload ticket was refused; try again",
-            "host_pack" => "this model is in the Sith cloud's own packs: nothing to upload",
             "too_large" => "the model is too large",
             "rate_limited" => "too many uploads for now; try again later",
             "not_found" => "the Sith cloud has no such model",
@@ -278,9 +277,10 @@ fn answer(
 /// The record of fetched models, beside the game's folders.
 pub const RECORD: &str = "sjk-model-sync.json";
 
-/// A fetched model's file name.
+/// A fetched model's file name. It sorts after the hosts' own packs (`zz_*.pk3`), so
+/// a newer version shared over one of theirs is the one the game loads.
 pub fn file_name(name: &str) -> String {
-    format!("sjk-model-{name}.pk3")
+    format!("zzz_sjk-model-{name}.pk3")
 }
 
 /// One fetched model.
@@ -387,11 +387,11 @@ mod tests {
             refused.to_string(),
             "refused: a.dll: this kind of file is not allowed"
         );
-        let host = CloudError {
-            code: "host_pack".into(),
+        let limited = CloudError {
+            code: "rate_limited".into(),
             why: String::new(),
         };
-        assert!(host.to_string().contains("own packs"));
+        assert!(limited.to_string().contains("too many uploads"));
     }
 
     #[test]
@@ -440,12 +440,12 @@ mod tests {
         let path = record
             .install(game_data.path(), &base, "solfox", &entry, b"pk3")
             .unwrap();
-        assert_eq!(path, base.join("sjk-model-solfox.pk3"));
+        assert_eq!(path, base.join("zzz_sjk-model-solfox.pk3"));
         let record = Record::load(game_data.path());
         assert!(!record.wants("solfox", &entry));
         assert_eq!(
             record.models["solfox"].file,
-            Path::new("base").join("sjk-model-solfox.pk3")
+            Path::new("base").join("zzz_sjk-model-solfox.pk3")
         );
         let newer = Entry {
             version: 2,
@@ -460,6 +460,6 @@ mod tests {
             .install(game_data.path(), &assets, "solfox", &newer, b"pk3 2")
             .unwrap();
         assert!(!path.exists());
-        assert!(assets.join("sjk-model-solfox.pk3").exists());
+        assert!(assets.join("zzz_sjk-model-solfox.pk3").exists());
     }
 }

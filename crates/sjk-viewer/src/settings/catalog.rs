@@ -1872,7 +1872,14 @@ pub(super) const GAME: &[Setting] = &[
         cvar: crate::sith_cloud::AUTO,
         kind: ValueKind::Bool,
     },
-    // Model sync (`docs/model-sync.md`): players' shared models from the Sith cloud.
+    // Model sync (`docs/model-sync.md`): players' shared models from the Sith cloud,
+    // its page and the automatic downloads.
+    #[cfg(feature = "mod-jof")]
+    Setting {
+        label: "Model sync",
+        cvar: crate::model_sync::PAGE,
+        kind: ValueKind::ContentCard,
+    },
     #[cfg(feature = "mod-jof")]
     Setting {
         label: "Shared player models",
