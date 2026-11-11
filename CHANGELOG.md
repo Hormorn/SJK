@@ -32,6 +32,10 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Collection menu text fits with a larger text size and letter spacing: the Forge's chips, sums and search field, the Shaders tab's New count (now behind a "?" note) and the Nameplates tab's plate (now behind Showcase current set) are no longer cut or covered. A shader's extras moved to an Extra features chip: red with what unlocks them while locked, gold once unlocked, where you switch them on and off _(Kushina, PR #408)_
+- Prospector can reach 9 of 9 again: a clean strike now gives the rarer of two ores instead of always lifting the ore a tier, so iron still turns up for a player who strikes the glint on every boulder _(Slash, PR #414, hub report #286, after Nib's report)_
+- A spawning NPC or vehicle no longer flashes as an unarmed Kyle while its model loads (the next tauntaun, an admin's NPC): it shows nothing until its own model is in _(Slash, PR #415, after Lex's report)_
+- A female player whose model you lack (shown as a female stand-in with `cg_defaultModelRandom`) now speaks with the female voice instead of the male one _(Slash, PR #418, hub report #312, after jof'mg.perso's report; after JoF EJK)_
 - Easier fishing: bites come every 12 to 25 seconds (were 15 to 40) and give 1.5 to 2 seconds to press Use (were about one), a hooked bite comes up empty 5% of the time (was 15%, the rest are fish), pulling too soon scares the fish for 5 to 10 seconds (were 10 to 20), and an Echo bite gives 3 seconds and three tries, 30 to 90 seconds apart (were 1.5 seconds and two, 60 to 180 apart). Echoes still drop as often as before _(Slash, PR #419)_
 
 ## 2026.1111.6 (Alpha) | 11/11/2026
@@ -132,7 +136,6 @@ Graphics presets for your PC, richer rain and settling snow, a Forge that fuses 
 - The Forge fuses duplicates: a new Fuse section turns spare copies of a tier's shaders into a shader of the next tier you don't own yet. The shop has a deal of the day at half price and a wishlist of three shaders (the gift toggle on a shader's card, in Craft and on each offer), with a card on the day a wished shader is on offer, and a gold dot shows where there is something to take _(Sol)_
 - Blade shaders load faster: on Vulkan the built shaders are kept on disk (`GameData/SJK/cache`) for the next start, and the blades worn on the server are built ahead, before they are first drawn _(Sol)_
 - `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, PR #406, after mg.perso's report, hub report #302; after JoF EJK)_
-- Collection menu text fits with a larger text size and letter spacing: the Forge's chips, sums and search field, the Shaders tab's New count (now behind a "?" note) and the Nameplates tab's plate (now behind Showcase current set) are no longer cut or covered. A shader's extras moved to an Extra features chip: red with what unlocks them while locked, gold once unlocked, where you switch them on and off _(Kushina, PR #408)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
 

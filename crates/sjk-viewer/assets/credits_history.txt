@@ -3663,6 +3663,18 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 11/11/2026 | SJK #418 | Female voice for a player whose model is missing (hub #312)
+- 3752bac |  | Give a missing model the player's own gender voice
+- 50f64b9 |  | Changelog: female voice for a missing model (#312)
++ 11/11/2026 | SJK #416 | Staff page: Chat tab shows how chat translation is used (needs hub #24)
+- 436c540 |  | Staff page: Chat tab shows how chat translation is used
++ 11/11/2026 | SJK #415 | A loading NPC or vehicle no longer flashes as an unarmed Kyle
+- 546af12 |  | A loading NPC or vehicle no longer flashes as an unarmed Kyle
++ 11/11/2026 | SJK #414 | Mining: a clean strike gives the rarer of two ores, so Prospector can reach 9/9 (hub report #286)
+- 61c49d3 |  | Mining: a clean strike gives the rarer of two ores, so iron stays within reach
+- 27debbe |  | Changelog: Prospector reaches 9 of 9 (PR #414, hub report #286)
++ 11/11/2026 | - | Changelog: #408's line under Unreleased, not the released 2026.1111.1
+- 4f3377e |  | Changelog: #408's line under Unreleased, not the released 2026.1111.1
 + 11/11/2026 | - | Release 2026.1111.2 (Alpha)
 - 7946da8 |  | Release 2026.1111.2 (Alpha)
 + 11/11/2026 | SJK #410 | Chat translation on request: click a line, /tr, tr (Creo's idea, needs hub #22)

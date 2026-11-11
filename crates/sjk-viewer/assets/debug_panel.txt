@@ -2823,6 +2823,15 @@ test: Hold +attack: it fires as before. Hold a chord bound to weapnext: it cycle
 
 
 # ---- Menus & settings ----
+[staff-chat-translation-stats]
+area: Menus & settings
+title: Staff page Chat tab: chat translation use (Slash, PR #416, needs hub #24)
+change: The Chat bans tab is now Chat: the bans and a column of translation counts.
+change: Players today/7/30 days, lines and cache hits, refusals, month's characters, languages.
+test: As staff, Staff page > Chat: bans list as before, the column fills from the hub.
+test: Refresh reads both again; an older hub: the column says it is reading, bans still list.
+note: Needs hub PR SJK-hub-shared#24 deployed.
+
 [collection-text-fit]
 area: Menus & settings
 title: Collection text fits text size and letter spacing (Kushina, PR #408)
@@ -4996,6 +5005,14 @@ test: Fire in third person, then zoomed in: the beam starts at the gun, not wher
 
 # ---- Audio ----
 
+[female-voice-missing-model]
+area: Audio
+title: Female voice for a player whose model is missing (Slash, PR #418, hub #312)
+change: No sounds.cfg for a missing model: the player's ds gender picks generic female or male.
+test: cg_defaultModelRandom 1, a female player with a model you lack: female pain/taunt sounds.
+test: The same with the setting off (Kyle stand-in): her voice is female too, as in EJK.
+test: A male player with a missing model still speaks with the male voice.
+
 [saber-toggle-spam]
 area: Audio
 title: Saber on/off spam is capped to 4 sounds, then one per half second
@@ -5066,6 +5083,14 @@ test: s_language francais, snd_restart: taunts and the bots' pain and death voic
 test: s_language english, snd_restart: they are English again.
 
 # ---- Gameplay ----
+
+[mining-rarer-of-two]
+area: Gameplay
+title: Mining: a clean strike gives the rarer of two ores (Slash, PR #414, hub #286)
+change: With a clean strike a second ore is drawn and the rarer comes out; iron still drops.
+change: The Heart's odds and pity are unchanged; no clean strike, nothing changes.
+test: Mine boulders hitting the glint every time: iron still turns up now and then.
+test: Prospector (mine_kinds) can reach 9/9 for a player who always strikes clean.
 
 [duel-modes]
 area: Gameplay
@@ -10093,3 +10118,11 @@ area: Menus & settings
 title: Credits count the pull requests of older merge names (#403)
 change: Merges named "Merge PR #N (Author): title" or "Merge PR #N" count as pull requests.
 test: Main menu > Credits: Slash's card shows 138 pull requests, Sol's 32.
+
+[npc-loading-no-kyle]
+area: Rendering & effects
+title: A loading NPC or vehicle no longer flashes as an unarmed Kyle (Slash, PR #415, Lex)
+change: While an NPC's model loads on the worker it is drawn as nothing, not the Kyle stand-in.
+change: An NPC whose model failed to load still shows the stand-in.
+test: Kill tauntauns where they respawn: no Kyle appears before the next one.
+test: devmap, npc spawn reborn and a vehicle from the spawn list: no Kyle for a moment.

@@ -160,6 +160,8 @@ struct Sinks<'a> {
     team_outline: crate::hud::team_outline::Groups,
     /// Why each player's talk balloon is up, where known (`status_balloons.rs`).
     status_balloons: crate::status_balloons::Shown,
+    /// Appearances whose model failed to load: their NPCs keep the Kyle stand-in.
+    npc_failed: &'a std::collections::BTreeSet<Appearance>,
 }
 
 /// Submit all presented actor-like entities without allocating frame storage.
@@ -451,6 +453,7 @@ pub(crate) fn submit(
         card_outline: gpu.hud.card.outline().map(|(client, _)| client),
         team_outline: gpu.hud.team_outline.groups(),
         status_balloons,
+        npc_failed: &gpu.clientinfo_watch.failed,
     };
     let thrown = snapshot
         .zip(game_state)
@@ -574,25 +577,34 @@ fn submit_actor(
         transform.translation = translation;
         transform.rotation = rotation;
     }
-    let mesh = sinks
-        .actor_meshes
-        .iter()
-        .position(|mesh| mesh.entity_id == Some(entity.id))
-        .or_else(|| {
-            (entity.kind != EntityKind::Corpse)
-                .then_some(fallback_mesh)
-                .flatten()
-        });
-    transform.rotation = actor_pose::world_rotation(
-        mesh.and_then(|index| sinks.actor_meshes.get(index)),
-        transform.rotation,
-    );
     let state = snapshot.and_then(|snapshot| {
         snapshot
             .entities
             .iter()
             .find(|state| u64::from(state.number()) + 1 == entity.id.get())
     });
+    let own_mesh = sinks
+        .actor_meshes
+        .iter()
+        .position(|mesh| mesh.entity_id == Some(entity.id));
+    // An NPC whose model is still loading shows nothing, not the Kyle stand-in.
+    if own_mesh.is_none()
+        && entity.kind == EntityKind::Actor
+        && state.is_some_and(|state| {
+            crate::npc_refresh::awaits_own_mesh(state, entity.appearance(), sinks.npc_failed)
+        })
+    {
+        return 0;
+    }
+    let mesh = own_mesh.or_else(|| {
+        (entity.kind != EntityKind::Corpse)
+            .then_some(fallback_mesh)
+            .flatten()
+    });
+    transform.rotation = actor_pose::world_rotation(
+        mesh.and_then(|index| sinks.actor_meshes.get(index)),
+        transform.rotation,
+    );
     crate::vehicle_pose::place(
         sinks.world,
         sinks.actor_meshes,
