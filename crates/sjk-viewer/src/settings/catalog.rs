@@ -1216,6 +1216,21 @@ pub(super) const GAME: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Tactical mode",
+        cvar: crate::tactical::CVAR,
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
+    },
+    Setting {
+        label: "Tactical model",
+        cvar: crate::tactical::MODEL_CVAR,
+        kind: ValueKind::Text,
+    },
+    Setting {
+        label: "Flat world",
+        cvar: crate::flat_world::CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Show everyone as my model",
         cvar: "cg_forceModel",
         kind: ValueKind::Bool,

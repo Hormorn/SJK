@@ -1017,6 +1017,35 @@ JKA_GAME_DATA="/path/to/GameData" cargo test --release -p sjk-viewer \
 `target/parity-reports/player-models/`; see
 [player_model_scan.rs](../crates/sjk-viewer/src/player_model_scan.rs).
 
+## Tactical mode
+
+`cg_tactical` (Sol, 11/11/2026; [tactical.rs](../crates/sjk-viewer/src/tactical.rs)) strips
+SJK's extras for a player who wants to fight, not look. It is off by default (the stock
+look); the `tactical [off|minimal|medium|max]` command, the Tactical mode row in Settings >
+Game options and the quick wheel's Tactical minimal, medium and max (each goes to its level,
+or off from it) set it. Each level holds the ones below it:
+
+| Level | What goes |
+| --- | --- |
+| Minimal (1) | Other players' emotes (playing ones end) and toys, as for a muted player but seen and heard otherwise; the toys' own "See ..." switches, tags, GIF tags, status balloons and holocron cards off; every unlock card in a game waits until Tactical is off |
+| Medium (2) | Also the Vanilla graphics preset, no weather, clouds, lightning, weather sounds or map fog (`r_drawfog 0`), every blade stock (`cg_stockBlades 2`), no finishers, Force Speed afterimages or toon shading |
+| Max (3) | Also the flat world (`r_flatWorld`), no server or shared remaps, and every other player drawn plain: in `cg_tacticalModel` (`kyle` by default, `model` or `model/skin`; a team game's red or blue kept), the default saber (the stock staff for a staff) in the default blue, without hat, cape or blade skin, as a [blocked player](hub-chat.md#blocking-a-player) is drawn, their names, chat and sounds untouched |
+
+The settings a level changes are put aside first, as `cvar=value` pairs in
+`cg_tacticalRestore`, and given back when the level drops, as `renderer vanilla` does: off
+leaves the player's settings as they were, and a profile saved at a level comes back at it
+with the originals still put aside. A setting changed by hand while Tactical holds it goes
+back when Tactical lets go. Some graphics settings take a graphics reload (`vid_restart`),
+remaps the next map; the rest is live.
+
+`r_flatWorld` ([flat_world.rs](../crates/sjk-viewer/src/flat_world.rs), also a switch of its
+own) draws each world surface in its texture's smallest mip, its average colour, under the
+map's own light, and stops each shader at its first later stage that is no lightmap, as
+`r_lightmap` does: no animated overlays, glows or shines; alpha still cuts grates and
+foliage. Textures uploaded without mips (`nomipmaps` shaders, the sky) keep their image.
+Models, effects and the HUD are untouched. JA+ emotes are the server's animations and still
+show.
+
 ## Hats and capes
 
 SJK wears JoF EJK's free-choice cosmetics

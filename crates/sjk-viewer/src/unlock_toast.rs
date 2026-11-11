@@ -1222,10 +1222,12 @@ impl crate::GpuState {
             .is_some_and(|session| session.latest_snapshot().player.duel_in_progress());
         let holocrons_in_duel =
             crate::holocron_popup::notification_mode(console) == crate::holocron_popup::ALWAYS;
+        // Tactical mode holds every card in a game until it is off (`tactical.rs`).
+        let tactical = self.live_session.is_some() && crate::tactical::hides_fun();
         if !self.unlock_toast.update_holding(
             now,
             may_show(covered, console_open, away),
-            |unlock| held_in_duel(unlock, in_duel, holocrons_in_duel),
+            |unlock| tactical || held_in_duel(unlock, in_duel, holocrons_in_duel),
             sound,
         ) {
             return false;

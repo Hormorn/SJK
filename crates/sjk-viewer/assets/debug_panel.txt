@@ -5014,6 +5014,21 @@ test: s_language english, snd_restart: they are English again.
 
 # ---- Gameplay ----
 
+[tactical-mode]
+area: Gameplay
+title: Tactical mode: minimal, medium, max (tactical, cg_tactical)
+change: Minimal: no emotes, toys, tags, status balloons or unlock cards from others.
+change: Medium: also Vanilla graphics, no weather or fog, stock blades, no finishers.
+change: Max: also a flat world (r_flatWorld), no remaps, others in cg_tacticalModel, blue saber.
+test: Note a few settings (cg_stockBlades, r_weatherFog, graphics preset); tactical max.
+test: The map shows in flat colours under its light; no scrolling or glowing overlays.
+test: Others are Kyle with a blue single saber, no hats, capes or blade skins; teams red/blue.
+test: Others' emotes and toys do not show; a holocron card waits until tactical off.
+test: cg_tacticalModel jedi_hm: others become jedi_hm at once; chat and sounds unchanged.
+test: tactical medium: the world is textured again, blades stay stock; vid_restart if asked.
+test: tactical off: every noted setting is back as it was; restart keeps a level set before.
+test: Settings > Game options: Tactical mode row; quick wheel: Tactical minimal/medium/max.
+
 [fast-join-load]
 area: Gameplay
 title: Faster joins: no 3 s JA+ wait, players load after the map, less main-thread work

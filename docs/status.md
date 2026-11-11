@@ -1,3 +1,19 @@
+## Tactical mode (11/11/2026)
+
+11/11/2026, `personal/tactical` based on `main` `6176b0658` (Sol: "a Tactical mode that has a
+few levels: minimal: no emotes, no notifications, no toys ... medium: graphics lowered, remove
+weather and fog, no saber shaders ... max: replace map textures with stock textures, no
+shaders, everyone is a default model they can set, with blue kyle saber"; Sol chose the flat
+competitive look for Max and pop-ups only for notifications). `cg_tactical` 0-3, the
+`tactical` command, a Settings row and three quick-wheel actions; the settings each level
+changes are put aside in `cg_tacticalRestore` and given back; others' emotes and toys pass
+through the muted-player gates, unlock cards wait, and Max draws others plain through the
+muted players' stand-in path with `cg_tacticalModel`, and the world through the new
+`r_flatWorld` ([client.md](client.md#tactical-mode)). Verified: `cargo test -p sjk-viewer`
+(levels, give-back, restart, model names, plain slots, the shader programs validate with the
+flat samples, settings rows, wheel). Not verified: nothing was run in the client: the flat
+world's look, the plain players and the held cards are unseen.
+
 ## Faster joins on JA+ servers (11/11/2026)
 
 11/11/2026, `personal/fast-join` based on `main` `b6e4d618e` (Sol: "often it seems player is

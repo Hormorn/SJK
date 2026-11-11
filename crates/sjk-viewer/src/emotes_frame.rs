@@ -116,7 +116,7 @@ impl GpuState {
             }
             // Hidden here (`sjkemote mute`), or the player is blocked on this PC.
             if state.muted.contains_key(&emote.key_id)
-                || self.muted_players.contains(u16::from(emote.slot))
+                || self.muted_players.hides_fun(u16::from(emote.slot))
             {
                 continue;
             }
@@ -180,8 +180,14 @@ impl GpuState {
                 console.push_log(format!("* {}^7: {name}", shown.unwrap_or_default()));
             }
         }
-        // A player blocked while an emote of theirs plays: it ends here.
+        // A player blocked while an emote of theirs plays: it ends here; at Tactical
+        // Minimal and up every other player's does (`tactical.rs`).
         let mut blocked = self.muted_players.slots().muted;
+        if crate::tactical::hides_fun() {
+            blocked |= own
+                .filter(|own| *own < 32)
+                .map_or(u32::MAX, |own| !(1u32 << own));
+        }
         while blocked != 0 {
             let slot = blocked.trailing_zeros() as u8;
             blocked &= blocked - 1;

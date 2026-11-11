@@ -252,10 +252,16 @@ impl GpuState {
                 forcing::team(game_state, client),
             );
             // A player muted on this PC is drawn as Kyle with the default saber
-            // (`muted_players.rs`), whatever else forces a model.
+            // (`muted_players.rs`), whatever else forces a model; at Tactical Max every
+            // other player is drawn so too, in the Tactical model (`tactical.rs`).
             let muted = self.muted_players.contains(client);
+            let plain = muted || self.muted_players.drawn_plain(client);
+            let tactical_model =
+                (plain && !muted).then(|| crate::tactical::model(self.console.as_ref()));
             let model = if muted {
                 Some(crate::muted_players::MODEL)
+            } else if let Some(model) = &tactical_model {
+                Some(model.as_str())
             } else {
                 override_model.as_deref().or(forced)
             };
@@ -279,12 +285,16 @@ impl GpuState {
             if i32::from(client) == game_state.client_num {
                 forcing::sabers(&mut names, &self.clientinfo_watch.overrides[2]);
             }
-            if muted {
+            if plain {
                 let hilts = self.saber_hilts.as_ref();
                 crate::muted_players::sabers(&mut names, |name| {
                     hilts.is_some_and(|catalog| catalog.is_staff(name))
                 });
-                (crate::muted_players::appearance(&appearance), names, body)
+                let appearance = match &tactical_model {
+                    Some(model) => crate::muted_players::tactical_appearance(&appearance, model),
+                    None => crate::muted_players::appearance(&appearance),
+                };
+                (appearance, names, body)
             } else {
                 (appearance, names, body)
             }

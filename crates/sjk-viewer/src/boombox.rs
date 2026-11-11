@@ -1099,7 +1099,7 @@ impl GpuState {
                     && Some(event.slot) != own
                     && usize::from(event.slot) < SLOTS
                     && verified & 1 << event.slot != 0
-                    && !self.muted_players.contains(u16::from(event.slot))
+                    && !self.muted_players.hides_fun(u16::from(event.slot))
                     && crate::player_identity::shown_name(game_state, usize::from(event.slot))
                         .is_some_and(|shown| sjk_identity::names_match(&event.claimed_name, &shown))
             })
@@ -1119,7 +1119,7 @@ impl GpuState {
         // here: their track stops and their box goes.
         let sjk = self.looks.sjk_slots();
         for slot in 0..SLOTS {
-            if (verified & sjk) & 1 << slot == 0 || self.muted_players.contains(slot as u16) {
+            if (verified & sjk) & 1 << slot == 0 || self.muted_players.hides_fun(slot as u16) {
                 self.boombox.heard[slot] = None;
                 self.boombox.boxes[slot] = None;
             }

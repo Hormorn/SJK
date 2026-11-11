@@ -502,8 +502,8 @@ pub(crate) fn renderer_command(
 
 /// Whether `cvar` holds `value`: numbers compare as numbers ("1.0" holds "1"), a typed
 /// cvar by its own value, without writing it out as text (the low-FPS help asks
-/// while a map plays).
-fn holds(console: &ViewerConsole, cvar: &str, value: &str) -> bool {
+/// while a map plays; Tactical mode's start, `tactical.rs`).
+pub(crate) fn holds(console: &ViewerConsole, cvar: &str, value: &str) -> bool {
     use sjk_shell::CvarValue;
     let wanted = value.parse::<f64>().ok();
     let near = |current: f64| wanted.is_some_and(|value| (current - value).abs() < 1e-6);
@@ -554,8 +554,8 @@ pub(crate) fn recommend_command(console: &mut ViewerConsole) -> Result<Vec<Strin
     command(console, &["recommended".to_owned()])
 }
 
-/// The cvars `level` sets, for measurements that build a client at a preset.
-#[cfg(test)]
+/// The cvars `level` sets: for measurements that build a client at a preset, and
+/// Tactical mode's Medium (`tactical.rs`).
 pub(crate) fn preset_cvars(level: Level) -> Vec<(&'static str, &'static str)> {
     VALUES
         .iter()

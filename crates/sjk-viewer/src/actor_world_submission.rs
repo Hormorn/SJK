@@ -360,7 +360,7 @@ pub(crate) fn submit(
                 .as_ref()
                 .and_then(|c| c.integer_cvar("cp_plugindisable"))
                 .unwrap_or(i64::from(sjk_client::PLUGIN_DISABLE_DEFAULT)),
-            gpu.muted_players.slots().muted,
+            gpu.muted_players.plain(),
         ),
         saber_core: crate::saber_core::read(gpu.console.as_ref()),
         particle_atlas: &gpu.particle_atlas,
@@ -438,7 +438,7 @@ pub(crate) fn submit(
                 .as_ref()
                 .and_then(|_| gpu.local_prediction.predicted_state()),
         ),
-        muted: gpu.muted_players.slots().muted,
+        muted: gpu.muted_players.plain(),
         toon_slots: if gpu.context.dynamic_light_settings.toon_models() {
             crate::toon_choice::slots(&gpu.looks)
         } else {
@@ -838,7 +838,8 @@ fn submit_actor(
             held
         });
     }
-    // A player muted on this PC, or their body, has the default blade colour.
+    // A player muted on this PC, or drawn plain at Tactical Max, or their body, has the
+    // default blade colour.
     let client = match mesh.and_then(|index| sinks.actor_meshes[index].body_identity.as_ref()) {
         Some(body) => u64::from(body.client_num) + 1,
         None if entity.kind == EntityKind::Actor => entity.id.get(),

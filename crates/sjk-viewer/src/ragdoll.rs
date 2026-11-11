@@ -879,7 +879,7 @@ impl GpuState {
                 seen && event.toy == TOY
                     && Some(event.slot) != own
                     && usize::from(event.slot) < SLOTS
-                    && !self.muted_players.contains(u16::from(event.slot))
+                    && !self.muted_players.hides_fun(u16::from(event.slot))
                     && crate::player_identity::shown_name(game_state, usize::from(event.slot))
                         .is_some_and(|shown| sjk_identity::names_match(&event.claimed_name, &shown))
             })

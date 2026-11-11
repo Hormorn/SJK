@@ -802,7 +802,7 @@ impl GpuState {
             .filter(|event| {
                 event.toy == TOY
                     && Some(event.slot) != own
-                    && !self.muted_players.contains(u16::from(event.slot))
+                    && !self.muted_players.hides_fun(u16::from(event.slot))
                     && crate::player_identity::shown_name(game_state, usize::from(event.slot))
                         .is_some_and(|shown| sjk_identity::names_match(&event.claimed_name, &shown))
             })
@@ -821,7 +821,7 @@ impl GpuState {
         for event in toy_events {
             if event.toy != TOY
                 || Some(event.slot) == own
-                || self.muted_players.contains(u16::from(event.slot))
+                || self.muted_players.hides_fun(u16::from(event.slot))
                 || !crate::player_identity::shown_name(game_state, usize::from(event.slot))
                     .is_some_and(|shown| sjk_identity::names_match(&event.claimed_name, &shown))
             {
@@ -1269,7 +1269,7 @@ impl GpuState {
         let own = usize::try_from(session.game_state().client_num).ok();
         let mut origins = [None; SLOTS];
         for (slot, origin) in origins.iter_mut().enumerate() {
-            if self.hax.hacked[slot] <= now || self.muted_players.contains(slot as u16) {
+            if self.hax.hacked[slot] <= now || self.muted_players.hides_fun(slot as u16) {
                 continue;
             }
             *origin = if Some(slot) == own {

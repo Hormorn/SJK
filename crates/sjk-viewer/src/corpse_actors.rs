@@ -43,8 +43,9 @@ impl GpuState {
         mut body: sjk_client::BodyIdentity,
         time: i64,
     ) -> Result<(), Box<dyn Error>> {
-        // The body of a player muted on this PC looks as they did: Kyle, the default saber.
-        if self.muted_players.contains(u16::from(body.client_num)) {
+        // The body of a player muted on this PC, or drawn plain at Tactical Max, looks as
+        // they did: Kyle or the Tactical model, the default saber.
+        if self.muted_players.drawn_plain(u16::from(body.client_num)) {
             let hilts = self.saber_hilts.as_ref();
             crate::muted_players::sabers(&mut body.sabers, |name| {
                 hilts.is_some_and(|catalog| catalog.is_staff(name))
@@ -125,6 +126,11 @@ impl GpuState {
     pub(crate) fn body_appearance(&self, client: u16, own: &Appearance) -> Appearance {
         let appearance = if self.muted_players.contains(client) {
             crate::muted_players::appearance(own)
+        } else if self.muted_players.drawn_plain(client) {
+            crate::muted_players::tactical_appearance(
+                own,
+                &crate::tactical::model(self.console.as_ref()),
+            )
         } else {
             own.clone()
         };

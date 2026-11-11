@@ -1699,6 +1699,24 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Use your model for other players",
         ),
         CvarDefinition::new(
+            crate::tactical::CVAR,
+            0_i64,
+            archive,
+            "Tactical mode: 0 off, 1 minimal (no emotes, toys or pop-ups from others), 2              medium (also Vanilla graphics, no weather, fog or blade skins), 3 max (also a              flat world, others plain in cg_tacticalModel with a blue stock saber); your              settings come back when it drops",
+        ),
+        CvarDefinition::new(
+            crate::tactical::MODEL_CVAR,
+            crate::tactical::MODEL_DEFAULT,
+            archive,
+            "The model other players are drawn in at Tactical max: model or model/skin",
+        ),
+        CvarDefinition::new(
+            crate::tactical::RESTORE_CVAR,
+            "",
+            archive,
+            "What Tactical mode put aside, given back when it drops (written by Tactical)",
+        ),
+        CvarDefinition::new(
             "cg_crosshairSize",
             24.0_f64,
             archive,
