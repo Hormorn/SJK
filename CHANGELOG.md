@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
+
 ## 2026.1111.3 (Alpha) | 11/11/2026
 
 Eye adaptation gets a brightness choice, from Low to Cooked.
