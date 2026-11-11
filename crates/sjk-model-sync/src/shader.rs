@@ -56,3 +56,65 @@ fn tokens(text: &str) -> Result<Vec<&str>, String> {
     }
     Ok(tokens)
 }
+
+/// `text` with only the shaders whose names start with `prefix` (lower case), each
+/// with its comments before it; or why its braces do not add up.
+pub(crate) fn keep_own(text: &str, prefix: &str) -> Result<String, String> {
+    let mut kept = String::new();
+    let mut depth = 0usize;
+    // The start of the current top-level shader's text (after the last one's end).
+    let mut start = 0usize;
+    let mut own = false;
+    for (at, token) in spans(text)? {
+        match token {
+            "{" => depth += 1,
+            "}" => {
+                depth = depth
+                    .checked_sub(1)
+                    .ok_or_else(|| "a } closes nothing".to_owned())?;
+                if depth == 0 {
+                    let end = at + 1;
+                    if own {
+                        kept.push_str(text[start..end].trim_start_matches(['\r', '\n']));
+                        kept.push('\n');
+                    }
+                    start = end;
+                }
+            }
+            name if depth == 0 => own = name.to_ascii_lowercase().starts_with(prefix),
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        return Err("a { is never closed".into());
+    }
+    Ok(kept)
+}
+
+/// [`tokens`] with each token's byte offset.
+fn spans(text: &str) -> Result<Vec<(usize, &str)>, String> {
+    let base = text.as_ptr() as usize;
+    Ok(tokens(text)?
+        .into_iter()
+        .map(|token| (token.as_ptr() as usize - base, token))
+        .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_models_own_shaders_are_kept() {
+        let text = "// Krovos\nmodels/players/krovos/body\n{\n\tmap a // }\n}\n\n\
+                    models/players/krovos2/lashes\n{\n\t{ map b }\n}\n\
+                    models/players/krovos/eyes { map c }\n";
+        let kept = keep_own(text, "models/players/krovos/").unwrap();
+        assert_eq!(
+            names(&kept).unwrap(),
+            ["models/players/krovos/body", "models/players/krovos/eyes"]
+        );
+        assert!(kept.contains("// Krovos") && !kept.contains("lashes"));
+        assert!(keep_own("a {", "a").is_err());
+    }
+}

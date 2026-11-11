@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Model sync takes rig models (your own models with an Unreal-style skeleton, `sjk_rig.cfg` with its glTF): sharing one asks you to confirm it is yours or its author lets you share it. More community packs pass: up to 512 files, file names with spaces and brackets, and a shader file that also defines other models' shaders keeps only the model's own _(Sol)_
+
 ## 2026.1111.4 (Alpha) | 11/11/2026
 
 Share your skins in game with model sync, Tactical mode for a clean fight, playstyle badges and faster joins.

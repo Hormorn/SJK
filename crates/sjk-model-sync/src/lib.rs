@@ -4,7 +4,9 @@
 //! The same [`check`] runs in three places: the client before it sends a pack, the
 //! Sith cloud before it publishes one, and the client again before it loads a
 //! download. A pack holds one model, `models/players/<name>/`, and at most its
-//! `shaders/<name>.shader`; any rule broken refuses the whole pack.
+//! `shaders/<name>.shader`; any rule broken refuses the whole pack. The model is a
+//! stock one (a `.glm`) or a rig model (`sjk_rig.cfg` with its glTF: players' own
+//! models with an Unreal-style skeleton, docs/rig-models.md).
 
 #[cfg(feature = "client")]
 pub mod client;
@@ -31,23 +33,30 @@ pub struct Limits {
     pub texture_side: u32,
     /// Every texture as RGBA (width * height * 4), together.
     pub texture_rgba_bytes: u64,
-    /// Every GLM's vertices over all its LODs, together.
+    /// Every GLM's vertices over all its LODs, and every glTF's, together.
     pub glm_vertices: usize,
-    /// A `.skin` or `.shader` file.
+    /// A `.skin`, `.shader` or `sjk_rig*.cfg` file.
     pub text_bytes: u64,
+    /// A `.gltf` file (its JSON; the `.bin` buffers count in the unpacked size).
+    pub gltf_bytes: u64,
 }
 
 impl Limits {
     /// The limits the Sith cloud and SJK use (docs/model-sync.md, "Limits").
     pub const DEFAULT: Self = Self {
         pk3_bytes: 25 * 1024 * 1024,
-        unpacked_bytes: 64 * 1024 * 1024,
-        max_ratio: 40,
-        files: 128,
+        unpacked_bytes: 128 * 1024 * 1024,
+        // Bombs are held by the sizes above; this only catches an entry that claims a
+        // little and unpacks to a lot (a mostly black JPEG reaches 60, 11/11/2026).
+        max_ratio: 200,
+        // The Sith cloud's packs: a model with its variants' skins and textures reaches
+        // 300 files (`jedi_sithspanki`, 11/11/2026).
+        files: 512,
         texture_side: 4096,
         texture_rgba_bytes: 256 * 1024 * 1024,
-        glm_vertices: 200_000,
-        text_bytes: 64 * 1024,
+        glm_vertices: 300_000,
+        text_bytes: 256 * 1024,
+        gltf_bytes: 16 * 1024 * 1024,
     };
 
     /// Entries this small are not held to [`Limits::max_ratio`]: text and blank
@@ -110,7 +119,9 @@ impl fmt::Display for Rejection {
             Self::ForeignShader(name) => {
                 write!(f, "the shader file defines {name}, outside the model")
             }
-            Self::NoModel => f.write_str("the pack has no .glm model"),
+            Self::NoModel => {
+                f.write_str("the pack has no model: a model.glm, or sjk_rig.cfg with its glTF")
+            }
         }
     }
 }
@@ -124,6 +135,8 @@ pub struct Checked {
     pub name: String,
     /// Each file and its unpacked size, sorted by path.
     pub files: Vec<(String, u64)>,
+    /// A rig model (`sjk_rig.cfg`), not a stock `.glm` one.
+    pub rig: bool,
     /// MD5 (hex) of the content, independent of how the PK3 was packed: the sorted
     /// paths with their sizes and bytes. Two packs of the same files share it, so
     /// the Sith cloud links an upload it already has instead of storing it again.
@@ -240,6 +253,8 @@ pub fn check_files(
     let mut rgba = 0u64;
     let mut vertices = 0usize;
     let mut has_glm = false;
+    let mut has_rig = false;
+    let mut has_gltf = false;
     for (path, bytes) in &files {
         let broken = |why: String| Rejection::Broken {
             path: path.clone(),
@@ -276,6 +291,28 @@ pub fn check_files(
                 has_glm = true;
             }
             "skin" => check_text(path, bytes, limits)?,
+            "cfg" if is_rig_manifest(&path[folder.len()..]) => {
+                check_text(path, bytes, limits)?;
+                has_rig |= &path[folder.len()..] == RIG_MANIFEST;
+            }
+            kind @ ("gltf" | "glb") => {
+                if kind == "gltf" && bytes.len() as u64 > limits.gltf_bytes {
+                    return Err(Rejection::TooLarge {
+                        what: "a .gltf file",
+                        limit: limits.gltf_bytes,
+                    });
+                }
+                vertices += gltf_vertices(path, bytes, &files).map_err(broken)?;
+                has_gltf = true;
+                if vertices > limits.glm_vertices {
+                    return Err(Rejection::TooLarge {
+                        what: "the model's vertex count",
+                        limit: limits.glm_vertices as u64,
+                    });
+                }
+            }
+            // A glTF's buffers, read through the .gltf that names them.
+            "bin" => {}
             kind @ ("tga" | "jpg" | "png") => {
                 let (width, height) = image::size(kind, bytes).map_err(|why| broken(why.into()))?;
                 if width.max(height) > limits.texture_side {
@@ -295,7 +332,7 @@ pub fn check_files(
             _ => return Err(Rejection::FileType(path.clone())),
         }
     }
-    if !has_glm {
+    if !has_glm && !(has_rig && has_gltf) {
         return Err(Rejection::NoModel);
     }
     let mut md5 = Md5::new();
@@ -306,6 +343,7 @@ pub fn check_files(
         md5.update(bytes);
     }
     Ok(Checked {
+        rig: has_rig,
         name,
         files: files
             .iter()
@@ -319,21 +357,64 @@ pub fn check_files(
     })
 }
 
-/// A path the game would read as written: lowercase ASCII, `/`-separated, relative,
-/// no `.` or `..` part and no empty one (a trailing `/` marks a folder).
+/// A rig model's manifest, which makes its folder a rig model (docs/rig-models.md).
+pub const RIG_MANIFEST: &str = "sjk_rig.cfg";
+
+/// `sjk_rig.cfg` or a variant's `sjk_rig_<variant>.cfg`, directly in the folder.
+fn is_rig_manifest(file: &str) -> bool {
+    file == RIG_MANIFEST
+        || file
+            .strip_prefix("sjk_rig_")
+            .and_then(|rest| rest.strip_suffix(".cfg"))
+            .is_some_and(|variant| !variant.is_empty() && !variant.contains('/'))
+}
+
+/// The vertices of the glTF at `path`, read by the game's own reader; its buffers
+/// must be files of the pack beside it (`files` is sorted by path).
+fn gltf_vertices(path: &str, bytes: &[u8], files: &[(String, Vec<u8>)]) -> Result<usize, String> {
+    let directory = &path[..path.rfind('/').map_or(0, |at| at + 1)];
+    let model = sjk_model::gltf::parse(bytes, |uri| {
+        let uri = uri.to_ascii_lowercase();
+        if uri.contains(['/', '\\']) || uri.starts_with('.') {
+            return None;
+        }
+        let wanted = format!("{directory}{uri}");
+        files
+            .binary_search_by(|(known, _)| known.as_str().cmp(&wanted))
+            .ok()
+            .map(|at| files[at].1.clone())
+    })
+    .map_err(|e| e.0)?;
+    Ok(model
+        .primitives
+        .iter()
+        .map(|primitive| primitive.positions.len())
+        .sum())
+}
+
+/// A path the game would read as written: lowercase printable ASCII (spaces and
+/// brackets too, as community packs name textures, but none of the characters Windows
+/// refuses in a file name), `/`-separated, relative, no `.` or `..` part, no empty one
+/// and none starting or ending with a space (a trailing `/` marks a folder). Paths are
+/// only ever names inside the stored PK3, never written to a disk as they are.
 fn check_path(path: &str) -> Result<(), Rejection> {
     let bad = || Rejection::BadPath(path.to_owned());
     let allowed = |b: u8| {
-        b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-' | b'.' | b'/')
+        (b' '..=b'~').contains(&b)
+            && !b.is_ascii_uppercase()
+            && !matches!(b, b'\\' | b':' | b'*' | b'?' | b'"' | b'<' | b'>' | b'|')
     };
     if path.is_empty() || path.len() > 160 || !path.bytes().all(allowed) {
         return Err(bad());
     }
     let parts = path.strip_suffix('/').unwrap_or(path);
-    if parts
-        .split('/')
-        .any(|part| part.is_empty() || part == "." || part == "..")
-    {
+    if parts.split('/').any(|part| {
+        part.is_empty()
+            || part == "."
+            || part == ".."
+            || part.starts_with(' ')
+            || part.ends_with(' ')
+    }) {
         return Err(bad());
     }
     Ok(())
