@@ -298,7 +298,10 @@ includes:
   extras on the same card, and the SJK hub naming both collections' servers so they
   can move or be switched off without a release; and their automatic updates
   (`jof.contentAuto`, `sith.cloudAuto`, 31/10/2026), opt in, at start and every hour
-  for the groups the player marks Auto;
+  for the groups the player marks Auto; and model sync (`sharemodel`, `getmodel`,
+  `cl_autoModels`, 11/11/2026), JoF- and Sith-verified players sharing the model they
+  wear through the Sith cloud, checked on both sides, with Krovos running the Sith
+  cloud side;
 - the News panel (`news`, 31/10/2026): release recaps and the SJK team's announcements in
   one panel, with links into the UI only the SJK team writes, pictures and switches, and
   announcing open to every staff member;

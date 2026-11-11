@@ -154,6 +154,7 @@ did: Client mods: JA+ tools (admin teleports after JoF EJK) and JoF tools, loade
 did: JoF content: JoF's maps, skins, hilts and packs from JoF's repository, opt in, after JoF's launcher
 did: The Sith cloud on the same card, with the SJK hub naming both collections' servers
 did: Automatic updates for JoF content and the Sith cloud: opt in, hourly, for the groups you mark
+did: Model sync: JoF and Sith verified players share their model through the Sith cloud (Krovos)
 did: The News panel: release recaps and announcements in one, with links into the game, pictures and switches
 did: Sharp tags drawn in a pass of their own, Holo and Solar tags, and the credits cards as tags
 did: GIF tags: a blank tag spent once on a GIPHY GIF that plays on walls, opt in
