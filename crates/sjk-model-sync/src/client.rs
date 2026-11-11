@@ -387,11 +387,11 @@ mod tests {
             refused.to_string(),
             "refused: a.dll: this kind of file is not allowed"
         );
-        let host = CloudError {
-            code: "host_pack".into(),
+        let limited = CloudError {
+            code: "rate_limited".into(),
             why: String::new(),
         };
-        assert!(host.to_string().contains("own packs"));
+        assert!(limited.to_string().contains("too many uploads"));
     }
 
     #[test]
