@@ -1425,6 +1425,10 @@ const HELP: &[(&str, &str)] = &[
         "Off by default. With the Sith cloud on, checks at start and every hour and fetches what changed in the groups marked Auto.",
     ),
     (
+        "modelsync",
+        "Share your models on the Sith cloud (JoF and Sith verified) and get the ones others shared. Enter opens the page.",
+    ),
+    (
         "cl_autoModels",
         "Off by default. Downloads the models other players shared through the Sith cloud for the players you meet, and their updates.",
     ),

@@ -1156,6 +1156,13 @@ impl crate::GpuState {
                 self.sync_cursor_policy();
             }
             #[cfg(feature = "mod-jof")]
+            crate::model_sync::PAGE => {
+                if let Some(console) = &mut self.console {
+                    console.toggle_model_sync(&self.game_data);
+                }
+                self.sync_cursor_policy();
+            }
+            #[cfg(feature = "mod-jof")]
             crate::model_sync::GET | crate::model_sync::SHARE | crate::model_sync::ROLLBACK => {
                 let Some(console) = self.console.as_ref() else {
                     return Ok(Vec::new());

@@ -27,7 +27,13 @@ pub(crate) const AUTO: &str = "cl_autoModels";
 pub(crate) const GET: &str = "getmodel";
 pub(crate) const SHARE: &str = "sharemodel";
 pub(crate) const ROLLBACK: &str = "modelrollback";
+/// Opens the Model sync page (`console_model_sync.rs`).
+pub(crate) const PAGE: &str = "modelsync";
 pub(crate) const COMMANDS: &[(&str, &str)] = &[
+    (
+        PAGE,
+        "Open the Model sync page: share your models through the Sith cloud and download the ones others shared",
+    ),
     (
         GET,
         "Download a player model other players shared through the Sith cloud: getmodel <name>",
@@ -288,6 +294,9 @@ struct State {
     recent: Vec<String>,
     /// Jobs sent and not answered yet.
     pending: usize,
+    /// Bumped whenever something the page shows may have changed (a line said, a job
+    /// answered), so it reads its rows again only then.
+    changes: u64,
 }
 
 static STATE: Mutex<State> = Mutex::new(State {
@@ -300,6 +309,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     index: None,
     recent: Vec::new(),
     pending: 0,
+    changes: 0,
 });
 
 fn lock() -> std::sync::MutexGuard<'static, State> {
@@ -329,6 +339,7 @@ impl State {
         });
         if jobs.send((job, place)).is_ok() {
             self.pending += 1;
+            self.changes += 1;
         }
     }
 
@@ -337,11 +348,30 @@ impl State {
             self.recent.remove(0);
         }
         self.recent.push(line.to_owned());
+        self.changes += 1;
     }
 }
 
-/// `getmodel`, `sharemodel` and `modelrollback`; lines for the console.
+/// `getmodel`, `sharemodel` and `modelrollback`; lines for the console, which the
+/// Model sync page shows too ([`recent_lines`]).
 pub(crate) fn command(
+    name: &str,
+    args: &[String],
+    console: &ViewerConsole,
+    game_data: &Path,
+    vfs: Option<&sjk_vfs::VirtualFileSystem>,
+    worn: Option<String>,
+) -> Result<Vec<String>, String> {
+    let result = run_command(name, args, console, game_data, vfs, worn);
+    let mut state = lock();
+    match &result {
+        Ok(lines) => lines.iter().for_each(|line| state.say(line)),
+        Err(why) => state.say(&format!("^3Model sync: {why}.")),
+    }
+    result
+}
+
+fn run_command(
     name: &str,
     args: &[String],
     console: &ViewerConsole,
@@ -501,6 +531,7 @@ pub(crate) fn update(
     }
     for done in answers {
         state.pending = state.pending.saturating_sub(1);
+        state.changes += 1;
         if done.index.is_some() {
             state.index = done.index;
         }
@@ -640,6 +671,98 @@ pub(crate) fn page_rows(game_data: &Path, worn: Option<&str>) -> Vec<PageRow> {
         .collect();
     rows.sort_by(|a, b| b.worn.cmp(&a.worn).then_with(|| a.name.cmp(&b.name)));
     rows
+}
+
+/// What the Model sync page offers for a row: a button, and the console command it
+/// queues (`<command> <name>`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RowAction {
+    /// Upload a model nobody shared yet.
+    Share,
+    /// Upload a newer version of one already on the Sith cloud, or over the hosts'
+    /// pack that holds its name.
+    Update,
+    /// Fetch the cloud's version.
+    Download,
+}
+
+impl RowAction {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Share => "Share",
+            Self::Update => "Update",
+            Self::Download => "Download",
+        }
+    }
+
+    /// The console command that does it.
+    pub(crate) fn command(self) -> &'static str {
+        match self {
+            Self::Share | Self::Update => SHARE,
+            Self::Download => GET,
+        }
+    }
+}
+
+impl PageRow {
+    /// The row's buttons: Share or Update for a model the game has, when the player may
+    /// share (`can_share`, [`can_share`]); Download when the cloud has a version this
+    /// game lacks (not installed, an older fetched one, or only the hosts' pack's).
+    pub(crate) fn actions(&self, can_share: bool) -> [Option<RowAction>; 2] {
+        let upload =
+            (can_share && self.installed).then_some(if self.cloud.is_some() || self.host_pack {
+                RowAction::Update
+            } else {
+                RowAction::Share
+            });
+        let download = self.cloud.is_some_and(|cloud| {
+            !self.installed
+                || self.fetched.is_some_and(|fetched| fetched < cloud)
+                || (self.host_pack && self.fetched.is_none())
+        });
+        [upload, download.then_some(RowAction::Download)]
+    }
+
+    /// Where the model stands, in a few words (`has_index`: the cloud's list was read).
+    pub(crate) fn status(&self, has_index: bool) -> String {
+        match (self.cloud, self.fetched) {
+            (Some(cloud), Some(fetched)) if fetched >= cloud => format!("Downloaded v{fetched}"),
+            (Some(cloud), Some(fetched)) => format!("Downloaded v{fetched}, v{cloud} on the cloud"),
+            (Some(cloud), None) if self.host_pack => {
+                format!("On the cloud: v{cloud}, over the hosts' pack")
+            }
+            (Some(cloud), None) => format!("On the cloud: v{cloud}"),
+            (None, _) if self.host_pack => "In the Sith cloud's packs".to_owned(),
+            (None, Some(fetched)) => format!("Downloaded v{fetched}"),
+            (None, None) if has_index => "Not shared".to_owned(),
+            (None, None) => "Not checked yet".to_owned(),
+        }
+    }
+}
+
+/// Whether the player may share models: the SJK identity on (`identity_on`, its
+/// `cl_identity`) and online, verified with a JoF or Sith tick, or staff. The same test
+/// as the Profile page's Share my model.
+pub(crate) fn can_share(identity_on: bool) -> bool {
+    identity_on
+        && crate::player_identity::with_snapshot(|snapshot| {
+            snapshot.status == sjk_identity::Status::Online
+                && snapshot.me.as_ref().is_some_and(|me| {
+                    me.verified
+                        && (me.staff
+                            || matches!(
+                                me.tick,
+                                sjk_identity::Tick::Jof | sjk_identity::Tick::Sith
+                            ))
+                })
+        })
+        .unwrap_or(false)
+}
+
+/// A number that changes whenever what the page shows may have (a line said, a job
+/// sent or answered).
+pub(crate) fn changes() -> u64 {
+    lock().changes
 }
 
 /// Ask the Sith cloud for its list again (the page asks when it opens).

@@ -45,6 +45,9 @@ mod console_debug_panel;
 mod console_identity_page;
 #[path = "console_import.rs"]
 mod console_import;
+#[cfg(feature = "mod-jof")]
+#[path = "console_model_sync.rs"]
+mod console_model_sync;
 #[path = "console_model_viewer.rs"]
 mod console_model_viewer;
 #[path = "console_sjk_pages.rs"]
@@ -70,6 +73,9 @@ pub(crate) mod holocrons_panel;
 pub(crate) mod identity_panel;
 #[path = "console_mod_dialogue.rs"]
 mod mod_dialogue;
+#[cfg(feature = "mod-jof")]
+#[path = "model_sync_page.rs"]
+pub(crate) mod model_sync_page;
 #[path = "model_viewer.rs"]
 pub(crate) mod model_viewer;
 #[path = "model_viewer_scan.rs"]
@@ -229,6 +235,9 @@ pub(crate) struct ViewerConsole {
     /// The Sith cloud card (`sith.downloads`), the same card with its own words.
     #[cfg(feature = "mod-jof")]
     pub(crate) sith_cloud: crate::jof_content::card::Card,
+    /// The Model sync page (`modelsync`), drawn in place of the console while open.
+    #[cfg(feature = "mod-jof")]
+    model_sync_page: model_sync_page::Page,
     /// Personal test list of Sol's build, drawn in place of the console while open.
     debug_panel: debug_panel::Panel,
     /// The `spawn_panel` list of NPCs, vehicles and cheats, drawn in place of the console.
@@ -634,7 +643,7 @@ impl ViewerConsole {
     pub(crate) fn jof_content_open(&self) -> bool {
         #[cfg(feature = "mod-jof")]
         {
-            self.jof_content.open || self.sith_cloud.open
+            self.jof_content.open || self.sith_cloud.open || self.model_sync_page.is_open()
         }
         #[cfg(not(feature = "mod-jof"))]
         {

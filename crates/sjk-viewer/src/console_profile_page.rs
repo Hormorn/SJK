@@ -148,12 +148,14 @@ impl ViewerConsole {
         match action {
             PanelAction::None => {}
             PanelAction::Close => self.close_profile_panel(),
+            #[cfg(feature = "mod-jof")]
             PanelAction::ShareModel => {
-                // The console prints how it went (`model_sync::command`).
-                if let Err(why) = self.queue_command("sharemodel") {
-                    self.push_log(format!("^3Model sync: {why}"));
-                }
+                // The Model sync page, in the Profile page's place.
+                let owns_console = self.profile_panel.close();
+                self.queue_model_sync_page(owns_console);
             }
+            #[cfg(not(feature = "mod-jof"))]
+            PanelAction::ShareModel => {}
             PanelAction::Staff => {
                 let owns_console = self.profile_panel.close();
                 self.open_staff_panel();

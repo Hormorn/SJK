@@ -143,6 +143,9 @@ impl ViewerConsole {
     }
 
     pub(super) fn jof_content_key(&mut self, event: &KeyEvent) -> bool {
+        if self.model_sync_key(event) {
+            return true;
+        }
         let Some(cloud) = self.open_cloud() else {
             return false;
         };
@@ -152,6 +155,9 @@ impl ViewerConsole {
     }
 
     pub(super) fn jof_content_pointer(&mut self, event: sjk_ui::InputEvent) -> bool {
+        if self.model_sync_pointer(event) {
+            return true;
+        }
         let Some(cloud) = self.open_cloud() else {
             return false;
         };
@@ -162,6 +168,9 @@ impl ViewerConsole {
 
     /// The open content card's drawing, if one is open.
     pub(crate) fn content_draw_list(&self) -> Option<&sjk_ui::DrawList> {
+        if let Some(draw_list) = self.model_sync_draw_list() {
+            return Some(draw_list);
+        }
         match self.open_cloud()? {
             Cloud::Jof => Some(self.jof_content.draw_list()),
             Cloud::Sith => Some(self.sith_cloud.draw_list()),
@@ -222,9 +231,10 @@ impl ViewerConsole {
         None
     }
 
-    /// Close both content cards.
+    /// Close both content cards, and the Model sync page.
     pub(crate) fn close_content(&mut self) {
         self.jof_content.open = false;
         self.sith_cloud.open = false;
+        self.model_sync_page.close();
     }
 }

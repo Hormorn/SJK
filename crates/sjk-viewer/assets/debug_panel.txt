@@ -26,13 +26,18 @@
 
 [model-sync]
 area: Menus & settings
-title: Model sync: share your model through the Sith cloud
-change: Profile > Share my model (or sharemodel) uploads the model you wear (JoF/Sith ticks).
+title: Model sync: share your models through the Sith cloud, and its page
+change: Model sync page (modelsync, Settings > Mods, Profile > Share my model): every model,
+change: where it stands, Share/Update (JoF/Sith ticks) and Download; a search; recent lines.
 change: getmodel <name> downloads one; cl_autoModels fetches those of players you meet.
-change: Inspecting a player whose model you lack prints how to get it in the console.
-test: SJK UI Profile tab with a JoF or Sith tick: Share my model shows; press it.
-test: The console says packed, then shared (or why not); a gold/Jawa key gets "said no".
-test: On another PC: getmodel <name>, then the next map draws that model.
+test: modelsync: the page opens in the SJK UI look (also with classic menus); Esc closes it.
+test: Your models are listed, the worn one first with a gold Worn; type to filter the names.
+test: Up/Down choose a row, Tab/Left/Right move between buttons, Enter presses; wheel scrolls.
+test: With a JoF or Sith tick: Share on a model nobody shared; the lines say packed, shared.
+test: The row then says "On the cloud: v1" and offers Update; a gold/Jawa key sees no Share.
+test: A name from the hosts' packs says "In the Sith cloud's packs" and offers Update.
+test: On another PC: Download on that row, then the next map draws that model.
+test: Settings > Mods > Model sync opens the page; Profile > Share my model opens it too.
 test: cl_autoModels 1, meet a player wearing a shared model: it downloads by itself.
 note: Uploads need the new Sith cloud build with the hub key (Krovos); hub is deployed.
 
