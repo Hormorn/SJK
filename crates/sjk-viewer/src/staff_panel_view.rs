@@ -19,8 +19,10 @@
 //! - Achievements with Clear (and Clear all), in two columns;
 //! - Keys: their keys with Unlink and merging another player into them;
 //! - Logs: asking the player for their game's logs, the requests with Open;
-//! - Crashes and Chat bans, of every player: the crash reports by kind, then one
-//!   kind's with Open; the SJK chat bans in force, each with Lift;
+//! - Crashes and Chat, of every player: the crash reports by kind, then one kind's with
+//!   Open; the SJK chat bans in force, each with Lift, and beside them how chat
+//!   translation is used (players translating, lines, the month's characters against the
+//!   hub's budget, the languages; counts only, no one named);
 //! - My gifts: the staff member's own gifts of the last day, each with Undo, and how many
 //!   are left today.
 
@@ -1821,8 +1823,10 @@ impl Panel {
         );
     }
 
-    /// The Chat bans tab: every SJK chat ban in force, newest first, each with Lift.
+    /// The Chat tab: every SJK chat ban in force, newest first, each with Lift, and how
+    /// chat translation is used in the column beside them.
     fn chat_bans(&mut self, frame: &Frame, staff: &StaffState) {
+        self.translation(frame, staff);
         let s = frame.s;
         let mut y = SECTION_TOP + 6.0;
         kit::button(
@@ -1913,6 +1917,136 @@ impl Panel {
         }
     }
 
+    /// How chat translation is used, in the column right of the chat bans
+    /// (`POST /v1/staff/translation` of the hub): counts only, no one named.
+    fn translation(&mut self, frame: &Frame, staff: &StaffState) {
+        const X: f32 = MIDDLE_X + PANE_WIDTH + 44.0;
+        const WIDTH: f32 = RIGHT_X + RIGHT_WIDTH - X;
+        const ROW: f32 = 26.0;
+        let s = frame.s;
+        let mut y = SECTION_TOP + 10.0;
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("Chat translation"),
+            frame.rect(X, y, WIDTH, 30.0),
+            20.0 * s,
+            color::TEXT,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        y += 50.0;
+        let Some(stats) = staff.translation.as_ref() else {
+            self.column_line(frame, X, y, "Reading it from the hub...");
+            return;
+        };
+        let grouped = crate::cards::grouped;
+        let mut rows: Vec<(String, String)> = vec![
+            ("Players today".into(), grouped(stats.people.day)),
+            ("Players, 7 days".into(), grouped(stats.people.week)),
+            ("Players, 30 days".into(), grouped(stats.people.month)),
+            (
+                "Lines today".into(),
+                grouped(stats.day.sent + stats.day.cached),
+            ),
+            ("  from the cache".into(), grouped(stats.day.cached)),
+            (
+                "Refused today".into(),
+                grouped(stats.day.daily + stats.day.quota),
+            ),
+            ("Failed today".into(), grouped(stats.day.failed)),
+            (
+                format!("Hit {} a day, 30 days", stats.per_day),
+                grouped(stats.capped),
+            ),
+        ];
+        rows.push(match stats.budget {
+            Some(budget) => (
+                "Characters this month".into(),
+                format!(
+                    "{}%",
+                    stats
+                        .month_chars
+                        .saturating_mul(100)
+                        .checked_div(budget)
+                        .unwrap_or(0)
+                ),
+            ),
+            None => ("Translation".into(), "off at the hub".into()),
+        });
+        for (row, (label, value)) in rows.iter().enumerate() {
+            let row_y = y + row as f32 * ROW;
+            text(
+                &mut self.ui,
+                TextFamily::Body,
+                format_args!("{label}"),
+                frame.rect(X, row_y, WIDTH - 110.0, 24.0),
+                15.0 * s,
+                color::MUTED,
+                FontWeight::Regular,
+                TextAlign::Start,
+            );
+            text(
+                &mut self.ui,
+                TextFamily::Display,
+                format_args!("{value}"),
+                frame.rect(X + WIDTH - 140.0, row_y - 1.0, 140.0, 24.0),
+                17.0 * s,
+                color::TEXT,
+                FontWeight::Semibold,
+                TextAlign::End,
+            );
+        }
+        y += rows.len() as f32 * ROW + 6.0;
+        if let Some(budget) = stats.budget {
+            self.column_line(
+                frame,
+                X,
+                y,
+                &format!("{} of {}", grouped(stats.month_chars), grouped(budget)),
+            );
+            y += ROW;
+        }
+        y += 10.0;
+        let whole = stats
+            .languages
+            .iter()
+            .fold(0_u64, |sum, lang| sum.saturating_add(lang.lines));
+        let languages = if stats.languages.is_empty() {
+            "No line translated in 30 days.".to_owned()
+        } else {
+            stats
+                .languages
+                .iter()
+                .map(|lang| {
+                    format!(
+                        "{} {}%",
+                        lang.lang,
+                        lang.lines
+                            .saturating_mul(100)
+                            .checked_div(whole)
+                            .unwrap_or(0)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        text(
+            &mut self.ui,
+            TextFamily::Display,
+            format_args!("From, 30 days"),
+            frame.rect(X, y, WIDTH, 24.0),
+            16.0 * s,
+            color::TEXT,
+            FontWeight::Semibold,
+            TextAlign::Start,
+        );
+        y += 28.0;
+        for (row, part) in wrap(&languages, 34).enumerate().take(4) {
+            self.column_line(frame, X, y + row as f32 * 22.0, part);
+        }
+    }
+
     /// One line of quiet text in a column at `x`, `y`.
     fn column_line(&mut self, frame: &Frame, x: f32, y: f32, line: &str) {
         text(
@@ -1964,10 +2098,10 @@ impl Panel {
             ("Keys", 66.0, View::Keys, KEYS_TAB_TOKEN),
             ("Logs", 66.0, View::Logs, LOGS_TAB_TOKEN),
             ("Crashes", 96.0, View::Crashes, CRASHES_TAB_TOKEN),
-            ("Chat bans", 104.0, View::ChatBans, CHAT_BANS_TAB_TOKEN),
+            ("Chat", 104.0, View::ChatBans, CHAT_BANS_TAB_TOKEN),
             ("My gifts", 96.0, View::Gifts, GIFTS_TAB_TOKEN),
         ] {
-            // Crashes, Chat bans and My gifts are not the chosen player's: a gap sets
+            // Crashes, Chat and My gifts are not the chosen player's: a gap sets
             // them apart.
             if token == CRASHES_TAB_TOKEN {
                 x += 14.0;
@@ -3089,6 +3223,31 @@ mod tests {
                     .collect(),
                 per_day: Some(20),
                 left: Some(0),
+            }),
+            translation: Some(sjk_identity::TranslationStats {
+                people: sjk_identity::TranslationPeople {
+                    day: 999_999_999,
+                    week: 999_999_999,
+                    month: 999_999_999,
+                },
+                capped: 999_999_999,
+                day: sjk_identity::TranslationAsks {
+                    sent: 999_999_999,
+                    cached: 999_999_999,
+                    daily: 999_999_999,
+                    quota: 999_999_999,
+                    failed: 999_999_999,
+                },
+                month_chars: 999_999_999,
+                budget: Some(999_999_999),
+                per_day: 999,
+                languages: (0..12)
+                    .map(|_| sjk_identity::TranslationLanguage {
+                        lang: "zh-Hans".to_owned(),
+                        lines: u64::MAX,
+                    })
+                    .collect(),
+                ..Default::default()
             }),
             ..StaffState::default()
         };

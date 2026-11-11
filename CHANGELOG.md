@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Staff page: the Chat bans tab is now Chat, and beside the bans it shows how chat translation is used: players translating today, in 7 and 30 days, lines translated and from the hub's cache, refusals, the month's characters against the hub's budget and the languages translated from. Counts only, no one named. Needs the updated hub _(Slash, after Creo's idea)_
+
 ## 2026.1111.3 (Alpha) | 11/11/2026
 
 Eye adaptation gets a brightness choice, from Low to Cooked.
