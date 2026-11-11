@@ -33,6 +33,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 - Collection menu text fits with a larger text size and letter spacing: the Forge's chips, sums and search field, the Shaders tab's New count (now behind a "?" note) and the Nameplates tab's plate (now behind Showcase current set) are no longer cut or covered. A shader's extras moved to an Extra features chip: red with what unlocks them while locked, gold once unlocked, where you switch them on and off _(Kushina, PR #408)_
+- Prospector can reach 9 of 9 again: a clean strike now gives the rarer of two ores instead of always lifting the ore a tier, so iron still turns up for a player who strikes the glint on every boulder _(Slash, PR #414, hub report #286, after Nib's report)_
 
 ## 2026.1111.6 (Alpha) | 11/11/2026
 

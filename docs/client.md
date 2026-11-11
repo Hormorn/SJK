@@ -6778,8 +6778,11 @@ ore, the Heart among them) and the hidden Heart of the Mountain.
 - **The find:** rubble 40% of the time (four kinds), 10 points less for each clean strike
   (never under 20%), else an ore (nine kinds, weighted 96 iron, 86 copper, 57 silver,
   43 glowstone, 28 sunstone, 19 moonstone, 11 star quartz, 9 void crystal and 1 the
-  Heart of the Mountain). With any clean strike the ore is one tier rarer (iron becomes
-  copper and so on), never into the Heart, which only its own roll gives. The Heart's
+  Heart of the Mountain). With any clean strike two ores are drawn and the rarer one comes
+  out, though never the Heart from the second draw, which only its own roll gives.
+  (Until hub report #286 a clean strike lifted the ore one tier, iron to copper and so
+  on, so a player who struck clean on every boulder never dug iron and Prospector stopped
+  at 8 of 9.) The Heart's
   weight rises by one for every 100 ores dug since the last one, as Old Whiskers' does:
   one in about 230 boulders, some 40 minutes of steady mining (an hour at an easy pace),
   near Old Whiskers' half hour. The find jumps out of the broken boulder to the player's feet and is
