@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Easier fishing: bites come every 12 to 25 seconds (were 15 to 40) and give 1.5 to 2 seconds to press Use (were about one), a hooked bite comes up empty 5% of the time (was 15%, the rest are fish), pulling too soon scares the fish for 5 to 10 seconds (were 10 to 20), and an Echo bite gives 3 seconds and three tries, 30 to 90 seconds apart (were 1.5 seconds and two, 60 to 180 apart). Echoes still drop as often as before _(Slash)_
+
 ## 2026.1111.6 (Alpha) | 11/11/2026
 
 Model sync: download a shared version of a model you already have.
