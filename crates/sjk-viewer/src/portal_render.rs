@@ -17,7 +17,10 @@ impl GpuState {
             self.portal.aim(map.as_deref(), self.vfs.as_ref());
         }
         let size = [self.size.width, self.size.height];
-        self.portal.poll(&self.context, size, &self.game_data);
+        let game_fonts = crate::game_font::enabled(self.console.as_ref());
+        let remap_mode = self.portal.map().map(|map| self.remap_mode_for(map));
+        self.portal
+            .poll(&self.context, size, &self.game_data, game_fonts, remap_mode);
     }
 
     /// `maps/<map>.bsp` the client is joining, if it is joining and the map

@@ -422,6 +422,7 @@ impl GpuState {
             game_fonts: crate::game_font::enabled(self.console.as_ref()),
 
             completed_map_changes: self.completed_map_changes,
+            remap_mode: Some(self.remap_mode_for(&loaded.map_path)),
         };
         self.world_install_task = Some(WorldInstallTask::start(
             Arc::clone(self.graphics_context()),
@@ -482,6 +483,7 @@ impl GpuState {
             game_fonts: crate::game_font::enabled(self.console.as_ref()),
 
             completed_map_changes: self.completed_map_changes,
+            remap_mode: None,
         })
     }
 

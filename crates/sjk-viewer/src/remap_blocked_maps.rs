@@ -272,6 +272,29 @@ impl Cache {
 }
 
 impl crate::GpuState {
+    /// The mode [`Self::remap_mode`] will give `map` once it is loaded, read from the
+    /// lists without writing anything: a world built on a worker applies the server's
+    /// remaps with it, and its first live frame checks them with the real mode.
+    pub(crate) fn remap_mode_for(&self, map: &str) -> i64 {
+        let Some(console) = self.console.as_ref() else {
+            return 1;
+        };
+        let loaded = !map_name(map).is_empty();
+        let text = |name| console.text_cvar(name).unwrap_or("");
+        let choice = if loaded {
+            Choice::of(text(CVAR), text(ALLOWED_CVAR), map)
+        } else {
+            Choice::Default
+        };
+        let shared = loaded
+            && console.bool_cvar(SHARED_CVAR) != Some(false)
+            && lists(text(SHARED_LIST_CVAR), map);
+        if shared && choice == Choice::Default {
+            return 0;
+        }
+        choice.mode(console.server_remaps_on(), console.remap_filter())
+    }
+
     /// `cg_remaps` for the loaded map, after its choice and `cg_serverRemaps`.
     pub(crate) fn remap_mode(&mut self) -> i64 {
         let Some(console) = self.console.as_mut() else {

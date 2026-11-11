@@ -86,7 +86,14 @@ impl Destination {
 
     /// Advance the load: parse on one worker, then build the world against
     /// the shared context on another.
-    pub(crate) fn poll(&mut self, context: &Arc<Context>, size: [u32; 2], game_data: &Path) {
+    pub(crate) fn poll(
+        &mut self,
+        context: &Arc<Context>,
+        size: [u32; 2],
+        game_data: &Path,
+        game_fonts: bool,
+        remap_mode: Option<i64>,
+    ) {
         if let Some(task) = &self.load {
             match task.poll() {
                 WorldLoadPoll::Pending => {}
@@ -119,9 +126,14 @@ impl Destination {
                         client_menu: None,
                         game_data: game_data.to_path_buf(),
                         connect_timeline: None,
-                        game_fonts: false,
+                        // Built on the worker with the world: left to the first live
+                        // frame, the atlases took 0.2 s of the main thread under the
+                        // loading screen (11/11/2026).
+                        game_fonts,
 
                         completed_map_changes: 0,
+                        // Only a world built from the session's gamestate has remaps.
+                        remap_mode: self.build.as_ref().and(remap_mode),
                     };
                     self.install = Some(WorldInstallTask::start(
                         Arc::clone(context),
