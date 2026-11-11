@@ -3749,6 +3749,17 @@ test: 301 characters: the box stops at 300; sjksay with more sends the first 300
 
 # ---- HUD ----
 
+[nameplate-height]
+area: HUD
+title: Nameplate height slider (Hormorn, PR #401)
+change: Settings > HUD has Nameplate height (cg_nameplateOffset, -100 to 40, default 0).
+change: Every plate (players, NPCs, your own) moves up or down by that many game units.
+test: Default 0: plates stand where they did before.
+test: Set 40: every plate rises above the head; -100: plates sit lower, down the body.
+test: cg_nameplateSelf 1: your own plate moves the same way.
+test: Team game with team logos: a lowered ally plate goes below the logo or jumps above it.
+test: The plate never covers the logo; cg_nameplateOffset 500 in the console stops at 40.
+
 [ctf-team-boxes]
 area: HUD
 title: CTF team score boxes with each flag's state (Slash, PR #201)

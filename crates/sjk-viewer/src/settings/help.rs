@@ -866,6 +866,10 @@ const HELP: &[(&str, &str)] = &[
     ),
     ("cg_nameplateScale", "Size of the nameplate text."),
     (
+        "cg_nameplateOffset",
+        "Moves nameplates up or down from the default height, in game units.",
+    ),
+    (
         "cg_nameplateAlpha",
         "How solid nameplates are, from 0.1 (faint) to 1 (solid, the default). The distance and wall fades still apply.",
     ),
