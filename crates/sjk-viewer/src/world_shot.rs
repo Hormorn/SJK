@@ -113,6 +113,7 @@ pub(crate) fn world_input(
         connect_timeline: None,
         game_fonts: false,
         completed_map_changes: 0,
+        remap_mode: None,
     };
     (input, directory)
 }

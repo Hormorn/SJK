@@ -381,6 +381,7 @@ impl crate::GpuState {
                 connect_timeline: None,
                 game_fonts: crate::game_font::enabled(self.console.as_ref()),
                 completed_map_changes: self.completed_map_changes,
+                remap_mode: None,
             };
             rebuild.load = None;
             rebuild.install = Some(WorldInstallTask::start(

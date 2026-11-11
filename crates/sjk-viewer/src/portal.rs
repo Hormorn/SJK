@@ -25,7 +25,16 @@ pub(crate) struct Destination {
     install: Option<WorldInstallTask>,
     world: Option<Box<GpuState>>,
     error: Option<String>,
+    /// The browser's preview of this map, kept while the session's own world builds
+    /// so that build takes its textures, effect atlas and fonts
+    /// (`shared_textures.rs`) instead of making them again; dropped once that world
+    /// is ready. Only on a card with [`KEEP_PREVIEW_VIDEO_MEMORY`] or more.
+    superseded: Option<(Option<WorldInstallTask>, Option<Box<GpuState>>)>,
 }
+
+/// Video memory (bytes) a card needs for [`Destination::superseded`]: the menu world,
+/// the preview and the session's world are alive at once until the last is built.
+const KEEP_PREVIEW_VIDEO_MEMORY: u64 = 8 << 30;
 
 impl Destination {
     pub(crate) const fn new() -> Self {
@@ -37,6 +46,7 @@ impl Destination {
             install: None,
             world: None,
             error: None,
+            superseded: None,
         }
     }
 
@@ -68,7 +78,21 @@ impl Destination {
         if self.map.as_deref() == Some(map) && self.session_feed == Some(game.checksum_feed) {
             return;
         }
+        // A preview of this map already installing or built: kept for its textures.
+        // One still parsing has nothing to share yet and only costs processor time.
+        let keep = self.map.as_deref() == Some(map)
+            && self.session_feed.is_none()
+            && (self.install.is_some() || self.world.is_some())
+            && crate::video_memory::dedicated()
+                .is_some_and(|bytes| bytes >= KEEP_PREVIEW_VIDEO_MEMORY);
+        let superseded = keep.then(|| (self.install.take(), self.world.take()));
+        if superseded.is_some() {
+            crate::log::progress(format_args!(
+                "portal: keeping the preview of {map} while the session's world builds"
+            ));
+        }
         *self = Self::new();
+        self.superseded = superseded;
         self.map = Some(map.to_owned());
         self.session_feed = Some(game.checksum_feed);
         self.build = Some((game.clone(), snapshot.cloned()));
@@ -86,7 +110,14 @@ impl Destination {
 
     /// Advance the load: parse on one worker, then build the world against
     /// the shared context on another.
-    pub(crate) fn poll(&mut self, context: &Arc<Context>, size: [u32; 2], game_data: &Path) {
+    pub(crate) fn poll(
+        &mut self,
+        context: &Arc<Context>,
+        size: [u32; 2],
+        game_data: &Path,
+        game_fonts: bool,
+        remap_mode: Option<i64>,
+    ) {
         if let Some(task) = &self.load {
             match task.poll() {
                 WorldLoadPoll::Pending => {}
@@ -119,9 +150,14 @@ impl Destination {
                         client_menu: None,
                         game_data: game_data.to_path_buf(),
                         connect_timeline: None,
-                        game_fonts: false,
+                        // Built on the worker with the world: left to the first live
+                        // frame, the atlases took 0.2 s of the main thread under the
+                        // loading screen (11/11/2026).
+                        game_fonts,
 
                         completed_map_changes: 0,
+                        // Only a world built from the session's gamestate has remaps.
+                        remap_mode: self.build.as_ref().and(remap_mode),
                     };
                     self.install = Some(WorldInstallTask::start(
                         Arc::clone(context),
@@ -144,6 +180,7 @@ impl Destination {
                     ));
                     self.install = None;
                     self.world = Some(world);
+                    self.superseded = None;
                 }
             }
         }
@@ -153,6 +190,7 @@ impl Destination {
         crate::log::progress(format_args!("portal: preview failed: {error}"));
         self.load = None;
         self.install = None;
+        self.superseded = None;
         self.error = Some(error.to_owned());
     }
 

@@ -22,6 +22,9 @@ pub(crate) struct GpuWorldInput {
     pub(crate) connect_timeline: Option<log::ConnectTimeline>,
     /// Load the optional menu and chat game fonts while installing the world.
     pub(crate) game_fonts: bool,
+    /// The server remap mode to apply the gamestate's remaps with while installing a
+    /// live map (`remap_mode_for`); `None` leaves them to the first live frame.
+    pub(crate) remap_mode: Option<i64>,
 
     pub(crate) completed_map_changes: u32,
 }

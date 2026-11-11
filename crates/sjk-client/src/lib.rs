@@ -851,6 +851,13 @@ impl ClientSession {
         self.command_pacer.queued()
     }
 
+    /// Every reliable command given to the session has left and the server has
+    /// acknowledged it: it ran them (`SV_ExecuteClientCommand`), so snapshots from
+    /// here on show what they did.
+    pub fn reliable_commands_acknowledged(&self) -> bool {
+        self.command_pacer.queued() == 0 && self.pending_client_commands.is_empty()
+    }
+
     /// Send a changed userinfo payload through the stock reliable-command path.
     ///
     /// Calls are coalesced to at most one effective update per second. The

@@ -5002,6 +5002,20 @@ test: s_language english, snd_restart: they are English again.
 
 # ---- Gameplay ----
 
+[fast-join-load]
+area: Gameplay
+title: Faster joins: no 3 s JA+ wait, players load after the map, less main-thread work
+change: JA+ joins no longer wait 3 s for a Force reply the server never sends.
+change: Only your own model loads before the map shows; others come in as Kyle, then theirs.
+change: Emote fitting on all cores; fonts, remaps on the worker; preview kept on 8 GB+ cards.
+test: Join JoF from the server browser: the loading screen goes sooner than before.
+test: logs/last-client.log: "connect timeline: ... first-frame=" well under 8.7 s.
+test: Reconnect to JoF: first-frame about 1.5 s, no "not spawned yet" 3 s after the snapshot.
+test: Other players show as Kyle for a moment, then their own models; your own is there at once.
+test: A rig model player: log has "rig model X: borrowed N clips ... in Y ms" (one line).
+test: Server shader remaps (JoF maps) look as before; Settings remap choice still applies.
+note: Revert with git revert -m 1 <merge> if a join breaks.
+
 [gif-tags]
 area: Gameplay
 title: GIF tags: a blank tag spent once on a GIPHY GIF that plays on walls

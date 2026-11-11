@@ -496,9 +496,19 @@ const BORROW_SHARE: f32 = 0.6;
 static SOURCES: LazyLock<Mutex<HashMap<String, Option<Arc<RigModel>>>>> =
     LazyLock::new(Mutex::default);
 
-/// Drop the clip lenders [`SOURCES`] keeps, so the next load reads them again.
+/// Clips fitted to another rig by [`RigModel::borrowed`], by `<rig file>|<source
+/// folder>|<clip>` (lowercase paths); `None` for a skeleton that does not match.
+/// Cleared with [`SOURCES`].
+static BORROWED: LazyLock<Mutex<HashMap<String, Option<Clip>>>> = LazyLock::new(Mutex::default);
+
+/// Drop the clip lenders [`SOURCES`] keeps and the clips fitted from them
+/// ([`BORROWED`]), so the next load reads them again.
 pub(crate) fn forget_sources() {
     SOURCES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clear();
+    BORROWED
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clear();
@@ -744,15 +754,25 @@ impl RigModel {
         let mut rig = Self::fit(model, &base, manifest, driver)?
             .with_feet(driver, sole(driver_mesh))
             .with_soles(driver, driver_mesh);
-        rig.borrow_clips(vfs, directory, driver);
+        rig.borrow_clips(vfs, directory, &path, driver);
         Ok(rig)
     }
 
     /// Take the clips of the installed emotes made on other rig models (their file's
     /// `rig`) that this skeleton can play ([`Self::borrowed`]).
-    fn borrow_clips(&mut self, vfs: &VirtualFileSystem, directory: &str, driver: &Gla) {
+    ///
+    /// Each clip is fitted once per rig file and source (kept in [`BORROWED`] until
+    /// `rig_reload`), on all cores: one by one, four rig models on JoF fitted about
+    /// 80 clips each at about 6 ms a clip, 2.4 s of a join's loading screen
+    /// (11/11/2026).
+    fn borrow_clips(&mut self, vfs: &VirtualFileSystem, directory: &str, path: &str, driver: &Gla) {
+        let started = std::time::Instant::now();
         let catalogue = crate::emotes::lock().catalogue.clone();
         let catalogue = catalogue.unwrap_or_else(|| crate::emotes::load(vfs));
+        let target = path.to_ascii_lowercase();
+        // (cache key, emote id, source folder, source, clip index): fitted below.
+        let mut jobs: Vec<(String, String, String, Arc<RigModel>, usize)> = Vec::new();
+        let mut cached = 0usize;
         for emote in catalogue {
             if emote.clip.is_empty() || emote.rig.is_empty() {
                 continue;
@@ -763,30 +783,90 @@ impl RigModel {
             {
                 continue;
             }
+            let key = format!(
+                "{target}|{}|{}",
+                source_directory.to_ascii_lowercase(),
+                emote.clip
+            );
+            let known = BORROWED
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get(&key)
+                .cloned();
+            if let Some(known) = known {
+                if let Some(clip) = known {
+                    self.clips.push(clip);
+                    cached += 1;
+                }
+                continue;
+            }
             let Some(source) = source_rig(vfs, &source_directory, driver) else {
                 continue;
             };
-            let Some(clip) = source.clips.iter().find(|clip| clip.name == emote.clip) else {
+            let Some(index) = source.clips.iter().position(|clip| clip.name == emote.clip) else {
                 crate::log::progress(format_args!(
                     "rig model {directory}: emote {}: {source_directory} has no clip {:?}",
                     emote.id, emote.clip
                 ));
                 continue;
             };
-            match self.borrowed(&source, clip) {
+            jobs.push((key, emote.id.clone(), source_directory, source, index));
+        }
+        let fitted = {
+            let this = &*self;
+            let workers = std::thread::available_parallelism()
+                .map_or(4, usize::from)
+                .clamp(1, 8)
+                .min(jobs.len().max(1));
+            let chunk = jobs.len().div_ceil(workers).max(1);
+            std::thread::scope(|scope| {
+                let handles: Vec<_> = jobs
+                    .chunks(chunk)
+                    .map(|part| {
+                        scope.spawn(move || {
+                            part.iter()
+                                .map(|(_, _, _, source, index)| {
+                                    this.borrowed(source, &source.clips[*index])
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .flat_map(|handle| handle.join().unwrap_or_default())
+                    .collect::<Vec<_>>()
+            })
+        };
+        let mut names = Vec::new();
+        let mut borrowed = BORROWED
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for ((key, id, source_directory, _, _), clip) in jobs.into_iter().zip(fitted) {
+            match &clip {
+                // Two emotes can lend one clip name; the first that fits is kept.
+                Some(clip) if self.clips.iter().any(|kept| kept.name == clip.name) => {}
                 Some(clip) => {
-                    crate::log::progress(format_args!(
-                        "rig model {directory}: borrowed {} from {source_directory}",
-                        clip.name
-                    ));
-                    self.clips.push(clip);
+                    names.push(clip.name.clone());
+                    self.clips.push(clip.clone());
                 }
                 None => crate::log::progress(format_args!(
-                    "rig model {directory}: emote {}: the skeleton of {source_directory} \
-                     does not match",
-                    emote.id
+                    "rig model {directory}: emote {id}: the skeleton of {source_directory} \
+                     does not match"
                 )),
             }
+            borrowed.insert(key, clip);
+        }
+        drop(borrowed);
+        if !names.is_empty() || cached > 0 {
+            crate::log::progress(format_args!(
+                "rig model {directory}: borrowed {} clips ({} fitted, {cached} kept) in {:.1} ms{}{}",
+                names.len() + cached,
+                names.len(),
+                started.elapsed().as_secs_f64() * 1_000.0,
+                if names.is_empty() { "" } else { ": " },
+                names.join(", ")
+            ));
         }
     }
 

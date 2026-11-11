@@ -93,6 +93,7 @@ impl ApplicationHandler for ViewerApplication {
                     game_fonts: false,
 
                     completed_map_changes: self.completed_map_changes,
+                    remap_mode: None,
                 },
             ))
         })();

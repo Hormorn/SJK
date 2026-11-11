@@ -1029,6 +1029,7 @@ impl GpuState {
             game_data,
             mut connect_timeline,
             game_fonts: preload_game_fonts,
+            remap_mode: build_remap_mode,
             completed_map_changes,
         } = input;
         // The Import page looks for other clients' configs beside SJK's.
@@ -1134,6 +1135,9 @@ impl GpuState {
                 &mut flattened,
                 &clientinfo_watch.model_policy,
                 console.as_ref(),
+                // A live map load (a join, a map change): the other players' models
+                // load on workers once it is live.
+                live_session.is_none() && demo_session.is_none() && build_game_state.is_some(),
             )?
         } else {
             Vec::new()
@@ -1421,7 +1425,7 @@ impl GpuState {
                 .effect_names()
                 .chain(missile_effects.effect_names()),
         );
-        let particle_atlas = particle_atlas::create(
+        let mut particle_atlas = particle_atlas::create(
             &device,
             &queue,
             &particle_layout,
@@ -1442,6 +1446,39 @@ impl GpuState {
             context.anisotropy_limit,
         );
         load_profile.mark("effect-atlas")?;
+        // The gamestate's shader remaps, applied here on the worker: left to the
+        // first live frame, they took 0.44 s of the main thread under the loading
+        // screen on JoF (11/11/2026). That frame checks them against the session's
+        // own remaps and the real mode, which costs little when nothing changed.
+        if let (Some(game), Some(mode)) = (build_game_state.as_ref(), build_remap_mode) {
+            let remaps = sjk_client::ShaderRemaps::from_game_state(game);
+            if let Err(error) = world_materials.refresh_remaps(
+                device,
+                queue,
+                &vfs,
+                &shaders,
+                &remaps,
+                mode,
+                bsp.render().visibility(),
+            ) {
+                log::progress(format_args!("shader remap failed: {error}"));
+            }
+            let table = remaps.table(mode);
+            if let Err(error) = particle_atlas.refresh_remaps(
+                device,
+                queue,
+                &vfs,
+                &shaders,
+                world_materials.remap_generation(),
+                |name| {
+                    let (target, offset) = world_materials.remap_target(table, name);
+                    (target.to_owned(), offset)
+                },
+            ) {
+                log::progress(format_args!("effect shader remap failed: {error}"));
+            }
+            load_profile.mark("shader-remaps")?;
+        }
         let (entity_pipeline, particle_pipelines) = particle_draw::create(
             device,
             &camera_layout,

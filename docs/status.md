@@ -1,3 +1,35 @@
+## Faster joins on JA+ servers (11/11/2026)
+
+11/11/2026, `personal/fast-join` based on `main` `b6e4d618e` (Sol: "often it seems player is
+already in game but we have loading screen on top of it"). Sol's logs of 11/11/2026 on JoF:
+every one of 11 joins logged "not spawned yet" 3.03 s after the first snapshot, `enter_play`
+waiting out `JOIN_TIMEOUT` for an `nfr` JA+ never sends; on joins whose world was already built
+that was the whole time the loading screen covered the game (first frame at 4.5 s, snapshot at
+1.4 s). The wait now also ends once the server has acknowledged the Force reply
+(`ClientSession::reliable_commands_acknowledged`) and a newer snapshot shows the player in play.
+Verified: `cargo test -p sjk-client`. Not verified: no join was run; no test drives
+`enter_play` (no fake server for it).
+
+Also measured there: a join from the menu builds the browser's guess at the map, then
+rebuilds it from scratch when the gamestate arrives (`portal.rs` `aim_session`), 5.4 s of the
+first join's 8.7 s; the rebuild's player-models phase took 2.4 s, almost all of it four rig models
+each retargeting about 80 locally installed emote clips one by one (`borrow_clips`, about 6 ms a
+clip); after the world is ready the main thread spent about 0.9 s more (shader remaps 0.44 s,
+game font atlases 0.2 s). The legacy audio tables (0.2 s) are built on a worker and do not hold
+the first frame. JoF's gamestate takes 1.35 s after connect (83 ms on a local server), with
+`rate 90000`: server side.
+
+`personal/fast-load`, on top of it (Sol: "ok we can do 2 3 4 5"), one commit each: borrowed
+clips fitted on all cores and kept per rig file and source; a live map load builds only the local
+player's model, the others loading on workers once live; game fonts and the gamestate's shader
+remaps made on the install worker; the browser's preview kept alive on cards of 8 GB or more
+while the session's world builds, for its textures
+([client.md](client.md#joining-and-changing-maps)). Finishing the preview with the gamestate
+instead of a second build was not done (the catalogues the build makes once from the gamestate).
+Verified: `cargo test -p sjk-viewer` and `-p sjk-client`, clippy. Not verified: no join was run;
+the time each change saves is estimated from the 11/11 logs, not measured; whether the session
+build really takes the preview's textures (same decoded images from the mip cache) is not checked.
+
 ## Blade shader cache and build-ahead (10/11/2026)
 
 10/11/2026, `personal/shader-cache` based on `main` `5a347a01b` (Sol: "store the shaders

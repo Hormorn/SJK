@@ -57,7 +57,7 @@ impl Rest {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Track<T> {
     times: Vec<f32>,
     values: Vec<T>,
@@ -84,7 +84,7 @@ impl<T: Copy> Track<T> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct JointTracks {
     translation: Option<Track<Vec3A>>,
     rotation: Option<Track<Quat>>,
@@ -92,7 +92,7 @@ struct JointTracks {
 }
 
 /// One animation of a rig model.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Clip {
     pub(crate) name: String,
     /// Seconds, to its last key.

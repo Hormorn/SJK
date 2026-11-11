@@ -860,6 +860,14 @@ to three times, 5.5 seconds apart (a server refuses a second team change within
 five seconds), then says to use the join menu. Not in duel or power duel, where
 waiting as a spectator is the queue.
 
+A join waits for the server to take that reply before the loading screen can go
+([`enter_play`](../crates/sjk-client/src/force_profile_negotiation.rs)): it ends
+on the server's `nfr` confirming the profile, or, for servers that never send one
+(JA+), once the server has acknowledged the reply and a later snapshot still shows
+the player in play, and at the latest after 3 seconds. Until 11/11/2026 only the
+`nfr` ended it, so every JA+ join sat the full 3 seconds under the loading screen
+with the player already in the game.
+
 Opened on a server, the Force page takes the server's highest rank and free
 saber skills, which decide whether the server keeps the profile it is sent. What
 the server only will not let be used stays buyable and is marked: its disabled
@@ -3188,6 +3196,33 @@ is built from the joined session's own gamestate with the session in hand, so
 the player never walks a preview; a matching verified world is reused when the
 server session becomes ready, and joining does not build it twice. Escape or a
 click on the loading screen cancels.
+
+What the loading screen waits for was cut on 11/11/2026 (Sol's JoF logs: the
+first frame 8.7 s after connecting, the server's first snapshot at 1.4 s):
+
+- The world built from the server browser's guess is still replaced by one built
+  from the session's gamestate, but on a card with 8 GB of video memory or more
+  it stays alive until that world is built ([portal.rs](../crates/sjk-viewer/src/portal.rs),
+  `superseded`), so the build takes its textures, effect atlas and fonts from it
+  (`shared_textures.rs`) instead of uploading them again. A smaller card drops it
+  at once, as before: three worlds at once is what ran a 6 GB card out.
+- A live map load (a join or a map change) builds only the local player's model;
+  the other players' come from the workers of `player_loads.rs` once the map is
+  live, each drawn as the stand-in until it is in (`actor_load::load_actor_meshes`,
+  `local_only`). Demos and world shots still build every model with the map.
+- The game font atlases and the gamestate's shader remaps are made on the install
+  worker (`GpuWorldInput::game_fonts`, `remap_mode`); the first live frame checks
+  the remaps against the session's own and the real `cg_remaps` mode
+  (`remap_mode_for` reads it without writing the map's choice), which costs little
+  when nothing differs.
+- A rig model fits the emote clips it borrows from other rigs on all cores, once per
+  rig file and source until `rig_reload` (`rig_model.rs`, `BORROWED`), and logs one
+  line for them.
+
+Finishing the browser's world with the gamestate instead of building a second one
+is not done: the build makes the pickup, first-person weapon, jetpack and hilt
+catalogues, the server's models and the map edits' lamps once from the gamestate,
+and each would have to be made again on a live world.
 
 On a server map change, gameplay pauses and a loading notice is shown over the
 previous view until the destination and a fresh active snapshot are ready. The
