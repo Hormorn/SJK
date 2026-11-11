@@ -525,14 +525,15 @@ mod tests {
     #[test]
     fn each_row_offers_the_buttons_its_state_allows() {
         let page = page(true);
-        assert_eq!(labels(&page, "solfox"), ["Update"]);
+        // Installed but never fetched: the cloud's version can still be taken.
+        assert_eq!(labels(&page, "solfox"), ["Update", "Download"]);
         assert_eq!(labels(&page, "ahsoka_rebels"), ["Share"]);
         assert_eq!(labels(&page, "darth_revan"), ["Update"]);
         assert_eq!(labels(&page, "grogu"), ["Download"]);
         assert_eq!(labels(&page, "kylo_tros"), ["Update", "Download"]);
         assert_eq!(labels(&page, "vinfox"), ["Update"]);
         let page = super::tests::page(false);
-        assert!(labels(&page, "solfox").is_empty());
+        assert_eq!(labels(&page, "solfox"), ["Download"]);
         assert!(labels(&page, "ahsoka_rebels").is_empty());
         assert_eq!(labels(&page, "grogu"), ["Download"]);
         assert_eq!(labels(&page, "kylo_tros"), ["Download"]);
