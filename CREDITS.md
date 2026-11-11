@@ -825,7 +825,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 147 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 151 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1082,6 +1082,13 @@ medal pictures carry their own labels in `vram` and crash reports.
 - #410 chat translation on request, after Creo's idea: a click on a chat line's text, `/tr`
   or `tr` puts it into English through the hub (Microsoft's translator); encrypted whispers
   are never sent.
+- #414 mining: a clean strike draws a second ore and keeps the rarer of the two, instead of
+  lifting the ore a tier, so iron still turns up and Prospector can reach 9 of 9; the Heart's
+  odds are unchanged (hub report #286, after Nib's report).
+- #415 an NPC or vehicle whose model is still loading is drawn as nothing instead of an
+  unarmed Kyle (after Lex's report).
+- #418 a player whose model is missing speaks with the generic voice of their own gender
+  (`ds`), as JoF EternalJK does (hub report #312, after jof'mg.perso's report).
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):
