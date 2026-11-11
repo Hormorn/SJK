@@ -33,6 +33,83 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 ## Unreleased
 
 - Nameplates can move up or down with a new Settings > HUD slider, Nameplate height (`cg_nameplateOffset`) _(Hormorn, PR #401)_
+- Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
+- World brightness: the Renderer page's HDR exposure is now called World brightness and brightens the 3D world without touching the HUD, also with HDR scene off (`r_hdrExposure`, which there only brightens). Brightness in Graphics stays the whole screen's curve _(Sol)_
+
+## 2026.1111.3 (Alpha) | 11/11/2026
+
+Eye adaptation gets a brightness choice, from Low to Cooked.
+
+> Brightness: Settings > Renderer > IMAGE has Adaptation brightness: Low, Medium, High or Cooked.
+> Low: Low is the eye adaptation you had before, nothing changes unless you pick another.
+> Cooked: Cooked is very bright and washed out, and never darkens, for players who want to see everything.
+
+- Eye adaptation brightness: Settings > Renderer > IMAGE has Adaptation brightness, Low (as before), Medium, High and Cooked, very bright and washed out (`r_autoExposureLevel` 0-3) _(Sol)_
+
+## 2026.1111.2 (Alpha) | 11/11/2026
+
+Chat translation: read a chat line in another language in English, only when you ask.
+
+> Click to translate: With the chat open, click a line's text to put it into English, under the line.
+> Type it: `/tr` in the chat or `tr` in the console translates the newest foreign line, `/tr <text>` the text you give.
+> Your choice: Only the lines you pick leave your PC, and `cl_chatTranslateSkip` lists languages never offered.
+
+- Chat translation on request: with the chat open, click a line's text (game, SJK or clan chat) to put it into English; `/tr` in the chat (or `tr` in the console) does it for the newest foreign line, `/tr <text>` the text you give, and the SJK chat page has Translate on a chosen message. Only the lines you choose go to the SJK hub, which asks Microsoft's translator; `cl_chatTranslateSkip` lists languages never offered. Needs the updated hub _(Slash, PR #410, after Creo's idea)_
+
+## 2026.1111.1 (Alpha) | 11/11/2026
+
+Graphics presets for your PC, richer rain and settling snow, a Forge that fuses duplicates, GIF tags, a map editor that guesses textures and flies to things, and Slash's round of fixes.
+
+> Graphics: Pick Vanilla, Vanilla Plus or the Solar Renderer from Low to Ultra, each marked for your graphics card, or press "Recommended for this PC".
+> Weather: Rain wets the streets, mirrors the city in puddles and comes in waves, and snow settles on the ground and roofs.
+> Forge and shop: Fuse duplicate shaders into a new one, catch the deal of the day, and wish for up to three shaders in the shop.
+> GIF tags: A Blank tag from holocrons becomes a tag that plays a GIPHY GIF on walls, for verified players.
+> Fixes: Saber swings vary again, disruptor beams leave the gun, held weapnext cycles, and voices follow `s_language`.
+
+= r_weatherSnowCover: Snow settles on the ground, roofs and ledges while it falls, deeper in drifts and against walls.
+= r_daySky: Without real-time lighting, the sky still shows the time of day: dawn, dusk and darker nights at the hour you set.
+
+- Ctrl+A and a double click select the search again in the console's commands and cvars list (F3), and a cvar value being edited there: the selection no longer vanishes on the next frame _(Slash, PR #411, hub report #308, after akr's report)_
+- Holding a key bound to `weapnext` or `weapprev` keeps cycling the weapons, as in base JKA: a held key's repeat runs its bind's commands again (a `+command` such as `+attack` stays held) _(Slash, PR #412, hub report #309, after akr's report)_
+- No more thin line above some weapon icons (and other HUD and menu icons) drawn larger than their picture: an icon no longer blends in the edge of the icon next to it _(Slash, PR #413, hub report #311, after akr's report)_
+- `s_language` reaches the players' own voices too: with `s_language francais` (or `deutsch`, `espanol`) and `snd_restart`, their pain, death and taunt voices are French as well, not only some of the other voices _(Slash, PR #409, hub report #298, after jof'mg.perso's report)_
+- The Forge's Craft search tells you when the shader you looked for is yours already (it crafts only shaders you lack; another copy comes from holocrons), instead of finding nothing _(Slash, hub report #305, after SimpleSmokie's report)_
+- Change name on your SJK profile now sets your SJK name (shown in the SJK chat, on cards and on the hub) instead of sending you to the in-game name _(Sol)_
+- Only verified players' GIFs play in the SJK chat; anyone else's link stays a link. Only verified players can upload a profile picture _(Sol)_
+- The map editor flies to things: double click an edit, a thing, a light or a lamp in its lists, or press F on the selection, and the camera glides there (your body stays put). It also aligns the texture on caulk faces it draws (shift, turn, scale, flip, fit, as in Radiant), previews textures on caulk faces before you keep them, stands placed models along walls and slopes (Place > Surface), measures between two points (M), and grows, shrinks or inverts the selection (Ctrl with +, - and I) _(Sol)_
+- The map editor guesses textures: every selection's shader list starts with suggestions (what surrounds it, the same family of names, what the map uses most), and resting on one shows it on the map before you keep it. Better selections too: what is under the pointer is outlined with a tip, a drag draws a box to select, Ctrl+click takes one out, Same shader selects every surface of a texture, Ctrl+D duplicates placed models, and clicking a clip brush no longer selects it _(Sol)_
+- Saber swings sound different again: each swing picks one of the stock swing sounds (or the saber's own) at random as in base, instead of each player hearing the same one on every swing; saber hits, blocks and footsteps vary the same way _(Slash, PR #404, hub report #303, after jof'mg.perso's report)_
+- GIF tags: a new Rare Blank tag drops from holocrons; verified players spend it once on a GIPHY link for a tag that plays that GIF on walls, theirs for good (a GIF GIPHY removes is a tag lost). GIF tags are off until you turn them on (`cg_toyGifTags`, on the tag's card or Settings > Gameplay) _(Sol)_
+- PK3s no longer have to sit in `base`: make a `GameData/assets` folder and sort them into subfolders as you like (`assets/jof`, `assets/personal`), every one loads as if it were in `base` _(Sol)_
+- The Sith cloud card follows the SJK Launcher into `assets/S` and doesn't fetch a file you already have in `base` _(Sol)_
+- JoF content and the Sith cloud count the files you tidied into `GameData/assets`, so they aren't downloaded again _(Sol)_
+- Your SJK page: `identity site` opens SJK's web page in the browser, signed in with your SJK key (no password), where you join your other keys (`identity link <code>` in the other game) and send videos for the SJK team's video bounties, paid in holocrons and a new Videographer medal _(Sol)_
+- Graphics presets reworked: Vanilla and Vanilla Plus (SJK (recommended) before, still where new players start) on the maps' own lighting, and the Solar Renderer, SJK's real-time lighting, at Low, Medium, High (Experimental before) and Ultra. Each preset is marked green to red for your graphics card, and "Recommended for this PC" (`graphicsrecommended`) picks the best one it runs smoothly. Sun and sky is now Real-time lighting, with Bounced light, Lamp shadows and the Time-of-day sky as settings of their own, and many sliders became named choices (shadow softness, texture detail, day length, weather amounts) _(Sol)_
+- Rain looks richer (Settings > Graphics > WEATHER): wet streets shine in patches and gather water at the foot of walls, rivulets start under a wall's lip and widen as they run down, a downpour raises a spray over the ground and comes in waves with the wind; at Ultra every wet surface mirrors the lit city round it, softly on a street, sharply in a puddle (`r_weatherReflections` picks sky, puddles or everything). New sliders: Puddles, Rain visibility, Rain haze and spray, Ground fog thickness _(Sol)_
+- The Jedi Knight II HUD (`cg_hudFiles 2`) opens its selector bar when you change weapon, Force power or item: the bar slides open behind the icons between its lit prongs and closes after, and the unlit prongs wait at its ends _(Slash, PR #407, hub report #301, after EternalJK)_
+- The credits page counts every merged pull request again, also those merged under an older name of the merge _(Slash)_
+- The disruptor's beam leaves the gun's tip: another player's shot, and yours in third person, now starts at the barrel instead of in front of the chest, and a zoomed sniper shot no longer starts where your gun was before you zoomed in (hub report #294) _(Slash, PR #405, after Sol's report)_
+- The Forge fuses duplicates: a new Fuse section turns spare copies of a tier's shaders into a shader of the next tier you don't own yet. The shop has a deal of the day at half price and a wishlist of three shaders (the gift toggle on a shader's card, in Craft and on each offer), with a card on the day a wished shader is on offer, and a gold dot shows where there is something to take _(Sol)_
+- Blade shaders load faster: on Vulkan the built shaders are kept on disk (`GameData/SJK/cache`) for the next start, and the blades worn on the server are built ahead, before they are first drawn _(Sol)_
+- `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, PR #406, after mg.perso's report, hub report #302; after JoF EJK)_
+
+## 2026.1109.3 (Alpha) | 09/11/2026
+
+3D sound rebuilt, the Jedi Knight II HUD, voices in other languages, a surer grapple, the strafe helper on jaPRO, and a handful of fixes.
+
+> 3D sound: `s_spatial` brings sounds from all round your head, and walls and shut doors muffle them by what they are made of.
+> Jedi Knight II HUD: Pick Jedi Knight II in Settings > HUD, or type `cg_hudFiles 2`.
+> Voices: `s_language` picks the French, German and Spanish voices, as in retail.
+> JA+ and jaPRO: `+grapple` lets go of the hook every time on JA+ servers, and the strafe helper draws on jaPRO servers.
+> Profile: Turn the model in the main menu too, and zoom it by dragging with the right button.
+> Fixes: A held key repeats in the console, and the click that brings the window back no longer attacks.
+
+- Emote music no longer goes missing for a whole dance: music still loading when the emote starts now joins in as soon as it is ready, as a boombox track does _(Sol, hub report #270)_
+- `+grapple` lets go of the hook every time on JA+ servers: the release's `+use` now lasts two commands, as in EternalJK, instead of one a server could miss _(Sol, hub report #238)_
+- `s_language` picks the voices as in retail: `s_language francais` (or `deutsch`, `espanol`), then `snd_restart`; a voice the language lacks stays English _(Sol, after retail)_
+- The strafe helper (`cg_strafeHelper`) draws on jaPRO servers too, worked out with your movement style's physics; nothing in Siege style, as in JoF EJK _(Sol, after JoF EJK)_
+- 3D sound (`s_spatial`, Settings > Sound) rebuilt as SJK's own acoustics engine: sounds come from all round your head through a measured dummy head (in front, behind, above, below), walls and shut doors muffle them by what they are made of, they come round corners and through doorways, and each room rings quietly with the echo its own walls make; "3D sound for headphones" (off pans for speakers) and "3D sound room echo" set it to taste _(Sol, after VisionJK's v_spatial by Blackwolf)_
+- Frame timings (`r_drawTimings`) sit at the top right of the screen, and Move HUD elements (`hud_edit`) drags them anywhere like the rest of the HUD _(Sol)_
 - The map editor's panel in game does what the page (`mapedit_web`) does: a picture of each texture in its lists, a tile view and a large preview beside what is drawn there now; Fill's nearby textures to choose from; a Lights page (add, recolour, move and delete lights, turn the map's lamps off or move them, with markers over the scene); boomboxes, mystery boxes and toys on Place; the invisible brushes' presets (B); and Ctrl+C, Ctrl+V of models and textures _(Sol)_
 - Walls stopping saber and blaster lights cost about 40 % less on the graphics card (0.38 to 0.23 ms a frame at 4K), with the same picture _(Sol)_
 - Settings > Display has "Fresh command stamps" (`cl_freshStamps`) beside "Ignore server caps" (`gameplay_fps_nocap`): with both on, JoF takes your commands as in 2026.1028.1 (142 FPS moves in 7 ms steps), and both say Heimdall may kick you for it _(Sol, after Kushina's PR #385)_

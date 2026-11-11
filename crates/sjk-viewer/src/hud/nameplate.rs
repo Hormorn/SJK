@@ -210,7 +210,7 @@ const STALE_MILLIS: i64 = 250;
 const WALL_OPACITY: f32 = 0.35;
 /// Allowed overshoot of the screen (in half-screens) before a plate is dropped.
 const SCREEN_MARGIN: f32 = 1.15;
-/// Conservative vertical extent of a nameplate above its bottom, in scaled HUD pixels.
+/// Conservative vertical extent of a nameplate above its bottom, in unscaled design pixels.
 /// Keep a moved plate clear of a team logo until the whole plate has passed it.
 const PLATE_COLLISION_HEIGHT: f32 = 100.0;
 /// Smallest size, as a share of full, a plate at the end of its range shrinks to.
@@ -726,7 +726,7 @@ impl State {
             near: number("cg_nameplatenear", 1000.0).clamp(0.0, 10_000.0),
             scale: crate::cgame_options::scalar(console, "cg_nameplatescale", 0.5).clamp(0.1, 3.0),
             offset: crate::cgame_options::scalar(console, "cg_nameplateoffset", 0.0)
-                .clamp(-100.0, 100.0),
+                .clamp(-100.0, 40.0),
             opacity: crate::cgame_options::scalar(console, "cg_nameplatealpha", 1.0)
                 .clamp(MIN_OPACITY, 1.0),
             bars: console
@@ -1687,7 +1687,8 @@ impl State {
             let bottom = match logo_bounds {
                 Some((top, logo_bottom))
                     if desired_bottom > top
-                        && desired_bottom < logo_bottom + PLATE_COLLISION_HEIGHT * self.settings.scale * u =>
+                        && desired_bottom
+                            < logo_bottom + PLATE_COLLISION_HEIGHT * self.settings.scale * u =>
                 {
                     top - 2.0 * u
                 }
