@@ -44,6 +44,9 @@ pub(crate) const TO_BRIGHT: &str = "r_autoExposureToBright";
 pub(crate) const TO_DARK: &str = "r_autoExposureToDark";
 /// Scene luminance the adaptation aims for.
 pub(crate) const KEY: &str = "r_autoExposureKey";
+/// Brightness level on top of the range and key: 0 Low (the range as set), 1 Medium,
+/// 2 High, 3 Cooked; see [`Level`].
+pub(crate) const LEVEL: &str = "r_autoExposureLevel";
 /// The base exposure, registered by `post_hdr.rs`.
 const BASE: &str = "r_hdrExposure";
 
@@ -103,15 +106,54 @@ const FLOATS: [FloatCvar; 6] = [
     },
 ];
 
+/// Slot of [`LEVEL`] in [`Settings`], after [`ENABLED`] and the floats.
+const LEVEL_SLOT: usize = FLOATS.len() + 1;
+
+/// How much brighter than the range and key eye adaptation shows the view
+/// (`r_autoExposureLevel`). Low is the range as set; each step aims brighter and lets
+/// dark views brighten further, and High and Cooked darken bright views less or not at
+/// all, so Cooked looks washed out on purpose.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum Level {
+    #[default]
+    Low = 0,
+    Medium = 1,
+    High = 2,
+    Cooked = 3,
+}
+
+impl Level {
+    const fn from_index(index: u32) -> Self {
+        match index {
+            0 => Self::Low,
+            1 => Self::Medium,
+            2 => Self::High,
+            _ => Self::Cooked,
+        }
+    }
+
+    /// EV added to the aim, EV added to the most it brightens, and the share of the
+    /// darkening range kept.
+    const fn shape(self) -> (f32, f32, f32) {
+        match self {
+            Self::Low => (0.0, 0.0, 1.0),
+            Self::Medium => (0.5, 0.5, 1.0),
+            Self::High => (1.0, 1.0, 0.5),
+            Self::Cooked => (2.0, 2.5, 0.0),
+        }
+    }
+}
+
 /// Live adaptation policy shared by the console and every installed world.
 #[derive(Clone)]
-pub(crate) struct Settings(Arc<[AtomicU32; 7]>);
+pub(crate) struct Settings(Arc<[AtomicU32; LEVEL_SLOT + 1]>);
 
 impl Default for Settings {
     fn default() -> Self {
         let slots = std::array::from_fn(|slot| {
             AtomicU32::new(match slot {
                 0 => 1,
+                LEVEL_SLOT => Level::Low as u32,
                 _ => FLOATS[slot - 1].default.to_bits(),
             })
         });
@@ -129,6 +171,8 @@ pub(crate) struct Values {
     pub(crate) to_dark: f32,
     pub(crate) key: f32,
     pub(crate) base: f32,
+    /// `r_autoExposureLevel`.
+    pub(crate) level: Level,
     /// The PC clock's night darkening (`day_live::night_tint`), 1 by day and whenever the
     /// live sun shows the hour itself; multiplied into the exposure after adaptation.
     pub(crate) night: f32,
@@ -150,6 +194,12 @@ impl Settings {
             CvarFlags::ARCHIVE,
             "Eye adaptation: 1 exposure follows the view (default), 0 fixed r_hdrExposure",
         ))?;
+        cvars.register(CvarDefinition::new(
+            LEVEL,
+            0_i64,
+            CvarFlags::ARCHIVE,
+            "Eye adaptation brightness: 0 low (default), 1 medium, 2 high, 3 cooked",
+        ))?;
         // The last, `r_hdrExposure`, belongs to `post_hdr.rs`; it is only followed here.
         for cvar in &FLOATS[..FLOATS.len() - 1] {
             cvars.register(CvarDefinition::new(
@@ -160,11 +210,11 @@ impl Settings {
             ))?;
         }
         let settings = Self::default();
-        for slot in 0..=FLOATS.len() {
-            let name = if slot == 0 {
-                ENABLED
-            } else {
-                FLOATS[slot - 1].name
+        for slot in 0..=LEVEL_SLOT {
+            let name = match slot {
+                0 => ENABLED,
+                LEVEL_SLOT => LEVEL,
+                _ => FLOATS[slot - 1].name,
             };
             if let Some(cvar) = cvars.get(name) {
                 settings.set(slot, &cvar.value);
@@ -185,10 +235,11 @@ impl Settings {
                 Err(_) => return,
             },
         };
-        let bits = if slot == 0 {
-            u32::from(value != 0.0 && !value.is_nan())
-        } else {
-            clamp(&FLOATS[slot - 1], value).to_bits()
+        let bits = match slot {
+            0 => u32::from(value != 0.0 && !value.is_nan()),
+            LEVEL_SLOT if value.is_nan() => return,
+            LEVEL_SLOT => value.round().clamp(0.0, 3.0) as u32,
+            _ => clamp(&FLOATS[slot - 1], value).to_bits(),
         };
         self.0[slot].store(bits, Ordering::Relaxed);
     }
@@ -204,6 +255,7 @@ impl Settings {
             to_dark: float(4),
             key: float(5),
             base: float(6),
+            level: Level::from_index(self.0[LEVEL_SLOT].load(Ordering::Relaxed)),
             night: 1.0,
         }
     }
@@ -338,11 +390,16 @@ impl Params {
     /// Parameters for one frame `delta` seconds after the last. `hdr` is `r_sceneHdr`:
     /// an 8-bit scene only brightens and keeps exposure 1.
     pub(crate) fn new(values: Values, mode: Mode, delta: f32, hdr: bool) -> Self {
+        let (aim, brighten, darken) = values.level.shape();
         Self {
             base: if hdr { values.base } else { 1.0 },
-            min_ev: if hdr { values.min_ev.min(0.0) } else { 0.0 },
-            max_ev: values.max_ev.max(0.0) * day_share(values.night),
-            log_key: values.key.max(1e-3).log2(),
+            min_ev: if hdr {
+                values.min_ev.min(0.0) * darken
+            } else {
+                0.0
+            },
+            max_ev: (values.max_ev.max(0.0) + brighten) * day_share(values.night),
+            log_key: values.key.max(1e-3).log2() + aim,
             to_bright: smoothing(delta, values.to_bright),
             to_dark: smoothing(delta, values.to_dark),
             mode: mode as u32,
@@ -898,6 +955,7 @@ mod tests {
                 to_dark: 2.5,
                 key: 0.18,
                 base: 1.0,
+                level: Level::Low,
                 night: 1.0,
             }
         );
@@ -920,6 +978,38 @@ mod tests {
         assert_eq!(settings.values().base, 4.0);
         cvars.set_text(ENABLED, "1").unwrap();
         assert!(settings.values().enabled);
+    }
+
+    #[test]
+    fn brighter_levels_aim_higher_and_darken_less() {
+        let mut cvars = CvarRegistry::new();
+        crate::frame_target::aa::register(&mut cvars).unwrap();
+        let settings = Settings::bind(&mut cvars).unwrap();
+        let mut params = |level: &str| {
+            cvars.set_text(LEVEL, level).unwrap();
+            Params::new(settings.values(), Mode::Metering, 0.016, true)
+        };
+        let levels = [params("0"), params("1"), params("2"), params("3")];
+        assert_eq!(
+            levels[0],
+            Params::new(Values::default(), Mode::Metering, 0.016, true),
+            "Low is the adaptation as before"
+        );
+        for pair in levels.windows(2) {
+            assert!(pair[1].log_key > pair[0].log_key);
+            assert!(pair[1].max_ev > pair[0].max_ev);
+            assert!(pair[1].min_ev >= pair[0].min_ev);
+        }
+        assert_eq!((levels[3].min_ev, levels[3].max_ev), (0.0, 3.5));
+        assert_eq!(params("9").max_ev, 3.5, "clamped to Cooked");
+        assert_eq!(params("-2").max_ev, 1.0, "clamped to Low");
+        // Full night still takes all the brightening away.
+        let night = Values {
+            night: 0.4,
+            level: Level::Cooked,
+            ..Values::default()
+        };
+        assert_eq!(Params::new(night, Mode::Metering, 0.016, true).max_ev, 0.0);
     }
 
     #[test]

@@ -39,6 +39,7 @@ Chat translation: read a chat line in another language in English, only when you
 > Your choice: Only the lines you pick leave your PC, and `cl_chatTranslateSkip` lists languages never offered.
 
 - Chat translation on request: with the chat open, click a line's text (game, SJK or clan chat) to put it into English; `/tr` in the chat (or `tr` in the console) does it for the newest foreign line, `/tr <text>` the text you give, and the SJK chat page has Translate on a chosen message. Only the lines you choose go to the SJK hub, which asks Microsoft's translator; `cl_chatTranslateSkip` lists languages never offered. Needs the updated hub _(Slash, PR #410, after Creo's idea)_
+- Eye adaptation brightness: Settings > Renderer > IMAGE has Adaptation brightness, Low (as before), Medium, High and Cooked, very bright and washed out (`r_autoExposureLevel` 0-3) _(Sol)_
 
 ## 2026.1111.1 (Alpha) | 11/11/2026
 

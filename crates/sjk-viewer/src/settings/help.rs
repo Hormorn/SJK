@@ -229,6 +229,10 @@ const CHOICE_NAMES: &[(&str, &str, &str)] = &[
     ("cg_hitsounds", "4", "Knock"),
     ("cg_hitsounds", "5", "Saber: stock hit"),
     ("cg_hitsounds", "6", "Saber: mixed hits"),
+    (crate::frame_target::aa::exposure::LEVEL, "0", "Low"),
+    (crate::frame_target::aa::exposure::LEVEL, "1", "Medium"),
+    (crate::frame_target::aa::exposure::LEVEL, "2", "High"),
+    (crate::frame_target::aa::exposure::LEVEL, "3", "Cooked"),
     (crate::audio::SKIN_SOUNDS_CVAR, "0", "Off"),
     (crate::audio::SKIN_SOUNDS_CVAR, "1", "With normal"),
     (crate::audio::SKIN_SOUNDS_CVAR, "2", "Only skin"),
@@ -1696,6 +1700,10 @@ const HELP: &[(&str, &str)] = &[
     (
         crate::frame_target::aa::exposure::ENABLED,
         "Brightness follows what you look at, as eyes adapt between dark rooms and bright sky.",
+    ),
+    (
+        crate::frame_target::aa::exposure::LEVEL,
+        "How bright eye adaptation makes the view: Low as before, Medium, High, and Cooked, very bright.",
     ),
     (
         crate::frame_target::aa::exposure::MIN_EV,
