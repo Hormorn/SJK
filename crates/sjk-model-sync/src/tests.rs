@@ -82,7 +82,7 @@ fn zip(files: &[(&str, &[u8])]) -> Vec<u8> {
     zip.finish().unwrap().into_inner()
 }
 
-fn good() -> Vec<(String, Vec<u8>)> {
+pub(crate) fn good() -> Vec<(String, Vec<u8>)> {
     vec![
         ("models/players/solfox/model.glm".into(), glm()),
         (

@@ -4,9 +4,12 @@ Verified players share the player model they wear through the
 [Sith cloud](sith-cloud.md), so others can see it without hunting for the file. Sol
 asked for it on 11/11/2026, with Krovos (who runs the Sith cloud) on board.
 
-**Status:** planned. Only the shared checks
-([sjk-model-sync](../crates/sjk-model-sync/src/lib.rs)) are implemented; the upload
-ticket, the server endpoint and the client's pages are not.
+**Status:** implemented, not verified in game or against a live Sith cloud. The
+client's side is this repository's (the checks and the cloud calls in
+[sjk-model-sync](../crates/sjk-model-sync/src/lib.rs), the client in
+[model_sync.rs](../crates/sjk-viewer/src/model_sync.rs)); the hub's ticket and the
+Sith cloud's `/models` are built in their own (private) repositories and go live when
+they are deployed.
 
 ## Who can do what
 
@@ -23,7 +26,8 @@ Changes go live at once, with no review queue: the tick is the trust.
 
 ## Upload
 
-1. Profile > My model. The client finds the model the player wears, wherever it is
+1. Profile > Share my model (the Profile screen of the SJK UI, for JoF and Sith
+   verified players), or `sharemodel` in the console. The client finds the model the player wears, wherever it is
    installed (a folder, or a large PK3 with other things in it), and packs only
    `models/players/<name>/` and that model's `shaders/<name>.shader` into a new PK3
    ([`pack`](../crates/sjk-model-sync/src/pack.rs)).
@@ -76,11 +80,13 @@ sender is then dealt with through the hub (ban).
 
 ## Viewing
 
-- `cl_autoModels` (0, Settings > Mods > Sith cloud): download, by themselves, the
+- `cl_autoModels` (0, Settings > Mods, "Shared player models"): download, by themselves, the
   synced models of players you meet, and their new versions at the Sith cloud's
   hourly check. Off by default.
-- Off: a player's Inspect card offers **Download this model** when their model is
-  missing; `/getmodel <name>` does the same from the console.
+- Off: inspecting a player (the Inspect key pins their card) whose model is missing
+  says once in the console how to get it; `getmodel <name>` fetches it.
+- `modelrollback <name> <version>` (staff) asks the hub for a rollback ticket and
+  makes that version current again.
 - A download loads from the next map, as Sith cloud files do, and goes where they go
   (`base`, or `assets/S/base`).
 
@@ -134,5 +140,14 @@ removed. A model the game already has by name, from anywhere else, is never fetc
 
 ## Verification
 
-`cargo test -p sjk-model-sync`: allowed and refused packs (paths, types, the shader's
-names, images, GLM, limits, zip bombs) and the packer's output passing the checks.
+`cargo test -p sjk-model-sync --features client`: allowed and refused packs (paths,
+types, the shader's names, images, GLM, limits, zip bombs), the packer's output
+passing the checks, a download checked against its listing, and the record replacing
+only its own file. `sjk-identity`'s `model_tickets_come_back_with_a_serial` covers the
+ticket request; `model_sync::tests` in the viewer the setting's default and the files
+a share takes. Not verified: an upload and a download against a running Sith cloud
+and hub, and the Profile button in game.
+
+Known limits: a model's textures outside its own folder, or shaders in a file not
+named `shaders/<name>.shader`, are not shared (viewers see those parts untextured or
+plain); sounds are not shared; a download loads from the next map.

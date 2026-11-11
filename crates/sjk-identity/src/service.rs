@@ -917,6 +917,10 @@ enum Command {
     Emote(String, Option<u8>, bool),
     /// A ping at a point (whole game units) for a scope, from the slot the player claims.
     Ping([i32; 3], String),
+    /// A model sync upload ticket (model, content MD5), into [`Service::model_ticket`].
+    ModelTicket(String, String),
+    /// A staff rollback ticket (model, version), into [`Service::model_ticket`].
+    ModelRollbackTicket(String, u32),
     /// A toy event (toy, event, target slot), from the slot the player claims.
     Toy(String, String, u8),
     /// Whether the SJK chat is on.
@@ -1143,6 +1147,8 @@ struct Worker {
     chat: Arc<Mutex<ChatState>>,
     /// What became of the last ping sent ([`Service::ping_outcome`]).
     ping_outcome: Arc<Mutex<Option<ReportOutcome>>>,
+    /// The last model sync ticket asked for ([`Service::model_ticket`]).
+    model_ticket: Arc<Mutex<Option<ReportOutcome>>>,
     /// The look the viewer last gave.
     look: Look,
     /// The newest look [`Service::set_look`] gave, not yet taken: the worker reads it
@@ -1539,6 +1545,7 @@ impl Worker {
             feed: Arc::default(),
             chat: Arc::default(),
             ping_outcome: Arc::default(),
+            model_ticket: Arc::default(),
             look: Look::default(),
             latest_look: Arc::default(),
             look_since: None,
@@ -1862,6 +1869,22 @@ impl Worker {
         *last = Some(outcome_of(serial, outcome));
     }
 
+    /// Ask the hub for a model sync ticket: an upload one for content `md5`, or a staff
+    /// rollback one to `version` without it. The ticket (or why there is none) goes to
+    /// [`Service::model_ticket`].
+    fn ask_model_ticket(&mut self, md5: Option<String>, model: &str, version: u32) {
+        let outcome = match (self.hub.as_mut(), self.registered) {
+            (Some(hub), true) => match md5 {
+                Some(md5) => hub.model_sync_ticket(&self.identity, model, &md5),
+                None => hub.model_rollback_ticket(&self.identity, model, version),
+            },
+            _ => Err(self.not_connected()),
+        };
+        let mut last = crate::feed::lock(&self.model_ticket);
+        let serial = last.as_ref().map_or(1, |last| last.serial + 1);
+        *last = Some(outcome_of(serial, outcome));
+    }
+
     /// Send a toy event from the slot the player claims on their server. Its effect was
     /// already shown here, so what the hub answers is not kept.
     fn send_toy_event(&mut self, toy: &str, event: &str, target: u8) {
@@ -1984,6 +2007,10 @@ impl Worker {
             Command::ChatBan(key_id) => self.send_chat_ban(key_id),
             Command::Emote(emote, sync, quiet) => self.send_emote(&emote, sync, quiet),
             Command::Ping(pos, scope) => self.send_ping(pos, &scope),
+            Command::ModelTicket(model, md5) => self.ask_model_ticket(Some(md5), &model, 0),
+            Command::ModelRollbackTicket(model, version) => {
+                self.ask_model_ticket(None, &model, version);
+            }
             Command::Toy(toy, event, target) => self.send_toy_event(&toy, &event, target),
             Command::SetChat(on) => self.chat_on = on,
             Command::SetAvatar(png) => self.change_avatar(Some(&png)),
@@ -4475,6 +4502,7 @@ pub struct Service {
     pings: Arc<Mutex<VecDeque<QueuedPing>>>,
     toys: Arc<Mutex<VecDeque<QueuedToyEvent>>>,
     ping_outcome: Arc<Mutex<Option<ReportOutcome>>>,
+    model_ticket: Arc<Mutex<Option<ReportOutcome>>>,
     /// What the feed is told to read, for the looks' generation.
     feed: Arc<Mutex<FeedShared>>,
     /// Set to end the feed and vitals threads, which end after their request at the latest.
@@ -4540,6 +4568,7 @@ impl Service {
         let chat = Arc::clone(&worker.chat);
         let latest_look = Arc::clone(&worker.latest_look);
         let ping_outcome = Arc::clone(&worker.ping_outcome);
+        let model_ticket = Arc::clone(&worker.model_ticket);
         let feed = Arc::clone(&worker.feed);
         let own_drops = commands.clone();
         let own_trades = commands.clone();
@@ -4657,6 +4686,7 @@ impl Service {
             pings,
             toys,
             ping_outcome,
+            model_ticket,
             feed,
             feed_stop,
             sharing,
@@ -5303,6 +5333,26 @@ impl Service {
     /// What became of the last ping sent; `None` before one.
     pub fn ping_outcome(&self) -> Option<ReportOutcome> {
         crate::feed::lock(&self.ping_outcome).clone()
+    }
+
+    /// Ask the hub for a model sync upload ticket for `model` with content `md5`
+    /// (`docs/model-sync.md`); it comes in [`Service::model_ticket`].
+    pub fn ask_model_ticket(&self, model: String, md5: String) {
+        let _ = self.commands.send(Command::ModelTicket(model, md5));
+    }
+
+    /// Ask the hub for a staff rollback ticket making `version` of `model` current again;
+    /// it comes in [`Service::model_ticket`].
+    pub fn ask_model_rollback_ticket(&self, model: String, version: u32) {
+        let _ = self
+            .commands
+            .send(Command::ModelRollbackTicket(model, version));
+    }
+
+    /// The last model sync ticket asked for: `sent` with the ticket as `message`, or
+    /// why there is none; `None` before one.
+    pub fn model_ticket(&self) -> Option<ReportOutcome> {
+        crate::feed::lock(&self.model_ticket).clone()
     }
 
     /// The pings the feed received for `server`, the game server the player is on,
@@ -6153,6 +6203,24 @@ mod tests {
         ) -> Result<(String, Option<bool>), HubError> {
             self.record(format!("model {server} {slot} {model}"))
                 .map(|()| ("^2Sol".to_owned(), Some(model == "kyle")))
+        }
+        fn model_sync_ticket(
+            &mut self,
+            _identity: &Identity,
+            model: &str,
+            md5: &str,
+        ) -> Result<String, HubError> {
+            self.record(format!("model ticket {model} {md5}"))
+                .map(|()| format!("ticket-{model}"))
+        }
+        fn model_rollback_ticket(
+            &mut self,
+            _identity: &Identity,
+            model: &str,
+            version: u32,
+        ) -> Result<String, HubError> {
+            self.record(format!("model rollback {model} {version}"))
+                .map(|()| format!("rollback-{model}-{version}"))
         }
         fn presence(&mut self, server: &str) -> Result<Vec<Presence>, HubError> {
             self.record(format!("presence {server}"))
@@ -7750,6 +7818,24 @@ mod tests {
         assert!(chat_outcome(&worker).sent);
         worker.handle(Command::Emote("dance".into(), None, true), t0);
         assert_eq!(fake.log().last().unwrap(), "emote dance on 1.2.3.4:29070");
+    }
+
+    #[test]
+    fn model_tickets_come_back_with_a_serial() {
+        let fake = Fake::default();
+        let t0 = Instant::now();
+        let (mut worker, _) = worker(&fake, t0);
+        let outcome = |worker: &Worker| crate::feed::lock(&worker.model_ticket).clone().unwrap();
+        worker.handle(Command::ModelTicket("solfox".into(), "ab".repeat(16)), t0);
+        assert!(!outcome(&worker).sent, "no hub yet");
+        worker.handle(Command::Configure(on("https://hub")), t0);
+        worker.tick(t0);
+        worker.handle(Command::ModelTicket("solfox".into(), "ab".repeat(16)), t0);
+        let upload = outcome(&worker);
+        assert!(upload.sent && upload.message == "ticket-solfox" && upload.serial == 2);
+        worker.handle(Command::ModelRollbackTicket("solfox".into(), 3), t0);
+        assert_eq!(outcome(&worker).message, "rollback-solfox-3");
+        assert_eq!(fake.log().last().unwrap(), "model rollback solfox 3");
     }
 
     #[test]

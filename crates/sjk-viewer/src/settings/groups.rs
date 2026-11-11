@@ -178,6 +178,8 @@ const MODS_ROWS: &[&str] = &[
     "jof.contentSource",
     "sith.downloads",
     "sith.cloudAuto",
+    #[cfg(feature = "mod-jof")]
+    crate::model_sync::AUTO,
     crate::brush_view::CVAR,
     crate::entity_view::CVAR,
     crate::ghost_replay::SHOWCASE_CVAR,
@@ -480,6 +482,8 @@ impl Group {
                 "jof.contentSource",
                 "sith.downloads",
                 "sith.cloudAuto",
+                #[cfg(feature = "mod-jof")]
+                crate::model_sync::AUTO,
                 #[cfg(feature = "mod-japlus")]
                 "japlus.plugin 1",
                 #[cfg(feature = "mod-japlus")]

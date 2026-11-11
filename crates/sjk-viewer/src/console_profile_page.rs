@@ -148,6 +148,12 @@ impl ViewerConsole {
         match action {
             PanelAction::None => {}
             PanelAction::Close => self.close_profile_panel(),
+            PanelAction::ShareModel => {
+                // The console prints how it went (`model_sync::command`).
+                if let Err(why) = self.queue_command("sharemodel") {
+                    self.push_log(format!("^3Model sync: {why}"));
+                }
+            }
             PanelAction::Staff => {
                 let owns_console = self.profile_panel.close();
                 self.open_staff_panel();

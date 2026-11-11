@@ -956,6 +956,11 @@ impl State {
         self.pin.request();
     }
 
+    /// The player whose card is pinned (`inspect`), if any.
+    pub(crate) fn pinned_client(&self) -> Option<u16> {
+        self.pin.target()
+    }
+
     /// The player whose card is up, so their model icon can be resolved.
     pub(crate) fn shown_client(&self) -> Option<u16> {
         self.shown.filter(|_| self.alpha > 0.0)

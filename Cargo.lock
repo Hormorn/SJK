@@ -3196,7 +3196,12 @@ name = "sjk-model-sync"
 version = "0.1.0"
 dependencies = [
  "md-5",
+ "serde",
+ "serde_json",
+ "sjk-jof-content",
  "sjk-model",
+ "tempfile",
+ "ureq",
  "zip",
 ]
 
@@ -3335,6 +3340,7 @@ dependencies = [
  "sjk-mod-japro",
  "sjk-mod-jof",
  "sjk-model",
+ "sjk-model-sync",
  "sjk-network",
  "sjk-pipeline-cache",
  "sjk-protocol",

@@ -178,6 +178,46 @@ impl crate::GpuState {
             self.unlock_toast.push(updated);
         }
     }
+
+    /// Each frame: model sync's tickets, results and automatic downloads
+    /// ([`crate::model_sync::update`]); the players met are read only when it asks.
+    pub(crate) fn update_model_sync(&mut self) {
+        let Some(console) = self.console.as_mut() else {
+            return;
+        };
+        let session = self.live_session.as_ref();
+        // An inspected player wearing a model this game lacks: say how to get it.
+        let inspected = self.hud.card.pinned_client().and_then(|client| {
+            let game = session?.game_state();
+            let info =
+                game.config_string(crate::player_identity::CS_PLAYERS + usize::from(client))?;
+            let info = sjk_client::LegacyClientInfo::new(info);
+            let model = info
+                .text("model")
+                .and_then(crate::installed_models::folder)?;
+            let name = info
+                .bytes("n")
+                .map(|bytes| sjk_client::decode_legacy(bytes).into_owned())
+                .unwrap_or_default();
+            Some((name, model))
+        });
+        crate::model_sync::offer(console, &self.game_data, inspected);
+        crate::model_sync::update(console, &self.game_data, || {
+            let Some(session) = session else {
+                return Vec::new();
+            };
+            let game = session.game_state();
+            (0..64)
+                .filter(|&slot| i32::try_from(slot).ok() != Some(game.client_num))
+                .filter_map(|slot| game.config_string(crate::player_identity::CS_PLAYERS + slot))
+                .filter_map(|info| {
+                    sjk_client::LegacyClientInfo::new(info)
+                        .text("model")
+                        .and_then(crate::installed_models::folder)
+                })
+                .collect()
+        });
+    }
 }
 
 #[cfg(test)]

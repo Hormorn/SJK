@@ -1369,6 +1369,10 @@ const HELP: &[(&str, &str)] = &[
         "Off by default. With the Sith cloud on, checks at start and every hour and fetches what changed in the groups marked Auto.",
     ),
     (
+        "cl_autoModels",
+        "Off by default. Downloads the models other players shared through the Sith cloud for the players you meet, and their updates.",
+    ),
+    (
         "jof.contentSource",
         "Where JoF content downloads from: JoF Cloud, then jofhub.eu when a file is missing there (Auto), or only one of them.",
     ),

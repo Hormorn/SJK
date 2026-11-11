@@ -30,6 +30,12 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+= cl_autoModels: Download by themselves the models other players shared through the Sith cloud, for the players you meet, and their updates.
+
+- Model sync: JoF and Sith verified players share the model they wear through the Sith cloud (Profile > Share my model, or `sharemodel`); others fetch it with `getmodel <name>`, or by themselves with `cl_autoModels` (off by default). Every pack is checked on both sides: one model folder, its own shaders only, size limits. Krovos runs the Sith cloud side. _(Sol, Krovos)_
+
 ## 2026.1111.1 (Alpha) | 11/11/2026
 
 Graphics presets for your PC, richer rain and settling snow, a Forge that fuses duplicates, GIF tags, a map editor that guesses textures and flies to things, and Slash's round of fixes.

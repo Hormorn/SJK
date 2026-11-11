@@ -766,6 +766,39 @@ pub(crate) fn set_own_model(model: Option<String>) {
     lock().own_model = model;
 }
 
+/// The model folder the local player wears ([`set_own_model`]), for `sharemodel`.
+pub(crate) fn own_model_folder() -> Option<String> {
+    lock().own_model.clone()
+}
+
+/// Ask the hub for a model sync upload ticket; false when the service has not started.
+pub(crate) fn ask_model_ticket(model: String, md5: String) -> bool {
+    let runtime = lock();
+    let Some(service) = runtime.service.as_ref() else {
+        return false;
+    };
+    service.ask_model_ticket(model, md5);
+    true
+}
+
+/// Ask the hub for a staff rollback ticket; false when the service has not started.
+pub(crate) fn ask_model_rollback_ticket(model: String, version: u32) -> bool {
+    let runtime = lock();
+    let Some(service) = runtime.service.as_ref() else {
+        return false;
+    };
+    service.ask_model_rollback_ticket(model, version);
+    true
+}
+
+/// The last model sync ticket asked for, once the service has one.
+pub(crate) fn model_ticket() -> Option<sjk_identity::ReportOutcome> {
+    lock()
+        .service
+        .as_ref()
+        .and_then(|service| service.model_ticket())
+}
+
 /// How often the player card asks the hub again for a player's profile.
 const CARD_LOOKUP_EVERY: Duration = Duration::from_secs(600);
 

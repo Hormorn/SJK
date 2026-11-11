@@ -6,6 +6,8 @@
 //! download. A pack holds one model, `models/players/<name>/`, and at most its
 //! `shaders/<name>.shader`; any rule broken refuses the whole pack.
 
+#[cfg(feature = "client")]
+pub mod client;
 mod image;
 pub mod pack;
 mod shader;

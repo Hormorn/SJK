@@ -8,7 +8,19 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The client's side: the Sith cloud's /models over HTTP and the record of what was
+# fetched. The Sith cloud server uses the checks alone.
+client = ["dep:serde", "dep:serde_json", "dep:sjk-jof-content", "dep:ureq"]
+
 [dependencies]
 md-5.workspace = true
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sjk-jof-content = { workspace = true, optional = true }
 sjk-model.workspace = true
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"], optional = true }
 zip.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

@@ -402,6 +402,20 @@ impl Panel {
             );
         }
         y += 42.0;
+        if self.share_model {
+            y += 8.0;
+            kit::button(
+                &mut self.ui,
+                frame,
+                [LEFT_X, y, 210.0, 42.0],
+                "Share my model",
+                false,
+                true,
+                self.focus == Focus::ShareModel,
+                SHARE_MODEL_TOKEN,
+            );
+            y += 42.0;
+        }
         y += 34.0;
         kit::heading(&mut self.ui, frame, LEFT_X, y, LEFT_WIDTH, "Your record");
         y += 30.0;
@@ -1386,6 +1400,7 @@ impl Panel {
             Focus::Emoji => "choose an emoji",
             Focus::EmojiGrid => "use this emoji",
             Focus::RemoveEmoji => "remove emoji",
+            Focus::ShareModel => "share your model",
         };
         let mut keys: Vec<(&[&str], &str)> = vec![(&["Tab"], "next"), (&["Enter"], enter)];
         if typing {
