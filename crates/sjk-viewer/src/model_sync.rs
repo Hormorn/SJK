@@ -648,7 +648,7 @@ pub(crate) fn update(
     }
     drop(state);
     for line in lines {
-        crate::log::progress(format_args!("{line}"));
+        // The console's log line is the log's too: one line each (it was written twice).
         console.push_log(line);
     }
 }
@@ -746,7 +746,7 @@ impl RowAction {
 impl PageRow {
     /// The row's buttons: Share or Update for a model the game has, when the player may
     /// share (`can_share`, [`can_share`]); Download when the cloud has a version this
-    /// game lacks (not installed, an older fetched one, or only the hosts' pack's).
+    /// game did not fetch (none fetched, or an older one), installed from elsewhere or not.
     pub(crate) fn actions(&self, can_share: bool) -> [Option<RowAction>; 2] {
         let upload =
             (can_share && self.installed).then_some(if self.cloud.is_some() || self.host_pack {
@@ -754,11 +754,12 @@ impl PageRow {
             } else {
                 RowAction::Share
             });
-        let download = self.cloud.is_some_and(|cloud| {
-            !self.installed
-                || self.fetched.is_some_and(|fetched| fetched < cloud)
-                || (self.host_pack && self.fetched.is_none())
-        });
+        // Whenever the cloud has a version this game did not fetch, even of a model it
+        // has from elsewhere: the shared one then wins over the local copy, as the
+        // player chose (Sol, 11/11/2026: `rollem`, installed, could not be fetched).
+        let download = self
+            .cloud
+            .is_some_and(|cloud| self.fetched.is_none_or(|fetched| fetched < cloud));
         [upload, download.then_some(RowAction::Download)]
     }
 

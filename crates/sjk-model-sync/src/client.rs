@@ -90,7 +90,9 @@ impl fmt::Display for CloudError {
             "rejected" if !self.why.is_empty() => return write!(f, "refused: {}", self.why),
             "bad_ticket" => "the upload ticket was refused; try again",
             "too_large" => "the model is too large",
-            "rate_limited" => "too many uploads for now; try again later",
+            "rate_limited" => {
+                "not now: this model was updated less than an hour ago, or you sent your 5 uploads of the day; try again later"
+            }
             "not_found" => "the Sith cloud has no such model",
             other => return write!(f, "the Sith cloud said {other}"),
         };
@@ -391,7 +393,7 @@ mod tests {
             code: "rate_limited".into(),
             why: String::new(),
         };
-        assert!(limited.to_string().contains("too many uploads"));
+        assert!(limited.to_string().contains("less than an hour ago"));
     }
 
     #[test]
