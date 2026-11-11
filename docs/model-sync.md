@@ -117,8 +117,11 @@ cloud: v3", "In the Sith cloud's packs", "Not shared", "Downloaded v2") and offe
 - **Share** (a model nobody shared) or **Update** (one on the cloud, or in the hosts'
   packs): only to players with a JoF or Sith tick, or staff. It runs
   `sharemodel <name>`.
-- **Download**: a version on the cloud this game lacks (not installed, an older one
-  fetched, or only the hosts' pack's). It runs `getmodel <name>`.
+- **Download**: a version on the cloud this game did not fetch (none fetched, or an
+  older one), even of a model it has from elsewhere: the shared version then wins over
+  the local copy, as the player chose (since 11/11/2026; before, an installed model
+  offered only Update, so `rollem`'s shared version could not be fetched). It runs
+  `getmodel <name>`.
 
 The page's foot shows the last lines model sync said (the same as the console's) and
 "Working..." while a job is on its way, and whether `cl_autoModels` is on. Keys: type

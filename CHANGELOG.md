@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Model sync: Download shows for a model you already have when someone shared a version you did not fetch, a refused update says why (the model was updated less than an hour ago, or your 5 uploads of the day are used), and each result is written once in the console _(Sol)_
+
 ## 2026.1111.5 (Alpha) | 11/11/2026
 
 Model sync fixes: more skins can be shared, rig models too.
