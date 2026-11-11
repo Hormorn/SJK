@@ -4671,8 +4671,11 @@ command new for them (`DrawCommand::Polygon`, [rendering.md](rendering.md#submis
   target, 2 everyone); 1 (allies only) stays reachable in the settings.
 - `cg_nameplateBars`: 0 none, 1 allies only, 2 everyone (default), 3 target; never on
   a duel opponent ([Sharing](#sharing-and-estimates)). `cg_nameplateScale`
-  sets the text size, `cg_nameplateAlpha` (Settings "Nameplate opacity", 0.1 to 1,
-  default 1) how solid the whole plate is in every style, times its distance and wall
+  sets the text size, `cg_nameplateOffset` (Settings "Nameplate height", -100 to 40,
+  default 0) moves every plate up or down from the point above the head, in game
+  units; a plate that would overlap an ally's team logo jumps above the logo
+  instead. `cg_nameplateAlpha` (Settings "Nameplate opacity", 0.1 to 1, default 1) sets
+  how solid the whole plate is in every style, times its distance and wall
   fade, `cg_nameplateWalls` shows
   players behind walls at 35% opacity instead of fading them (the same BSP trace as
   before, from the rendered eye; changes ease over 120 ms), and `cg_nameplateNpcs`

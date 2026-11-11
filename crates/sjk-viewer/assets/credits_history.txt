@@ -9,6 +9,26 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 11/11/2026 | - | World brightness: r_hdrExposure renamed, and it brightens 8-bit scenes too
+- fd1821e |  | World brightness: r_hdrExposure renamed, and it brightens 8-bit scenes too
++ 11/11/2026 | - | Join: stop waiting 3 s for an nfr JA+ never sends
+- f1107f5 |  | Join: stop waiting 3 s for an nfr JA+ never sends
++ 11/11/2026 | - | Rig models: fit borrowed emote clips on all cores, once per rig and source
+- a862b12 |  | Rig models: fit borrowed emote clips on all cores, once per rig and source
++ 11/11/2026 | - | Map loads: other players' models load on workers once the map is live
+- 3318766 |  | Map loads: other players' models load on workers once the map is live
++ 11/11/2026 | - | Map loads: game fonts and server shader remaps built on the worker
+- b8d2f17 |  | Map loads: game fonts and server shader remaps built on the worker
++ 11/11/2026 | - | Join: keep the browser's preview while the session's world builds
+- 969d5bc |  | Join: keep the browser's preview while the session's world builds
++ 11/11/2026 | - | Debug panel and changelog: faster joins
+- 5c45acd |  | Debug panel and changelog: faster joins
++ 11/11/2026 | - | Docs: Creyon joins the maintainers (merge into main, alpha releases)
+- b6e4d61 |  | Docs: Creyon joins the maintainers (merge into main, alpha releases)
++ 11/11/2026 | - | Release 2026.1111.3 (Alpha)
+- ebb3335 |  | Release 2026.1111.3 (Alpha)
++ 11/11/2026 | - | Eye adaptation brightness: Low, Medium, High, Cooked (r_autoExposureLevel)
+- 01334e9 |  | Eye adaptation brightness: Low, Medium, High, Cooked (r_autoExposureLevel)
 + 11/11/2026 | - | Release 2026.1111.1 (Alpha)
 - 70f2650 |  | Release 2026.1111.1 (Alpha)
 + 10/11/2026 | - | Blades: pipeline cache on disk, build-ahead for worn skins, split build timings
@@ -3230,6 +3250,15 @@
 - 8db7327 |  | Wrap centre prints at 50 characters, not UTF-8 bytes
 - 0874042 |  | Decode print and cp text as legacy bytes
 
+= Hormorn
++ 11/11/2026 | SJK #401 | Add a height slider for nameplates
+- b75be13 |  | Add a height slider for nameplates
+- 41ae5df |  | Update CHANGELOG.md
+- fe3e23f |  | Update CHANGELOG.md
+- c5794b5 |  | Update catalog.rs
+- a234f5e |  | Add a height slider for nameplates
+- bc795cb |  | Fixes to changelog, nameplate.rs, client.md
+
 = Kushina
 + 08/11/2026 | SJK #389 | Set the browser's sort mark clear after its column's name
 - 693530f |  | Set the browser's sort mark clear after its column's name
@@ -3580,6 +3609,8 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 11/11/2026 | - | Release 2026.1111.2 (Alpha)
+- 7946da8 |  | Release 2026.1111.2 (Alpha)
 + 11/11/2026 | SJK #410 | Chat translation on request: click a line, /tr, tr (Creo's idea, needs hub #22)
 - 87a2dc4 |  | Chat translation on request: /tr, tr and the SJK chat page's Translate
 - da1e2ce |  | Chat translation: click a line's text in every chat to translate it

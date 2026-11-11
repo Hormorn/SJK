@@ -595,6 +595,12 @@ did: Prediction as in 2026.1028.1, a Settings choice for players who preferred i
 did: Reported the JoF Shuttle ship drawn black and its younglings grey
 link: Kushina's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AkushinaSJK
 
+[Hormorn]
+github: Hormorn
+role: Contributor: 1 merged pull request
+did: #401 A Nameplate height slider: move every nameplate up or down, clear of team logos
+link: Hormorn's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AHormorn
+
 == Art
 
 [Reyced]

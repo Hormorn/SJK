@@ -237,7 +237,9 @@ pub(crate) fn update(
         );
         let logo_tops = gpu.hud.team_logo.tops();
         gpu.hud.identification.set_logo_tops(logo_tops);
-        gpu.hud.nameplate.set_logo_tops(logo_tops);
+        gpu.hud
+            .nameplate
+            .set_logo_bounds(gpu.hud.team_logo.bounds());
         let duel_colours = gpu.hud.duel_pairs.update(snapshot, session.game_state());
         gpu.hud.nameplate.set_duel_colours(duel_colours);
         gpu.hud.identification.update(
@@ -481,7 +483,9 @@ pub(crate) fn update(
         );
         let logo_tops = gpu.hud.team_logo.tops();
         gpu.hud.identification.set_logo_tops(logo_tops);
-        gpu.hud.nameplate.set_logo_tops(logo_tops);
+        gpu.hud
+            .nameplate
+            .set_logo_bounds(gpu.hud.team_logo.bounds());
         let duel_colours = gpu.hud.duel_pairs.update(snapshot, session.game_state());
         gpu.hud.nameplate.set_duel_colours(duel_colours);
         gpu.hud.identification.update(

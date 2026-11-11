@@ -1153,6 +1153,13 @@ ideas are under [Ideas](#ideas):
 - #388 the scoreboard shows a ribbon bar for every medal, up to six, where it stopped at
   three.
 
+Hormorn ([Hormorn](https://github.com/Hormorn)), contributor, has 1 pull request merged
+into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AHormorn)):
+
+- #401 Nameplate height (Settings > HUD, `cg_nameplateOffset`, -100 to 40 game units,
+  default 0) moves every nameplate up or down from its point above the head; a plate that
+  would overlap an ally's team logo jumps above the logo instead.
+
 ## Art
 
 Reyced made the first Solfox, a fox player model (`models/players/solfox`), for Sol in
