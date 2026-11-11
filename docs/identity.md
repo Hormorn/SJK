@@ -1363,7 +1363,7 @@ puts the player back as they were, through the same undo the owner uses (refused
 something changed since, a holocron opened for one). Every gift and every undo stays in
 the staff log, and the owner can still undo everything a staff member did. Other staff keep
 search, verify, chat moderation, picture blocks, log requests and the Logs, Crashes and
-Chat bans tabs.
+Chat tabs.
 
 The JKR creator (since 22/10/2026) is the creator of JKR, the client SJK is built on
 (Bishop): a flag only the hub operator sets (`sjk-hub jkr-creator KEY_ID`), carried by
@@ -1440,11 +1440,19 @@ key ("Merged the other player into this one", "Unlinked the key: it starts afres
 - **Logs**: Request logs for the chosen player and the log requests with Open
   ([Log requests](#log-requests));
 - then three tabs set apart, about every player: **Crashes**, every player's crash
-  reports by kind, then one kind's with Open; **Chat bans**, the SJK chat bans in force,
-  newest first (`StaffQuery::ChatBans`, `POST /v1/staff/chat-bans`), each with who
-  banned them, until when and whether their address is banned too, and Lift
-  (`StaffRequest::ChatUnban`; a ban that holds only an address has no key to name and
-  cannot be lifted from here; a lift takes the player's bans off the list); and, since
+  reports by kind, then one kind's with Open; **Chat** (Chat bans before 11/11/2026), the
+  SJK chat bans in force, newest first (`StaffQuery::ChatBans`, `POST
+  /v1/staff/chat-bans`), each with who banned them, until when and whether their
+  address is banned too, and Lift (`StaffRequest::ChatUnban`; a ban that holds only an
+  address has no key to name and cannot be lifted from here; a lift takes the player's
+  bans off the list), and beside them, since 11/11/2026, how chat translation is used
+  (`StaffQuery::Translation`, `POST /v1/staff/translation`, read with the bans when the
+  tab opens or Refresh is pressed): players who got a line translated in the last 24
+  hours, 7 and 30 days, lines translated today and how many came from the hub's cache,
+  refusals (the daily cap, the month spent) and failures today, players who hit the
+  daily cap in 30 days, the month's characters against the hub's budget ("off at the
+  hub" without a translator) and the languages translated from over 30 days. Counts
+  only: the hub names no one; and, since
   08/11/2026, **My gifts**, the staff member's own gifts of the last day, newest first
   (`StaffQuery::Gifts`, `POST /v1/staff/gifts`): what (a medal and its rank, a shader by
   number and name, a holocron or crystal tier), to whom, when and the note, and how many

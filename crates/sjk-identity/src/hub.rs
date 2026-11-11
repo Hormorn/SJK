@@ -1805,6 +1805,7 @@ fn staff_query_call(query: &StaffQuery) -> (&'static str, Value) {
         StaffQuery::Crash(id) => ("/v1/staff/crash", json!({ "id": id })),
         StaffQuery::ChatBans => ("/v1/staff/chat-bans", json!({})),
         StaffQuery::Gifts => ("/v1/staff/gifts", json!({})),
+        StaffQuery::Translation => ("/v1/staff/translation", json!({})),
     }
 }
 
@@ -1998,6 +1999,9 @@ impl Hub for HttpHub {
             StaffQuery::Crash(_) => StaffAnswer::Crash(Box::new(parse::<CrashDetail>(answer)?)),
             StaffQuery::ChatBans => StaffAnswer::ChatBans(parse::<ChatBanRows>(answer)?.bans),
             StaffQuery::Gifts => StaffAnswer::Gifts(parse::<crate::staff::GiftLog>(answer)?),
+            StaffQuery::Translation => {
+                StaffAnswer::Translation(parse::<crate::staff::TranslationStats>(answer)?)
+            }
         })
     }
 
@@ -3345,6 +3349,26 @@ mod tests {
         assert_eq!(log.gifts[0].rank, Some(2));
         let creator: crate::staff::GiftLog = parse(json!({"gifts": []})).unwrap();
         assert_eq!(creator.left, None, "the creator has no limit");
+        // The translation counts, as the hub's PROTOCOL.md "Translation" sends them.
+        assert_eq!(
+            staff_query_call(&StaffQuery::Translation),
+            ("/v1/staff/translation", json!({}))
+        );
+        let stats: crate::staff::TranslationStats = parse(json!({
+            "people": {"day": 2, "week": 5, "month": 9}, "capped": 1,
+            "day": {"sent": 1, "cached": 2, "daily": 0, "quota": 1, "failed": 1},
+            "month": {"sent": 30, "cached": 12, "daily": 3, "quota": 0, "failed": 1},
+            "month_chars": 4_200, "month_start": 1_793_491_200, "budget": 1_900_000,
+            "per_day": 50, "languages": [{"lang": "fr", "lines": 30}]
+        }))
+        .unwrap();
+        assert_eq!((stats.people.day, stats.people.month), (2, 9));
+        assert_eq!((stats.day.cached, stats.month.daily), (2, 3));
+        assert_eq!(stats.budget, Some(1_900_000));
+        assert_eq!(stats.languages[0].lang, "fr");
+        let off: crate::staff::TranslationStats =
+            parse(json!({"budget": null, "languages": []})).unwrap();
+        assert_eq!(off.budget, None, "translation off");
     }
 
     #[test]

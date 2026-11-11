@@ -69,7 +69,8 @@ pub use service::{
 };
 pub use staff::{
     ChatBanRow, Found, GiftLog, GiftRow, OpenedText, Playing, SearchScope, StaffAnswer, StaffQuery,
-    StaffRequest, StaffState,
+    StaffRequest, StaffState, TranslationAsks, TranslationLanguage, TranslationPeople,
+    TranslationStats,
 };
 pub use trades::{
     PlayerTrade, TradeAnswer, TradeEvent, TradeItem, TradePartner, TradeRules, TradeSide,

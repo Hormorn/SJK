@@ -7,8 +7,9 @@
 //! their holocrons, kyber crystals, credits and kyber shards (Holocrons and credits),
 //! clear their achievements, list their keys and unlink one or merge another player into
 //! them (a player who reset their key), and ask them for their game's logs; three more
-//! tabs read every player's crash reports, the SJK chat bans in force (with Lift) and the
-//! staff member's own gifts of the day (with Undo). Since 08/11/2026 every staff member
+//! tabs read every player's crash reports, the SJK chat bans in force (with Lift) beside
+//! how many players translate chat lines (since 11/11/2026), and the staff member's own
+//! gifts of the day (with Undo). Since 08/11/2026 every staff member
 //! gives medals, ranks, shaders, holocrons and crystals, a number a day and never to
 //! themselves; taking back stays the creator's. Key ids never show on the
 //! page (nor anywhere in the game): players go by name, a pasted key id shows as dots,
@@ -241,6 +242,8 @@ pub(crate) enum PanelAction {
     Request(StaffRequest),
     /// And this, about logs and crash reports.
     Query(StaffQuery),
+    /// These, one after the other (a tab that reads two lists).
+    Queries(Vec<StaffQuery>),
 }
 
 /// A tab a world shot shows.
@@ -280,7 +283,8 @@ enum View {
     Logs,
     /// The crash reports of every player: the groups, or one group's reports.
     Crashes,
-    /// The SJK chat bans in force, of every player, with Lift.
+    /// The Chat tab: the SJK chat bans in force, of every player, with Lift, and how chat
+    /// translation is used.
     ChatBans,
     /// The staff member's own gifts of the last day, with Undo.
     Gifts,
@@ -743,9 +747,10 @@ impl Panel {
                     PanelAction::Query(StaffQuery::Gifts)
                 }
             }
+            // The Chat tab: the bans in force and how chat translation is used.
             CHAT_BANS_TAB_TOKEN | CHAT_BANS_REFRESH_TOKEN => {
                 self.view = View::ChatBans;
-                PanelAction::Query(StaffQuery::ChatBans)
+                PanelAction::Queries(vec![StaffQuery::ChatBans, StaffQuery::Translation])
             }
             token if (BAN_LIFT_BASE..BAN_LIFT_BASE + BAN_ROWS_SHOWN as u16).contains(&token) => {
                 match self.shown.ban_rows.get(usize::from(token - BAN_LIFT_BASE)) {
@@ -2094,7 +2099,7 @@ mod tests {
         let (mut panel, me, _) = drawn(Vec::new());
         assert_eq!(
             panel.activate(CHAT_BANS_TAB_TOKEN),
-            PanelAction::Query(StaffQuery::ChatBans)
+            PanelAction::Queries(vec![StaffQuery::ChatBans, StaffQuery::Translation])
         );
         let staff = StaffState {
             chat_bans: vec![

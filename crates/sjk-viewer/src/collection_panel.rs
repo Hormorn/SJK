@@ -212,6 +212,15 @@ const BIND_SECOND_TOKEN: u16 = 1_379;
 const FAVOURITE_TOKEN: u16 = 1_372;
 const LOCK_TOKEN: u16 = 1_373;
 const SEEN_ALL_TOKEN: u16 = 1_374;
+/// The "?" chip beside the New sticker on the Shaders tab, which opens the New note.
+const NEW_NOTE_TOKEN: u16 = 1_371;
+/// The Nameplates tab's Showcase current set (10/11/2026).
+const SHOWCASE_TOKEN: u16 = 1_370;
+/// The chosen shader's Extra features chip on the Shaders tab's card (10/11/2026), and
+/// the open note's own area (a click on it neither closes it nor reaches the page under
+/// it).
+const EXTRAS_NOTE_TOKEN: u16 = 1_369;
+const EXTRAS_BODY_TOKEN: u16 = 1_368;
 /// The chosen shader's wishlist toggle on the Shaders tab's card (10/11/2026).
 const SHADER_WISH_TOKEN: u16 = 1_398;
 /// The Shaders tab's view switches: the list and the wall of tiles.
@@ -958,6 +967,23 @@ pub(crate) struct Panel {
     /// A click just chose a shader (on Shaders or a Forge tile): a New one is seen at once,
     /// its sticker gone, without waiting its second (Creyon, 31/10/2026).
     clicked_shader: bool,
+    /// The New note shows (10/11/2026): a click on the "?" beside the New sticker opened
+    /// it; another click anywhere, Escape or leaving the tab closes it.
+    new_note: bool,
+    /// The Nameplates tab's showcase card shows: Showcase current set opened it; a click
+    /// but on it, Style or See & share nameplates, Escape or leaving the tab closes it.
+    showcase_open: bool,
+    /// Every shader's extras count as unlocked, for a world shot of the gold chip.
+    #[cfg(test)]
+    extras_for_shot: bool,
+    /// The chosen shader's Extra features note shows (a click on its chip opened it; a
+    /// click off it, Escape or another shader or tab closes it), and what this frame's
+    /// card drew the chip for: while the extras are locked, the note's card (what they
+    /// are, what unlocks them); unlocked, its ticks (the extra's index in
+    /// [`Panel::shader_options`], its name and whether it is on).
+    extras_note: bool,
+    extras_card: Option<crate::menu::sjk::hover::Card>,
+    extras_rows: Vec<(usize, String, bool)>,
     /// The count of the last refused change of a mark the console was told of.
     mark_refusal_seen: u64,
     /// The serial of the last wishlist refusal told (10/11/2026).
@@ -1118,6 +1144,13 @@ impl Panel {
             marks_from: None,
             viewing: crate::shader_marks::Look::default(),
             clicked_shader: false,
+            new_note: false,
+            showcase_open: false,
+            #[cfg(test)]
+            extras_for_shot: false,
+            extras_note: false,
+            extras_card: None,
+            extras_rows: Vec::new(),
             mark_refusal_seen: 0,
             wishlist_refusal_seen: 0,
             fuse_ready: false,
@@ -1995,6 +2028,20 @@ impl Panel {
 
     /// A pressed key, by its code.
     fn key(&mut self, key: KeyCode, shift: bool, illuminate: bool) -> PanelAction {
+        // Escape closes the New note first; another key closes it and goes on.
+        if std::mem::take(&mut self.new_note) && key == KeyCode::Escape {
+            return PanelAction::None;
+        }
+        // Escape closes the Extra features note; other keys (its number keys too) leave it.
+        if self.extras_note && key == KeyCode::Escape {
+            self.extras_note = false;
+            return PanelAction::None;
+        }
+        // Escape closes the showcase card first; other keys (Style's too) leave it.
+        if self.showcase_open && key == KeyCode::Escape {
+            self.showcase_open = false;
+            return PanelAction::None;
+        }
         // The finishers page has no rows to step: Escape and Tab only.
         if self.tab == Tab::Shaders && self.finishers_shown {
             return match key {
@@ -2314,6 +2361,28 @@ impl Panel {
         if event.kind == UiEventKind::Activate && event.token != Some(SEARCH_TOKEN) {
             self.leave_search();
         }
+        // A click anywhere but on its "?" closes the New note.
+        if event.kind == UiEventKind::Activate && event.token != Some(NEW_NOTE_TOKEN) {
+            self.new_note = false;
+        }
+        // The Extra features note stays open while its ticks switch the extras.
+        let keeps_extras = event.token.is_some_and(|token| {
+            token == EXTRAS_NOTE_TOKEN
+                || token == EXTRAS_BODY_TOKEN
+                || (OPTION_BASE..OPTION_BASE + OPTION_TOKENS as u16).contains(&token)
+        });
+        if event.kind == UiEventKind::Activate && !keeps_extras {
+            self.extras_note = false;
+        }
+        // The showcase card stays open while Style or See & share changes what it shows.
+        let keeps_showcase = event.token.is_some_and(|token| {
+            token == SHOWCASE_TOKEN
+                || token == SHARE_TOKEN
+                || (STYLE_BASE..STYLE_BASE + 3).contains(&token)
+        });
+        if event.kind == UiEventKind::Activate && !keeps_showcase {
+            self.showcase_open = false;
+        }
         // A click anywhere but on the key waiting lets go of it.
         if event.kind == UiEventKind::Activate
             && !matches!(event.token, Some(BIND_TOKEN | BIND_SECOND_TOKEN))
@@ -2584,6 +2653,19 @@ impl Panel {
             LOCK_TOKEN => self.toggle_mark(sjk_identity::Mark::Locked),
             SHADER_WISH_TOKEN => self.toggle_wish(),
             SEEN_ALL_TOKEN => self.see_all(),
+            NEW_NOTE_TOKEN => {
+                self.new_note = !self.new_note;
+                PanelAction::None
+            }
+            EXTRAS_NOTE_TOKEN => {
+                self.extras_note = !self.extras_note;
+                PanelAction::None
+            }
+            EXTRAS_BODY_TOKEN => PanelAction::None,
+            SHOWCASE_TOKEN => {
+                self.showcase_open = !self.showcase_open;
+                PanelAction::None
+            }
             // A toy's row chooses it; its own switch runs it.
             TOY_TOKEN | BOX_TOKEN | ORDER_TOKEN | HAX_TOKEN | RAGDOLL_TOKEN | DRONE_TOKEN
             | BOOMBOX_TOKEN | MONITOR_TOKEN | BOX_HUNT_TOKEN | BANANA_TOKEN | FISHING_TOKEN
@@ -2726,6 +2808,21 @@ impl Panel {
             }
         };
         self.hover.pin(index.map(|index| base + index as u16));
+    }
+
+    /// Open (or close) the New note, the Extra features note and the showcase card, for
+    /// a world shot.
+    #[cfg(test)]
+    pub(crate) fn notes_for_shot(&mut self, new_note: bool, extras_note: bool, showcase: bool) {
+        self.new_note = new_note;
+        self.extras_note = extras_note;
+        self.showcase_open = showcase;
+    }
+
+    /// Let every shader's extras count as unlocked (`unlocked`), for a world shot.
+    #[cfg(test)]
+    pub(crate) fn extras_unlocked_for_shot(&mut self, unlocked: bool) {
+        self.extras_for_shot = unlocked;
     }
 
     /// Choose the Toys tab's toy `index` (0 Illuminate), for a world shot.

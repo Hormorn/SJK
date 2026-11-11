@@ -2073,7 +2073,18 @@ fn custom_set(
             == Some("f");
         Some((directory, female))
     });
-    let (directory, female) = configured.unwrap_or_else(|| (model.to_owned(), false));
+    // A model this client lacks has no sounds.cfg here: the player's own gender (`ds`)
+    // picks the generic voice, as EternalJK's `CG_LoadCISounds` does for a default
+    // model. Without it a female player's stand-in spoke with the male voice (#312).
+    let (directory, female) = configured.unwrap_or_else(|| {
+        let config = game_state
+            .config_string(crate::player_identity::CS_PLAYERS + usize::from(client))
+            .unwrap_or(&[]);
+        let female = crate::LegacyClientInfo::new(config)
+            .bytes("ds")
+            .is_some_and(|ds| ds.first() == Some(&b'f'));
+        (model.to_owned(), female)
+    });
     let mut sound = |name: &str| {
         let requested = format!("sound/chars/{directory}/misc/{name}.wav");
         let path = if sound_exists(vfs, &requested) {

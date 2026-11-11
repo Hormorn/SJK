@@ -3300,6 +3300,22 @@
 - bc795cb |  | Fixes to changelog, nameplate.rs, client.md
 
 = Kushina
++ 12/11/2026 | SJK #408 | Collection menu text fits the text size and letter spacing
+- a3e3ebd |  | Cards tab: drop the credits and shards from the headline
+- 4b6612a |  | Forge: section chips fit their labels, the section's line behind an "i" chip
+- 53dbc5f |  | Nameplates: the nameplate preview stands under the model
+- 3620cc9 |  | Forge: the kyber shards and credits sums are never cut
+- aa2b384 |  | Shaders: the New count behind a "?" note, the sticker clear of the headline
+- 09e92d4 |  | Shaders: what unlocks a shader's extras stands under the card's buttons
+- 2a0e1e6 |  | Nameplates: the nameplate preview behind Showcase current set
+- 34f9e82 |  | Shaders: locked extras behind a gold Locked features chip and note
+- 8d88064 |  | Nameplates: the plate's name measured as drawn, the classic frame fits it
+- fd84551 |  | Shaders: the Locked features chip red and taller
+- ca844b1 |  | Hover cards wrap with the letter spacing; the showcase card covers the places
+- d8558d1 |  | World shots of the menu text fixes (menu_text_shots)
+- bef0109 |  | Shaders: Extra features chip, gold with switchable extras once unlocked
+- 2b0ee39 |  | Forge: the search field on the section chips' line
+- ae34ec5 |  | Changelog line for the menu text fixes; rustfmt
 + 08/11/2026 | SJK #389 | Set the browser's sort mark clear after its column's name
 - 693530f |  | Set the browser's sort mark clear after its column's name
 + 08/11/2026 | SJK #388 | Show a ribbon bar for every medal on the scoreboard
@@ -3649,6 +3665,23 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 12/11/2026 | - | Credits and debug panel for PR #419
+- ee23bce |  | Credits and debug panel for PR #419
++ 12/11/2026 | SJK #419 | Fishing odds and timing: easier bites, fewer empty catches, more time for an Echo
+- bd5f86c |  | Fishing: easier bites, fewer empty catches, more time for an Echo
+- 762b640 |  | Changelog: PR #419
++ 12/11/2026 | - | Changelog: #408's line under Unreleased, not the released 2026.1111.1
+- 4f3377e |  | Changelog: #408's line under Unreleased, not the released 2026.1111.1
++ 12/11/2026 | SJK #418 | Female voice for a player whose model is missing (hub #312)
+- 3752bac |  | Give a missing model the player's own gender voice
+- 50f64b9 |  | Changelog: female voice for a missing model (#312)
++ 12/11/2026 | SJK #416 | Staff page: Chat tab shows how chat translation is used (needs hub #24)
+- 436c540 |  | Staff page: Chat tab shows how chat translation is used
++ 12/11/2026 | SJK #415 | A loading NPC or vehicle no longer flashes as an unarmed Kyle
+- 546af12 |  | A loading NPC or vehicle no longer flashes as an unarmed Kyle
++ 12/11/2026 | SJK #414 | Mining: a clean strike gives the rarer of two ores, so Prospector can reach 9/9 (hub report #286)
+- 61c49d3 |  | Mining: a clean strike gives the rarer of two ores, so iron stays within reach
+- 27debbe |  | Changelog: Prospector reaches 9 of 9 (PR #414, hub report #286)
 + 11/11/2026 | - | Release 2026.1111.2 (Alpha)
 - 7946da8 |  | Release 2026.1111.2 (Alpha)
 + 11/11/2026 | SJK #410 | Chat translation on request: click a line, /tr, tr (Creo's idea, needs hub #22)

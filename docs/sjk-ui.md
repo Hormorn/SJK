@@ -1824,11 +1824,15 @@ for the run.
   the Hax's, how to turn it on and that `+use` held on a holder hacks them.
 - **Nameplates:** none exist yet. "No nameplates yet"; three empty places, dashed, each
   with a drawing of where its kind will go on the plate: Crest (before the name),
-  Frame (round the plate), Trail (under the plate). Over the model's head (projected
-  from the stage model's head with the last frame's view, `GpuState::frame_view`; over
-  the preview's head without a stage) the player's nameplate as a match draws it near
-  (in the style chosen, `cg_nameplateStyle`, [client.md](client.md#nameplates), drawn
-  with the match's layout at twice its size). The holo frame: their picture (or their
+  Frame (round the plate), Trail (under the plate). In the words' card, over Style, a
+  gold **Showcase current set** button (10/11/2026; the plate stood over the model's
+  head before, projected from the stage, which moves and put it into the row of tabs):
+  its click opens a card over the empty places (dark fill, gold edge, "Your nameplate ·
+  Capsule") with the player's nameplate as a match draws it near; a click on Style or
+  See & share nameplates leaves it open and it follows at once, another click, Escape or
+  another tab closes it. The plate there is drawn in the style chosen
+  (`cg_nameplateStyle`, [client.md](client.md#nameplates)) with the match's layout at
+  twice its size. The holo frame: their picture (or their
   initial on their colour) in the hexagon, the name in its colours and, while See &
   share nameplates is on, the gold corner and the shield, health and Force bars (else the
   dotted line). The capsule: the picture and the name in the pill, gold-edged with the
@@ -1909,8 +1913,16 @@ for the run.
   and requests, [collection_forge_view.rs](../crates/sjk-viewer/src/collection_forge_view.rs)
   for the look): the Collection's tab between Holocrons and Cards, its count the player's
   kyber shards. Under the row, three section chips, **Shop**, **Craft** and **Break down**
-  (the last with how many duplicate copies wait), the one on show gold; at the top right
-  the player's kyber shards and credits large, each mark and sum over its word, with how
+  (the last with how many duplicate copies wait; a fourth, **Fuse**, on a hub that fuses),
+  the one on show gold, each as wide as
+  its label with the player's text size and letter spacing (10/11/2026: with
+  `ui_letterSpacing` the labels were cut to "Sh...", "Cr..."); after them a round "i"
+  chip whose hover card says what the section is ("84 saber shaders you lack, made with
+  kyber shards: 50 within reach."), once a line under the chips that ran into the
+  search field; Craft's and Break down's search field stands on the same line, at the
+  list's right edge (narrower should the chips reach it, 10/11/2026); at the top right
+  the player's kyber shards and credits large, each mark and sum over its word (each sum
+  measured with the letter spacing too, 10/11/2026: "5 698" read "5..."), with how
   each is earned in its hover card. Tab and Shift+Tab (or 1, 2, 3) change section, the
   arrows choose, Enter or Space presses the chosen thing's button, the pointer chooses by
   resting and acts by a click; Ctrl+Tab and Escape as on every tab.
@@ -1988,7 +2000,8 @@ for the run.
     the day -50 %" ribbon over its blade and its table price struck ("Was 600 kyber
     shards") over the halved one, a wished offer "On your wishlist", and a Beta offer the
     edition stamp ("Beta Edition") over its blade's other corner. On a hub that keeps a
-    wishlist the line under the chips lists it ("Your wishlist (2 of 3): ...") and every
+    wishlist the line under the chips lists it ("Your wishlist (2 of 3): ...", the Shop's
+    own line staying behind the "i" chip) and every
     offer, Craft's chosen shader (W) and the Shaders tab's card carry a wishlist toggle
     (the gift mark), a hover card saying what it does or that the list is full. Shop and
     Fuse carry a gold dot when an offer is wished, the deal is within reach or a fusion is
@@ -2004,8 +2017,9 @@ for the run.
     asking; `duel6_sjk_forge_windows`: 4:3 and 4K).
 - **Cards** ([collection_cards.rs](../crates/sjk-viewer/src/collection_cards.rs),
   [cards.md](cards.md#in-the-client), 12/10/2026; a binder since 19/10/2026): "5 of 13
-  cards found" with each set's progress under it ("SJK Alpha 5 / 13"), the kyber shards
-  and credits at the right of the headline (x up to 1080); the filter's chips at y 300
+  cards found" with each set's progress under it ("SJK Alpha 5 / 13"; the kyber shards
+  and credits, once at the headline's right, left it on 10/11/2026 as they covered the
+  sets' line, and show on the Forge tab); the filter's chips at y 300
   (All, Owned, Missing; "Rarity: Any", "Kind: Any", "Finish: Any", a click each on to the
   next; O, T, K, F) with "N of M cards" at the grid's right; every card of the packs as a
   tile (140 wide, six by three from y 340, scrolling a line a wheel notch, a bar at the
@@ -2085,7 +2099,12 @@ saber shader the Shaders tab, the Forge and the trade window list carries its ma
   chosen a second (`shader_marks::Look`, `LOOK_MS`; Sol's decision, 29/10/2026). Resting the pointer never chooses a shader (31/10/2026;
   hovering chose one before), so it never sees one either. Turning to another tab or closing the page
   sees the shader chosen only if it had already stayed its second; Mark all seen (N) sees
-  them all. Nothing is New
+  them all. After the Shaders tab's headline (10/11/2026; "21 new" was cut and the
+  sticker ran into "owned", measured without the letter spacing): the New sticker and a
+  round "?", gold while a shader is New and quiet once none is, then Mark all seen ("All
+  seen" when the full label would reach the view switches). A click on "?" opens the New
+  note over the page, on a darker fill than a hover card: how many shaders are New and
+  what New means; another click anywhere, Escape or another tab closes it. Nothing is New
   while the debug collectibles show.
 
 The marks are read again only when what they come from changes (the hub's marks, the

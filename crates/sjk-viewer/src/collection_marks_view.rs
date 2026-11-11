@@ -19,8 +19,19 @@ pub(super) const TOGGLE_GAP: f32 = 8.0;
 pub(super) fn new_sticker(
     canvas: &mut MenuCanvas,
     frame: &Frame,
+    at: [f32; 2],
+    height: f32,
+) -> f32 {
+    new_sticker_lit(canvas, frame, at, height, true)
+}
+
+/// [`new_sticker`], or quiet (`lit` false: a dim pill, muted words) when nothing is new.
+pub(super) fn new_sticker_lit(
+    canvas: &mut MenuCanvas,
+    frame: &Frame,
     [x, y]: [f32; 2],
     height: f32,
+    lit: bool,
 ) -> f32 {
     let s = frame.s;
     let size = height * 0.68;
@@ -30,7 +41,11 @@ pub(super) fn new_sticker(
     let _ = canvas.draw_list_mut().push(DrawCommand::RoundedRect {
         rect,
         radius: height * 0.5 * s,
-        color: color::GOLD_BRIGHT,
+        color: if lit {
+            color::GOLD_BRIGHT
+        } else {
+            color::alpha(color::HOLO, 0.16)
+        },
     });
     text(
         canvas,
@@ -38,7 +53,7 @@ pub(super) fn new_sticker(
         format_args!("New"),
         frame.rect(x, y + (height - size * 1.25) * 0.5, width, size * 1.25),
         size * s,
-        INK,
+        if lit { INK } else { color::MUTED },
         FontWeight::Semibold,
         TextAlign::Center,
     );

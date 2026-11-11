@@ -72,3 +72,39 @@ fn voice_metadata_keeps_impacts_and_regular_sound_paths_out_of_holds() {
     adapter.resolve(76, 1, subject, &snapshot, 1000);
     assert_eq!(adapter.decisions[0].voice_line, None);
 }
+
+#[test]
+fn a_missing_model_speaks_with_the_players_own_gender() {
+    // Hub #312: a female player whose model this client lacks (drawn as a female
+    // stand-in with cg_defaultModelRandom) spoke with the generic male voice.
+    let mut game = GameState::empty_local(0);
+    game.replace_config_string(
+        crate::player_identity::CS_PLAYERS,
+        br"n\Her\t\0\model\not_here/default\ds\f".to_vec(),
+    )
+    .unwrap();
+    game.replace_config_string(
+        crate::player_identity::CS_PLAYERS + 1,
+        br"n\Him\t\0\model\not_here/default".to_vec(),
+    )
+    .unwrap();
+    let mut vfs = VirtualFileSystem::new();
+    vfs.mount_memory(
+        "synthetic",
+        [
+            ("sound/chars/mp_generic_female/misc/jump1.wav", vec![1]),
+            ("sound/chars/mp_generic_male/misc/jump1.wav", vec![1]),
+        ],
+    )
+    .unwrap();
+    let mut paths = Vec::new();
+    let mut intern = |path: &str| {
+        paths.push(path.to_owned());
+        u16::try_from(paths.len() - 1).unwrap()
+    };
+    let her = custom_set(&game, &vfs, 0, &mut intern).jump;
+    let him = custom_set(&game, &vfs, 1, &mut intern).jump;
+    let path = |index: Option<u16>| paths[usize::from(index.unwrap())].as_str();
+    assert_eq!(path(her), "sound/chars/mp_generic_female/misc/jump1.wav");
+    assert_eq!(path(him), "sound/chars/mp_generic_male/misc/jump1.wav");
+}

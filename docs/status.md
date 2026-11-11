@@ -3212,8 +3212,8 @@ throws at Saber Throw 1), the hub accepting the new ids.
 `toy_fishing` puts a rod in the right hand (the rifles' ready pose on the torso; in first
 person held in view), a bucket at the feet and a float on the water ahead, or on a small
 pond drawn where there is none, in the installed game's swamp textures
-([client.md](client.md#fishing)). A bite every 15 to 40 seconds (20 to 60 until 04/11/2026), `+use` within about a
-second: nothing 15%, junk 30%, one of 12 fish 55% (each its own model and painted skin),
+([client.md](client.md#fishing)). A bite every 12 to 25 seconds (15 to 40 until 11/11/2026), `+use` within about two
+seconds: nothing 5%, junk 30%, one of 12 fish 65% (each its own model and painted skin),
 counted in `fishing_log.txt`; the bucket holds the last fish caught (`last <id>` in the
 log). An Echo
 the hub drops while fishing waits for a golden bite of its own and comes up on the line;

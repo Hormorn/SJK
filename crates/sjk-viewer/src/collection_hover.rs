@@ -18,6 +18,42 @@ impl Panel {
             // The card asking covers the page: nothing under it answers the pointer.
             return;
         }
+        // The showcase card a click opened stands over the page in place of a hover card.
+        if self.tab != Tab::Nameplates {
+            self.showcase_open = false;
+        }
+        if self.showcase_open {
+            self.nameplate_showcase(frame, inputs);
+            return;
+        }
+        // So does the Extra features note, while its chip shows (the same shader): what
+        // the extras are and what unlocks them, or, unlocked, a tick each.
+        if self.extras_note
+            && self.tab == Tab::Shaders
+            && !self.finishers_shown
+            && let Some(anchor) = self.ui.rect_for(EXTRAS_NOTE_TOKEN)
+        {
+            if let Some(card) = self.extras_card.clone() {
+                hover::draw_note(&mut self.ui, frame, anchor, &card);
+                return;
+            }
+            if !self.extras_rows.is_empty() {
+                self.extras_ticks(frame, anchor);
+                return;
+            }
+        }
+        self.extras_note = false;
+        // The New note a click opened stands over the page in place of a hover card.
+        if self.tab != Tab::Shaders || self.finishers_shown {
+            self.new_note = false;
+        }
+        if self.new_note
+            && let Some(anchor) = self.ui.rect_for(NEW_NOTE_TOKEN)
+        {
+            let card = self.new_note_card();
+            hover::draw_note(&mut self.ui, frame, anchor, &card);
+            return;
+        }
         let now = Instant::now();
         self.hover.follow(self.ui.hovered(), now);
         let Some((token, alpha)) = self.hover.showing(now) else {

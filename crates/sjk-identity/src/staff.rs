@@ -395,6 +395,8 @@ pub enum StaffQuery {
     ChatBans,
     /// The staff member's own gifts of the last day, and how many are left today.
     Gifts,
+    /// How SJK chat translation is used (since 11/11/2026).
+    Translation,
 }
 
 /// What the hub answered a [`StaffQuery`].
@@ -414,6 +416,8 @@ pub enum StaffAnswer {
     ChatBans(Vec<ChatBanRow>),
     /// The staff member's own gifts of the last day.
     Gifts(GiftLog),
+    /// How chat translation is used.
+    Translation(TranslationStats),
 }
 
 /// A chat ban in force, as the hub lists them to staff (`PROTOCOL.md`, "Chat bans",
@@ -444,6 +448,82 @@ pub struct ChatBanRow {
     /// When it ends, unix seconds.
     #[serde(default)]
     pub until: i64,
+}
+
+/// Asks for a translation over one window, by how the hub answered them (`PROTOCOL.md`
+/// of the hub, "Translation").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct TranslationAsks {
+    /// Translated by the translator.
+    #[serde(default)]
+    pub sent: u64,
+    /// Answered from the hub's cache, free.
+    #[serde(default)]
+    pub cached: u64,
+    /// Refused: the player had used their translations of the day.
+    #[serde(default)]
+    pub daily: u64,
+    /// Refused: the month's budget or the translator's quota was spent.
+    #[serde(default)]
+    pub quota: u64,
+    /// The translator failed.
+    #[serde(default)]
+    pub failed: u64,
+}
+
+/// People who got a line translated over the last 24 hours, 7 days and 30 days.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct TranslationPeople {
+    /// The last 24 hours.
+    #[serde(default)]
+    pub day: u64,
+    /// The last 7 days.
+    #[serde(default)]
+    pub week: u64,
+    /// The last 30 days.
+    #[serde(default)]
+    pub month: u64,
+}
+
+/// Lines translated from one language over the last 30 days.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct TranslationLanguage {
+    /// The language's code as the translator detected it (`fr`, `zh-Hans`).
+    #[serde(default)]
+    pub lang: String,
+    /// The lines translated from it.
+    #[serde(default)]
+    pub lines: u64,
+}
+
+/// `POST /v1/staff/translation`'s answer (since 11/11/2026): how SJK chat translation is
+/// used. Counts only; no one is named.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+pub struct TranslationStats {
+    /// People who got a line translated.
+    #[serde(default)]
+    pub people: TranslationPeople,
+    /// People refused for the daily cap in the last 30 days.
+    #[serde(default)]
+    pub capped: u64,
+    /// The last 24 hours' asks.
+    #[serde(default)]
+    pub day: TranslationAsks,
+    /// The last 30 days' asks.
+    #[serde(default)]
+    pub month: TranslationAsks,
+    /// Characters sent to the translator this UTC calendar month.
+    #[serde(default)]
+    pub month_chars: u64,
+    /// The month's budget of characters; `None` while the hub translates nothing.
+    #[serde(default)]
+    pub budget: Option<u64>,
+    /// Translations a player may ask for in a UTC day.
+    #[serde(default)]
+    pub per_day: u64,
+    /// The languages translated from, the most first.
+    #[serde(default)]
+    pub languages: Vec<TranslationLanguage>,
 }
 
 /// `POST /v1/staff/chat-bans`'s answer.
@@ -492,6 +572,8 @@ pub struct StaffState {
     pub crashes_of: String,
     /// The chat bans in force, as the hub last listed them (newest first).
     pub chat_bans: Vec<ChatBanRow>,
+    /// How chat translation is used, once read (`StaffQuery::Translation`).
+    pub translation: Option<TranslationStats>,
     /// The logs or crash report opened last, until the viewer takes it
     /// (`Service::take_opened`).
     pub opened: Option<OpenedText>,
@@ -613,6 +695,14 @@ impl StaffState {
                     (count, None) => format!("{count} gifts today"),
                 };
                 self.gifts = Some(log);
+                message
+            }
+            StaffAnswer::Translation(stats) => {
+                let message = match stats.people.day {
+                    1 => "1 player translated chat today".to_owned(),
+                    count => format!("{count} players translated chat today"),
+                };
+                self.translation = Some(stats);
                 message
             }
         };

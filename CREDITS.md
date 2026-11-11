@@ -825,7 +825,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 147 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 152 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1082,6 +1082,16 @@ medal pictures carry their own labels in `vram` and crash reports.
 - #410 chat translation on request, after Creo's idea: a click on a chat line's text, `/tr`
   or `tr` puts it into English through the hub (Microsoft's translator); encrypted whispers
   are never sent.
+- #414 mining: a clean strike draws a second ore and keeps the rarer of the two, instead of
+  lifting the ore a tier, so iron still turns up and Prospector can reach 9 of 9; the Heart's
+  odds are unchanged (hub report #286, after Nib's report).
+- #415 an NPC or vehicle whose model is still loading is drawn as nothing instead of an
+  unarmed Kyle (after Lex's report).
+- #418 a player whose model is missing speaks with the generic voice of their own gender
+  (`ds`), as JoF EternalJK does (hub report #312, after jof'mg.perso's report).
+- #419 easier fishing: bites every 12 to 25 seconds with 1.5 to 2 seconds to hook them,
+  5% empty (was 15%), and an Echo bite holds 3 seconds with three tries; Echoes drop as
+  before.
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):
@@ -1132,7 +1142,7 @@ Blackwolf's VisionJK rebuild of the JA+ 2.4 B7 server module from its Linux bina
 `g_mod japlus`): JA+'s settings and their defaults and the `jp_cinfo` bits come from it,
 and its behaviour is ported into SJK's own code, not its source.
 
-Kushina ([kushinaSJK](https://github.com/kushinaSJK)), contributor and player, has 5 pull
+Kushina ([kushinaSJK](https://github.com/kushinaSJK)), contributor and player, has 6 pull
 requests merged into SJK
 ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AkushinaSJK)); her
 ideas are under [Ideas](#ideas):
@@ -1152,6 +1162,10 @@ ideas are under [Ideas](#ideas):
   of over its letters.
 - #388 the scoreboard shows a ribbon bar for every medal, up to six, where it stopped at
   three.
+- #408 the Collection's text fits a larger text size and letter spacing: the Forge's
+  chips, sums and search field are measured as drawn, the Forge's section line and the
+  Shaders tab's New count went behind "i" and "?" notes, the Nameplates preview behind
+  Showcase current set, and a shader's extras behind an Extra features chip.
 
 Hormorn ([Hormorn](https://github.com/Hormorn)), contributor, has 1 pull request merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AHormorn)):

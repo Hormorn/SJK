@@ -929,7 +929,11 @@ the retail model has (EJK's own table gives `jedi_rm` and `jedi_kdm` the human m
 `head_a2` and `torso_d2`, which only `jedi_hm` has, so SJK pairs those with `jedi_hm`).
 A stand-in that cannot load either falls back to Kyle. Switching it redraws players
 already shown with a stand-in
-([default_model_random.rs](../crates/sjk-client/src/default_model_random.rs)). A
+([default_model_random.rs](../crates/sjk-client/src/default_model_random.rs)). With
+or without it, a missing model has no `sounds.cfg` here, so the player speaks with the
+generic voice of their own `ds` gender (`mp_generic_female` or `mp_generic_male`), as
+EJK's `CG_LoadCISounds` does for a default model (`custom_set` in
+[sound_events.rs](../crates/sjk-client/src/sound_events.rs)). A
 missing skin is not a missing model: the model's default skin draws, as in JKA. A folder holding
 `sjk_rig.cfg` is a [rig model](rig-models.md): a glTF with its own skeleton, drawn in
 place of a stock driver model whose skeleton still carries the animations. That includes a model
@@ -6642,10 +6646,10 @@ brings up are the ones the hub drops anyway.
   for the cast: the toy fishes anywhere, since few maps have water. The pond is drawn
   with the installed game's own swamp textures (Hidden Evil's lake layers over the stock
   water, Yavin's mud, mossy rock and ground plants), so the game must be installed.
-- **Bites** come every 15 to 40 seconds (20 to 60 until 04/11/2026): the float dips, a splash plays, and `+use` within
-  0.8 to 1.2 seconds hooks it. Too soon scares the fish (the next bite waits 10 to 20
-  seconds more); too late lets it go. A hooked bite comes up empty 15% of the time, with
-  junk 30% (six kinds) and a fish 55% (twelve kinds, from the Silver darter to Old
+- **Bites** come every 12 to 25 seconds (20 to 60 until 04/11/2026, 15 to 40 until 11/11/2026): the float dips, a splash plays, and `+use` within
+  1.5 to 2 seconds (0.8 to 1.2 until 11/11/2026) hooks it. Too soon scares the fish (the next bite waits 5 to 10
+  seconds more); too late lets it go. A hooked bite comes up empty 5% of the time (15% until 11/11/2026), with
+  junk 30% (six kinds) and a fish 65% (twelve kinds, from the Silver darter to Old
   Whiskers, the great catfish, one fish in about 106), reeled in to the tip hanging by
   its mouth, and said in the centre of the screen. Old Whiskers has bad luck protection
   (04/11/2026): its weight among the fish rises by one for every 10 fish landed since the
@@ -6663,8 +6667,9 @@ brings up are the ones the hub drops anyway.
   one floats on its side on the water, a longer one stands head down with its tail out
   over the rim. Other players' buckets are empty, since their catches are not sent.
 - **Echoes:** when the hub drops the player an Echo while they fish, its card waits, and
-  a golden bite comes 5 to 15 seconds later (1.5 seconds to hook it, two tries); hooked,
-  the holocron comes up on the line and its card shows. Missed twice, or with the rod put
+  a golden bite comes 5 to 15 seconds later (3 seconds to hook it, three tries 30 to 90 seconds apart;
+  1.5 seconds and two tries until 11/11/2026); hooked,
+  the holocron comes up on the line and its card shows. Missed every try, or with the rod put
   away, the card shows all the same. Fishing never brings an Echo the hub did not drop:
   the caps stay as they are ([holocrons.md](holocrons.md)).
 - **Play time** (04/11/2026, headshotsmcgee117's question in #ideas): each bite hooked in
@@ -6782,8 +6787,11 @@ ore, the Heart among them) and the hidden Heart of the Mountain.
 - **The find:** rubble 40% of the time (four kinds), 10 points less for each clean strike
   (never under 20%), else an ore (nine kinds, weighted 96 iron, 86 copper, 57 silver,
   43 glowstone, 28 sunstone, 19 moonstone, 11 star quartz, 9 void crystal and 1 the
-  Heart of the Mountain). With any clean strike the ore is one tier rarer (iron becomes
-  copper and so on), never into the Heart, which only its own roll gives. The Heart's
+  Heart of the Mountain). With any clean strike two ores are drawn and the rarer one comes
+  out, though never the Heart from the second draw, which only its own roll gives.
+  (Until hub report #286 a clean strike lifted the ore one tier, iron to copper and so
+  on, so a player who struck clean on every boulder never dug iron and Prospector stopped
+  at 8 of 9.) The Heart's
   weight rises by one for every 100 ores dug since the last one, as Old Whiskers' does:
   one in about 230 boulders, some 40 minutes of steady mining (an hour at an easy pace),
   near Old Whiskers' half hour. The find jumps out of the broken boulder to the player's feet and is

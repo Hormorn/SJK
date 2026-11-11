@@ -107,6 +107,14 @@ impl ViewerConsole {
                     self.push_log("^3staff: the identity is not running");
                 }
             }
+            PanelAction::Queries(queries) => {
+                for query in queries {
+                    if !crate::player_identity::staff_query(query) {
+                        self.push_log("^3staff: the identity is not running");
+                        return;
+                    }
+                }
+            }
         }
     }
 

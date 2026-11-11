@@ -405,7 +405,7 @@ link: Lukas's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+
 
 [Slash]
 github: JoFSlash
-role: Contributor: 147 merged pull requests
+role: Contributor: 152 merged pull requests
 did: #114 Tab completes cfg file names after exec and writeconfig
 did: #113 CTF team saber colours, an option
 did: #153 The SJK scoreboard tells who won the Siege round or team match
@@ -555,6 +555,10 @@ did: #411 Ctrl+A and a double click select in the commands and cvars list again
 did: #412 A held weapnext key keeps cycling the weapons, as in base
 did: #413 No line above weapon icons: each icon samples inside its own picture
 did: #410 Chat translation on request: click a line, /tr, tr (Creo's idea)
+did: #414 Mining: a clean strike gives the rarer of two ores, so Prospector reaches 9/9
+did: #415 A loading NPC or vehicle no longer flashes as an unarmed Kyle
+did: #418 A female player whose model is missing speaks with the female voice
+did: #419 Easier fishing: quicker bites, more time to hook, fewer empty catches
 link: Slash's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash
 
 [Milamber]
@@ -580,12 +584,13 @@ link: Blackwolf1337's pull requests | https://github.com/Sol-Vulpes/SJK/pulls?q=
 
 [Kushina]
 github: kushinaSJK
-role: Contributor: 5 merged pull requests; ideas for SJK
+role: Contributor: 6 merged pull requests; ideas for SJK
 did: #373 Rig model hair and other forked chains no longer jump about
 did: #374 Rig chains: limit, clearance, layer lines and levers; a bone's middle collides
 did: #377 Rig hair and capes trail behind a running player and keep out of the arms
 did: #389 The server browser's sort mark stands clear of its column's name
 did: #388 A ribbon bar for every medal on the scoreboard
+did: #408 Collection text fits a larger text size and letter spacing
 did: The Varykino Blossom blade: a blossom-pink blade, lavender mist, a flowering branch and blossoms shed as it swings
 did: Favourite and locked saber shaders: stars listed first, locks kept from break down and trades
 did: Plugin options as Settings switches, in place of typing a cp_pluginDisable number

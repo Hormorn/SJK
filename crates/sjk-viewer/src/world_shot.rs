@@ -367,6 +367,9 @@ mod economy_shots;
 #[path = "world_shot_forge.rs"]
 mod forge_shots;
 
+#[path = "world_shot_menu_text.rs"]
+mod menu_text_shots;
+
 #[path = "world_shot_create_game.rs"]
 mod create_game;
 
@@ -1725,6 +1728,34 @@ like this one.",
                     name: "^3Lumaya".to_owned(),
                 },
             ],
+            // How chat translation is used, beside the chat bans.
+            translation: Some(sjk_identity::TranslationStats {
+                people: sjk_identity::TranslationPeople {
+                    day: 14,
+                    week: 41,
+                    month: 87,
+                },
+                capped: 2,
+                day: sjk_identity::TranslationAsks {
+                    sent: 96,
+                    cached: 58,
+                    daily: 3,
+                    quota: 0,
+                    failed: 1,
+                },
+                month_chars: 412_380,
+                budget: Some(1_900_000),
+                per_day: 50,
+                languages: ["fr", "pt", "es", "de", "pl", "ru", "tr"]
+                    .iter()
+                    .zip([412, 288, 160, 94, 51, 30, 12])
+                    .map(|(lang, lines)| sjk_identity::TranslationLanguage {
+                        lang: (*lang).to_owned(),
+                        lines,
+                    })
+                    .collect(),
+                ..Default::default()
+            }),
             gifts: Some(sjk_identity::GiftLog {
                 gifts: vec![
                     sjk_identity::GiftRow {
