@@ -311,11 +311,20 @@ fn pick_of(kind: Kind, pick: u32, heart_wait: u32) -> &'static Find {
         .unwrap_or(&FINDS[0])
 }
 
-/// Roll a broken boulder's find from `roll` and `pick`, uniform numbers, after `clean`
-/// clean strikes, `heart_wait` ores after the last Heart: rubble less often for each
-/// clean strike, and with any clean strike the ore one tier rarer, but never into the
-/// Heart, which only its own roll gives.
-pub(crate) fn roll_find(roll: u32, pick: u32, clean: u32, heart_wait: u32) -> &'static Find {
+/// Roll a broken boulder's find from `roll`, `pick` and `second`, uniform numbers, after
+/// `clean` clean strikes, `heart_wait` ores after the last Heart: rubble less often for
+/// each clean strike, and with any clean strike the rarer of two ores (`pick`'s and
+/// `second`'s), but never the Heart from the second, which only its own roll gives.
+/// Hub report #286: the ore used to go one tier rarer with any clean strike, so iron,
+/// the first tier, never came to a player who struck clean on every boulder, and
+/// Prospector stayed at 8 of 9. The rarer of two keeps every ore within reach.
+pub(crate) fn roll_find(
+    roll: u32,
+    pick: u32,
+    second: u32,
+    clean: u32,
+    heart_wait: u32,
+) -> &'static Find {
     let rubble = RUBBLE_CHANCE
         .saturating_sub(CLEAN_RUBBLE_CUT.saturating_mul(clean))
         .max(RUBBLE_FLOOR);
@@ -326,12 +335,13 @@ pub(crate) fn roll_find(roll: u32, pick: u32, clean: u32, heart_wait: u32) -> &'
     if clean == 0 || ore.id == HEART {
         return ore;
     }
-    FINDS
-        .iter()
-        .position(|f| f.id == ore.id)
-        .and_then(|at| FINDS.get(at + 1))
-        .filter(|rarer| rarer.id != HEART)
-        .unwrap_or(ore)
+    let other = pick_of(Kind::Ore, second, 0);
+    let tier = |find: &Find| FINDS.iter().position(|f| f.id == find.id);
+    if other.id != HEART && tier(other) > tier(ore) {
+        other
+    } else {
+        ore
+    }
 }
 
 /// A small fast random source (xorshift64*), as Fishing's.
@@ -948,7 +958,8 @@ impl Mining {
         let heart_wait = self.log.as_ref().map_or(0, Log::heart_wait);
         let roll = self.dice.next();
         let pick = self.dice.next();
-        let find = roll_find(roll, pick, rock.clean, heart_wait);
+        let second = self.dice.next();
+        let find = roll_find(roll, pick, second, rock.clean, heart_wait);
         let count = self.log.get_or_insert_with(Log::default).found(find);
         self.broken.push((find, rock.clean));
         self.said.push(Say::Sound(BREAK));
@@ -1817,7 +1828,7 @@ mod tests {
         let tally = |clean: u32| {
             let (mut rubble, mut ore) = (0, 0);
             for roll in 0..100 {
-                match roll_find(roll, roll * 7, clean, 0).kind {
+                match roll_find(roll, roll * 7, 0, clean, 0).kind {
                     Kind::Rubble => rubble += 1,
                     Kind::Ore => ore += 1,
                 }
@@ -1832,7 +1843,7 @@ mod tests {
         for find in &FINDS {
             let roll = if find.kind == Kind::Rubble { 0 } else { 99 };
             assert!(
-                (0..1000).any(|pick| roll_find(roll, pick, 0, 0) == find),
+                (0..1000).any(|pick| roll_find(roll, pick, 0, 0, 0) == find),
                 "{}",
                 find.id
             );
@@ -1842,18 +1853,35 @@ mod tests {
     }
 
     #[test]
-    fn a_clean_strike_lifts_the_ore_a_tier_but_not_into_the_heart() {
+    fn a_clean_strike_gives_the_rarer_of_two_ores_but_not_the_heart() {
         let iron = 0;
+        let copper = 96;
         let void = 96 + 86 + 57 + 43 + 28 + 19 + 11;
         let heart = void + 9;
-        assert_eq!(roll_find(99, iron, 0, 0).id, "iron_ore");
-        assert_eq!(roll_find(99, iron, 1, 0).id, "copper_ore");
-        // Two clean strikes lift it no further than one.
-        assert_eq!(roll_find(99, iron, 2, 0).id, "copper_ore");
-        assert_eq!(roll_find(99, void, 0, 0).id, "void_crystal");
-        assert_eq!(roll_find(99, void, 2, 0).id, "void_crystal");
-        assert_eq!(roll_find(99, heart, 0, 0).id, HEART);
-        assert_eq!(roll_find(99, heart, 1, 0).id, HEART);
+        assert_eq!(roll_find(99, iron, void, 0, 0).id, "iron_ore");
+        assert_eq!(roll_find(99, iron, copper, 1, 0).id, "copper_ore");
+        assert_eq!(roll_find(99, copper, iron, 2, 0).id, "copper_ore");
+        assert_eq!(roll_find(99, iron, void, 1, 0).id, "void_crystal");
+        // The second ore never brings the Heart; the first still does.
+        assert_eq!(roll_find(99, void, heart, 1, 0).id, "void_crystal");
+        assert_eq!(roll_find(99, heart, 0, 0, 0).id, HEART);
+        assert_eq!(roll_find(99, heart, iron, 1, 0).id, HEART);
+    }
+
+    /// Hub report #286: a player who strikes clean on every boulder still digs iron, so
+    /// Prospector can reach 9 of 9.
+    #[test]
+    fn every_ore_comes_to_a_player_who_always_strikes_clean() {
+        let mut dice = Dice(0x5EED_1234_ABCD_0001);
+        let mut seen = std::collections::BTreeSet::new();
+        for _ in 0..20_000 {
+            let (roll, pick, second) = (dice.next(), dice.next(), dice.next());
+            let find = roll_find(roll, pick, second, 3, 0);
+            if find.kind == Kind::Ore {
+                seen.insert(find.id);
+            }
+        }
+        assert_eq!(seen.len(), ORE_KINDS, "{seen:?}");
     }
 
     #[test]
