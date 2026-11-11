@@ -1134,6 +1134,9 @@ impl GpuState {
                 &mut flattened,
                 &clientinfo_watch.model_policy,
                 console.as_ref(),
+                // A live map load (a join, a map change): the other players' models
+                // load on workers once it is live.
+                live_session.is_none() && demo_session.is_none() && build_game_state.is_some(),
             )?
         } else {
             Vec::new()

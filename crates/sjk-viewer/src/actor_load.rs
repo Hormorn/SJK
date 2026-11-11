@@ -289,6 +289,12 @@ pub(crate) fn stand_in(
 
 /// Build the meshes of every client the game state advertises, every actor
 /// already in `world`, and the shared fallback.
+///
+/// With `local_only` (a live map load) only the local player's model is built of
+/// the clients: the others come from the workers of `player_loads.rs` once the
+/// map is live (`refresh_forced_models` asks for every slot on the world's first
+/// frame), each drawn as its stand-in until its model is in. Built here, they held
+/// the loading screen 2.4 s on JoF with about 25 players (11/11/2026).
 pub(crate) fn load_actor_meshes(
     vfs: &VirtualFileSystem,
     game_state: Option<&GameState>,
@@ -296,7 +302,10 @@ pub(crate) fn load_actor_meshes(
     scene: &mut FlattenedScene,
     eligibility: &sjk_client::player_model_eligibility::PlayerModelEligibility,
     console: Option<&crate::console::ViewerConsole>,
+    local_only: bool,
 ) -> Result<Vec<ActorMesh>, Box<dyn Error>> {
+    let local = game_state.map(|game| i64::from(game.client_num));
+    let built_now = |client: u64| !local_only || local == Some(client as i64);
     let fallback = fallback_appearance();
     let mut cache = crate::player_assets::GlaCache::default();
     // Player entity numbers are their client slots. Build a dedicated
@@ -307,7 +316,7 @@ pub(crate) fn load_actor_meshes(
     let random = random_stand_ins(console);
     let mut actors = BTreeMap::new();
     if let Some(game_state) = game_state {
-        for client_num in 0..32_u16 {
+        for client_num in (0..32_u16).filter(|&client| built_now(u64::from(client))) {
             if let Some(appearance) =
                 legacy_client_appearance_with_policy(game_state, client_num, None, |appearance| {
                     eligible_appearance(appearance, true, eligibility, options)
@@ -317,10 +326,10 @@ pub(crate) fn load_actor_meshes(
             }
         }
     }
-    for entity in world
-        .entities()
-        .filter(|entity| entity.kind == EntityKind::Actor)
-    {
+    for entity in world.entities().filter(|entity| {
+        entity.kind == EntityKind::Actor
+            && (entity.id.get() > 32 || built_now(entity.id.get().saturating_sub(1)))
+    }) {
         actors.entry(entity.id).or_insert_with(|| {
             eligible_appearance(
                 entity
