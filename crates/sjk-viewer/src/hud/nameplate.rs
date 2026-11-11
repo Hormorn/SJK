@@ -46,6 +46,7 @@ use sjk_ui::{
 
 pub(crate) mod capsule;
 pub(crate) mod classic;
+mod playstyle_badges;
 
 /// Text ids below this are player slots; above it, `NPC_TEXT + class_t`.
 const NPC_TEXT: u32 = 1024;
@@ -53,6 +54,9 @@ const NPC_TEXT: u32 = 1024;
 const UNKNOWN_TEXT: u32 = 1000;
 /// Text id of the mode's name, shown for a moment when the mode changes.
 const MODE_TEXT: u32 = 1001;
+/// Text ids from this one up are the playstyles' words, in
+/// [`crate::playstyle::Playstyle::ALL`]'s order.
+const PLAYSTYLE_TEXT: u32 = 1900;
 /// Text ids from this one up are the initials on the plates' stand-ins, by plate.
 const INITIAL_TEXT: u32 = 2000;
 /// How long the mode's name shows, and the last part of that over which it fades.
@@ -440,6 +444,12 @@ pub(super) fn register(cvars: &mut CvarRegistry) -> Result<(), sjk_shell::CvarEr
         "Crossed-sabers badge before the name of a player in a private duel",
     ))?;
     cvars.register(CvarDefinition::new(
+        crate::playstyle::SHOW_CVAR,
+        true,
+        CvarFlags::ARCHIVE,
+        "Badges over SJK players' nameplates for the playstyles they enjoy (duels, FFA, goofing around...)",
+    ))?;
+    cvars.register(CvarDefinition::new(
         STYLE_CVAR,
         0_i64,
         CvarFlags::ARCHIVE,
@@ -508,6 +518,8 @@ struct Settings {
     icons: bool,
     /// The duel badge before a duellist's name (`cg_nameplateDuel`).
     duel_badge: bool,
+    /// The playstyle badges over SJK players' plates (`cg_nameplatePlaystyle`).
+    playstyle: bool,
     /// How the names are set off from the plate (`cg_nameplateOutline`).
     outline: crate::text::CodePalette,
     /// The plates' look (`cg_nameplateStyle`).
@@ -536,6 +548,7 @@ impl Default for Settings {
             npcs: false,
             icons: true,
             duel_badge: true,
+            playstyle: true,
             outline: crate::text::CodePalette::Haloed,
             style: Style::Holo,
             friends: true,
@@ -664,12 +677,14 @@ pub(crate) struct State {
     /// ([`Self::head_to_cut`]): its slot and key.
     heads: [Head; MAX_PLAYER_TAGS],
     head_wanted: Option<(u16, u64)>,
+    /// Each slot's playstyles ([`crate::playstyle`]), from the looks every frame.
+    playstyles: [crate::playstyle::Picks; MAX_PLAYER_TAGS],
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            list: DrawList::new(MAX_TAGS * 40 + 8),
+            list: DrawList::new(MAX_TAGS * 90 + 8),
             settings: Settings::default(),
             entries: Vec::with_capacity(MAX_TAGS),
             fades: Box::new([Fade::default(); ENTITY_SLOTS]),
@@ -694,6 +709,7 @@ impl Default for State {
             pictures: [None; MAX_PLAYER_TAGS],
             heads: [Head::default(); MAX_PLAYER_TAGS],
             head_wanted: None,
+            playstyles: [crate::playstyle::Picks::default(); MAX_PLAYER_TAGS],
         }
     }
 }
@@ -723,6 +739,7 @@ impl State {
             npcs: flag("cg_nameplatenpcs", false),
             icons: flag("cg_nameplateicons", true),
             duel_badge: flag("cg_nameplateduel", true),
+            playstyle: flag(crate::playstyle::SHOW_CVAR, true),
             outline: crate::text::CodePalette::nameplate(
                 console
                     .and_then(|c| c.integer_cvar("cg_nameplateoutline"))
@@ -877,6 +894,11 @@ impl State {
         if let Some(client) = target {
             self.focus = Some((client, now));
         }
+    }
+
+    /// Each slot's playstyles this frame ([`crate::playstyle::slots`]).
+    pub(crate) fn set_playstyles(&mut self, picks: [crate::playstyle::Picks; MAX_PLAYER_TAGS]) {
+        self.playstyles = picks;
     }
 
     /// Show `mode`'s name on screen for a moment.
@@ -1677,11 +1699,12 @@ impl State {
             };
             let opacity = entry.alpha * self.settings.opacity;
             let _ = self.list.push(DrawCommand::PushOpacity(opacity));
-            match self.settings.style {
+            let [centre, top] = match self.settings.style {
                 Style::Holo => self.holo(&entry, place, label, icons, font, viewport),
                 Style::Capsule => self.capsule(&entry, place, label, icons, font, viewport),
                 Style::Classic => self.classic(&entry, place, label, icons, font, viewport),
-            }
+            };
+            self.playstyle_row(&entry, [centre, top], place.size, label, font, viewport);
             let _ = self.list.push(DrawCommand::PopOpacity);
         }
         self.mode_label(label, font, unit, viewport);
@@ -1696,7 +1719,7 @@ impl State {
         icons: &[Option<TextureId>],
         font: &UiFont,
         viewport: [f32; 2],
-    ) {
+    ) -> [f32; 2] {
         let Place {
             index,
             id,
@@ -1760,9 +1783,14 @@ impl State {
             font,
         );
         self.badges(entry, [holo.mark, holo.client], holo.badge, opacity);
-        if entry.power_count > 0 && entry.proximity > 0.01 {
-            self.power_row(entry, icons, &holo, &frame, viewport);
+        let mut top = holo.hex.map_or(holo.plate.y, |hex| hex.y.min(holo.plate.y));
+        if entry.power_count > 0
+            && entry.proximity > 0.01
+            && let Some(chips) = self.power_row(entry, icons, &holo, &frame, viewport)
+        {
+            top = top.min(chips);
         }
+        [holo.plate.x + holo.plate.width * 0.5, top]
     }
 
     /// A plate's name, left-aligned from `x` with its capitals centred on `middle`, at
@@ -2066,15 +2094,16 @@ impl State {
         holo: &Holo,
         frame: &Frame,
         viewport: [f32; 2],
-    ) {
+    ) -> Option<f32> {
         let shown = entry.powers[..usize::from(entry.power_count)]
             .iter()
             .filter(|power| icons.get(usize::from(**power)).copied().flatten().is_some())
             .count();
         if shown == 0 {
-            return;
+            return None;
         }
         let (mut chip, step) = holo.chips(shown, viewport);
+        let top = chip.y;
         let inset = (CHIP_INSET * holo.k).max(1.0);
         let edge = Color::new(frame.edge.r, frame.edge.g, frame.edge.b, CHIP_EDGE_ALPHA);
         let _ = self.list.push(DrawCommand::PushOpacity(entry.proximity));
@@ -2102,6 +2131,7 @@ impl State {
             chip.x += step;
         }
         let _ = self.list.push(DrawCommand::PopOpacity);
+        Some(top)
     }
 
     /// One bar: shield and health in segments, Force whole. Each piece shows the fill
@@ -2617,6 +2647,9 @@ fn label(chat: &ChatOverlay, id: TextId) -> &str {
     if id.0 == UNKNOWN_TEXT {
         return "?";
     }
+    if let Some(words) = playstyle_badges::words(id) {
+        return words;
+    }
     match id.0.checked_sub(NPC_TEXT) {
         // A blocked player's plate reads BLOCKED (`muted_players.rs`).
         None => crate::muted_players::label(id.0, chat.player_label(id.0 as u16)),
@@ -2712,6 +2745,8 @@ impl State {
         let label = |id: TextId| {
             if id.0 == UNKNOWN_TEXT {
                 "?"
+            } else if let Some(words) = playstyle_badges::words(id) {
+                words
             } else if let Some(initial) = initial(&initials, id) {
                 initial
             } else {

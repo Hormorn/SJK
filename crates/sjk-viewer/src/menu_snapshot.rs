@@ -1226,6 +1226,26 @@ fn nameplates(shots: &mut Snapshot, vfs: &sjk_vfs::VirtualFileSystem) {
     ] {
         let mut state = State::default();
         state.set_style(style);
+        // Playstyle badges (`playstyle.rs`): Kit's say their words, the crosshair on him.
+        {
+            use crate::playstyle::{Picks, Playstyle};
+            let picks = |styles: &[Playstyle]| {
+                styles
+                    .iter()
+                    .fold(Picks::default(), |picks, style| picks.with(*style, true))
+            };
+            let mut slots = [Picks::default(); crate::saber_skins::MAX_CLIENTS];
+            slots[1] = picks(&[
+                Playstyle::SaberDuels,
+                Playstyle::ForceDuels,
+                Playstyle::Teaching,
+            ]);
+            slots[2] = picks(&[Playstyle::Ffa, Playstyle::Goofing]);
+            slots[4] = picks(&[Playstyle::Goofing]);
+            slots[6] = picks(&[Playstyle::SaberDuels]);
+            state.set_playstyles(slots);
+            state.set_focus(Some(2), 0);
+        }
         let mut vertices = Vec::new();
         state.preview(
             &plates,

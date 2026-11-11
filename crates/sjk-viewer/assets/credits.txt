@@ -85,6 +85,7 @@ did: The Mythical holocron's engram: gold plates breathing round a glowing core
 did: The Sith pyramid sculpted anew, art by Sol (AI-assisted), with model normal maps
 did: The Jedi cube and the engram sculpted anew too, art by Sol (AI-assisted)
 did: Textures capped at 2048 pixels, and big model textures loaded without a hitch
+did: Playstyle badges: saber duels, Force duels, FFA, goofing, teaching over nameplates
 did: Status bubbles: the chat bubble shows typing, a menu or away over SJK players
 did: Tag collections: Alpha, and Community for the tags players drew
 did: Blade cards craft their saber shader for less, and lead to it from the Cards tab

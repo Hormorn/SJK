@@ -788,6 +788,11 @@ blade-skin unlock id or `""`, and whether the Illuminate holocron is lit.
   08/11/2026) goes in the look as toy `toon_model`, so the hub needs nothing new: every
   SJK player who shows toon models (`r_toonModels`) draws that player's model in toon
   shading ([Toon models](rendering.md#toon-models)).
+- The player's playstyles (since 11/11/2026: `cg_playSaberDuels`, `cg_playForceDuels`,
+  `cg_playFfa`, `cg_playGoofing`, `cg_playTeaching`) go in the look as toys
+  `play_saber`, `play_force`, `play_ffa`, `play_goof` and `play_teach`, also with
+  nothing new on the hub: SJK players draw them as badges over that player's nameplate
+  ([Playstyle badges](client.md#playstyle-badges)).
 
 Looks are public to every SJK player on the server, as badges are.
 

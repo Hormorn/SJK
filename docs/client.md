@@ -4692,6 +4692,32 @@ command new for them (`DrawCommand::Polygon`, [rendering.md](rendering.md#submis
 - While a menu is open the plates hide: their text is in the classic stream, which
   draws over the menus' text.
 
+### Playstyle badges
+
+11/11/2026, Sol's idea: players say how they like to play, and SJK players see it over
+their nameplate. Five switches in Settings, next to the nameplates' rows, all off by
+default ([playstyle.rs](../crates/sjk-viewer/src/playstyle.rs)): "I enjoy saber duels"
+(`cg_playSaberDuels`), "I enjoy Force duels" (`cg_playForceDuels`), "I'm up for FFA
+chaos" (`cg_playFfa`), "I'm here to goof around" (`cg_playGoofing`) and "I'm happy to
+teach" (`cg_playTeaching`). Any number may be on. They are purely social: nothing is
+blocked or enforced, as the server decides who can hit whom.
+
+The picks travel in the player's hub look as toys `play_saber`, `play_force`,
+`play_ffa`, `play_goof` and `play_teach` ([identity.md](identity.md)), so the hub needs
+no change and older SJK clients ignore them; players without SJK have none.
+
+`cg_nameplatePlaystyle` (on; Settings "Playstyle badges"; it shows only with
+nameplates, which are opt-in) draws them
+([playstyle_badges.rs](../crates/sjk-viewer/src/hud/nameplate/playstyle_badges.rs)): a
+row of round dark cells over the plate and over its power icons, centred on the plate,
+in every style. Each cell holds its icon drawn in strokes of its colour: a lit saber
+(blue, not the duel badge's crossed sabers), a lightning bolt (purple), a burst (red), a
+smile (yellow) and an open book (green). A cell is 1.3 times the name's size. The row
+fades with the plate far away, and stays off NPCs and off players in a private duel.
+With the crosshair on the player (and for 1.5 s after), each cell widens into a pill
+that also says its words ("Saber duels", "Force duels", "FFA chaos", "Goofing around",
+"Teaching"). The own plate (`cg_nameplateSelf`) shows the own picks.
+
 ### Sharing and estimates
 
 Another player's health, shield and Force bars show only when that player shares

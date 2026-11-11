@@ -862,6 +862,36 @@ pub(super) const HUD: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Playstyle badges",
+        cvar: crate::playstyle::SHOW_CVAR,
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "I enjoy saber duels",
+        cvar: crate::playstyle::Playstyle::SaberDuels.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "I enjoy Force duels",
+        cvar: crate::playstyle::Playstyle::ForceDuels.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "I'm up for FFA chaos",
+        cvar: crate::playstyle::Playstyle::Ffa.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "I'm here to goof around",
+        cvar: crate::playstyle::Playstyle::Goofing.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
+        label: "I'm happy to teach",
+        cvar: crate::playstyle::Playstyle::Teaching.cvar(),
+        kind: ValueKind::Bool,
+    },
+    Setting {
         label: "Name outline",
         cvar: "cg_nameplateOutline",
         kind: ValueKind::Choice(&["0", "1", "2"]),

@@ -128,7 +128,7 @@ impl State {
         icons: &[Option<TextureId>],
         font: &UiFont,
         viewport: [f32; 2],
-    ) {
+    ) -> [f32; 2] {
         let Place {
             id,
             x,
@@ -142,6 +142,7 @@ impl State {
         // The name rises as the plate fades in beneath it.
         let line = size * 1.15;
         let top = bottom - Stack::height(rows, u) * entry.detail - line;
+        let mut highest = top;
         if !label(id).is_empty() {
             let width = (320.0 * unit).min(viewport[0]);
             let left = (x - width * 0.5).clamp(0.0, (viewport[0] - width).max(0.0));
@@ -208,6 +209,7 @@ impl State {
                 let left = (x - width * 0.5).clamp(0.0, (viewport[0] - width).max(0.0));
                 let chip = Rect::new(left, top - gap - side, side, side);
                 self.chip_row(entry, icons, (chip, side + gap), 3.0 * u, u.max(1.0));
+                highest = chip.y;
             }
         }
         if rows.any() && entry.detail > 0.01 {
@@ -216,6 +218,7 @@ impl State {
             self.stack(entry, &stack, u);
             let _ = self.list.push(DrawCommand::PopOpacity);
         }
+        [x, highest]
     }
 
     /// The framed plate and its bars: gold round a sharer's (a team's colour as a thin
