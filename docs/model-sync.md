@@ -84,13 +84,53 @@ sender is then dealt with through the hub (ban).
 - A download loads from the next map, as Sith cloud files do, and goes where they go
   (`base`, or `assets/S/base`).
 
-## Still to build
+## Wire
 
-1. The hub's upload ticket (`POST /v1/model-sync/ticket`, JoF and Sith ticks only).
-2. The Sith cloud's upload, version and rollback endpoints (`sith-cloud`, the SJK
-   Launcher's repository), and the hub's public key in its config. Krovos deploys it.
-3. The client: Profile > My model, the Inspect button, `/getmodel`, `cl_autoModels`,
-   the check before loading.
+### Hub: upload ticket
+
+`POST /v1/model-sync/ticket`, signed, `{"model":"<name>","md5":"<content md5>"}`
+(the name as [`valid_name`](../crates/sjk-model-sync/src/lib.rs), the 32 hex digits of
+`Checked::content_md5`). Answers `{"ticket":"<ticket>","expires":<unix seconds>}`.
+Refused: 403 `not_registered`, 403 `not_allowed` (no JoF or Sith tick), 400
+`bad_body` / `bad_model` / `bad_md5`, 429 `rate_limited` (10 tickets a day a person).
+
+Staff: `POST /v1/staff/model-sync/rollback`, signed, `{"model":"<name>","version":<n>}`,
+answers the same with a rollback ticket (staff log `model_rollback`).
+
+A ticket is `<payload>.<signature>`, both base64url without padding: the payload is
+JSON `{"v":1,"act":"upload"|"rollback","key":"<key id>","tick":"jof"|"sith"|"staff",
+"model":"<name>","md5":"<content md5>"|null,"version":<n>|null,"exp":<unix seconds>}`
+(ten minutes after it was made), the signature Ed25519 over the payload's bytes with
+the hub's model sync key. The Sith cloud holds that key's public half.
+
+### Sith cloud: `/models`
+
+Its address is the Sith cloud's `files` address (from `GET /v1/content-sources`)
+without its last `/repository`.
+
+- `GET /models/index.json`: `{"models":{"<name>":{"version":<n>,"size":<bytes>,
+  "md5":"<file md5>","content_md5":"..","at":<unix>}},"packs":{"<name>":{"group":"..",
+  "file":".."}}}`: the uploaded models' current versions, and the names the hosts' own
+  PK3s already hold (those are taken from the Sith cloud card, never uploaded).
+- `PUT /models/<name>`, header `Authorization: SJK-Ticket <ticket>`, the PK3 as the
+  body (at most `Limits::DEFAULT.pk3_bytes`). Answers `{"version":<n>,"linked":<bool>}`,
+  `linked` when the current version already had this content. Refused: 401
+  `bad_ticket` (signature, time, act, name or MD5 not matching), 400 `rejected`
+  with `"why"` (the [`Rejection`](../crates/sjk-model-sync/src/lib.rs) text), 409
+  `host_pack`, 413 `too_large`, 429 `rate_limited` (5 uploads a day a key, one an hour
+  a name). Errors are `{"error":"<code>"}`.
+- `GET /models/<name>/<n>.pk3`: version `n`, `Range` as the repository's files.
+- `POST /models/<name>/rollback`, a rollback ticket: makes version `version` current
+  again; answers `{"version":<n>}`.
+
+The host also has `sith-cloud versions <name>` and `sith-cloud rollback <name> <n>`.
+
+### Client
+
+A download is checked again (`sjk_model_sync::check`) and saved as
+`sjk-model-<name>.pk3` in `base` (or `assets/S/base`); `GameData/sjk-model-sync.json`
+records what it fetched (name, version, MD5), so only those files are ever replaced or
+removed. A model the game already has by name, from anywhere else, is never fetched.
 
 ## Verification
 
