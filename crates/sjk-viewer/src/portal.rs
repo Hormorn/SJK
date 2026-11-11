@@ -28,8 +28,11 @@ pub(crate) struct Destination {
     /// The browser's preview of this map, kept while the session's own world builds
     /// so that build takes its textures, effect atlas and fonts
     /// (`shared_textures.rs`) instead of making them again; dropped once that world
-    /// is ready. Only on a card with [`KEEP_PREVIEW_VIDEO_MEMORY`] or more.
-    superseded: Option<(Option<WorldInstallTask>, Option<Box<GpuState>>)>,
+    /// is ready. Only a finished preview, on a card with [`KEEP_PREVIEW_VIDEO_MEMORY`]
+    /// or more: one still installing went on beside the session's build and the two
+    /// blocked each other, 7.7 s of materials each instead of 1.5 to 2 s and the first
+    /// frame at 11.8 s instead of 8.7 s (Sol's JoF joins, 11/11/2026).
+    superseded: Option<Box<GpuState>>,
 }
 
 /// Video memory (bytes) a card needs for [`Destination::superseded`]: the menu world,
@@ -78,14 +81,14 @@ impl Destination {
         if self.map.as_deref() == Some(map) && self.session_feed == Some(game.checksum_feed) {
             return;
         }
-        // A preview of this map already installing or built: kept for its textures.
-        // One still parsing has nothing to share yet and only costs processor time.
+        // A finished preview of this map is kept for its textures; one still loading
+        // or installing is cancelled, as it would compete with the session's build.
         let keep = self.map.as_deref() == Some(map)
             && self.session_feed.is_none()
-            && (self.install.is_some() || self.world.is_some())
+            && self.world.is_some()
             && crate::video_memory::dedicated()
                 .is_some_and(|bytes| bytes >= KEEP_PREVIEW_VIDEO_MEMORY);
-        let superseded = keep.then(|| (self.install.take(), self.world.take()));
+        let superseded = if keep { self.world.take() } else { None };
         if superseded.is_some() {
             crate::log::progress(format_args!(
                 "portal: keeping the preview of {map} while the session's world builds"
