@@ -860,6 +860,14 @@ to three times, 5.5 seconds apart (a server refuses a second team change within
 five seconds), then says to use the join menu. Not in duel or power duel, where
 waiting as a spectator is the queue.
 
+A join waits for the server to take that reply before the loading screen can go
+([`enter_play`](../crates/sjk-client/src/force_profile_negotiation.rs)): it ends
+on the server's `nfr` confirming the profile, or, for servers that never send one
+(JA+), once the server has acknowledged the reply and a later snapshot still shows
+the player in play, and at the latest after 3 seconds. Until 11/11/2026 only the
+`nfr` ended it, so every JA+ join sat the full 3 seconds under the loading screen
+with the player already in the game.
+
 Opened on a server, the Force page takes the server's highest rank and free
 saber skills, which decide whether the server keeps the profile it is sent. What
 the server only will not let be used stays buyable and is marked: its disabled

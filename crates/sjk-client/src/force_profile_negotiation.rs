@@ -173,17 +173,27 @@ pub fn enter_play(
     // The first snapshots can still show the pre-park in-game state, so wait
     // for the server's own confirmation: `WP_InitForcePowers` answers a
     // legal, confirmed profile with `nfr <rank> 0 <team>`
-    // (`w_force.c:394`). Siege never sends it (`scl` instead).
+    // (`w_force.c:394`). Siege never sends it (`scl` instead). JA+ never sends
+    // it either, and waiting the whole timeout for it held every join there 3 s
+    // behind the loading screen with the player already in the game: once the
+    // server has acknowledged the reply (it ran it) and a later snapshot still
+    // shows this client in play, no bounce is coming.
     let siege = serverinfo_i32(session.game_state(), "g_gametype") == GT_SIEGE;
     let deadline = Instant::now() + JOIN_TIMEOUT;
     let mut confirmed = siege;
     let mut active = false;
+    let mut ran_by = None;
     while Instant::now() < deadline {
         receive_quietly(session)?;
         while let Some(update) = session.take_force_rank_event() {
             confirmed |= !update.open_profile;
         }
-        active = confirmed && !session.latest_snapshot().player.is_spectator();
+        let snapshot_time = session.latest_snapshot().server_time;
+        if ran_by.is_none() && session.reliable_commands_acknowledged() {
+            ran_by = Some(snapshot_time);
+        }
+        let settled = ran_by.is_some_and(|time| snapshot_time > time);
+        active = (confirmed || settled) && !session.latest_snapshot().player.is_spectator();
         if active {
             break;
         }
