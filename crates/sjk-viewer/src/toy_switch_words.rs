@@ -98,7 +98,7 @@ pub(crate) const TOYS: [(&str, &str, &str); 16] = [
     (
         "WHEEL OF DOOM",
         "toy_wheelofdoom",
-        "run it once to see the price, again to spin; the wheel may turn your keys, mouse or view against you, or give a Mythical holocron",
+        "tells your DOOM coins; spin a wheel standing on the map with Use, for a coin: it may turn your keys, mouse or view against you, or give a holocron",
     ),
     (
         "Mining",

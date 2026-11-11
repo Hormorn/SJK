@@ -794,7 +794,7 @@ pub(crate) const ACTIONS: &[Action] = &[
         State::None,
         Some("banana"),
     ),
-    // Shows the WHEEL OF DOOM's price, then spins it on a second press.
+    // Tells the player's DOOM coins and the WHEELS OF DOOM of the map (spun with Use).
     action(
         "wheel_of_doom",
         "WHEEL OF DOOM",

@@ -36,3 +36,31 @@ models/sjk/teddy_bear
 		rgbGen lightingDiffuse
 	}
 }
+
+// The box's loot of 11/11/2026 (SJK; see README.md, scripts/box_loot_model.py): the Ray
+// Gun and the piles of gold coins, lit as a player model is, with a glint that slides
+// over the metal as the eye moves.
+models/sjk/box_loot
+{
+	{
+		map models/sjk/box_loot
+		rgbGen lightingDiffuse
+	}
+	{
+		map models/sjk/box_loot
+		blendFunc GL_DST_COLOR GL_ONE
+		tcGen environment
+		rgbGen const ( 0.35 0.35 0.35 )
+	}
+}
+
+// The Ray Gun's glowing tube and its bolt: green light, added, pulsing a little.
+models/sjk/box_loot_glow
+{
+	nopicmip
+	{
+		map models/sjk/box_loot_glow
+		blendFunc add
+		rgbGen wave sin 0.85 0.15 0 2
+	}
+}

@@ -1,0 +1,18 @@
+// The mystery box's Ray Gun (SJK's own, docs/mystery-boxes.md): held 30 seconds by a box's
+// opener, never chosen as a prop gun. Read by propgun.rs from sjk/raygun.gun.
+name "Ray Gun"
+view models/sjk/raygun.md3
+viewOffset 0 0 -1
+world models/sjk/raygun.md3
+worldScale 0.9
+fire sound/sjk/raygun/fire.wav
+impact sound/sjk/raygun/impact.wav
+raise sound/sjk/raygun/raise.wav
+boltModel models/sjk/raygun_bolt.md3
+boltColor 0.35 1 0.25
+boltLight 180
+boltSpeed 2200
+boltLife 1500
+fireEffect disruptor/muzzle_flash
+refire 450
+push 1300

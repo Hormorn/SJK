@@ -1,96 +1,109 @@
 # WHEEL OF DOOM
 
-A toy any SJK player spins for credits (Sol's design of 07/11/2026). The hub takes the
-price, keeps the cooldown and rolls where the wheel lands; the client stands a big dark
-wheel before the spinner, spins it, and does what it landed on to the spinner's own keys,
-mouse and view, or blows them up, curses them, or gives a Mythical holocron. Its name is
-written in capitals wherever a player reads it. Code:
-[wheel_of_doom.rs](../crates/sjk-viewer/src/wheel_of_doom.rs) (the wheel, the spin, the
-words, the sounds), [effects.rs](../crates/sjk-viewer/src/wheel_of_doom/effects.rs) (what
+Big dark wheels SJK's creator places on maps (Sol's design of 07/11/2026; placed since
+11/11/2026), which any SJK player spins with Use for a DOOM coin, the only way to spin
+one: a [mystery box](mystery-boxes.md) that blows up (the teddy bear) brings a coin. The
+hub keeps where the wheels stand, spends the coin, keeps the cooldown and rolls where the
+wheel lands; the client draws the wheels, spins the one the player faces to the end of its
+music, and does what it landed on to the spinner's own keys, mouse and view, or blows
+them up, curses them, gives the coin back or a holocron of any tier. Its name is written in
+capitals wherever a player reads it. Code:
+[wheel_of_doom.rs](../crates/sjk-viewer/src/wheel_of_doom.rs) (the wheels, the spin, the
+sounds, the creator's commands), [effects.rs](../crates/sjk-viewer/src/wheel_of_doom/effects.rs) (what
 it does to the spinner), [draw.rs](../crates/sjk-viewer/src/wheel_of_doom/draw.rs) (the
-words, the price card, the HUD line, Blind's darkness),
+words over the wheels, the HUD line, Blind's darkness),
 [mirror.rs](../crates/sjk-viewer/src/wheel_of_doom/mirror.rs) (Mirror's flip), and the hub
 calls in [sjk-identity's wheel_of_doom.rs](../crates/sjk-identity/src/wheel_of_doom.rs).
 
-**Out of order since 09/11/2026** (Sol: it is bugged): the hub has the wheel off (its
-`--wheel-of-doom` switch, off by default). It stays in Collection > Toys, the quick wheel
-and the bindings, but every press says "The WHEEL OF DOOM is out of order for now." in the
-centre of the screen, with no price card and nothing paid. The client reads that from
-`GET /v1/wheel-of-doom`'s `open` (false), and asks again at most every 5 seconds while it
-is off, so the wheel spins again without a restart once the hub opens it; a client from
-before that change gets the same words from the hub's `wheel_off` refusal at the second
-press. To bring it back, set the hub's switch to `everyone` (`staff` to test a fix).
+**Before 11/11/2026** the wheel was a toy: `toy_wheelofdoom` stood one before the
+spinner, who paid 100 credits on a second press, every 5 minutes, 16 segments, a 6-second
+spin. From 09/11/2026 it was out of order (the hub's `--wheel-of-doom` switch off, Sol:
+bugged). Sol, 11/11/2026: "make the wheel of doom placeable, add a holo of every type on
+it, only way to play it is with a wheel of doom coin and it plays the WHEEL OF DOOM music
+fully and lands on the result at the end of it, only a few seconds CD, synced with the
+hub". The hub's switch is `everyone` by default again; `off` still shows "out of order".
 
-No game server knows of the wheel. It is drawn by SJK clients only and has no collision;
-what it does reaches the server only as the user commands the player sends anyway (and,
-on `explode`, the game's `kill`).
+No game server knows of the wheels. They are drawn by SJK clients only and have no
+collision; what they do reaches the server only as the user commands the player sends
+anyway (and, on `explode`, the game's `kill`).
 
-## Spinning it
+## Placing one (SJK's creator)
 
-`toy_wheelofdoom` (Collection > Toys, its row's "Spin" switch; the quick wheel's Toys
-group, to add to a page; or a key bound to it in
-Settings > Controls, "Toy: WHEEL OF DOOM"; listed by `toy_help`) works in two presses so
-nobody pays by mistake:
+As a mystery box is placed (the same hub checks, the map file's checksum, the staff log):
 
-1. The first shows the price by the crosshair, on a dark card edged in red: "WHEEL OF
-   DOOM" and "100 credits: run it again to spin" (from the Collection, whose page covers
-   the crosshair, the centre of the screen says it too).
-2. A second within 5 seconds asks the hub to spin (`POST /v1/wheel-of-doom/spin`, signed,
-   `{"server":"ip:port"}`).
+| Command | Does |
+| --- | --- |
+| `wheelofdoom_place [server]` | Place a wheel where you aim, its face towards you: on every server running this map file, or with `server` on this one only |
+| `wheelofdoom_remove [id]` | Remove the wheel nearest you (within 256 units), or the one with that id |
+| `wheelofdoom_list` | The wheels on this map, their ids and distance, and your DOOM coins (anyone) |
 
-The client refuses before asking, in the centre of the screen: off a game server (a local
-game included), while the hub has not answered the last spin, in a duel, dead, spectating,
-with the flag or wherever the [Ragdoll](client.md#ragdoll) could not strike the player
-(`Ragdoll::strikable`), during the cooldown it knows ("Your next spin in N s"), and without
-the price in credits. The hub refuses on its own (shown in the centre too):
-`wheel_cooldown` (its `left` seconds, read from its message, set the client's cooldown, so
-the next press says the right wait), `not_enough_credits`, `not_on_server`,
-`client_update_required`, and the opening gates (`not_registered`, `opening_staff_only`)
-in the hub's words. The price, the cooldown and the segments in order come from
-`GET /v1/wheel-of-doom`, read the first time the command runs (then at most every 5
-seconds while unread). The cooldown is the hub's (300 seconds, per person, across all
-servers); the client starts its own count at the answer.
+The client reads the wheels with the mystery boxes, every 10 minutes and at once after a
+placing or a removal (`GET /v1/wheel-of-doom`, which also says the player's coins). At
+most 8 wheels a map are kept. The map editor has no button for them yet.
 
-The wheel rises 110 units before the spinner (nearer, down to 48, when a wall is closer),
-on the floor, its face to them, and spins 6 seconds: four whole turns and the last to its
-segment, fast at first and slowing to a stop (a cubic ease out, as the mystery box's roll
-slows), a tick each time a peg passes the pointer. It stops on the hub's segment, plays the
-stop and, on a bad outcome, the laugh, on the jackpot the fanfare; it stands 4 seconds more
-and shrinks away in 0.6. Words stand over it for every SJK player who sees it (hidden
-behind walls, fading past 1100 units, gone past 1600), in the headline font: "WHEEL OF
-DOOM" and "Spinning...", then the outcome's name and what it does. The spinner reads the
-same in the centre of the screen.
+## Spinning one
 
-The other SJK players on the server see the same wheel before the spinner through the
-hub's toy event (`wheel_of_doom`, `spin_<outcome>`, from the spinner's slot), where their
-game shows the spinner (not when the server does not send them). The feed is read every
-few seconds, so they see it start up to that late; their wheel lands on the outcome's
-segment by the hub's list (the client's own order when the list is unread). The effects
-are the spinner's alone.
+Standing at a wheel (within 120 units across the floor and 96 up or down) and facing it
+(within 60 degrees), the player sees the [Use prompt](client.md#use-prompt): "Spin the
+WHEEL OF DOOM" over "1 DOOM coin (you hold N)", or greyed with why not ("No DOOM coin: the
+teddy bear brings one", "Someone is spinning it", "Your turn again in N s", "Out of order
+for now"). Use asks the hub (`POST /v1/wheel-of-doom/spin`, `{"wheel":<id>,"server":"ip:port"}`);
+the client refuses first, in the centre of the screen, in a duel, dead, spectating, with
+the flag or wherever the [Ragdoll](client.md#ragdoll) could not strike the player, while
+the hub has not answered the last spin, while the wheel spins, during the cooldown it knows
+and without a coin. The hub refuses on its own too (shown in the centre): `no_doom_coin`,
+`wheel_busy` (with the seconds left), `wheel_cooldown`, `no_such_box`, `not_on_server`,
+`wheel_off`, `client_update_required`. The cooldown is the hub's: 40 seconds from a spin's
+start, a few past its end (per person, across all wheels); a wheel takes one spin at a time.
+
+`toy_wheelofdoom` (Collection > Toys, its "Coins" switch; the quick wheel; a key in
+Settings > Controls) says the player's DOOM coins and how many wheels stand on the map.
+
+A spin lasts 34 seconds, the length of Sol's WHEEL OF DOOM music, which plays at the wheel
+for everyone (`sound/sjk/wheel_of_doom/music.mp3`, in the optional SJK extras pack; without
+it the wheel spins to its ticks alone). The wheel turns 14 times and the rest of the way to
+its segment from where it last stopped, fast at first and crawling at the end (a quartic
+ease out), so who wins stays open to the last note; a tick plays each time a peg passes
+the pointer. It stops on the hub's segment as the music ends, plays the stop and, on a bad
+outcome, the laugh, on a holocron or the coin back the fanfare, and keeps its words 6
+seconds more. The wheel then rests where it landed. Words stand over each wheel for every
+SJK player who sees it (hidden behind walls, fading past 1100 units, gone past 1600), in
+the headline font: "WHEEL OF DOOM" and "A DOOM coin a spin: press Use", "Spinning...", then
+the outcome's name and what it does. The spinner reads the same in the centre.
+
+The other SJK players on the server see the same wheel spin through the hub's toy event
+(`wheel_of_doom`, `land_<wheel>_<outcome>`, from the spinner's slot), when their feed
+brings it (every few seconds); their wheel lands on the outcome's segment by the hub's list
+(the client's own order when the list is unread). The effects are the spinner's alone.
 
 ## The outcomes
 
-16 segments, index = order round the wheel, segment 0 under the pointer at angle 0, the
-others clockwise. The odds are the hub's.
+Segments: 20 (16 before 11/11/2026), index = order round the wheel, segment 0 under the
+pointer at angle 0, the others clockwise, the holocrons spread among the bad ones. The
+odds are the hub's, PROVISIONAL: a holocron of some tier 29% of the time.
 
-| Segment | Outcome | What happens to the spinner |
-| --- | --- | --- |
-| 0 | `mythical` | The gold jackpot: a Mythical holocron (source `wheel`, uncapped, untradeable, as box ones). Fanfare, "MYTHICAL HOLOCRON! In your Collection". The profile the hub answers with brings it; the holocrons are read again at once, and it arrives as any new holocron does (the top card in a match, the pop-up in the menu; [holocrons.md](holocrons.md#the-pop-up)); the hub's feed announces it to everyone as a Mythical drop |
-| 1 | `nothing` | "Nothing happens..." |
-| 2 | `reverse_keys` | 30 s: forward and back, left and right swapped in the user command |
-| 3 | `invert_mouse` | 30 s: the mouse's pitch and yaw both turned the wrong way |
-| 4 | `mirror` | 30 s: the whole picture flipped left to right, and the strafe and yaw swapped, so it plays mirrored |
-| 5 | `upside_down` | 20 s: the view rolled 180 degrees |
-| 6 | `blind` | 15 s: the screen fades to black (1.2 s in, 1 s out, never flashing) but for a small pinhole round the crosshair |
-| 7 | `drunk` | 30 s: the view sways and rolls slowly (9 degrees of roll at most) and the aim drifts a little (7 degrees, slowly), easing in and out over 1.5 s |
-| 8 | `tiny_fov` | 20 s: field of view 40 |
-| 9 | `huge_fov` | 20 s: field of view 150 |
-| 10 | `no_saber` | 20 s: a lit saber is put out (the saber's own toggle, `sv_saberswitch`'s `generic_cmd`, every 0.75 s while it is lit) and cannot be lit (attacks, which light it, and the toggle are dropped while it is out) |
-| 11 | `quack` | 30 s: a quack on every attack press, and every 0.45 s while one is held (SJK's own synthesized quack, heard by the spinner alone) |
-| 12 | `walk` | 30 s: forced walk (`BUTTON_WALKING`, moves at the walk's 46) |
-| 13 | `bunny` | 20 s: jump held all the while |
-| 14 | `explode` | As a mystery box that blows up: the laugh, then 1.5 s after the stop the detpack's explosion where the spinner stands (for every SJK player who sees it) and the spinner's client sends the game's `kill`; never in a duel, with the flag or wherever the Ragdoll could not strike |
-| 15 | `curse` | "CURSED... Something bad comes within a minute": one of the twelve effects above (not mythical, nothing, explode or curse) strikes at a random moment within 60 s ("The curse strikes: ...!") |
+| Segment | Outcome | Chance | What happens to the spinner |
+| --- | --- | --- | --- |
+| 0 | `mythical` | 1 % | The gold jackpot: a Mythical holocron (source `wheel`, uncapped, untradeable, as box ones), Sol's exception of 07/11/2026. Fanfare, "MYTHICAL HOLOCRON! In your Collection". The holocrons are read again at once, and it arrives as any new holocron does ([holocrons.md](holocrons.md#the-pop-up)); the hub's feed announces it to everyone as a Mythical drop |
+| 1 | `reverse_keys` | 4 % | 30 s: forward and back, left and right swapped in the user command |
+| 2 | `holo_uncommon` | 17 % | An Uncommon (green) holocron, as the Mythical one: source `wheel`, uncapped, untradeable |
+| 3 | `invert_mouse` | 4 % | 30 s: the mouse's pitch and yaw both turned the wrong way |
+| 4 | `explode` | 8 % | As a mystery box that blows up: the laugh, then 1.5 s after the stop the detpack's explosion where the spinner stands (for every SJK player who sees it) and the spinner's client sends the game's `kill`; never in a duel, with the flag or wherever the Ragdoll could not strike |
+| 5 | `holo_rare` | 8 % | A Rare (blue) holocron, the same |
+| 6 | `mirror` | 4 % | 30 s: the whole picture flipped left to right, and the strafe and yaw swapped, so it plays mirrored |
+| 7 | `upside_down` | 4 % | 20 s: the view rolled 180 degrees |
+| 8 | `doom_coin` | 5 % | "DOOM COIN BACK! Spin it again": the coin spent comes back |
+| 9 | `blind` | 4 % | 15 s: the screen fades to black (1.2 s in, 1 s out, never flashing) but for a small pinhole round the crosshair |
+| 10 | `holo_legendary` | 3 % | A Legendary (purple) holocron, the same |
+| 11 | `drunk` | 4 % | 30 s: the view sways and rolls slowly (9 degrees of roll at most) and the aim drifts a little (7 degrees, slowly), easing in and out over 1.5 s |
+| 12 | `tiny_fov` | 4 % | 20 s: field of view 40 |
+| 13 | `nothing` | 5 % | "Nothing happens..." |
+| 14 | `huge_fov` | 4 % | 20 s: field of view 150 |
+| 15 | `no_saber` | 4 % | 20 s: a lit saber is put out (the saber's own toggle, `sv_saberswitch`'s `generic_cmd`, every 0.75 s while it is lit) and cannot be lit (attacks, which light it, and the toggle are dropped while it is out) |
+| 16 | `quack` | 4 % | 30 s: a quack on every attack press, and every 0.45 s while one is held (SJK's own synthesized quack, heard by the spinner alone) |
+| 17 | `walk` | 4 % | 30 s: forced walk (`BUTTON_WALKING`, moves at the walk's 46) |
+| 18 | `bunny` | 4 % | 20 s: jump held all the while |
+| 19 | `curse` | 5 % | "CURSED... Something bad comes within a minute": one of the twelve effects above (not mythical, nothing, explode or curse) strikes at a random moment within 60 s ("The curse strikes: ...!") |
 
 A small line under the top of the HUD, in the wheel's red, names the effect running and its
 seconds left ("WHEEL OF DOOM · MIRRORED · 23 s"), or "CURSED..." while a curse waits. One
@@ -108,14 +121,15 @@ it is; the controls are still mirrored.
 ## Sounds
 
 Every sound plays at the wheel on a sound source of the wheel's own (`0x5600_0000` and the
-spinner's slot), the quack in the spinner's ears.
+wheel's id), the quack in the spinner's ears.
 
 | When | Sound |
 | --- | --- |
+| The spin, from its start to its stop | Sol's music, `sound/sjk/wheel_of_doom/music.mp3`, in the optional SJK extras pack (none without it) |
 | A peg passes the pointer | `sound/sjk/wheel_of_doom/tick.wav` (bundled) |
 | The wheel stops | `sound/sjk/wheel_of_doom/stop.wav` (bundled) |
 | A bad outcome (an effect, explode, curse) | The mystery box's laugh: Sol's `sound/sjk/mystery_box/laugh.mp3` in the optional SJK extras pack, else the retail gloat `sound/chars/alora/misc/gloat1.mp3` |
-| The jackpot | `sound/sjk/wheel_of_doom/fanfare.wav` (bundled) |
+| A holocron, the coin back | `sound/sjk/wheel_of_doom/fanfare.wav` (bundled) |
 | Explode | The detpack's `sound/weapons/detpack/explode.mp3` (retail) |
 | Quack | `sound/sjk/wheel_of_doom/quack.wav` (bundled) |
 
@@ -141,24 +155,24 @@ keeps this contract:
 - Scale: game units, as drawn (the client scales by 1). The placeholder's wheel is 40 units
   in radius and 4 thick, its axle 64 units over the floor, the pointer's arm 116 high.
 - The stand's origin is on the floor under the wheel's middle. Its front, the side the wheel's
-  face shows, looks along the model's +X; the client turns it to face the spinner.
+  face shows, looks along the model's +X; the client turns it the way the creator placed it.
 - The wheel's origin is its pivot, the middle of its axle. The client sets it 64 units over
   the stand's origin (`AXLE` in `wheel_of_doom.rs`; a model with another height changes that
   constant) and turns it about the model's X axis only, clockwise as seen from the front
   (from +X looking back).
-- Segments: 16, 22.5 degrees each. At angle 0, segment 0 (`mythical`) is centred straight up
-  (+Z), under the pointer at the top; segment k is centred k x 22.5 degrees clockwise of the
-  top as seen from the front (segment 1 to the right of the top, with +Y on the viewer's
+- Segments: 20, 18 degrees each (16 of 22.5 before 11/11/2026). At angle 0, segment 0
+  (`mythical`) is centred straight up (+Z), under the pointer at the top; segment k is
+  centred k x 18 degrees clockwise of the top as seen from the front (segment 1 to the right of the top, with +Y on the viewer's
   right). The pegs sit on the dividers, half a segment either side of each middle (the ticks
   are timed on them).
 - The pointer is part of the stand, at the top, pointing down at the wheel's rim.
 
 ## Limits
 
-- The wheel is SJK's only: players on other clients see someone standing there, and the
-  wheel has no collision.
-- Others see a spin when the hub's feed reaches them (every few seconds), and only while
-  their game shows the spinner.
+- The wheels are SJK's only: players on other clients see someone standing there, and the
+  wheels have no collision.
+- Others see a spin when the hub's feed reaches them (every few seconds late), so their
+  music and stop come that much later than the spinner's.
 - The effects are the spinner's own client's: a modified client could ignore them. They
   cost a few comparisons a frame and allocate nothing; the words are written into fixed
   strings.
@@ -166,14 +180,16 @@ keeps this contract:
   staff or dual saber half lit, may keep a blade on.
 - Mirror flips the HUD too, and needs a surface the client can copy from.
 - Bunny holds the jump even while the player types in the chat.
-- Verified: unit tests (the outcomes and their order, each segment stopping under the
-  pointer, the spin slowing to its stop, the ticks, the stop, the laugh, the fanfare, the
-  blast after explode and once, the wheel going after its hold, an unknown outcome shown by
-  name and harmless, the refusals (a duel, the cooldown and its seconds, too few credits,
-  off a server), the effects' input transforms (reverse, invert, mirror, walk, bunny, no
-  saber, quack), the view effects (upside down, the FOVs, blind's fade), timers ending and
-  clearing (a new map, a death), the curse picking a bad effect within a minute; on the
-  identity side the wheel's and a spin's answers, the feed event, the refusals and the
-  cooldown's seconds). Not tried in a game, nor against the hub (its side is on the hub's
-  `wheel-of-doom` branch, 07/11/2026): the wheel's look and placement, the ticks' timing,
-  the Mirror pass on a GPU, the pinhole's look, the saber toggle on real servers.
+- The music is in the extras pack; the Sith cloud's copy is Sol's to upload. Sol tests it
+  from `GameData/base/zz_sjk_wheel_of_doom_sounds_local.pk3`.
+- At most 8 wheels a map; the map editor's pages do not list them yet.
+- Verified: unit tests (the 20 outcomes and their order, each segment stopping under the
+  pointer from any rest, the 34-second spin slowing to its stop, the music, the ticks, the
+  stop, the laugh, the fanfare, the blast after explode and once, the rest where it landed,
+  an unknown outcome shown by name and harmless, the refusals and the Use prompt (a duel,
+  busy, the cooldown, no coin, out of order), the wheel faced, the wheels of a map file and
+  server, the effects' input transforms and timers, the curse; on the identity side the
+  wheels, coins, a spin's answer, the feed event and the refusals; on the hub the coins, the
+  busy wheel, the cooldown, each holocron segment, the coin back, placing and removing).
+  `duel6_wheel_of_doom_stopped` renders the 20-segment wheel. Not tried in a game: the
+  music's timing against the stop, the Use prompt, the creator's placing.

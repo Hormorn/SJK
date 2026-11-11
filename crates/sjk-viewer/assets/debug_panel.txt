@@ -238,14 +238,26 @@ test: Toggle r_ssao or a preset in the menu: the panel stays up, the GPU rows ch
 test: Log frame timings on, change a setting, perfmark test: timings.log has set/mark lines.
 note: The log is in the session log's folder; Sol: send it to Claude to tune the settings.
 
-[wheel-off]
+[box-rework]
 area: Gameplay
-title: WHEEL OF DOOM out of order for now (bugged)
-change: Hub switch --wheel-of-doom off by default; its GET says open false, spins get wheel_off.
-change: Every press says "out of order" in the centre: no price card, nothing paid.
-test: Join a server, toy_wheelofdoom: "The WHEEL OF DOOM is out of order for now."
-test: Collection > Toys > WHEEL OF DOOM > Spin: the same words; credits unchanged.
-note: Needs the hub's wheel-off change deployed. Bring back: SJK_HUB_WHEEL_OF_DOOM=everyone.
+title: Mystery box loot: coins, Ray Gun, kyber, never empty
+change: No empty, refund or free roll; a holocron 45%, coin piles 50/200/500, Ray Gun, kyber.
+change: Others see the real holocron or crystal; the teddy bear also gives a DOOM coin.
+change: Ray Gun 30 s: attack fires; a hit ragdolls once, green shell 30 s; hunters pay 25.
+test: Open boxes: coins piles, holocrons and crystals roll by; no bolts or little box.
+test: Ray Gun: it jumps in hand at the stop; fire at a friend: they fall, glow green.
+test: Hit a box hunter: "RAY GUN: name down, +25 credits"; a second hit passes through.
+note: Needs the hub's box-rework branch deployed.
+
+[wheel-placed]
+area: Gameplay
+title: WHEEL OF DOOM placed on maps, spun for a DOOM coin
+change: wheelofdoom_place/remove/list (creator); Use at a wheel spins it for a coin.
+change: 20 segments with a holocron of every tier and the coin back; 34 s spin to music.
+test: wheelofdoom_place on a server: the wheel stands, words over it, Use prompt.
+test: Without a coin: "No DOOM coin". With one: it spins to the music, lands at its end.
+test: A friend at the same wheel during a spin: "Someone is spinning it".
+note: Music from zz_sjk_wheel_of_doom_sounds_local.pk3; hub box-rework branch needed.
 
 [banners-off]
 area: Menus & settings

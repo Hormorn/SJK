@@ -27,8 +27,8 @@ Words stand in the world over every box, in the headline font (Fira Sans Condens
 centre prints), for every SJK player who sees it (hidden behind
 walls, fading out past 1000 units, gone past 1400): "MYSTERY BOX" and its price (or "Free
 roll: press Use" for a player holding one), "Rolling..." while it rolls, then what came
-out ("JACKPOT!", "DOUBLE!", "CREDITS BACK" or "EMPTY", and the credits; the opener's also
-says to press Use to take it).
+out (the credits, a holocron's or crystal's tier, the Ray Gun...; the opener's also says
+to press Use to take it).
 
 ## Opening one
 
@@ -51,7 +51,7 @@ prompt without asking the hub.
 An opened box plays its opening sound and its roll while it rattles and things rise out of
 it and roll over it, changing fast, then slower, like a wound-down spring. At 5.2 seconds
 (5.5 before 30/10/2026), on the roll's last note, it stops on what came out and plays a
-chime (credits back), a fanfare (the jackpot) or a locked door (empty). As its lid closes
+chime, or a fanfare (the jackpot, the Mystery blade, a kyber crystal). As its lid closes
 (taken, or after 10 seconds) it plays its closing sound.
 
 The opening, the roll and the closing are Sol's sounds of 30/10/2026, in the optional SJK
@@ -64,23 +64,32 @@ no closing sound. Both rolls end together, so every client stops at the same tim
 
 | Outcome | Stops on |
 | --- | --- |
-| `empty` | a handful of bolts |
-| `refund` | a blue crystal |
-| `double` | a green crystal |
-| `jackpot` | a red crystal |
+| `coins` | a small heap of gold coins |
+| `double` | a pile of gold coins |
+| `jackpot` | a big pile of gold coins |
 | `explode` | a teddy bear (a thermal detonator before 30/10/2026) |
-| `holocron` | the tier's own holocron, every part of it, for the opener; SJK's holocron for the others (the hub tells them no tier) |
+| `holocron` | the tier's own holocron, every part of it, for everyone (since 11/11/2026 the hub's event names the tier; SJK's placeholder holocron for others before) |
+| `kyber` | the tier's own kyber crystal, for everyone |
 | `shards` | three cyan kyber crystals; seven, bigger, for the opener's pile of more than 15 shards |
-| `again` | a little mystery box |
+| `raygun` | the Ray Gun |
 | `blade` | a saber hilt; for an opener who holds the blade already, the shards it pays instead |
+
+Before 11/11/2026 (Sol: "replace the crystals for credits with actually a pile of coins")
+`empty` stopped on a handful of bolts, `refund` on a blue crystal, `double` on a green
+one, `jackpot` on a red one and `again` on a little mystery box; an older hub's `empty`
+and `again` still do. The coins, the Ray Gun and its bolt are SJK's own, bundled, made by
+[box_loot_model.py](../scripts/box_loot_model.py).
 
 What rolls before it stops is only these prizes (Sol, 29/10/2026: the game's weapons
 rolled with them before, which no box gave), but the teddy bear, which only comes at the
-end (30/10/2026), among them both piles of shards and the
-four tiers' holocrons, Uncommon to Mythical, each drawn as the Holocrons tab draws it,
-its parts posed and turning (`mystery_box::HOLOCRONS`, Sol, 29/10/2026; before, one
-holocron for all). `world_shot::mystery_box_shots::duel6_mystery_box_holocrons` shows the
-four, and `duel6_mystery_box_loot` the piles, the little box and the hilt.
+end (30/10/2026): the three piles of coins, both piles of shards, the hilt, the Ray Gun,
+the four tiers' holocrons, Uncommon to Mythical, and the Rare and Mythical kyber crystals,
+each drawn as the Holocrons tab draws it, its parts posed and turning
+(`mystery_box::HOLOCRONS`, `KYBERS`; Sol, 11/11/2026: "we should see the kyber models and
+holos too", no placeholder). `world_shot::mystery_box_shots::duel6_mystery_box_holocrons`
+shows the four holocrons, `duel6_mystery_box_kybers` the four crystals,
+`duel6_mystery_box_rework` the coins and the Ray Gun, and `duel6_mystery_box_loot` the
+shards, the little box and the hilt.
 
 The opener is told what came out in the centre of the screen. It floats over the box,
 turning slowly, until they take it with `+use` at the box (a sparkle; a chat line gives
@@ -100,21 +109,27 @@ followed the player on slot 0 (bug report #185).
 
 Settings > Sound > Toys, "Mystery box sounds" (`s_toyMysteryBoxSound`), silences them.
 
-The price and the odds are the hub's (`GET /v1/mystery-boxes`), PROVISIONAL, Sol's to tune:
+The price and the odds are the hub's (`GET /v1/mystery-boxes`), PROVISIONAL, Sol's to
+tune. Since 11/11/2026 (Sol: never empty loot, never the 100 credits back, no free
+rerolls, much more likely at least a green holocron since a box costs about one, a very
+rare kyber crystal):
 
 | Outcome | Chance | Pays |
 | --- | --- | --- |
-| `empty` | 36 % | nothing |
-| `refund` | 24 % | the price back |
-| `double` | 5 % | twice the price |
-| `jackpot` | 1 % | five times the price |
-| `explode` | 12 % | nothing: the price goes to a hunter |
-| `holocron` | 10 % | a holocron |
-| `shards` | 6 % | 10 to 25 kyber shards |
-| `again` | 5 % | a free roll |
+| `holocron` | 45.5 % | a holocron, Uncommon (green) or better |
+| `coins` | 15 % | 50 credits |
+| `double` | 6 % | 200 credits |
+| `jackpot` | 1 % | 500 credits |
+| `explode` | 12 % | a DOOM coin; the price goes to a hunter |
+| `shards` | 12 % | 10 to 25 kyber shards |
+| `raygun` | 7 % | the Ray Gun for 30 seconds |
 | `blade` | 1 % | the Mystery blade (60 shards if you hold it) |
+| `kyber` | 0.5 % | a kyber crystal: 60 % Uncommon, 30 % Rare, 9 % Legendary, 1 % Mythical |
 
-On average a box pays back 39 of its 100 credits, and a holocron one time in ten (Sol,
+On average a box pays back about 25 of its 100 credits in coins, beside a holocron nearly
+one time in two. Before 11/11/2026: `empty` 36 %, `refund` (the price back) 24 %,
+`double` 5 %, `jackpot` 1 %, `explode` 12 %, `holocron` 10 %, `shards` 6 %, `again` (a
+free roll) 5 %, `blade` 1 %, paying back 39 of the 100 credits (Sol,
 29/10/2026 in the evening: 79 before, which a player rolling a hundred times barely felt;
 double was 15%, jackpot 5%, empty 29% and explode 5%). A holocron came one time in fifty
 before 29/10/2026, with empty 43% and refund 30%. The last three came the same day (Sol: "loot you
@@ -142,15 +157,42 @@ up; the one who got the credits reads it in the centre of the screen and the oth
 hunters in the chat once the roll stops on the bear (the hub's box hunt event
 `laugh_<opener>_<to>_<credits>`, which arrives at the opening, held for the roll).
 
+**The teddy bear brings a DOOM coin** (Sol, 11/11/2026): the opener of a box that blows up
+gets a DOOM coin besides, the only way to spin a [WHEEL OF DOOM](wheel-of-doom.md); the
+centre says "+1 DOOM coin".
+
 **A holocron** (`holocron`, 28/10/2026): the roll stops on the tier's holocron, and the hub
 gives one of any tier, rolled on the holocrons' own odds ([holocrons.md](holocrons.md));
 it counts against no daily cap and cannot be traded (source `box`). The opener reads its
-tier over the box and in the centre, and finds it in the Collection.
+tier over the box and in the centre, and finds it in the Collection; since 11/11/2026 the
+other players see the tier's own holocron too (the hub's event `open_<box>_holocron_<tier>`).
+
+**A kyber crystal** (`kyber`, 11/11/2026, very rare): the hub gives a crystal of a tier
+rolled on the box's own odds (source `box`), opened in the Collection as any crystal
+([holocrons.md](holocrons.md#kyber-crystals)); everyone sees the tier's crystal over the
+box (`open_<box>_kyber_<tier>`), with the jackpot's fanfare.
+
+**The Ray Gun** (`raygun`, Sol's idea of 11/11/2026, after Call of Duty zombies' box): the
+roll stops on a ray gun of SJK's own (a simple retro one: a steel barrel, red fins, a
+glowing green tube), which jumps into the opener's hand at once (no Use needed) for 30
+seconds. It is a [Prop gun](client.md#prop-gun) the client bundles
+(`sjk/raygun.gun`, never chosen with `propgun`): held instead of the real weapon, in
+first and third person, whether the Prop gun toy is on or not, attack firing a green bolt
+every 0.45 seconds that every SJK player on the server sees through the toy relay. A
+player a bolt strikes falls as a ragdoll, any SJK player in play (not typing, away, dead,
+in a duel or with the flag; the Prop gun toy need not be on), once: a green shell, the
+Monitor's Screen Saver's in green, wraps them for 30 seconds, and every Ray Gun's bolt
+passes through them meanwhile ("ZAPPED!"). Their own client decides the hit, and tells
+the hub (`POST /v1/raygun/hit`), which pays the shooter 25 credits when the struck player
+has the Box hunt toy on (at most 8 players a gun) and shows the shell to everyone (its
+`raygun` event `hit_<victim>_<credits>`); the shooter reads "RAY GUN: <name> down, +25
+credits". Players out of the box hunt fall but pay nothing.
 
 **Shards, a free roll, the Mystery blade** (`shards`, `again`, `blade`, 29/10/2026): a
 pile of 10 to 25 kyber shards to spend in the shop; a free roll, spent on the next box
 the player opens like one won in the box hunt (the hub's answer says the free rolls left,
-`free`, and the client keeps that count); or the boxes' own saber shader, the Mystery
+`free`, and the client keeps that count; no box gives one since 11/11/2026, Sol: "it's
+just waste of time", but the box hunt still does); or the boxes' own saber shader, the Mystery
 blade (`saber_mystery`, blade 169, Legendary), which no holocron drops, the shop never
 sells and nobody trades. A player who holds it already gets 60 shards instead, what
 shattering a Legendary shader gives. The blade fanfares like the jackpot.
@@ -298,6 +340,9 @@ All the numbers are the hub's, PROVISIONAL.
 - The hub cannot tell where a player stands: the reach is the client's.
 - An outcome pays credits, blows the opener up or gives a holocron; other effects need a
   client release for each new kind.
+- The Ray Gun's hits are decided by the struck player's own client: a modified client
+  could refuse to fall, and two friends could pay each other 200 credits a gun (8 hits of
+  25). Others see the shell when the hub's feed reaches them, a few seconds late.
 - The explosion is SJK's only: no game server knows of it, so it hurts nobody else, and
   players on other clients see the opener die (the server's `kill`) with no box or
   explosion. A server that refuses `kill`, or counts it against the score, does so.

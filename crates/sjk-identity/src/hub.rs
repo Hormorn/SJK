@@ -863,14 +863,48 @@ pub trait Hub: Send {
         ))
     }
 
-    /// Spin the WHEEL OF DOOM, the player on `server` (`POST /v1/wheel-of-doom/spin`).
+    /// Spin placed WHEEL OF DOOM `wheel`, the player on `server`
+    /// (`POST /v1/wheel-of-doom/spin`; a DOOM coin since 11/11/2026).
     fn spin_wheel_of_doom(
         &mut self,
         _identity: &Identity,
+        _wheel: i64,
         _server: &str,
     ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
         Err(HubError::Protocol(
             "this hub client does not spin the wheel of doom".to_owned(),
+        ))
+    }
+
+    /// SJK's creator: place a WHEEL OF DOOM (`POST /v1/creator/wheel-of-doom`, a box's
+    /// body); answers its id.
+    fn place_wheel_of_doom(
+        &mut self,
+        _identity: &Identity,
+        _placed: &crate::mystery_box::MysteryBox,
+    ) -> Result<i64, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not place wheels of doom".to_owned(),
+        ))
+    }
+
+    /// SJK's creator: remove WHEEL OF DOOM `id` (`POST /v1/creator/wheel-of-doom/remove`).
+    fn remove_wheel_of_doom(&mut self, _identity: &Identity, _id: i64) -> Result<(), HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not remove wheels of doom".to_owned(),
+        ))
+    }
+
+    /// The player on `server` was struck by the Ray Gun of the player on slot `by`
+    /// (`POST /v1/raygun/hit`, 11/11/2026); the credits it paid the shooter.
+    fn raygun_hit(
+        &mut self,
+        _identity: &Identity,
+        _server: &str,
+        _by: u8,
+    ) -> Result<u64, HubError> {
+        Err(HubError::Protocol(
+            "this hub client does not report Ray Gun hits".to_owned(),
         ))
     }
 
@@ -2360,14 +2394,57 @@ impl Hub for HttpHub {
     fn spin_wheel_of_doom(
         &mut self,
         identity: &Identity,
+        wheel: i64,
         server: &str,
     ) -> Result<crate::wheel_of_doom::SpinAnswer, HubError> {
         parse(self.send(
             Some(identity),
             "POST",
             "/v1/wheel-of-doom/spin",
-            Some(json!({ "server": server })),
+            Some(json!({ "wheel": wheel, "server": server })),
         )?)
+    }
+
+    fn place_wheel_of_doom(
+        &mut self,
+        identity: &Identity,
+        placed: &crate::mystery_box::MysteryBox,
+    ) -> Result<i64, HubError> {
+        let answer = self.send(
+            Some(identity),
+            "POST",
+            "/v1/creator/wheel-of-doom",
+            Some(json!({
+                "map": placed.map,
+                "checksum": placed.checksum,
+                "server": placed.server,
+                "origin": placed.origin,
+                "yaw": placed.yaw,
+            })),
+        )?;
+        answer["id"]
+            .as_i64()
+            .ok_or_else(|| HubError::Protocol("a placed wheel without its id".to_owned()))
+    }
+
+    fn remove_wheel_of_doom(&mut self, identity: &Identity, id: i64) -> Result<(), HubError> {
+        self.send(
+            Some(identity),
+            "POST",
+            "/v1/creator/wheel-of-doom/remove",
+            Some(json!({ "id": id })),
+        )
+        .map(|_| ())
+    }
+
+    fn raygun_hit(&mut self, identity: &Identity, server: &str, by: u8) -> Result<u64, HubError> {
+        let answer = self.send(
+            Some(identity),
+            "POST",
+            "/v1/raygun/hit",
+            Some(json!({ "server": server, "by": by })),
+        )?;
+        Ok(answer["hit"]["credits"].as_u64().unwrap_or(0))
     }
 
     fn junk_status(&mut self, identity: &Identity) -> Result<crate::junk::JunkStatus, HubError> {

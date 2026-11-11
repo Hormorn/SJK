@@ -5,8 +5,8 @@
 use super::*;
 use crate::actor_instance::ActorInstance;
 use crate::propgun::{
-    Bolt, Cue, End, Event, GUN_CVAR, Gun, HOLD_EXPIRES, IMMUNE_MS, LATE_MS, NUMBERS, RETELL,
-    SEND_GAP, SHOW_CVAR, Shot, Splash, TOY, Target,
+    Bolt, Cue, End, Event, GUN_CVAR, Gun, HOLD_EXPIRES, IMMUNE_MS, LATE_MS, NUMBERS, RAY_SHIELD_MS,
+    RETELL, SEND_GAP, SHOW_CVAR, Shot, Splash, TOY, Target,
 };
 use glam::{Quat, Vec3};
 
@@ -97,7 +97,8 @@ impl GpuState {
             }
         }
         if self.propgun.gun().is_none() {
-            self.propgun.chosen = self.propgun.guns.first().map(|gun| gun.id.clone());
+            let first = self.propgun.choosable().next().map(|gun| gun.id.clone());
+            self.propgun.chosen = first;
         }
     }
 
@@ -146,7 +147,7 @@ impl GpuState {
     /// `propgun [<id>|next|prev]`: the guns listed, or one chosen.
     pub(crate) fn propgun_command(&mut self, args: &[String]) -> Result<Vec<String>, String> {
         self.propgun_load();
-        let ids: Vec<String> = self.propgun.guns.iter().map(|gun| gun.id.clone()).collect();
+        let ids: Vec<String> = self.propgun.choosable().map(|gun| gun.id.clone()).collect();
         let Some(word) = args.first().map(|word| word.to_ascii_lowercase()) else {
             if ids.is_empty() {
                 return Ok(vec![format!(
@@ -158,7 +159,7 @@ impl GpuState {
             }
             let chosen = self.propgun.chosen.clone();
             let mut lines = vec![format!("{} prop guns:", ids.len())];
-            lines.extend(self.propgun.guns.iter().map(|gun| {
+            lines.extend(self.propgun.choosable().map(|gun| {
                 let mark = if Some(&gun.id) == chosen.as_ref() {
                     " (chosen)"
                 } else {
@@ -187,9 +188,115 @@ impl GpuState {
         Ok(vec![format!("Prop gun: {id}")])
     }
 
+    /// The box's Ray Gun in the player's hand for `seconds` (a mystery box gave it).
+    pub(crate) fn raygun_start(&mut self, seconds: u64) {
+        self.propgun_load();
+        if !self
+            .propgun
+            .guns
+            .iter()
+            .any(|gun| gun.id == crate::propgun::RAYGUN)
+        {
+            return;
+        }
+        self.propgun.raygun_until = Some(Instant::now() + Duration::from_secs(seconds));
+        self.propgun_raised();
+        self.propgun_centre(&format!(
+            "^2RAY GUN^7 for {seconds} s: attack fires it. Box hunters you hit pay credits"
+        ));
+    }
+
+    /// The hub's Ray Gun hit events (`raygun`, `hit_<victim>_<credits>`, from the
+    /// shooter's slot): the victim's shield shows for everyone, and the shooter reads what
+    /// the hit paid.
+    fn propgun_ray_hits(&mut self, toy_events: &[sjk_identity::ToyEvent], own: Option<u8>) {
+        let time = self.propgun.time;
+        if self.propgun.others_ray_shield.len() < SLOTS {
+            self.propgun.others_ray_shield.resize(SLOTS, None);
+        }
+        let hits: Vec<(u8, u8, u64)> = toy_events
+            .iter()
+            .filter(|event| event.toy == sjk_identity::mystery_box::RAYGUN_TOY)
+            .filter_map(|event| {
+                let (victim, credits) = sjk_identity::mystery_box::parse_raygun_hit(&event.event)?;
+                Some((event.slot, victim, credits))
+            })
+            .collect();
+        for (shooter, victim, credits) in hits {
+            if usize::from(victim) < SLOTS && Some(victim) != own {
+                self.propgun.others_ray_shield[usize::from(victim)] =
+                    Some((time, time + RAY_SHIELD_MS));
+            }
+            if Some(shooter) == own && Some(victim) != own {
+                let name = self
+                    .live_session
+                    .as_ref()
+                    .and_then(|session| {
+                        crate::player_identity::shown_name(
+                            session.game_state(),
+                            usize::from(victim),
+                        )
+                    })
+                    .unwrap_or_else(|| "someone".to_owned());
+                let text = if credits > 0 {
+                    format!("^2RAY GUN^7: {name}^7 down, ^3+{credits} credits")
+                } else {
+                    format!("^2RAY GUN^7: {name}^7 down")
+                };
+                self.propgun_centre(&text);
+            }
+        }
+        for shield in &mut self.propgun.others_ray_shield {
+            if shield.is_some_and(|(since, until)| time >= until || time < since - 1_000) {
+                *shield = None;
+            }
+        }
+        if self
+            .propgun
+            .ray_shield_until
+            .is_some_and(|until| time >= until)
+        {
+            self.propgun.ray_shield_until = None;
+        }
+    }
+
+    /// The Ray Gun shields' glow this frame, by slot (a body shell as the Monitor's
+    /// Screen Saver's, green): the player's own and others' by the hub's word.
+    pub(crate) fn ray_shield_glows(&self) -> crate::monitor::Glows {
+        let mut glows = crate::monitor::Glows::default();
+        if self.propgun.duel {
+            return glows;
+        }
+        let time = self.propgun.time;
+        let level = |since: i64, until: i64| {
+            (crate::monitor::saver::glow(time, since, until) * 255.0).round() as u8
+        };
+        let own = self
+            .live_session
+            .as_ref()
+            .and_then(|session| u8::try_from(session.game_state().client_num).ok());
+        if let (Some(own), Some(until)) = (own, self.propgun.ray_shield_until)
+            && usize::from(own) < SLOTS
+        {
+            glows.0[usize::from(own)] = level(self.propgun.ray_shield_since, until);
+        }
+        for (slot, shield) in self.propgun.others_ray_shield.iter().enumerate() {
+            if let Some((since, until)) = shield
+                && slot < SLOTS
+            {
+                glows.0[slot] = level(*since, *until);
+            }
+        }
+        glows
+    }
+
     /// The frame's toy logic, from the relay's events: what others hold and fire, and
-    /// what to tell them.
-    pub(crate) fn update_propgun(&mut self, relay_events: &[sjk_identity::ToyEvent]) {
+    /// what to tell them; from the feed's, the Ray Gun's hits.
+    pub(crate) fn update_propgun(
+        &mut self,
+        relay_events: &[sjk_identity::ToyEvent],
+        toy_events: &[sjk_identity::ToyEvent],
+    ) {
         self.propgun_load();
         let turned = self.propgun.was_on != self.propgun.on;
         self.propgun.was_on = self.propgun.on;
@@ -228,6 +335,11 @@ impl GpuState {
         if local {
             return;
         }
+        self.propgun_ray_hits(toy_events, own);
+        let Some(session) = self.live_session.as_ref() else {
+            return;
+        };
+        let game_state = session.game_state();
         let heard: Vec<(u8, Event)> = relay_events
             .iter()
             .filter(|event| {
@@ -391,14 +503,11 @@ impl GpuState {
             && (local || self.ragdoll.strikable())
     }
 
-    /// The player's own body as a bolt may strike it, if it may: the toy on, not
-    /// typing, away, dead, in a duel or held.
+    /// The player's own body as a bolt may strike it, if it may: not typing, away, dead,
+    /// in a duel or held (the toy on for a prop gun's bolt, the caller's to check: the
+    /// box's Ray Gun strikes anyone once).
     fn propgun_target(&self) -> Option<Target> {
-        if !self.propgun.on
-            || !self.ragdoll.strikable()
-            || self.talk_button()
-            || self.hax_own_away()
-        {
+        if !self.ragdoll.strikable() || self.talk_button() || self.hax_own_away() {
             return None;
         }
         if let Some(points) = self.ragdoll.own_points() {
@@ -503,6 +612,10 @@ impl GpuState {
             self.propgun_fire(own, time);
         }
         let target = if local { None } else { self.propgun_target() };
+        let server = self
+            .live_session
+            .as_ref()
+            .map(|session| session.server().to_string());
         let immune = self
             .propgun
             .last_struck
@@ -520,8 +633,16 @@ impl GpuState {
             let reach = wall.map_or(b, |(at, _, _)| at);
             let span = (until - bolt.stepped) as f32;
             let mut end = None;
+            // A prop gun's bolt strikes the player with the toy on; the box's Ray Gun's,
+            // anyone in play, unless a Ray Gun struck them a moment ago (the shield).
+            let ray = self.propgun.is_raygun(bolt.gun);
+            let may = if ray {
+                !self.propgun.ray_shielded(time)
+            } else {
+                self.propgun.on
+            };
             if let Some(target) = target.as_ref().filter(|_| {
-                bolt.shooter != own
+                may && bolt.shooter != own
                     && !immune
                     && !self
                         .propgun
@@ -547,6 +668,9 @@ impl GpuState {
                         self.propgun.struck_by.remove(0);
                     }
                     end = Some(End::Body { time: hit_time, at });
+                    if ray {
+                        self.raygun_struck(bolt.shooter, hit_time, server.clone());
+                    }
                 }
             }
             if end.is_none()
@@ -633,6 +757,27 @@ impl GpuState {
             }
         }
         draws
+    }
+
+    /// A Ray Gun's bolt struck the player at `time`, fired by the player on `shooter`: the
+    /// shield rises for [`RAY_SHIELD_MS`], and the hub is told, which pays the shooter
+    /// when the player hunts in the box hunt and shows the shield to everyone.
+    fn raygun_struck(&mut self, shooter: u8, time: i64, server: Option<String>) {
+        self.propgun.ray_shield_until = Some(time + RAY_SHIELD_MS);
+        self.propgun.ray_shield_since = time;
+        self.propgun.cues.push(Cue {
+            path: crate::mystery_box::RAY_SHIELD_SOUND.to_owned(),
+            at: None,
+            mine: true,
+        });
+        self.propgun_centre(&format!(
+            "^2ZAPPED!^7 Ray guns pass through you for {} s",
+            RAY_SHIELD_MS / 1_000
+        ));
+        if let Some(server) = server {
+            let _ =
+                crate::player_identity::with_service(|service| service.raygun_hit(server, shooter));
+        }
     }
 
     /// The player's own gun in first person: its mesh and placing, when held.
@@ -749,7 +894,13 @@ impl GpuState {
                 .iter()
                 .flat_map(|gun| gun.sounds().map(str::to_owned).collect::<Vec<_>>())
                 .collect();
-            audio.register_effect_paths(vfs, paths.iter().map(String::as_str));
+            audio.register_effect_paths(
+                vfs,
+                paths
+                    .iter()
+                    .map(String::as_str)
+                    .chain([crate::mystery_box::RAY_SHIELD_SOUND]),
+            );
             self.propgun.sounds_registered = Some(audio.generation());
         }
         for Cue { path, at, mine } in self.propgun.cues.drain(..) {

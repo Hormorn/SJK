@@ -1,3 +1,18 @@
+## Mystery box rework, Ray Gun, placed WHEELS OF DOOM (12/11/2026)
+
+Sol's asks of 11/11/2026. Boxes never empty, no refund, no free roll; a holocron 45.5%,
+gold coin piles for credits (50, 200, 500), the Ray Gun (7%), a kyber crystal (0.5%), and
+the teddy bear's DOOM coin; everyone sees the real holocron or crystal
+([mystery-boxes.md](mystery-boxes.md)). The Ray Gun rides the Prop gun (bundled
+`sjk/raygun.gun`): any SJK player in play falls once, then a green shell for 30 s; the
+victim's client tells the hub, which pays box hunters' shooters. WHEELS OF DOOM are placed
+by the creator and spun with Use for a DOOM coin, 20 segments (a holocron of every tier,
+the coin back), a 34 s spin to Sol's music ([wheel-of-doom.md](wheel-of-doom.md)).
+Verified: unit tests on both sides and the hub's API test; world shots of the coins, the
+Ray Gun, the crystals and the 20-segment wheel. Not tried in a game; needs the hub's
+`box-rework` branch deployed; the music is in a local pack until Sol uploads it to the
+extras pack.
+
 ## Tactical and Do not disturb in duels (11/11/2026)
 
 11/11/2026, `personal/duel-modes` based on `main` `2a7dfebd3` (Sol: "a setting to allow them to

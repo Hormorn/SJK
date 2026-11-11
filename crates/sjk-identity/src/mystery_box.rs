@@ -17,8 +17,18 @@ pub const EXPLODE: &str = "explode";
 pub const HOLOCRON: &str = "holocron";
 /// The outcome that gives a pile of kyber shards (since 29/10/2026).
 pub const SHARD_PILE: &str = "shards";
-/// The outcome that gives a free opening, spent on the next one (since 29/10/2026).
+/// The outcome that gave a free opening, spent on the next one (29/10/2026 to
+/// 11/11/2026: no box holds a box since).
 pub const AGAIN: &str = "again";
+/// The outcome that gives a kyber crystal (since 11/11/2026, very rare).
+pub const KYBER: &str = "kyber";
+/// The outcome that hands the opener the Ray Gun for [`Opened::raygun`] seconds (since
+/// 11/11/2026).
+pub const RAYGUN: &str = "raygun";
+/// The small pile of gold coins (since 11/11/2026: half the price).
+pub const COINS: &str = "coins";
+/// The toy id of the Ray Gun's bolts (the toy relay) and of the hub's hit event.
+pub const RAYGUN_TOY: &str = "raygun";
 /// The outcome that gives the boxes' own saber shader, [`BLADE_ID`], or shards for a
 /// player who holds it (since 29/10/2026).
 pub const BLADE: &str = "blade";
@@ -118,6 +128,15 @@ pub struct Opened {
     /// out).
     #[serde(default)]
     pub free: Option<u64>,
+    /// The kyber crystal the box gave: its id and tier (`kyber_rare`; since 11/11/2026).
+    #[serde(default)]
+    pub kyber: Option<BoxHolocron>,
+    /// The Ray Gun the box gave: the seconds it lasts (since 11/11/2026).
+    #[serde(default)]
+    pub raygun: Option<u64>,
+    /// The DOOM coins the opener holds after (since 11/11/2026).
+    #[serde(default)]
+    pub doom_coins: Option<u64>,
 }
 
 /// Where a blown up box's price went.
@@ -149,11 +168,50 @@ pub struct OpenAnswer {
     pub profile: Profile,
 }
 
-/// What a feed event of [`TOY`] says: box `box` gave `outcome` (`open_<box>_<outcome>`).
-pub fn parse_event(event: &str) -> Option<(i64, &str)> {
+/// What a feed event of [`TOY`] says.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoxEvent<'a> {
+    /// The box opened.
+    pub id: i64,
+    /// What came out (`holocron`, `kyber`, `double`...).
+    pub outcome: &'a str,
+    /// For a holocron or a kyber crystal, its tier as the Collection names it (`rare`,
+    /// `kyber_rare`), since 11/11/2026; none from an older hub.
+    pub tier: Option<String>,
+}
+
+/// Read a feed event of [`TOY`]: box `box` gave `outcome` (`open_<box>_<outcome>`), and
+/// for a holocron or a kyber crystal its tier after (`open_<box>_holocron_rare`,
+/// `open_<box>_kyber_rare`; since 11/11/2026).
+pub fn parse_event(event: &str) -> Option<BoxEvent<'_>> {
     let rest = event.strip_prefix("open_")?;
     let (id, outcome) = rest.split_once('_')?;
-    Some((id.parse().ok()?, outcome)).filter(|(_, outcome)| !outcome.is_empty())
+    let id = id.parse().ok()?;
+    for (kind, prefix) in [(HOLOCRON, ""), (KYBER, "kyber_")] {
+        if let Some(tier) = outcome
+            .strip_prefix(kind)
+            .and_then(|rest| rest.strip_prefix('_'))
+            .filter(|tier| !tier.is_empty())
+        {
+            return Some(BoxEvent {
+                id,
+                outcome: kind,
+                tier: Some(format!("{prefix}{tier}")),
+            });
+        }
+    }
+    (!outcome.is_empty()).then_some(BoxEvent {
+        id,
+        outcome,
+        tier: None,
+    })
+}
+
+/// What a feed event of [`RAYGUN_TOY`] says: the Ray Gun of the event's player struck the
+/// player on `victim`, paying `credits` (`hit_<victim>_<credits>`).
+pub fn parse_raygun_hit(event: &str) -> Option<(u8, u64)> {
+    let (victim, credits) = event.strip_prefix("hit_")?.split_once('_')?;
+    Some((victim.parse().ok()?, credits.parse().ok()?))
 }
 
 /// The look toy of the box hunt (`POST /v1/box-hunt`): a player wearing it takes part.
@@ -524,10 +582,42 @@ mod tests {
 
     #[test]
     fn feed_events_name_the_box_and_what_came_out() {
-        assert_eq!(parse_event("open_12_jackpot"), Some((12, "jackpot")));
-        assert_eq!(parse_event("open_12_big_win"), Some((12, "big_win")));
-        assert_eq!(parse_event("open_x_empty"), None);
-        assert_eq!(parse_event("open_12_"), None);
-        assert_eq!(parse_event("spotted"), None);
+        let read = |event| parse_event(event).map(|e| (e.id, e.outcome.to_owned(), e.tier));
+        assert_eq!(read("open_12_jackpot"), Some((12, "jackpot".into(), None)));
+        assert_eq!(read("open_12_big_win"), Some((12, "big_win".into(), None)));
+        // Since 11/11/2026 a holocron's and a crystal's tier follow.
+        assert_eq!(
+            read("open_12_holocron_rare"),
+            Some((12, HOLOCRON.into(), Some("rare".into())))
+        );
+        assert_eq!(
+            read("open_12_kyber_legendary"),
+            Some((12, KYBER.into(), Some("kyber_legendary".into())))
+        );
+        // An older hub's holocron names no tier.
+        assert_eq!(read("open_12_holocron"), Some((12, HOLOCRON.into(), None)));
+        assert_eq!(read("open_x_empty"), None);
+        assert_eq!(read("open_12_"), None);
+        assert_eq!(read("spotted"), None);
+    }
+
+    #[test]
+    fn ray_gun_hits_and_new_prizes_read_back() {
+        assert_eq!(parse_raygun_hit("hit_5_25"), Some((5, 25)));
+        assert_eq!(parse_raygun_hit("hit_5_0"), Some((5, 0)));
+        assert_eq!(parse_raygun_hit("hit_x_25"), None);
+        assert_eq!(parse_raygun_hit("shot_1"), None);
+        let gun: Opened = serde_json::from_str(
+            r#"{"id":4,"box":3,"outcome":"raygun","price":100,"won":0,"balance":5,
+                "free":0,"doom_coins":2,"raygun":30}"#,
+        )
+        .unwrap();
+        assert_eq!((gun.raygun, gun.doom_coins), (Some(30), Some(2)));
+        let crystal: Opened = serde_json::from_str(
+            r#"{"id":5,"box":3,"outcome":"kyber","price":100,"won":0,"balance":5,
+                "kyber":{"id":9,"tier":"kyber_rare"}}"#,
+        )
+        .unwrap();
+        assert_eq!(crystal.kyber.map(|k| k.tier), Some("kyber_rare".to_owned()));
     }
 }
