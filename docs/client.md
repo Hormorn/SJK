@@ -3230,11 +3230,14 @@ What the loading screen waits for was cut on 11/11/2026 (Sol's JoF logs: the
 first frame 8.7 s after connecting, the server's first snapshot at 1.4 s):
 
 - The world built from the server browser's guess is still replaced by one built
-  from the session's gamestate, but on a card with 8 GB of video memory or more
-  it stays alive until that world is built ([portal.rs](../crates/sjk-viewer/src/portal.rs),
+  from the session's gamestate, but when it is already built, on a card with 8 GB
+  of video memory or more, it stays alive until that world is built ([portal.rs](../crates/sjk-viewer/src/portal.rs),
   `superseded`), so the build takes its textures, effect atlas and fonts from it
   (`shared_textures.rs`) instead of uploading them again. A smaller card drops it
-  at once, as before: three worlds at once is what ran a 6 GB card out.
+  at once, as before: three worlds at once is what ran a 6 GB card out. A preview
+  still building is cancelled: kept running beside the session's build (the first
+  version, 11/11/2026), the two blocked each other in their texture uploads, 7.7 s
+  of materials each, and the first frame on JoF came at 11.8 s instead of 8.7 s.
 - A live map load (a join or a map change) builds only the local player's model;
   the other players' come from the workers of `player_loads.rs` once the map is
   live, each drawn as the stand-in until it is in (`actor_load::load_actor_meshes`,

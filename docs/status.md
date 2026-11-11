@@ -57,6 +57,14 @@ Verified: `cargo test -p sjk-viewer` and `-p sjk-client`, clippy. Not verified: 
 the time each change saves is estimated from the 11/11 logs, not measured; whether the session
 build really takes the preview's textures (same decoded images from the mip cache) is not checked.
 
+Sol's first joins with it (11/11/2026, JoF `T1_Fatal`, launcher logs): first frame at 12.8 s and
+11.8 s, worse than 8.7 s. The preview was still installing when the gamestate came, and kept
+running beside the session's build the two blocked each other (world materials 7.7 to 8.4 s each,
+`upload+pipelines` 5.8 to 6.4 s, both finishing within 20 ms). `personal/fast-load-fix` keeps
+only a finished preview and cancels one still building, as before. The other changes showed
+working there: no "not spawned yet" wait, the rig's 72 clips kept (57 ms), the other players'
+models in within about 1 s of the first frame.
+
 ## Blade shader cache and build-ahead (10/11/2026)
 
 10/11/2026, `personal/shader-cache` based on `main` `5a347a01b` (Sol: "store the shaders
