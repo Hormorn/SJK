@@ -1,0 +1,14 @@
+[package]
+name = "sjk-model-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+md-5.workspace = true
+sjk-model.workspace = true
+zip.workspace = true

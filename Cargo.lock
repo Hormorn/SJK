@@ -3192,6 +3192,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sjk-model-sync"
+version = "0.1.0"
+dependencies = [
+ "md-5",
+ "sjk-model",
+ "zip",
+]
+
+[[package]]
 name = "sjk-nav"
 version = "0.1.0"
 
