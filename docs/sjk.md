@@ -280,8 +280,8 @@ update the script, replace the vendored file with GoatCounter's current
 `public/count.js`.
 
 Release tags exist only on SJK. They are cut by Sol or, since 03/11/2026, by the
-maintainers Sol gave write access to SJK (Slash and Milamber, and Lumaya since
-05/11/2026), who may also review pull requests and merge or push to `main`, as
+maintainers Sol gave write access to SJK (Slash and Milamber, Lumaya since
+05/11/2026 and Creyon since 11/11/2026), who may also review pull requests and merge or push to `main`, as
 [reviewing.md](reviewing.md) says. The release title carries the stage, "Sol JK 2026.1005.1 (Alpha)" (`STAGE` in the workflow).
 Alphas are not marked as pre-releases, so the site's download link
 (`releases/latest`) finds them; their name and notes say "Alpha" instead.
