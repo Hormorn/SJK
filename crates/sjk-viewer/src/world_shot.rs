@@ -380,6 +380,8 @@ mod saber_kill;
 mod fps_help_shots;
 #[path = "world_shot_frame_timings.rs"]
 mod frame_timings_shots;
+#[path = "world_shot_playstyle_card.rs"]
+mod playstyle_card_shots;
 #[path = "world_shot_small_card.rs"]
 mod small_card;
 

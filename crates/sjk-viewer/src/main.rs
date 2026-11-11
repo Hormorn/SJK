@@ -322,6 +322,7 @@ mod player_mutes;
 mod player_report;
 mod player_shadows;
 mod player_skin;
+mod playstyle_card;
 mod pointer_input;
 mod presentation_clock;
 mod profile_card;
@@ -556,6 +557,8 @@ struct GpuState {
     /// A client mod's notice, shown once on its servers ([`mod_notice_card`]).
     mod_notice: mod_notice_card::State,
     small_card_notice: small_card_notice::Card,
+    /// The playstyle card ([`playstyle_card`]).
+    playstyle_card: playstyle_card::Card,
     /// What the update brought and the SJK team's announcements ([`news_panel`]).
     news: news_panel::Panel,
     /// The SJK team's announcements and contributor rewards ([`official`]).
@@ -1676,6 +1679,7 @@ impl GpuState {
             log_request_card: log_request_card::Card::default(),
             mod_notice: mod_notice_card::State::default(),
             small_card_notice: small_card_notice::Card::default(),
+            playstyle_card: playstyle_card::Card::default(),
             news: news_panel::Panel::default(),
             official: official::Official::default(),
 
@@ -2420,6 +2424,19 @@ impl GpuState {
                 || self.medal_popup.pending()
                 || self.holocron_popup.pending(),
         );
+        // The playstyle card, once a start until turned off, after what the update brought.
+        let playstyle_shown = self.prepare_playstyle_card(
+            covered
+                || medal_shown
+                || holocron_shown
+                || reload_shown
+                || fps_shown
+                || logs_shown
+                || official_shown
+                || news_shown
+                || self.medal_popup.pending()
+                || self.holocron_popup.pending(),
+        );
         // The emote help card, asked for, after them all.
         let emote_help_shown = self.prepare_emote_help_card(
             covered
@@ -2430,6 +2447,7 @@ impl GpuState {
                 || logs_shown
                 || official_shown
                 || news_shown
+                || playstyle_shown
                 || self.medal_popup.pending()
                 || self.holocron_popup.pending(),
         );
@@ -2443,6 +2461,7 @@ impl GpuState {
                 || logs_shown
                 || official_shown
                 || news_shown
+                || playstyle_shown
                 || emote_help_shown
                 || self.medal_popup.pending()
                 || self.holocron_popup.pending(),
@@ -2457,6 +2476,7 @@ impl GpuState {
                 || logs_shown
                 || official_shown
                 || news_shown
+                || playstyle_shown
                 || emote_help_shown
                 || emote_picker_shown
                 || self.medal_popup.pending()
@@ -2472,6 +2492,7 @@ impl GpuState {
                 || logs_shown
                 || official_shown
                 || news_shown
+                || playstyle_shown
                 || emote_help_shown
                 || emote_picker_shown
                 || whisper_shown
@@ -2487,6 +2508,7 @@ impl GpuState {
                 || fps_shown
                 || logs_shown
                 || news_shown
+                || playstyle_shown
                 || emote_help_shown
                 || emote_picker_shown
                 || whisper_shown
@@ -2503,6 +2525,7 @@ impl GpuState {
             || fps_shown
             || logs_shown
             || news_shown
+            || playstyle_shown
             || emote_help_shown
             || emote_picker_shown
             || whisper_shown
@@ -2800,6 +2823,8 @@ impl GpuState {
             self.append_official(viewport);
         } else if news_shown {
             self.append_news_panel(viewport);
+        } else if playstyle_shown {
+            self.append_playstyle_card(viewport);
         } else if emote_help_shown {
             self.append_emote_help_card(viewport);
         } else if emote_picker_shown {
@@ -2891,6 +2916,7 @@ impl GpuState {
             logs_shown.then(|| self.log_request_card.draw_list()),
             official_shown.then(|| self.official.window.draw_list()),
             news_shown.then(|| self.news.draw_list()),
+            playstyle_shown.then(|| self.playstyle_card.draw_list()),
             emote_help_shown.then(|| self.emote_help.card.draw_list()),
             emote_picker_shown.then(|| self.emote_picker.card.draw_list()),
             whisper_shown.then(|| self.e2e_whispers.card.draw_list()),

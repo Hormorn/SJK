@@ -459,6 +459,11 @@ impl GpuState {
             self.small_card_notice_choice(choice);
             return true;
         }
+        if self.playstyle_card.is_open() {
+            let choice = self.playstyle_card.handle_pointer(event);
+            self.playstyle_card_choice(choice);
+            return true;
+        }
         if self.emote_help.card.is_open() {
             let choice = self.emote_help.card.handle_pointer(event);
             self.emote_help_choice(choice);
