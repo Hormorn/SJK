@@ -825,7 +825,7 @@ merged into SJK
 - #306 long game-chat messages sent whole, as up to four messages split at a word; at the
   merge a draft refused past four pieces stays in the composer.
 
-Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 151 pull requests merged
+Slash ([JoFSlash](https://github.com/JoFSlash)), contributor, has 152 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AJoFSlash)):
 
 - #114 Tab completes the cfg file argument of `exec`, `execq`, `writeconfig` and `write`
@@ -1089,6 +1089,9 @@ medal pictures carry their own labels in `vram` and crash reports.
   unarmed Kyle (after Lex's report).
 - #418 a player whose model is missing speaks with the generic voice of their own gender
   (`ds`), as JoF EternalJK does (hub report #312, after jof'mg.perso's report).
+- #419 easier fishing: bites every 12 to 25 seconds with 1.5 to 2 seconds to hook them,
+  5% empty (was 15%), and an Echo bite holds 3 seconds with three tries; Echoes drop as
+  before.
 
 Milamber ([Milamber0](https://github.com/Milamber0)), contributor, has 4 pull requests merged
 into SJK ([all of them](https://github.com/Sol-Vulpes/SJK/pulls?q=is%3Apr+author%3AMilamber0)):

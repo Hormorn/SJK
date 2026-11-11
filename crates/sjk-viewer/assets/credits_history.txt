@@ -3663,6 +3663,9 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
++ 12/11/2026 | SJK #419 | Fishing odds and timing: easier bites, fewer empty catches, more time for an Echo
+- bd5f86c |  | Fishing: easier bites, fewer empty catches, more time for an Echo
+- 762b640 |  | Changelog: PR #419
 + 11/11/2026 | SJK #418 | Female voice for a player whose model is missing (hub #312)
 - 3752bac |  | Give a missing model the player's own gender voice
 - 50f64b9 |  | Changelog: female voice for a missing model (#312)

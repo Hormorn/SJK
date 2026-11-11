@@ -9915,6 +9915,15 @@ test: Stop hooking for over 5 minutes, or go idle 2 minutes: the tab says Not ea
 test: Collection > Achievements > Fun: Fishing shows seven, Beachcomber and Steady Hand.
 note: Needs hub shared #12 and #13 deployed; Echo Angler stays 10 until then.
 
+[fishing-easier]
+area: Gameplay
+title: Easier fishing: bites, empty catches, Echo bites (Slash, #419)
+change: Bites every 12 to 25 s, 1.5 to 2 s to press Use, empty 5% (was 15%).
+change: Pulling too soon waits 5 to 10 s more; an Echo bite holds 3 s, three tries.
+test: toy_fishing online: bites come often, Use about a second late still hooks them.
+test: Press Use with no bite: the next bite comes 5 to 10 s later than usual.
+test: debug_holocron is no Echo; wait for a real drop: the golden bite holds 3 s.
+
 [forge-shatter-many]
 area: Menus & settings
 title: The Forge breaks several shaders down at once (Slash, #367)
