@@ -929,7 +929,11 @@ the retail model has (EJK's own table gives `jedi_rm` and `jedi_kdm` the human m
 `head_a2` and `torso_d2`, which only `jedi_hm` has, so SJK pairs those with `jedi_hm`).
 A stand-in that cannot load either falls back to Kyle. Switching it redraws players
 already shown with a stand-in
-([default_model_random.rs](../crates/sjk-client/src/default_model_random.rs)). A
+([default_model_random.rs](../crates/sjk-client/src/default_model_random.rs)). With
+or without it, a missing model has no `sounds.cfg` here, so the player speaks with the
+generic voice of their own `ds` gender (`mp_generic_female` or `mp_generic_male`), as
+EJK's `CG_LoadCISounds` does for a default model (`custom_set` in
+[sound_events.rs](../crates/sjk-client/src/sound_events.rs)). A
 missing skin is not a missing model: the model's default skin draws, as in JKA. A folder holding
 `sjk_rig.cfg` is a [rig model](rig-models.md): a glTF with its own skeleton, drawn in
 place of a stock driver model whose skeleton still carries the animations. That includes a model
