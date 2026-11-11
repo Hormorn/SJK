@@ -2076,6 +2076,11 @@ pub(super) const RENDER_IMAGE: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
+        label: "Adaptation brightness",
+        cvar: crate::frame_target::aa::exposure::LEVEL,
+        kind: ValueKind::Choice(&["0", "1", "2", "3"]),
+    },
+    Setting {
         label: "Adaptation: max darken, EV (HDR)",
         cvar: crate::frame_target::aa::exposure::MIN_EV,
         kind: ValueKind::Float {

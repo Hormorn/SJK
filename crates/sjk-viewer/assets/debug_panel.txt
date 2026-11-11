@@ -5514,6 +5514,17 @@ test: r_sceneHdr 0 and restart: dark rooms still brighten, bright views never da
 note: Too bright/dark overall on outdoor maps (ffa3)? Tune r_autoExposureKey (default 0.18).
 note: Too slow/fast: r_autoExposureToDark (2.5 s) and r_autoExposureToBright (0.4 s).
 
+[eye-adaptation-level]
+area: Rendering & effects
+title: Eye adaptation brightness: Low, Medium, High, Cooked (r_autoExposureLevel)
+change: Renderer > IMAGE: Adaptation brightness. Low is the adaptation as before.
+change: Each step aims brighter and brightens dark views further; High and Cooked darken less.
+test: Low: the picture is exactly as before the option existed.
+test: Medium, High, Cooked in a dark room and outdoors: each step clearly brighter, Cooked blown out.
+test: Cooked looking at the sky: it never darkens.
+test: r_autoExposure 0: the level changes nothing.
+note: Adaptation holds still while the Renderer page is open: close it to see the new level.
+
 [emission-maps]
 area: Rendering & effects
 title: Emission maps: light panels, lamps and screens glow and light the room

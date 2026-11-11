@@ -623,6 +623,7 @@ when they are drawn.
 | `r_autoExposureMin`, `r_autoExposureMax` | Adaptation range in EV around the base: -2–0 (default -0.5) and 0–2 (default 1). Live |
 | `r_autoExposureToBright`, `r_autoExposureToDark` | Seconds to settle when the view gets brighter (default 0.4) or darker (default 2.5); 0 is instant. Live, console only |
 | `r_autoExposureKey` | Metered scene luminance shown at the base exposure, 0.03–0.8, default 0.18; higher is brighter. Live, console only |
+| `r_autoExposureLevel` | Adaptation brightness on top of the range and key (`post_exposure::Level`): 0 Low (default, exactly the range and key as set), 1 Medium (aim +0.5 EV, max +0.5), 2 High (aim +1, max +1, half the darkening), 3 Cooked (aim +2, max +2.5, never darkens). Renderer page, IMAGE tab, "Adaptation brightness". The PC clock's night still takes all the brightening away. Live |
 | `r_dustMotes` | Dust in godrays, 0 (off) to 1 (default, SJK); live; renderer IMAGE tab; requires `r_volumetrics` |
 | `r_weather` | The map's rain, snow and mist, 1 (default) or 0; live; renderer WEATHER tab. See [Weather](#weather) |
 | `r_weatherDensity` | Weather particle count, 0.25–4; 1 is the original game's, default 2; live; renderer WEATHER tab |
