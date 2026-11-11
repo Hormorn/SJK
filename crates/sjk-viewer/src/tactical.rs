@@ -226,6 +226,35 @@ fn set(console: &mut ViewerConsole, level: Level) {
     }
 }
 
+/// Take up `level` without touching a setting when the profile already holds it: every
+/// value it sets in place and the originals put aside for each (a restart at a level).
+/// Returns whether it did; else [`apply`] must, as giving back and setting again would
+/// flip each setting twice for nothing.
+fn adopt(console: &ViewerConsole, level: Level) -> bool {
+    if level == Level::Off || self::level() != Level::Off || !holds(console, level) {
+        return false;
+    }
+    LEVEL.store(level as u8, Ordering::Relaxed);
+    true
+}
+
+/// Whether the profile holds `level`: each value it sets in place, each original put aside.
+fn holds(console: &ViewerConsole, level: Level) -> bool {
+    let kept = console
+        .cvar(RESTORE_CVAR)
+        .map(sjk_shell::CvarValue::as_text)
+        .unwrap_or_default();
+    values(level)
+        .into_iter()
+        .filter(|(cvar, _)| console.cvar(cvar).is_some())
+        .all(|(cvar, value)| {
+            crate::graphics_quality::holds(console, cvar, value)
+                && kept
+                    .split(';')
+                    .any(|pair| pair.split_once('=').is_some_and(|(name, _)| name == cvar))
+        })
+}
+
 /// The level [`CVAR`] asks for.
 pub(crate) fn asked(console: &ViewerConsole) -> Level {
     Level::of(console.integer_cvar(CVAR))
@@ -276,14 +305,14 @@ pub(crate) fn command(console: &mut ViewerConsole, args: &[String]) -> Result<Ve
 
 impl crate::GpuState {
     /// Follow [`CVAR`]: when it asks for another level than the one in force, apply it.
-    /// A profile saved at a level comes back at it (its settings already set, the
-    /// originals still put aside), so the first turn only gives the level to [`level`].
+    /// A profile saved at a level comes back at it, its settings already set and the
+    /// originals still put aside: then the level is only taken up ([`adopt`]).
     pub(crate) fn update_tactical(&mut self) {
         let Some(console) = self.console.as_mut() else {
             return;
         };
         let asked = asked(console);
-        if asked != level() {
+        if asked != level() && !adopt(console, asked) {
             apply(console, asked);
         }
     }
@@ -379,6 +408,18 @@ mod tests {
         assert_eq!(text(&console, crate::stock_blades::CVAR), "2");
         set(&mut console, Level::Off);
         assert_eq!(text(&console, crate::stock_blades::CVAR), "1");
+    }
+
+    #[test]
+    fn a_restart_at_a_level_takes_it_up_without_setting_anything() {
+        let (_directory, mut console) = console();
+        assert!(!holds(&console, Level::Medium));
+        set(&mut console, Level::Medium);
+        assert!(holds(&console, Level::Medium));
+        assert!(!holds(&console, Level::Max));
+        // A setting changed while the game was closed: set the level again.
+        console.set_cvar(crate::stock_blades::CVAR, "0");
+        assert!(!holds(&console, Level::Medium));
     }
 
     #[test]
