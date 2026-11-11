@@ -52,26 +52,48 @@ the Sith cloud before publishing, and the client again before loading a download
 viewers are protected even if the server is wrong. One rule fails the whole pack.
 
 - **One model per pack**, `models/players/<name>/...`, the name `a-z 0-9 _ -`, up to
-  32 characters. Paths are lowercase, `/`-separated, with no `..`, no absolute path,
-  no duplicate (in any case).
-- **File types:** `.glm` (parsed by [sjk-model](../crates/sjk-model/src/lib.rs), so
-  a broken or oversized mesh is refused), `.skin` (plain text, `surface,path` lines),
-  `.tga`, `.jpg`, `.png` (the header is read: real image, size capped), and at most
-  one `shaders/<name>.shader`, whose every shader name starts with
-  `models/players/<name>/`, so it cannot redefine a saber, world or UI shader.
-- **Nothing else:** no `.cfg`, `.menu`, `.qvm`, `.dll`, `.bsp`, `.sab`, sounds or
-  other folders. Sounds may come later with their own checks.
-- **Limits** (`Limits::DEFAULT`):
+  32 characters. Paths are lowercase printable ASCII, `/`-separated, with no `..`, no
+  absolute path, no duplicate, no part starting or ending with a space, and none of the
+  characters Windows refuses in a file name; spaces and brackets are fine
+  (`screenshot 1 (front).jpg`), as they are only names inside the stored PK3.
+- **A stock model or a rig model.** A stock model has a `.glm` (parsed by
+  [sjk-model](../crates/sjk-model/src/lib.rs), so a broken or oversized mesh is
+  refused) and `.skin` files (plain text). A [rig model](rig-models.md) has
+  `sjk_rig.cfg` (and `sjk_rig_<variant>.cfg` for its variants, plain text) with its
+  glTF: a `.gltf` and the `.bin` buffers it names beside it, or a `.glb`, read by the
+  game's own glTF reader, so a broken model, or a buffer outside the folder, is refused.
+- **Images:** `.tga`, `.jpg`, `.png` (the header is read: real image, size capped).
+- **Shaders:** at most one `shaders/<name>.shader`, whose every shader name starts
+  with `models/players/<name>/`, so it cannot redefine a saber, world or UI shader.
+  Community shader files often define their sibling models' shaders too
+  (`krovos.shader` holds `krovos2`'s): when packing, the client keeps only the model's
+  own and leaves the rest out ([`pack`](../crates/sjk-model-sync/src/pack.rs)).
+- **Nothing else:** no other `.cfg` (`sounds.cfg`, `animation.cfg`), `.menu`, `.qvm`,
+  `.dll`, `.bsp`, `.sab`, sounds, emotes or other folders. Sounds may come later with
+  their own checks.
+- **Limits** (`Limits::DEFAULT`, raised on 11/11/2026 after checking the Sith cloud's
+  137 skin packs: 132 pass, against 97 before):
 
 | Limit | Value |
 |---|---|
 | PK3 size | 25 MB |
-| Unpacked size | 64 MB, and each entry at most 40 times its packed size |
-| Files | 128 |
+| Unpacked size | 128 MB, and each entry at most 200 times its packed size |
+| Files | 512 |
 | Texture side | 4096 pixels |
 | All textures unpacked (RGBA) | 256 MB |
-| GLM vertices, all LODs | 200 000 |
-| `.skin` and `.shader` text | 64 KB each |
+| Vertices, every GLM LOD and glTF together | 300 000 |
+| `.skin`, `.shader` and `sjk_rig*.cfg` text | 256 KB each |
+| `.gltf` JSON | 16 MB |
+
+### Rig models: the author's leave
+
+Rig models are often taken from other games, whose assets SJK never hosts or passes
+between players (AGENTS.md); a player's own model with an Unreal-style rig is welcome
+(Sol, 11/11/2026). The client cannot tell them apart, so sharing a rig model asks
+first: the first Share (or `sharemodel <name>`) only says "Share only a model you
+made, or one its author lets you share: press Share again to confirm"; a second press
+within a minute, or `sharemodel <name> mine`, shares it. The sender's key is kept with
+every version, and staff roll back and ban as for any other abuse.
 
 The Sith cloud also limits uploads: 5 a day per player, one update an hour per name.
 

@@ -290,7 +290,7 @@ fn text_files_must_be_plain_and_short() {
         check_list(with("models/players/solfox/a.skin", b"torso,\0x")),
         Err(Rejection::Broken { .. })
     ));
-    let long = vec![b'a'; 70 * 1024];
+    let long = vec![b'a'; 300 * 1024];
     assert!(matches!(
         check_list(with("models/players/solfox/a.skin", &long)),
         Err(Rejection::TooLarge { .. })
@@ -367,4 +367,165 @@ fn pack_keeps_only_the_model_and_its_shader() {
     assert_eq!(checked.content_md5, check_list(good()).unwrap().content_md5);
     let (again, _) = pack::pack("solfox", good(), &Limits::DEFAULT).unwrap();
     assert_eq!(pk3, again, "same files, same PK3");
+}
+
+/// A one-triangle skinned glTF and its buffer (sjk-model's `gltf::tests::tiny`).
+fn gltf() -> (Vec<u8>, Vec<u8>) {
+    let mut bin = Vec::new();
+    let floats = |bin: &mut Vec<u8>, values: &[f32]| {
+        for v in values {
+            bin.extend_from_slice(&v.to_le_bytes());
+        }
+    };
+    floats(&mut bin, &[0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
+    bin.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]);
+    floats(
+        &mut bin,
+        &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0],
+    );
+    let identity = [
+        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+    ];
+    floats(&mut bin, &identity);
+    let mut down = identity;
+    down[13] = -1.0;
+    floats(&mut bin, &down);
+    let json = r#"{
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": "Model.bin", "byteLength": 224}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 12},
+            {"buffer": 0, "byteOffset": 48, "byteLength": 48},
+            {"buffer": 0, "byteOffset": 96, "byteLength": 128}
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5121, "count": 3, "type": "VEC4"},
+            {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"},
+            {"bufferView": 3, "componentType": 5126, "count": 2, "type": "MAT4"}
+        ],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "JOINTS_0": 1, "WEIGHTS_0": 2}}]}],
+        "skins": [{"joints": [1, 2], "inverseBindMatrices": 3}],
+        "nodes": [
+            {"name": "Armature", "children": [1, 3]},
+            {"name": "root", "children": [2]},
+            {"name": "spine", "translation": [0, 1, 0]},
+            {"name": "Body", "mesh": 0, "skin": 0}
+        ]
+    }"#;
+    (json.as_bytes().to_vec(), bin)
+}
+
+fn rig() -> Vec<(String, Vec<u8>)> {
+    let (json, bin) = gltf();
+    vec![
+        (
+            "models/players/vinfox/sjk_rig.cfg".into(),
+            b"model model.gltf\npreset mannequin\n".to_vec(),
+        ),
+        (
+            "models/players/vinfox/sjk_rig_cloth.cfg".into(),
+            b"model model.gltf\n".to_vec(),
+        ),
+        ("models/players/vinfox/model.gltf".into(), json),
+        ("models/players/vinfox/model.bin".into(), bin),
+        (
+            "models/players/vinfox/body skin (2).png".into(),
+            png(64, 64),
+        ),
+        (
+            "models/players/vinfox/icon_default.jpg".into(),
+            jpeg(128, 128),
+        ),
+    ]
+}
+
+#[test]
+fn a_rig_model_with_its_gltf_passes() {
+    let checked = check_list(rig()).expect("a rig model");
+    assert!(checked.rig);
+    assert_eq!(checked.name, "vinfox");
+    assert!(!check_list(good()).unwrap().rig);
+    let (pk3, packed) = pack::pack("VinFox", rig(), &Limits::DEFAULT).expect("packs");
+    assert_eq!(check(&pk3, &Limits::DEFAULT).unwrap(), packed);
+}
+
+#[test]
+fn a_rig_model_needs_its_gltf_whole() {
+    let without: Vec<_> = rig()
+        .into_iter()
+        .filter(|(path, _)| !path.ends_with(".gltf"))
+        .collect();
+    assert_eq!(check_list(without), Err(Rejection::NoModel));
+    let missing_buffer: Vec<_> = rig()
+        .into_iter()
+        .filter(|(path, _)| !path.ends_with(".bin"))
+        .collect();
+    assert!(matches!(
+        check_list(missing_buffer),
+        Err(Rejection::Broken { .. })
+    ));
+    // A buffer outside the folder is never read.
+    let mut outside = rig();
+    let json = String::from_utf8(outside[2].1.clone()).unwrap();
+    outside[2].1 = json.replace("Model.bin", "../kyle/model.bin").into_bytes();
+    assert!(matches!(check_list(outside), Err(Rejection::Broken { .. })));
+    // Only the rig manifests are allowed .cfg files.
+    let mut other = rig();
+    other.push((
+        "models/players/vinfox/autoexec.cfg".into(),
+        b"quit".to_vec(),
+    ));
+    assert!(matches!(check_list(other), Err(Rejection::FileType(_))));
+}
+
+#[test]
+fn community_file_names_with_spaces_and_brackets_pass() {
+    for path in [
+        "models/players/solfox/screenshot 1 (front, in modview).jpg",
+        "models/players/solfox/belt_timeline - copy.jpg",
+    ] {
+        assert!(check_list(with(path, &jpeg(8, 8))).is_ok(), "{path}");
+    }
+    for path in [
+        "models/players/solfox/ a.jpg",
+        "models/players/solfox/a?.jpg",
+        "models/players/solfox/a:b.jpg",
+    ] {
+        assert!(
+            matches!(
+                check_list(with(path, &jpeg(8, 8))),
+                Err(Rejection::BadPath(_))
+            ),
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn packing_keeps_only_the_models_own_shaders() {
+    let mut files = good();
+    files[5].1 = b"models/players/solfox/body { map a }\nmodels/players/solfox2/lashes { map b }\nmodels/weapons2/saber/saber { map c }\n".to_vec();
+    assert!(matches!(
+        check_list(files.clone()),
+        Err(Rejection::ForeignShader(_))
+    ));
+    let (pk3, checked) = pack::pack("solfox", files, &Limits::DEFAULT).expect("packs");
+    assert!(
+        checked
+            .files
+            .iter()
+            .any(|(path, _)| path == "shaders/solfox.shader")
+    );
+    let mut archive = zip::ZipArchive::new(Cursor::new(pk3)).unwrap();
+    let mut text = String::new();
+    std::io::Read::read_to_string(
+        &mut archive.by_name("shaders/solfox.shader").unwrap(),
+        &mut text,
+    )
+    .unwrap();
+    assert!(
+        text.contains("solfox/body") && !text.contains("solfox2") && !text.contains("weapons2")
+    );
 }

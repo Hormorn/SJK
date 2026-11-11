@@ -39,6 +39,8 @@ test: A name from the hosts' packs says "In the Sith cloud's packs" and offers U
 test: On another PC: Download on that row, then the next map draws that model.
 test: Settings > Mods > Model sync opens the page; Profile > Share my model opens it too.
 test: cl_autoModels 1, meet a player wearing a shared model: it downloads by itself.
+test: Share a rig model (solfox5): first press asks to confirm, second press uploads it.
+test: Share a Sith skin pack model with a shared shader file (krovos): it uploads now.
 note: Uploads need the new Sith cloud build with the hub key (Krovos); hub is deployed.
 
 [chat-translate]

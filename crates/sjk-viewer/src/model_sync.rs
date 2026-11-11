@@ -286,6 +286,8 @@ struct State {
     asked: BTreeSet<String>,
     /// Models the Inspect card offered this session.
     offered: BTreeSet<String>,
+    /// A rig model waiting for its share to be confirmed, since when.
+    confirm: Option<(String, Instant)>,
     met_at: Option<Instant>,
     update_at: Option<Instant>,
     /// The index the thread last read, for the Model sync page.
@@ -304,6 +306,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     waiting: None,
     asked: BTreeSet::new(),
     offered: BTreeSet::new(),
+    confirm: None,
     met_at: None,
     update_at: None,
     index: None,
@@ -413,6 +416,14 @@ fn run_command(
             let (pk3, checked) =
                 sjk_model_sync::pack::pack(&model, files_of(vfs, &model), &Limits::DEFAULT)
                     .map_err(|why| format!("{model} cannot be shared: {why}"))?;
+            // A rig model is most often taken from another game: share one only with
+            // its author's leave (Sol, 11/11/2026). The second press within a minute,
+            // or `sharemodel <name> mine`, confirms it.
+            if checked.rig && !confirmed(&model, args.get(1).map(String::as_str)) {
+                return Ok(vec![format!(
+                    "Model sync: {model} is a rig model. Share only a model you made, or one its author lets you share: press Share again to confirm (or sharemodel {model} mine)."
+                )]);
+            }
             if !crate::player_identity::ask_model_ticket(model.clone(), checked.content_md5) {
                 return Err("the SJK hub is not connected".into());
             }
@@ -462,12 +473,40 @@ fn run_command(
     }
 }
 
-/// The game's files of model `name`: its folder, and its own shader file.
+/// How long a rig model's confirmation waits for the second press.
+const CONFIRM_FOR: Duration = Duration::from_secs(60);
+
+/// Whether sharing rig model `model` is confirmed: `mine` given, or a second
+/// `sharemodel` for it within [`CONFIRM_FOR`] of the first (which arms it).
+fn confirmed(model: &str, word: Option<&str>) -> bool {
+    let mut state = lock();
+    let now = Instant::now();
+    let armed = state
+        .confirm
+        .take()
+        .is_some_and(|(name, at)| name == model && now.duration_since(at) < CONFIRM_FOR);
+    if armed || word.is_some_and(|word| word.eq_ignore_ascii_case("mine")) {
+        return true;
+    }
+    state.confirm = Some((model.to_owned(), now));
+    false
+}
+
+/// The game's files of model `name`: its folder (a stock model's, or a rig model's
+/// manifests, glTF and buffers too), and its own shader file.
 fn files_of(vfs: &sjk_vfs::VirtualFileSystem, name: &str) -> Vec<(String, Vec<u8>)> {
     let folder = format!("models/players/{name}");
     let mut files = Vec::new();
-    for extension in [".glm", ".skin", ".tga", ".jpg", ".png"] {
+    for extension in [
+        ".glm", ".skin", ".tga", ".jpg", ".png", ".gltf", ".glb", ".bin", ".cfg",
+    ] {
         for path in vfs.list_files(&folder, extension) {
+            // Only a rig model's manifests: `sounds.cfg` and `animation.cfg` are not
+            // shared.
+            let file = path.rsplit('/').next().unwrap_or(&path);
+            if extension == ".cfg" && !file.to_ascii_lowercase().starts_with("sjk_rig") {
+                continue;
+            }
             let path = format!("{folder}/{path}");
             if let Ok(Some(asset)) = vfs.read(&path) {
                 files.push((path, asset.bytes));
@@ -807,6 +846,17 @@ mod tests {
                 ("models/players/solfox/body.tga", b"tga".to_vec()),
                 ("models/players/solfox/sub/eyes.png", b"png".to_vec()),
                 ("models/players/solfox/notes.txt", b"txt".to_vec()),
+                (
+                    "models/players/solfox/sjk_rig.cfg",
+                    b"model model.gltf".to_vec(),
+                ),
+                (
+                    "models/players/solfox/sjk_rig_cloth.cfg",
+                    b"model c.gltf".to_vec(),
+                ),
+                ("models/players/solfox/sounds.cfg", b"x".to_vec()),
+                ("models/players/solfox/model.gltf", b"{}".to_vec()),
+                ("models/players/solfox/model.bin", b"bin".to_vec()),
                 ("models/players/kyle/model.glm", b"glm".to_vec()),
                 ("shaders/solfox.shader", b"x".to_vec()),
                 ("shaders/other.shader", b"x".to_vec()),
@@ -822,10 +872,32 @@ mod tests {
             paths,
             [
                 "models/players/solfox/body.tga",
+                "models/players/solfox/model.bin",
                 "models/players/solfox/model.glm",
+                "models/players/solfox/model.gltf",
+                "models/players/solfox/sjk_rig.cfg",
+                "models/players/solfox/sjk_rig_cloth.cfg",
                 "models/players/solfox/sub/eyes.png",
                 "shaders/solfox.shader",
             ]
         );
+    }
+
+    #[test]
+    fn a_rig_model_is_shared_on_the_second_press_or_with_mine() {
+        lock().confirm = None;
+        assert!(!confirmed("vinfox", None), "the first press only asks");
+        assert!(confirmed("vinfox", None), "the second one shares");
+        assert!(!confirmed("vinfox", None), "and the next asks again");
+        assert!(!confirmed("solfox", None));
+        assert!(
+            !confirmed("vinfox", None),
+            "another model's press does not count"
+        );
+        lock().confirm = None;
+        assert!(confirmed("vinfox", Some("MINE")));
+        lock().confirm = Some(("vinfox".into(), Instant::now() - CONFIRM_FOR));
+        assert!(!confirmed("vinfox", None), "a confirmation goes stale");
+        lock().confirm = None;
     }
 }

@@ -1,6 +1,7 @@
 //! Builds the PK3 a player uploads from the files of the model they wear, wherever
 //! those were installed: only `models/players/<name>/` and `shaders/<name>.shader`
-//! are kept, paths are lowercased, and the result is checked before it is returned.
+//! are kept, paths are lowercased, the shader file keeps only the model's own
+//! shaders, and the result is checked before it is returned.
 
 use crate::{Checked, Limits, Rejection, check, model_folder, shader_file, valid_name};
 use std::io::{Cursor, Write};
@@ -24,6 +25,16 @@ pub fn pack(
         .into_iter()
         .map(|(path, bytes)| (path.replace('\\', "/").to_ascii_lowercase(), bytes))
         .filter(|(path, _)| path.starts_with(&folder) || *path == shader)
+        .filter_map(|(path, bytes)| {
+            if path != shader {
+                return Some((path, bytes));
+            }
+            // A community shader file often defines its sibling models' shaders too
+            // (`krovos.shader` holds `krovos2`'s): keep only this model's.
+            let text = String::from_utf8(bytes).ok()?;
+            let own = crate::shader::keep_own(&text, &folder).ok()?;
+            (!own.trim().is_empty()).then(|| (path, own.into_bytes()))
+        })
         .collect();
     kept.sort_by(|a, b| a.0.cmp(&b.0));
     // Same bytes, packed the same way, give the same PK3: fixed times, sorted names.
