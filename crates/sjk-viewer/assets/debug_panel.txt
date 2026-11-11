@@ -24,6 +24,23 @@
 
 # ---- Console & chat ----
 
+[chat-translate]
+area: Console & chat
+title: Chat translation on request (click a line, /tr, tr, Translate)
+change: With the chat open, a click on a line's text (game, SJK, clan chat) translates it.
+change: /tr in the chat field or tr in the console puts the newest foreign line into English.
+change: /tr <text> translates the text; the SJK chat page has Translate on a chosen message.
+test: Open the chat, click the text of another's French line: the English shows under it.
+test: Click its name instead: the card opens, nothing is translated; own lines do not light.
+test: Have a player say "Salut, tu viens au duel ce soir avec nous ?"; type /tr, Enter.
+test: Nothing is said; a dim line "(fr) ..." in English shows under it and in the console.
+test: /tr again: the same answer comes at once (cached), the hub is not asked twice.
+test: /tr hola amigo translates the text; /tr with only English lines says there is none.
+test: SJK chat page: choose another's message, Translate: the English shows under it.
+test: cl_chatTranslateSkip "en fr", /tr: the French line is passed over.
+test: cl_chatTranslate 0: /tr says translation is off; Translate is gone from the page.
+note: Needs the hub with POST /v1/translate deployed; an older one says it needs an update.
+
 [verified-gifs-pictures]
 area: Console & chat
 title: Only verified players' GIFs play; only they upload pictures

@@ -114,6 +114,10 @@ pub struct ChatState {
     pub outcome: Option<ReportOutcome>,
     /// Result of the most recent reaction request, separate from sending text.
     pub reaction: Option<ReportOutcome>,
+    /// What became of the last translations asked for ([`crate::Service::translate`]),
+    /// oldest first, [`crate::translate::OUTCOMES_KEPT`] at most; a reader picks its
+    /// own out by serial.
+    pub translations: VecDeque<crate::TranslateOutcome>,
     /// The registered canonical person id, copied without allocating for UI snapshots.
     pub own_key: Option<[u8; 16]>,
     /// What became of the last chat ban asked for ([`crate::Service::chat_ban`]).

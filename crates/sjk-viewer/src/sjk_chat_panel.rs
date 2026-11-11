@@ -55,6 +55,10 @@ const BAN_TOKEN: u16 = 1_309;
 const LIFT_TOKEN: u16 = 1_363;
 /// Send only in SJK, under Send while a mod says SJK chat in this server's All chat.
 const ONLY_TOKEN: u16 = 1_364;
+/// The chosen message's Translate (`chat/translate.rs`).
+const TRANSLATE_TOKEN: u16 = 1_367;
+/// Translations the page keeps, the newest last.
+const TRANSLATIONS_KEPT: usize = 16;
 /// Messages on show, one token each.
 const MESSAGE_BASE: u16 = 1_310;
 const MESSAGES_SHOWN: usize = 40;
@@ -111,6 +115,12 @@ pub(crate) enum PanelAction {
     Staff(StaffRequest),
     /// Save this as the player's GIPHY key (`cl_giphyKey`), from the key card.
     GiphyKey(String),
+    /// Ask the hub for the message of this id, whose plain text this is, in English
+    /// (`chat/translate.rs`).
+    Translate {
+        message: u64,
+        text: String,
+    },
 }
 
 /// What the page knows this frame.
@@ -135,6 +145,9 @@ pub(crate) struct Inputs<'a> {
     /// While a mod says SJK chat in this server's All chat, its words
     /// (`chat/server_copy.rs`): the page offers Send only in SJK.
     pub(crate) said_in_all: Option<crate::chat::server_copy::SaidInAll>,
+    /// The languages never offered for translation while `cl_chatTranslate` is on;
+    /// `None` while it is off, and the page offers no Translate.
+    pub(crate) translate: Option<&'a crate::chat::translate::Skip>,
 }
 
 /// The part of `sjk_identity::StaffState` the page shows.
@@ -146,6 +159,15 @@ pub(crate) struct StaffShown<'a> {
     pub(crate) failed: bool,
     /// A request is on its way.
     pub(crate) busy: bool,
+}
+
+/// A translation the page asked for: the message, the request's serial, and the line
+/// it came to (the translation or why there is none) once the hub answered.
+#[derive(Debug)]
+struct Translated {
+    message: u64,
+    serial: u64,
+    line: Option<String>,
 }
 
 /// What the last frame showed, for keys and clicks.
@@ -170,6 +192,8 @@ struct Shown {
     blocked: Vec<crate::chat_mutes::Mute>,
     /// Whether the chosen message offers Ban 24 h.
     chosen_bannable: bool,
+    /// Whether the chosen message offers Translate.
+    chosen_translate: bool,
     /// The keys of the players in the who-is-online window, by token.
     people: Vec<String>,
     /// The keys of faces in the window drawn without knowing their picture: the
@@ -225,6 +249,11 @@ pub(crate) struct Panel {
     hover: crate::menu::sjk::hover::Hover,
     /// The last frame offered Send only in SJK to a staff key: Shift+Enter takes it.
     only_for_staff: bool,
+    /// The translations the page asked for, the newest last ([`Panel::translation_sent`]).
+    translations: Vec<Translated>,
+    /// The language guess of the chosen message: its id, the skip list it was made
+    /// with, and its plain text while it offers Translate.
+    translate_guess: Option<(u64, crate::chat::translate::Skip, Option<String>)>,
     /// The chat to show in place of the live one, for a world shot.
     #[cfg(test)]
     pub(crate) preview: Option<ChatState>,
@@ -299,6 +328,8 @@ impl Panel {
             giphy_key: String::new(),
             hover: Default::default(),
             only_for_staff: false,
+            translations: Vec::new(),
+            translate_guess: None,
             #[cfg(test)]
             preview: None,
         }
@@ -330,6 +361,50 @@ impl Panel {
     /// The page sent a staff request while the staff answers' serial was `serial`.
     pub(crate) fn staff_sent(&mut self, serial: u64) {
         self.staff_after = Some(serial);
+    }
+
+    /// The hub was asked for message `message` in English under `serial`
+    /// ([`sjk_identity::Service::translate`]): the translation shows under it once the
+    /// hub answers.
+    pub(crate) fn translation_sent(&mut self, message: u64, serial: u64) {
+        self.translations.retain(|kept| kept.message != message);
+        if self.translations.len() == TRANSLATIONS_KEPT {
+            self.translations.remove(0);
+        }
+        self.translations.push(Translated {
+            message,
+            serial,
+            line: None,
+        });
+    }
+
+    /// Take what the hub answered for the translations still waiting.
+    fn follow_translations(&mut self, chat: Option<&ChatState>) {
+        let Some(chat) = chat else { return };
+        for kept in self
+            .translations
+            .iter_mut()
+            .filter(|kept| kept.line.is_none())
+        {
+            if let Some(outcome) = chat
+                .translations
+                .iter()
+                .find(|outcome| outcome.serial == kept.serial)
+            {
+                kept.line = Some(match &outcome.result {
+                    Ok(translation) => crate::chat::translate::line(translation),
+                    Err(error) => format!("Translate: {error}"),
+                });
+            }
+        }
+    }
+
+    /// What message `id`'s translation came to, or that it is on its way.
+    fn translation_of(&self, id: u64) -> Option<&str> {
+        self.translations
+            .iter()
+            .find(|kept| kept.message == id)
+            .map(|kept| kept.line.as_deref().unwrap_or("Translating..."))
     }
 
     /// Say on the sender card on show where its player is on the server being played
@@ -844,6 +919,17 @@ impl Panel {
                 },
                 None => PanelAction::None,
             },
+            TRANSLATE_TOKEN => match (
+                chosen,
+                self.translate_guess
+                    .as_ref()
+                    .filter(|_| self.shown.chosen_translate)
+                    .and_then(|(_, _, offer)| offer.clone()),
+            ) {
+                // Only offered (laid out) while the message may be translated.
+                (Some((message, ..)), Some(text)) => PanelAction::Translate { message, text },
+                _ => PanelAction::None,
+            },
             BAN_TOKEN => match chosen {
                 // Only offered (laid out) for a sender who may be banned.
                 Some((_, key_id, ..)) if self.shown.chosen_bannable => PanelAction::Ban(key_id),
@@ -1116,6 +1202,7 @@ mod tests {
             CARD_TRADE_TOKEN,
             ONLY_TOKEN,
             HIDE_GIF_TOKEN,
+            TRANSLATE_TOKEN,
         ];
         tokens.extend((0..MESSAGES_SHOWN as u16).map(|index| MESSAGE_BASE + index));
         let mut sorted = tokens.clone();
@@ -1187,6 +1274,7 @@ mod tests {
 
     pub(super) fn chat(count: u64) -> ChatState {
         ChatState {
+            translations: Default::default(),
             clan: Default::default(),
             channels: Vec::new(),
             reaction: None,
@@ -1215,6 +1303,7 @@ mod tests {
             staff_state: None,
             giphy_key: "",
             said_in_all: None,
+            translate: None,
         }
     }
 
@@ -1316,6 +1405,57 @@ mod tests {
         assert_eq!(
             panel.edit(KeyCode::Enter, Some("\r"), true, false),
             PanelAction::SendSjkOnly("hi".into())
+        );
+    }
+
+    #[test]
+    fn translate_on_the_chosen_message_shows_the_english_under_it() {
+        let mut chat = chat(2);
+        chat.messages[0].text = "Salut, est-ce que tu viens au duel ce soir avec nous ?".into();
+        chat.messages[1].text = "Hey, are you coming to the duel tonight with us?".into();
+        let skip = crate::chat::translate::Skip::parse("en");
+        let offered = |chat: &ChatState, panel: &mut Panel, id: u64| {
+            panel.selected = Some(id);
+            let on = Inputs {
+                translate: Some(&skip),
+                ..inputs(chat, &[], false)
+            };
+            drawn(panel, &on);
+            panel.order.contains(&TRANSLATE_TOKEN)
+        };
+        let mut panel = Panel::new();
+        panel.open(true);
+        // Not for a line surely in English, nor with cl_chatTranslate off.
+        assert!(!offered(&chat, &mut panel, 2));
+        drawn(&mut panel, &inputs(&chat, &[], false));
+        assert!(!panel.order.contains(&TRANSLATE_TOKEN));
+        assert!(offered(&chat, &mut panel, 1));
+        assert_eq!(
+            panel.activate(TRANSLATE_TOKEN),
+            PanelAction::Translate {
+                message: 1,
+                text: chat.messages[0].text.clone(),
+            }
+        );
+        panel.translation_sent(1, 5);
+        assert!(offered(&chat, &mut panel, 1));
+        assert!(panel.ui.text_runs().any(|run| run == "Translating..."));
+        chat.translations.push_back(sjk_identity::TranslateOutcome {
+            serial: 5,
+            text: chat.messages[0].text.clone(),
+            result: Ok(sjk_identity::Translation {
+                text: "Hi, are you coming to the duel tonight?".into(),
+                from: "fr".into(),
+                cached: false,
+                left: Some(49),
+            }),
+        });
+        assert!(offered(&chat, &mut panel, 1));
+        let runs: Vec<String> = panel.ui.text_runs().map(str::to_owned).collect();
+        assert!(
+            runs.iter()
+                .any(|run| run == "\u{bb} (fr) Hi, are you coming to the duel tonight?"),
+            "{runs:?}"
         );
     }
 

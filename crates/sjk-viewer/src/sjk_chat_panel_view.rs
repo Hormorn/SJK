@@ -61,6 +61,8 @@ const UNDER_HEADING: f32 = 22.0;
 const PART_GAP: f32 = 34.0;
 const NOTE_ROW: f32 = 22.0;
 const PEOPLE_PAD: f32 = 18.0;
+/// The chosen message's Translate, at the right of its sender's name.
+const TRANSLATE_WIDTH: f32 = 150.0;
 /// The chosen message's heading, this far under the window.
 const CHOSEN_GAP: f32 = 34.0;
 /// The window's List / Faces button, at the right end of the Online heading.
@@ -116,15 +118,25 @@ struct Laid {
     official: Option<crate::official::words::Look>,
     /// The message's GIF ([`crate::chat_gifs`]) and what it shows this frame.
     gif: Option<crate::chat_gifs::Shown>,
+    /// The translation the player asked for (`chat/translate.rs`), or what it came to,
+    /// and its rows, under the text and the GIF.
+    translation: Option<(String, Vec<Range<usize>>)>,
 }
 
 impl Laid {
-    /// The message's height on the page, its GIF under its text included.
+    /// The message's height on the page, its GIF and translation under its text
+    /// included.
     fn height(&self) -> f32 {
-        height(self.rows.len())
-            + self
-                .gif
-                .map_or(0.0, |shown| crate::chat_gifs::draw::room(GIF, shown))
+        height(self.rows.len()) + self.gif_room() + self.translation_rows() as f32 * BODY_ROW
+    }
+
+    fn gif_room(&self) -> f32 {
+        self.gif
+            .map_or(0.0, |shown| crate::chat_gifs::draw::room(GIF, shown))
+    }
+
+    fn translation_rows(&self) -> usize {
+        self.translation.as_ref().map_or(0, |(_, rows)| rows.len())
     }
 }
 
@@ -133,7 +145,13 @@ const GIF: crate::chat_gifs::draw::Look = crate::chat_gifs::draw::PAGE;
 
 /// Lay `message` out in the page's column, measured as `measure` draws at the frame
 /// scale `s`.
-fn lay(message: &ChatMessage, inputs: &Inputs<'_>, measure: &Measure<'_>, s: f32) -> Laid {
+fn lay(
+    message: &ChatMessage,
+    inputs: &Inputs<'_>,
+    measure: &Measure<'_>,
+    s: f32,
+    translation: Option<&str>,
+) -> Laid {
     let s = s.max(0.001);
     let width = |value: &str, size: f32, face| measure.width(value, size * s, face) / s;
     let name = name_for_display(&message.name);
@@ -224,6 +242,12 @@ fn lay(message: &ChatMessage, inputs: &Inputs<'_>, measure: &Measure<'_>, s: f32
         LIST_WIDTH,
         |value, room| measure.fitting(value, room * s, TEXT_SIZE * s, TextFace::Regular),
     );
+    let translation = translation.filter(|_| !muted).map(|line| {
+        let rows = sjk_chat_look::flow(line, LIST_WIDTH, LIST_WIDTH, |value, room| {
+            measure.fitting(value, room * s, TEXT_SIZE * s, TextFace::Regular)
+        });
+        (line.to_owned(), rows)
+    });
     Laid {
         name,
         jof,
@@ -241,6 +265,7 @@ fn lay(message: &ChatMessage, inputs: &Inputs<'_>, measure: &Measure<'_>, s: f32
         drop,
         official: official.map(|official| official.look),
         gif,
+        translation,
     }
 }
 
@@ -308,6 +333,7 @@ impl Panel {
     pub(super) fn build(&mut self, inputs: &Inputs<'_>, measure: &Measure<'_>, viewport: [f32; 2]) {
         let frame = Frame::new(viewport);
         self.order.clear();
+        self.follow_translations(inputs.chat);
         std::mem::swap(&mut self.shown.people, &mut self.previous_people);
         self.ui.begin_transparent(viewport);
         crate::settings::sjk_view::backdrop(&mut self.ui, viewport);
@@ -434,7 +460,7 @@ impl Panel {
         let mut laid = Vec::with_capacity(MESSAGES_SHOWN);
         while first > 0 && end - first < MESSAGES_SHOWN {
             let message = &messages[first - 1];
-            let layout = lay(message, inputs, measure, s);
+            let layout = lay(message, inputs, measure, s, self.translation_of(message.id));
             let needed = layout.height();
             if needed > room {
                 break;
@@ -730,8 +756,8 @@ impl Panel {
                 );
             }
         }
+        let under = y + NAME_ROW + laid.rows.len().saturating_sub(1) as f32 * BODY_ROW;
         if let Some(shown) = laid.gif {
-            let under = y + NAME_ROW + laid.rows.len().saturating_sub(1) as f32 * BODY_ROW;
             crate::chat_gifs::draw::draw(
                 &mut self.ui,
                 frame,
@@ -740,6 +766,27 @@ impl Panel {
                 [LIST_X, under],
                 LIST_WIDTH,
             );
+        }
+        // The translation under it all, dim (`chat/translate.rs`).
+        if let Some((line, rows)) = &laid.translation {
+            let top = under + laid.gif_room();
+            for (row, range) in rows.iter().enumerate() {
+                text(
+                    &mut self.ui,
+                    TextFamily::Body,
+                    format_args!("{}", &line[range.clone()]),
+                    frame.rect(
+                        LIST_X,
+                        top + row as f32 * BODY_ROW,
+                        LIST_WIDTH,
+                        BODY_ROW - 2.0,
+                    ),
+                    TEXT_SIZE * s,
+                    color::QUIET,
+                    FontWeight::Regular,
+                    TextAlign::Start,
+                );
+            }
         }
     }
 
@@ -1477,6 +1524,7 @@ impl Panel {
             "Chosen message",
         );
         self.shown.chosen_bannable = false;
+        self.shown.chosen_translate = false;
         let message = self.selected.and_then(|id| {
             inputs.chat.and_then(|chat| {
                 // The SJK team's lines have no sender to act on.
@@ -1516,8 +1564,57 @@ impl Panel {
         // after it for a verified sender.
         let name = name_for_display(&message.name);
         self.shown.chosen = Some((message.id, message.key_id.clone(), name.clone(), muted));
+        // Translate at the right of the name, for another's message that may be foreign
+        // (`chat/translate.rs`): not one surely in English or a skipped language.
+        let own = inputs
+            .chat
+            .and_then(|chat| chat.own_key.as_ref())
+            .and_then(|key| std::str::from_utf8(key).ok())
+            .is_some_and(|key| key == message.key_id);
+        let offered = match inputs.translate {
+            Some(skip) if !muted && !own && message.holocron.is_none() => {
+                // Guessed once per message (and skip list), not every frame.
+                let known = matches!(&self.translate_guess,
+                    Some((id, kept, _)) if *id == message.id && kept == skip);
+                if !known {
+                    let plain =
+                        crate::chat::translate::plain(&sjk_chat_look::message_text(&message.text));
+                    let offer = crate::chat::translate::offered(&plain, skip).then_some(plain);
+                    self.translate_guess = Some((message.id, skip.clone(), offer));
+                }
+                self.translate_guess
+                    .as_ref()
+                    .is_some_and(|(_, _, offer)| offer.is_some())
+            }
+            _ => false,
+        };
+        if offered {
+            kit::button(
+                &mut self.ui,
+                frame,
+                [
+                    SIDE_X + SIDE_WIDTH - TRANSLATE_WIDTH,
+                    top + 24.0,
+                    TRANSLATE_WIDTH,
+                    40.0,
+                ],
+                "Translate",
+                false,
+                true,
+                self.focus == TRANSLATE_TOKEN,
+                TRANSLATE_TOKEN,
+            );
+            self.order.push(TRANSLATE_TOKEN);
+            self.shown.chosen_translate = true;
+        }
         let size = 26.0;
-        let room = SIDE_WIDTH - sjk_chat_look::tick_room(size);
+        let room = SIDE_WIDTH
+            - sjk_chat_look::tick_room(size)
+            - if self.shown.chosen_translate {
+                TRANSLATE_WIDTH + 12.0
+            } else {
+                0.0
+            };
         let width = (measure.width(&name, size * s, TextFace::Semibold) / s.max(0.001)).min(room);
         let rect = frame.rect(SIDE_X, top + 28.0, width + 2.0, 34.0);
         text(

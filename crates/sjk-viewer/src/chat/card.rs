@@ -557,6 +557,70 @@ mod tests {
         chat.ui.text_runs().map(str::to_owned).collect()
     }
 
+    /// The text of each line a click would translate (`chat/translate.rs`).
+    fn offered(chat: &ChatOverlay) -> Vec<(String, Rect)> {
+        chat.visible_bodies
+            .iter()
+            .flatten()
+            .map(|&(index, _, rect)| (chat.lines[index].body.clone(), rect))
+            .collect()
+    }
+
+    #[test]
+    fn a_click_on_a_lines_text_translates_it_and_one_on_its_name_opens_the_card() {
+        let mut chat = chat();
+        // This client's own notice is never offered.
+        chat.notice("^3SJK chat: not sent".to_owned(), Instant::now());
+        build(&mut chat);
+        let bodies = offered(&chat);
+        let texts: Vec<&str> = bodies.iter().map(|(body, _)| body.as_str()).collect();
+        // The server's unattributed line and the SJK line, not the notice.
+        assert_eq!(texts.len(), 2, "{texts:?}");
+        assert!(texts.contains(&"gg all") && !texts.iter().any(|text| text.contains("not sent")));
+        let (_, sjk) = bodies
+            .iter()
+            .find(|(body, _)| body == "gg all")
+            .unwrap()
+            .clone();
+        click(&mut chat, centre(sjk));
+        let asked = chat.take_translate_click().expect("the click asks");
+        assert_eq!(asked.text, "gg all");
+        assert!(chat.card.is_none(), "the text is no name");
+        // Asked once: the line is not offered again.
+        build(&mut chat);
+        assert!(!offered(&chat).iter().any(|(body, _)| body == "gg all"));
+        // The name still opens the sender card, and asks nothing.
+        let token = (0..MAX_VISIBLE)
+            .find(|token| chat.visible_people[*token] == Some(Who::Hub(7)))
+            .expect("the SJK line's name");
+        let name = chat.ui.rect_for(token as u16).expect("the name's target");
+        chat.pointer(InputEvent::PointerMove(centre(name)));
+        build(&mut chat);
+        click(&mut chat, centre(name));
+        assert!(chat.card.is_some());
+        assert!(chat.take_translate_click().is_none());
+    }
+
+    #[test]
+    fn own_lines_translations_and_a_switched_off_chat_offer_nothing() {
+        let mut chat = chat();
+        chat.set_sjk_own_key(Some(KEY));
+        build(&mut chat);
+        let texts: Vec<String> = offered(&chat).into_iter().map(|(body, _)| body).collect();
+        assert_eq!(
+            texts,
+            ["Fox: hi"],
+            "the player's own SJK line is not offered"
+        );
+        // A translation under a line is not offered either.
+        chat.notice("^9(fr) hi".to_owned(), Instant::now());
+        build(&mut chat);
+        assert_eq!(offered(&chat).len(), 1);
+        chat.set_translate_on(false);
+        build(&mut chat);
+        assert!(offered(&chat).is_empty(), "cl_chatTranslate 0");
+    }
+
     #[test]
     fn resting_on_a_name_shows_the_sender_card_with_mute() {
         let mut chat = chat();

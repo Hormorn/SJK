@@ -87,6 +87,8 @@ impl ChatOverlay {
             verified: false,
             recipient: None,
             loud,
+            local: false,
+            asked: false,
         });
         if self.is_typing() && self.scroll > 0 && (loud || !self.options.quiet) {
             self.scroll = (self.scroll + 1).min(self.lines.len().saturating_sub(1));
@@ -218,12 +220,7 @@ impl ChatOverlay {
         }
         self.sjk_outcome = outcome.serial;
         if !outcome.sent {
-            self.receive(
-                ServerEventKind::Chat,
-                format!("^3SJK chat: {}", outcome.message),
-                None,
-                now,
-            );
+            self.notice(format!("^3SJK chat: {}", outcome.message), now);
         }
     }
 

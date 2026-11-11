@@ -72,6 +72,9 @@ sha2 = "0.11.0"
 url = "2"
 arc-swap = "1"
 scraper = { version = "0.24", default-features = false }
+# Guessing the language of a chat line, offline, before it is offered for translation
+# (`chat/translate.rs`). MIT.
+whatlang = { version = "0.18.0", default-features = false }
 
 [dev-dependencies]
 # Counts allocator calls in `assert_no_alloc` blocks: per-frame bookkeeping allocates

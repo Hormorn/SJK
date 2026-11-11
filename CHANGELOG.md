@@ -30,6 +30,10 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
+## Unreleased
+
+- Chat translation on request: with the chat open, click a line's text (game, SJK or clan chat) to put it into English; `/tr` in the chat (or `tr` in the console) does it for the newest foreign line, `/tr <text>` the text you give, and the SJK chat page has Translate on a chosen message. Only the lines you choose go to the SJK hub, which asks Microsoft's translator; `cl_chatTranslateSkip` lists languages never offered. Needs the updated hub _(Slash, PR #410, after Creo's idea)_
+
 ## 2026.1111.1 (Alpha) | 11/11/2026
 
 Graphics presets for your PC, richer rain and settling snow, a Forge that fuses duplicates, GIF tags, a map editor that guesses textures and flies to things, and Slash's round of fixes.

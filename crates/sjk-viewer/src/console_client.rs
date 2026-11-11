@@ -115,6 +115,10 @@ pub(super) const COMMANDS: &[(&str, &str)] = &[
         "reply",
         "Whisper to the last player who whispered to you: reply <message>, or bare to open the chat on it",
     ),
+    (
+        crate::chat::translate::COMMAND,
+        "Translate the newest foreign chat line into English through the SJK hub, or the text given: tr [text]",
+    ),
     (crate::player_trades::COMMAND, crate::player_trades::HELP),
     (
         crate::e2e_whispers::VERIFY_COMMAND,
@@ -1100,6 +1104,13 @@ impl crate::GpuState {
                 );
             }
             "reply" => return self.reply_command(args),
+            crate::chat::translate::COMMAND => {
+                let text = args.join(" ");
+                return self
+                    .translate_chat((!text.trim().is_empty()).then_some(text.as_str()))
+                    .map(|()| Vec::new())
+                    .map_err(|why| format!("tr: {why}"));
+            }
             crate::e2e_whispers::VERIFY_COMMAND => return self.whisper_verify_command(args),
             crate::player_trades::COMMAND => return self.trade_command(args),
             crate::player_ids::CLIENT_LIST_COMMAND | crate::player_ids::SHOW_PLAYER_ID_COMMAND => {
@@ -1494,5 +1505,16 @@ mod tests {
         let mut commands = Commands::default();
         let tokens = vec!["MapEdit_Panel".to_owned()];
         assert!(commands.queue("MapEdit_Panel", &tokens).is_some());
+    }
+
+    #[test]
+    fn tr_is_the_clients_own_command() {
+        let mut commands = Commands::default();
+        let tokens = vec!["tr".to_owned(), "hola".to_owned(), "amigo".to_owned()];
+        assert!(matches!(
+            commands.queue("tr hola amigo", &tokens),
+            Some(Ok(_))
+        ));
+        assert_eq!(commands.pending.back(), Some(&tokens));
     }
 }

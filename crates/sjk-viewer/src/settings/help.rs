@@ -1539,6 +1539,14 @@ const HELP: &[(&str, &str)] = &[
         "Off by default. MP4 clips from the internet are read by Windows' decoder, outside SJK's safe Rust: a crafted clip could exploit it.",
     ),
     (
+        crate::chat::translate::CVAR,
+        "Click a line's text with the chat open, or type /tr, to put it into English. Only that line goes to the SJK hub.",
+    ),
+    (
+        crate::chat::translate::SKIP_CVAR,
+        "Languages /tr passes over and the SJK chat page does not offer, as codes: en sk cs. English is never offered.",
+    ),
+    (
         crate::chat_gifs::search::KEY_CVAR,
         "Your own GIPHY key, which GIF search needs: free at developers.giphy.com. The GIF picker's Search shows how.",
     ),

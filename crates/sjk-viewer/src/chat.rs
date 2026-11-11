@@ -24,6 +24,7 @@ pub(crate) mod sjk;
 mod substitutions;
 pub(crate) mod tabs;
 pub(crate) mod text_sizes;
+pub(crate) mod translate;
 
 mod view;
 
@@ -119,6 +120,12 @@ struct ChatLine {
     recipient: Option<u16>,
     /// The line passes quiet mode (`chat/quiet.rs`), decided when it arrived.
     loud: bool,
+    /// The line is this client's own words: a translation the player asked for, why
+    /// there is none, or a notice (`chat/translate.rs`); never one to translate.
+    local: bool,
+    /// The line's translation was asked for (`chat/translate.rs`): a click on it does
+    /// not ask again.
+    asked: bool,
 }
 
 /// An SJK chat line's id at the hub and its sender.
@@ -278,6 +285,17 @@ pub(crate) struct ChatOverlay {
     duel_partner: sjk_client::DuelPartner,
     /// The player's own SJK identity key, for quiet mode's SJK lines.
     sjk_own_key: Option<String>,
+    /// Translations waiting for the hub (`chat/translate.rs`).
+    translations: translate::Asks,
+    /// Whether a click on a line's text translates it (`cl_chatTranslate`).
+    translate_on: bool,
+    /// The line whose text was clicked, until the frame asks the hub for it.
+    translate_click: Option<translate::Click>,
+    /// The text of each line on show that a click translates: its index in `lines`,
+    /// when it came, and where its text is drawn (`chat/translate.rs`).
+    visible_bodies: [Option<(usize, u64, sjk_ui::Rect)>; MAX_VISIBLE],
+    /// The line text a press began on, until its release.
+    pressed_body: Option<(usize, u64)>,
     /// The feed draws during a world shot, which has no session.
     #[cfg(test)]
     pub(crate) for_shot: bool,
@@ -381,6 +399,11 @@ impl ChatOverlay {
             trade_request: None,
             duel_partner: sjk_client::DuelPartner::default(),
             sjk_own_key: None,
+            translations: translate::Asks::default(),
+            translate_on: true,
+            translate_click: None,
+            visible_bodies: [None; MAX_VISIBLE],
+            pressed_body: None,
             #[cfg(test)]
             for_shot: false,
         }
@@ -628,6 +651,8 @@ impl ChatOverlay {
                 self.own_slot,
                 self.duel_partner.target(),
             ),
+            local: false,
+            asked: false,
         };
         self.push_line(line, server_private);
     }
@@ -702,6 +727,8 @@ impl ChatOverlay {
             verified,
             recipient,
             loud: true,
+            local: false,
+            asked: false,
         };
         self.push_line(line, true);
         true
@@ -909,6 +936,9 @@ pub(crate) enum ChatInputResult {
     Sjk(String),
     /// A message for a clan chat, to send through the hub.
     Clan(String, sjk_identity::HubChannel),
+    /// `/tr`: translate the text, or the newest foreign line when `None`
+    /// (`chat/translate.rs`); nothing goes to the server.
+    Translate(Option<String>),
 }
 
 #[cfg(test)]

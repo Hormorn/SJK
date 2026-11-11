@@ -234,6 +234,15 @@ pub trait Hub: Send {
             "This hub client does not support chat reactions".into(),
         ))
     }
+    /// Put `text` (already checked by [`crate::translate::check`]) into English with
+    /// the hub's translator (`POST /v1/translate`), signed by the identity.
+    fn translate(
+        &mut self,
+        _identity: &Identity,
+        _text: &str,
+    ) -> Result<crate::translate::Translation, crate::translate::TranslateError> {
+        Err(crate::translate::TranslateError::NeedsUpdate)
+    }
     /// Ban the player of `key_id` from the SJK chat for 24 hours (`POST /v1/chat/ban`):
     /// only a verified or staff identity may, and only a player the hub does not vouch
     /// for ([`crate::ban`]).
@@ -1109,6 +1118,8 @@ pub struct HttpHub {
     clock_offset: i64,
     /// The shader the last refusal named (`id`, a `shatter-many` one since 05/11/2026).
     refused_id: Option<String>,
+    /// The `until` the last refusal carried (a `translate_daily` one).
+    refused_until: Option<i64>,
 }
 
 impl HttpHub {
@@ -1140,6 +1151,7 @@ impl HttpHub {
             agent,
             clock_offset: 0,
             refused_id: None,
+            refused_until: None,
         })
     }
 
@@ -1250,6 +1262,7 @@ impl HttpHub {
     fn refusal(&mut self, status: u16, value: &Value, may_retry: bool) -> Option<HubError> {
         let code = value["error"].as_str().unwrap_or("error").to_owned();
         self.refused_id = value["id"].as_str().map(str::to_owned);
+        self.refused_until = value["until"].as_i64();
         if code == "clock"
             && may_retry
             && let Some(server_time) = value["server_time"].as_i64()
@@ -2727,6 +2740,20 @@ impl Hub for HttpHub {
             .as_bool()
             .ok_or_else(|| HubError::Protocol("Reaction answer has no changed flag".into()))?;
         Ok(())
+    }
+
+    fn translate(
+        &mut self,
+        identity: &Identity,
+        text: &str,
+    ) -> Result<crate::translate::Translation, crate::translate::TranslateError> {
+        use crate::translate::{TranslateError, parse_answer};
+        self.refused_until = None;
+        let body = json!({ "text": text });
+        let answer = self
+            .send(Some(identity), "POST", "/v1/translate", Some(body))
+            .map_err(|error| TranslateError::from_hub(error, self.refused_until.take()))?;
+        parse_answer(&answer).map_err(TranslateError::Hub)
     }
 
     fn chat_ban(&mut self, identity: &Identity, key_id: &str) -> Result<ChatBan, HubError> {
