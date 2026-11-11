@@ -3831,6 +3831,18 @@ test: An SJK player sharing: real bars and gold contour as before.
 test: Settings, Nameplates: no Bars on everyone row; help has no entry for it.
 note: NPC plates (cg_nameplateNpcs) keep their bars.
 
+[playstyle-badges]
+area: HUD
+title: Playstyle badges over nameplates (cg_playSaberDuels... cg_nameplatePlaystyle)
+change: Settings, by the nameplate rows: I enjoy saber duels / Force duels / FFA / goofing / teach.
+change: Picks go in your hub look as toys; SJK players see round badges over your nameplate.
+change: Crosshair on a player: each badge widens and says its words for 1.5 s.
+test: cg_nameplate 1, cg_nameplateSelf 1, third person: tick two picks, badges over own plate.
+test: Try cg_nameplateStyle 0, 1 and 2: the row stands over the plate and its power icons.
+test: Two SJK clients on one server: B sees A's badges, aim at A to read the words.
+test: A private duel hides the badges; far away they fade with the plate.
+note: Purely social: nothing is blocked. cg_nameplatePlaystyle 0 hides everyone's badges.
+
 [nameplate-capsule]
 area: HUD
 title: Capsule nameplates: picture, name, weapon; a sharer's bars on a tray (design E)

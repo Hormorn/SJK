@@ -32,6 +32,7 @@ Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
 ## Unreleased
 
+- Playstyle badges: say how you like to play (saber duels, Force duels, FFA chaos, goofing around, teaching) in Settings next to the nameplates' rows, and SJK players see small badges over your nameplate; aim at a player to read theirs. Purely social, nothing is blocked (`cg_playSaberDuels`, `cg_playForceDuels`, `cg_playFfa`, `cg_playGoofing`, `cg_playTeaching`; `cg_nameplatePlaystyle` hides the badges) _(Sol)_
 - Faster joins: on JA+ servers the loading screen no longer waits 3 s for a Force reply the server never sends; other players' models load once the map shows (each as Kyle for a moment); emote fitting, game fonts and server shader remaps no longer hold the loading screen _(Sol)_
 - World brightness: the Renderer page's HDR exposure is now called World brightness and brightens the 3D world without touching the HUD, also with HDR scene off (`r_hdrExposure`, which there only brightens). Brightness in Graphics stays the whole screen's curve _(Sol)_
 

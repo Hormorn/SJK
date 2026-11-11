@@ -300,7 +300,7 @@ impl State {
         icons: &[Option<TextureId>],
         font: &UiFont,
         viewport: [f32; 2],
-    ) {
+    ) -> [f32; 2] {
         let Place {
             index,
             id,
@@ -358,6 +358,7 @@ impl State {
             capsule.badge,
             opacity,
         );
+        let mut top = capsule.pill.y;
         if entry.power_count > 0 && entry.proximity > 0.01 {
             let shown = entry.powers[..usize::from(entry.power_count)]
                 .iter()
@@ -368,8 +369,10 @@ impl State {
                 let k = capsule.k;
                 let inset = (CHIP_INSET * k).max(1.0);
                 self.chip_row(entry, icons, (chip, step), CHIP_CORNER * k, inset);
+                top = chip.y;
             }
         }
+        [capsule.pill.x + capsule.pill.width * 0.5, top]
     }
 
     /// The capsule's pill, its fill (a team's colour made deep in team games) and its

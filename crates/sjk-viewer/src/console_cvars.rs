@@ -769,6 +769,36 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
             "Your own model in toon shading, as every SJK player who shows toon models sees it (SJK)",
         ),
         CvarDefinition::new(
+            crate::playstyle::Playstyle::SaberDuels.cvar(),
+            false,
+            archive,
+            "You enjoy saber duels: a badge over your nameplate for SJK players (SJK)",
+        ),
+        CvarDefinition::new(
+            crate::playstyle::Playstyle::ForceDuels.cvar(),
+            false,
+            archive,
+            "You enjoy full Force duels: a badge over your nameplate for SJK players (SJK)",
+        ),
+        CvarDefinition::new(
+            crate::playstyle::Playstyle::Ffa.cvar(),
+            false,
+            archive,
+            "You are up for FFA chaos: a badge over your nameplate for SJK players (SJK)",
+        ),
+        CvarDefinition::new(
+            crate::playstyle::Playstyle::Goofing.cvar(),
+            false,
+            archive,
+            "You are here to goof around: a badge over your nameplate for SJK players (SJK)",
+        ),
+        CvarDefinition::new(
+            crate::playstyle::Playstyle::Teaching.cvar(),
+            false,
+            archive,
+            "You are happy to teach or learn: a badge over your nameplate for SJK players (SJK)",
+        ),
+        CvarDefinition::new(
             crate::status_balloons::CVAR,
             true,
             archive,

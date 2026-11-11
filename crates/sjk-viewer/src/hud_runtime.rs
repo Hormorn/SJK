@@ -262,6 +262,9 @@ pub(crate) fn update(
             });
         gpu.hud
             .nameplate
+            .set_playstyles(crate::playstyle::slots(&gpu.looks));
+        gpu.hud
+            .nameplate
             .refresh_shared(i64::from(presentation_time), || {
                 let game_state = session.game_state();
                 (

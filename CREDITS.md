@@ -161,6 +161,9 @@ includes:
 - a texture size cap (08/11/2026, Sol's decision): `r_maxTextureSize`, 2048 by default,
   halves larger map and model textures down to it, after a community player model's
   4096x4096 textures held a frame 743 ms;
+- playstyle badges (11/11/2026, Sol's idea): saber duels, Force duels, FFA chaos,
+  goofing around and teaching, picked in Settings, synced as look toys and shown as
+  badges over SJK players' nameplates (`cg_nameplatePlaystyle`);
 - status bubbles (08/11/2026, Sol's idea): `cg_statusBalloons`, the chat bubble over an
   SJK player showing why it is up (dots lit in turn while typing, a pause sign in a menu
   or the console, a moon while alt-tabbed), its reason sent through the toy relay;

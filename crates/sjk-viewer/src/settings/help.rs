@@ -894,6 +894,30 @@ const HELP: &[(&str, &str)] = &[
         "Crossed sabers before the name of a player who is in a duel.",
     ),
     (
+        crate::playstyle::SHOW_CVAR,
+        "Badges over SJK players' nameplates for how they like to play. Aim at a player to read them.",
+    ),
+    (
+        crate::playstyle::Playstyle::SaberDuels.cvar(),
+        crate::playstyle::Playstyle::SaberDuels.help(),
+    ),
+    (
+        crate::playstyle::Playstyle::ForceDuels.cvar(),
+        crate::playstyle::Playstyle::ForceDuels.help(),
+    ),
+    (
+        crate::playstyle::Playstyle::Ffa.cvar(),
+        crate::playstyle::Playstyle::Ffa.help(),
+    ),
+    (
+        crate::playstyle::Playstyle::Goofing.cvar(),
+        crate::playstyle::Playstyle::Goofing.help(),
+    ),
+    (
+        crate::playstyle::Playstyle::Teaching.cvar(),
+        crate::playstyle::Playstyle::Teaching.help(),
+    ),
+    (
         "cg_nameplateWalls",
         "Shows nameplates of players behind walls, dimmed. Off hides them.",
     ),

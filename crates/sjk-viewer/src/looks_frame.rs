@@ -59,6 +59,13 @@ impl GpuState {
             .as_ref()
             .and_then(|console| console.bool_cvar(crate::toon_choice::CVAR))
             .unwrap_or(false);
+        // The own playstyles (`playstyle.rs`).
+        let plays = crate::playstyle::Playstyle::ALL.map(|style| {
+            self.console
+                .as_ref()
+                .and_then(|console| console.bool_cvar(style.cvar()))
+                .unwrap_or(false)
+        });
         // The Hax's trap holds while away: hackers' clients may then hack the player away.
         let away_hackable = self.hax.on() && crate::hax::away_hackable(self.console.as_ref());
         let text = |name: &str| {
@@ -128,7 +135,8 @@ impl GpuState {
                     .with_toy(crate::fishing::TOY, self.fishing.on())
                     .with_toy(crate::toon_choice::TOY, toon)
                     .with_toy(crate::mining::TOY, self.mining.on())
-                    .with_toy(crate::quests::TOY, self.quests.on()),
+                    .with_toy(crate::quests::TOY, self.quests.on())
+                    .with_playstyles(plays),
             );
             (
                 own.saber_skin,
@@ -171,7 +179,8 @@ impl GpuState {
         .with_toy(crate::fishing::TOY, self.fishing.on())
         .with_toy(crate::toon_choice::TOY, toon)
         .with_toy(crate::mining::TOY, self.mining.on())
-        .with_toy(crate::quests::TOY, self.quests.on());
+        .with_toy(crate::quests::TOY, self.quests.on())
+        .with_playstyles(plays);
         if let Some(sent) = sent {
             let options = crate::blade_extras::gated(&options, player_identity::holds_card);
             let mut look = sent.to_look(&options);

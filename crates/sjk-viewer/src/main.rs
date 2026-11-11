@@ -233,6 +233,7 @@ mod particle_draw;
 mod peek;
 mod pipeline_cache;
 mod player_trades;
+mod playstyle;
 mod portable_shields;
 mod portal;
 mod prediction_preview;

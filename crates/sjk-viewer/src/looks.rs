@@ -62,7 +62,7 @@ fn blade_skin(id: &str) -> Option<&'static str> {
 /// The toys a look can have out that this client draws, by id (`PROTOCOL.md`, "Looks"):
 /// a toy's bit in [`Worn::toys`] is its place here. A look naming another id (a newer
 /// client's toy) draws nothing more.
-pub(crate) const TOYS: [&str; 13] = [
+pub(crate) const TOYS: [&str; 18] = [
     crate::cardboard_box::TOY,
     crate::order66::TOY,
     crate::hax::TOY,
@@ -83,6 +83,12 @@ pub(crate) const TOYS: [&str; 13] = [
     crate::mining::TOY,
     // Quests' switch: the hub gives quests among the players whose look has it.
     crate::quests::TOY,
+    // The wearer's playstyles, their badges over the nameplate (`playstyle.rs`).
+    crate::playstyle::Playstyle::SaberDuels.toy(),
+    crate::playstyle::Playstyle::ForceDuels.toy(),
+    crate::playstyle::Playstyle::Ffa.toy(),
+    crate::playstyle::Playstyle::Goofing.toy(),
+    crate::playstyle::Playstyle::Teaching.toy(),
 ];
 // A bit each in a `u32`: as many as a hub look holds (32 toy ids since 30/10/2026).
 const _: () = assert!(TOYS.len() <= u32::BITS as usize);
@@ -220,6 +226,14 @@ impl Worn {
             };
         }
         self
+    }
+
+    /// With the own playstyles `on`, one per [`crate::playstyle::Playstyle::ALL`].
+    pub(crate) fn with_playstyles(self, on: [bool; 5]) -> Self {
+        crate::playstyle::Playstyle::ALL
+            .into_iter()
+            .zip(on)
+            .fold(self, |worn, (style, on)| worn.with_toy(style.toy(), on))
     }
 
     /// The look the hub is told the local player wears: the skin only when the own

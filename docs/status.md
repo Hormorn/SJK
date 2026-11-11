@@ -1,3 +1,14 @@
+## Playstyle badges (11/11/2026)
+
+`personal/playstyle`, based on `main` `6176b0658`: five switches (`cg_playSaberDuels`,
+`cg_playForceDuels`, `cg_playFfa`, `cg_playGoofing`, `cg_playTeaching`, off) say how a
+player likes to play; the picks travel as look toys (no hub change) and SJK players see
+them as badges over the nameplate (`cg_nameplatePlaystyle`, on), with their words while
+the crosshair is on the player. Verified on Windows x64: unit tests (toys in the look,
+badge layout and words) and the off-screen nameplate snapshots in all three styles. Not
+verified: two clients on a server through the hub, in game. See
+[playstyle badges](client.md#playstyle-badges).
+
 ## Faster joins on JA+ servers (11/11/2026)
 
 11/11/2026, `personal/fast-join` based on `main` `b6e4d618e` (Sol: "often it seems player is
