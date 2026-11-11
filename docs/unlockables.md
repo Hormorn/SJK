@@ -1933,9 +1933,17 @@ that only a holder of a given card in a given finish may switch on
   (`saber_skin_options.rs`). In a frame both ride on the same 64 bits.
 - **Gated** in the client before the look is made (`blade_extras::gated`): the words for
   the extras of a skin whose card the own hub profile does not list in its finish are left
-  out, so they are neither drawn for the player nor sent. The Collection lists the extras
-  after the parts, each behind a padlock while locked, with a line saying what unlocks them;
-  a locked one takes no click. `saberskin <id> parts` lists them too ("locked" until the
+  out, so they are neither drawn for the player nor sent. In the Collection the extras
+  are not listed with the parts: an "Extra features (3)" chip, taller than the line,
+  stands at the right of "Parts", breathing as the tier frames do, and a click on it
+  opens a note over the page (darker than a hover card). While locked the chip is red
+  with a shut padlock and the note names each extra and what unlocks them; once
+  unlocked it is gold with an open padlock and the note holds a tick each that switches
+  the extra as the parts' ticks do (on the model at once and, worn, for every SJK
+  player; their number keys follow the parts'), without the unlock words. A click on the
+  note stays in it; a click off it, another click on the chip or Escape closes it
+  (10/11/2026: greyed in the list, with a line under it, they ran into the buttons on a
+  full card). `saberskin <id> parts` lists them too ("locked" until the
   card is held) and `saberskin <id> <extra> on` refuses while locked, saying why.
 - **Sent** as `saber_on` (and `saber2_on` for a second saber's own skin), only when not
   empty: the hub keeps them only while the key holds the card in its finish and drops

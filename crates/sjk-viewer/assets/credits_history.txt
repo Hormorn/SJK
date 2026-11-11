@@ -9,6 +9,44 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 11/11/2026 | - | Release 2026.1111.6 (Alpha)
+- defe121 |  | Release 2026.1111.6 (Alpha)
++ 11/11/2026 | - | Model sync: Download for installed models, a clearer refusal, one line per result
+- 70b237b |  | Model sync: Download for installed models, a clearer refusal, one line per result
++ 11/11/2026 | - | Model sync: docs and changelog for Download on installed models
+- 69e2ccf |  | Model sync: docs and changelog for Download on installed models
++ 11/11/2026 | - | Release 2026.1111.5 (Alpha)
+- 0a0ff5f |  | Release 2026.1111.5 (Alpha)
++ 11/11/2026 | - | Model sync: rig models (confirmed as the sender's), looser limits for community packs
+- c2191ef |  | Model sync: rig models (confirmed as the sender's), looser limits for community packs
++ 11/11/2026 | - | Release 2026.1111.4 (Alpha)
+- 98e35d5 |  | Release 2026.1111.4 (Alpha)
++ 11/11/2026 | - | Model sync: updates over the hosts' packs, sharemodel <name>, data for a page
+- 65a4aa5 |  | Model sync: updates over the hosts' packs, sharemodel <name>, data for a page
++ 11/11/2026 | - | Model sync page: share, update and download models in one place
+- a251704 |  | Model sync page: share, update and download models in one place
++ 11/11/2026 | - | Model sync: the error test no longer expects host_pack
+- ba99586 |  | Model sync: the error test no longer expects host_pack
++ 11/11/2026 | - | Playstyle card: ask everyone once a start how they like to play
+- 8460a26 |  | Playstyle card: ask everyone once a start how they like to play
++ 11/11/2026 | - | Tactical and Do not disturb in duels; quiet mode is Do not disturb
+- 7de0b72 |  | Tactical and Do not disturb in duels; quiet mode is Do not disturb
++ 11/11/2026 | - | Join: keep only a finished preview, cancel one still building
+- 563336e |  | Join: keep only a finished preview, cancel one still building
++ 11/11/2026 | - | Playstyle badges: say how you like to play, shown over nameplates
+- 00698d5 |  | Playstyle badges: say how you like to play, shown over nameplates
++ 11/11/2026 | - | Tactical mode: minimal, medium and max (cg_tactical)
+- eecd310 |  | Tactical mode: minimal, medium and max (cg_tactical)
++ 11/11/2026 | - | Tactical mode: a restart at a level takes it up without flipping settings
+- 5b1fdd4 |  | Tactical mode: a restart at a level takes it up without flipping settings
++ 11/11/2026 | - | Model sync: design page and the shared pack checks (sjk-model-sync)
+- 4c63378 |  | Model sync: design page and the shared pack checks (sjk-model-sync)
++ 11/11/2026 | - | Model sync: the wire (hub ticket, Sith cloud /models, client record)
+- 0294f80 |  | Model sync: the wire (hub ticket, Sith cloud /models, client record)
++ 11/11/2026 | - | Model sync: the client (share, getmodel, cl_autoModels, Inspect hint)
+- 408ea7e |  | Model sync: the client (share, getmodel, cl_autoModels, Inspect hint)
++ 11/11/2026 | - | Model sync: credits and the debug panel's test list
+- 21c7406 |  | Model sync: credits and the debug panel's test list
 + 11/11/2026 | - | World brightness: r_hdrExposure renamed, and it brightens 8-bit scenes too
 - fd1821e |  | World brightness: r_hdrExposure renamed, and it brightens 8-bit scenes too
 + 11/11/2026 | - | Join: stop waiting 3 s for an nfr JA+ never sends
@@ -3260,6 +3298,22 @@
 - bc795cb |  | Fixes to changelog, nameplate.rs, client.md
 
 = Kushina
++ 11/11/2026 | SJK #408 | Collection menu text fits the text size and letter spacing
+- a3e3ebd |  | Cards tab: drop the credits and shards from the headline
+- 4b6612a |  | Forge: section chips fit their labels, the section's line behind an "i" chip
+- 53dbc5f |  | Nameplates: the nameplate preview stands under the model
+- 3620cc9 |  | Forge: the kyber shards and credits sums are never cut
+- aa2b384 |  | Shaders: the New count behind a "?" note, the sticker clear of the headline
+- 09e92d4 |  | Shaders: what unlocks a shader's extras stands under the card's buttons
+- 2a0e1e6 |  | Nameplates: the nameplate preview behind Showcase current set
+- 34f9e82 |  | Shaders: locked extras behind a gold Locked features chip and note
+- 8d88064 |  | Nameplates: the plate's name measured as drawn, the classic frame fits it
+- fd84551 |  | Shaders: the Locked features chip red and taller
+- ca844b1 |  | Hover cards wrap with the letter spacing; the showcase card covers the places
+- d8558d1 |  | World shots of the menu text fixes (menu_text_shots)
+- bef0109 |  | Shaders: Extra features chip, gold with switchable extras once unlocked
+- 2b0ee39 |  | Forge: the search field on the section chips' line
+- ae34ec5 |  | Changelog line for the menu text fixes; rustfmt
 + 08/11/2026 | SJK #389 | Set the browser's sort mark clear after its column's name
 - 693530f |  | Set the browser's sort mark clear after its column's name
 + 08/11/2026 | SJK #388 | Show a ribbon bar for every medal on the scoreboard

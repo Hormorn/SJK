@@ -367,6 +367,9 @@ mod economy_shots;
 #[path = "world_shot_forge.rs"]
 mod forge_shots;
 
+#[path = "world_shot_menu_text.rs"]
+mod menu_text_shots;
+
 #[path = "world_shot_create_game.rs"]
 mod create_game;
 

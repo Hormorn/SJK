@@ -60,6 +60,9 @@ use std::time::Duration;
 pub(super) const SECTION_BASE: u16 = 9_000;
 pub(crate) const SHARDS_TOKEN: u16 = 9_005;
 pub(super) const CREDITS_TOKEN: u16 = 9_006;
+/// The round "i" chip after the section chips, its hover card the section's line
+/// (10/11/2026).
+pub(crate) const INFO_TOKEN: u16 = 9_007;
 pub(super) const OFFER_BASE: u16 = 9_010;
 pub(super) const OFFER_BUY_BASE: u16 = 9_020;
 pub(super) const HOLOCRON_BASE: u16 = 9_030;
@@ -645,6 +648,12 @@ pub(super) struct Forge {
     pub(super) break_filter: ForgeFilter,
     /// The search field of the section on show takes the typing.
     pub(super) search_focus: bool,
+    /// What the section on show is, said by the "i" chip's hover card (10/11/2026; it
+    /// was a line under the chips, which ran into the search field).
+    pub(super) intro: String,
+    /// Where the section chips' line ends this frame, the "i" chip's room taken (frame
+    /// pixels): the search field stands on that line at its right (10/11/2026).
+    pub(super) chips_end: f32,
     /// A button pressed once, waiting for its second press, and since when.
     pub(super) armed: Option<(Press, Instant)>,
     /// The last trade sent from the Forge: the outcome's serial before it, and what.
@@ -1691,7 +1700,7 @@ impl Forge {
                 Some(item) if self.section == Section::Craft => self.wish(item.skin.id),
                 _ => PanelAction::None,
             },
-            SHARDS_TOKEN | CREDITS_TOKEN => PanelAction::None,
+            SHARDS_TOKEN | CREDITS_TOKEN | INFO_TOKEN => PanelAction::None,
             _ => return None,
         })
     }

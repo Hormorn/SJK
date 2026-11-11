@@ -128,6 +128,7 @@ Graphics presets for your PC, richer rain and settling snow, a Forge that fuses 
 - The Forge fuses duplicates: a new Fuse section turns spare copies of a tier's shaders into a shader of the next tier you don't own yet. The shop has a deal of the day at half price and a wishlist of three shaders (the gift toggle on a shader's card, in Craft and on each offer), with a card on the day a wished shader is on offer, and a gold dot shows where there is something to take _(Sol)_
 - Blade shaders load faster: on Vulkan the built shaders are kept on disk (`GameData/SJK/cache`) for the next start, and the blades worn on the server are built ahead, before they are first drawn _(Sol)_
 - `cg_defaultModelRandom` (Settings > Gameplay, "Random missing models"): a player whose model you lack shows as a retail model picked from its name, the same one each time, a woman's for a woman, instead of Kyle; off by default, as in base JKA _(Slash, PR #406, after mg.perso's report, hub report #302; after JoF EJK)_
+- Collection menu text fits with a larger text size and letter spacing: the Forge's chips, sums and search field, the Shaders tab's New count (now behind a "?" note) and the Nameplates tab's plate (now behind Showcase current set) are no longer cut or covered. A shader's extras moved to an Extra features chip: red with what unlocks them while locked, gold once unlocked, where you switch them on and off _(Kushina, PR #408)_
 
 ## 2026.1109.3 (Alpha) | 09/11/2026
 

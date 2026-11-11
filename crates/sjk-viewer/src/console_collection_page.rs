@@ -967,6 +967,19 @@ impl ViewerConsole {
         self.collection_panel.hover_for_shot(index);
     }
 
+    /// Open (or close) the Collection's New note, Extra features note and showcase
+    /// card, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_notes_for_shot(&mut self, new: bool, extras: bool, showcase: bool) {
+        self.collection_panel.notes_for_shot(new, extras, showcase);
+    }
+
+    /// Let every shader's extras count as unlocked on the Collection, for a world shot.
+    #[cfg(test)]
+    pub(crate) fn collection_extras_for_shot(&mut self, unlocked: bool) {
+        self.collection_panel.extras_unlocked_for_shot(unlocked);
+    }
+
     /// Let the Shaders tab show its way to the Forge (`known`), for a world shot.
     #[cfg(test)]
     pub(crate) fn collection_trade_for_shot(&mut self, known: bool) {

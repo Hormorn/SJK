@@ -2823,6 +2823,19 @@ test: Hold +attack: it fires as before. Hold a chord bound to weapnext: it cycle
 
 
 # ---- Menus & settings ----
+[collection-text-fit]
+area: Menus & settings
+title: Collection text fits text size and letter spacing (Kushina, PR #408)
+change: Forge chips, sums and search measured with letter spacing; section line behind "i".
+change: Shaders: New count behind "?"; extras behind Extra features chip (red locked, gold).
+change: Nameplates: preview behind Showcase current set; Cards tab has no balances.
+test: ui_textScale 1.2, ui_letterSpacing 0.06: Forge Shop/Craft/Break down chips show whole.
+test: Forge: hover "i" after the chips: the section's line; Craft's search on the chips line.
+test: Shaders: click "?" after New: the note; click elsewhere or Esc closes it.
+test: A Sun blade without Solar 000: red chip, note says what unlocks the extras.
+test: With the card: gold chip, its ticks switch the extras on the model; Esc closes it.
+test: Nameplates: Showcase current set opens the plate card; Style changes it; Esc closes.
+
 [classic-collection-camera]
 area: Menus & settings
 title: Classic menus: Collection, SJK chat and Camera control entries
