@@ -74,7 +74,7 @@ migrated, except where the table says so. Where each is documented:
 | `cg_serverRemaps` | off (servers' shader remaps; the map's own apply), asked on the 18/10 what's-new card | [Shader remap controls](client.md#shader-remap-controls) |
 | `cg_remapsShared` | on (Sol, 05/11/2026): server remaps ignored on the maps of the creator's shared list, unless the player chose the map | [Shader remap controls](client.md#shader-remap-controls) |
 | `r_toonModels` | on (Sol, 08/11/2026): players' own toon shading choices (`cg_toonModel`, off) show; saved values reset once by the what's-new card | [Toon models](rendering.md#toon-models) |
-| `cg_statusBalloons` | on (Sol, 09/11/2026, release 2026.1109.2): the chat bubble over SJK players shows why it is up; saved values reset once by the what's-new card | [Status balloons](client.md#status-balloons) |
+| `cg_statusBalloons` | 1, SJK animations (Sol, 09/11/2026, release 2026.1109.2); choices: stock, SJK, clan static or clan animated | [Status balloons](client.md#status-balloons) |
 | `cg_hitMarker` | off (red damage-direction indicator) | [Client](client.md#launch) |
 | `cg_shieldBrightness` | 2 passes, old defaults 1 and 4 moved to 2 once | [Client](client.md#launch) |
 | `cg_duelGhost` | on: duellists as JoF EJK's blue figures (off: dark under the bubble) | [Rendering](rendering.md#entity-render-effects) |

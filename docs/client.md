@@ -1031,7 +1031,7 @@ or off from it) set it. Each level holds the ones below it:
 
 | Level | What goes |
 | --- | --- |
-| Minimal (1) | Other players' emotes (playing ones end) and toys, as for a muted player but seen and heard otherwise; the toys' own "See ..." switches, tags, GIF tags, status balloons and holocron cards off; every unlock card in a game waits until Tactical is off |
+| Minimal (1) | Other players' emotes (playing ones end) and toys, as for a muted player but seen and heard otherwise; the toys' own "See ..." switches, tags and GIF tags off; status balloon pictures return to stock; holocron cards off and every unlock card in a game waits until Tactical is off |
 | Medium (2) | Also the Vanilla graphics preset, no weather, clouds, lightning, weather sounds or map fog (`r_drawfog 0`), every blade stock (`cg_stockBlades 2`), no finishers, Force Speed afterimages or toon shading |
 | Max (3) | Also the flat world (`r_flatWorld`), no server or shared remaps, and every other player drawn plain: in `cg_tacticalModel` (`kyle` by default, `model` or `model/skin`; a team game's red or blue kept), the default saber (the stock staff for a staff) in the default blue, without hat, cape or blade skin, as a [blocked player](hub-chat.md#blocking-a-player) is drawn, their names, chat and sounds untouched |
 
@@ -3198,17 +3198,30 @@ icons remain unimplemented. See
 
 ### Status balloons
 
-**Status bubbles** (`cg_statusBalloons`, Settings > Chat, on by default since 2026.1109.2, Sol's call,
-saved values reset once by its what's-new card;
-Sol's idea, 08/11/2026) draws the balloon over an SJK player as why it is up, in the
-stock balloon's shape and glow: the three dots lit one after the other while they type
-in the chat, a pause sign while a menu or the console is open (one picture for both:
-to the others each means "not playing for a moment"), and a blue moon with a z rising
-beside it while their window is alt-tabbed or minimised. Your own balloon in third
-person shows yours. Other players, and any SJK player whose reason has not arrived,
-keep the stock balloon ([status_balloons.rs](../crates/sjk-viewer/src/status_balloons.rs),
-[status_balloons_frame.rs](../crates/sjk-viewer/src/status_balloons_frame.rs); pictures
-by [status_balloon_assets.py](../scripts/status_balloon_assets.py)):
+**Status balloon mode** (`cg_statusBalloons`, Settings > Chat, defaults to `1` to preserve
+the original SJK behavior; Sol's idea, 08/11/2026; extended by Hormorn with clan-specific
+chat status bubbles) has four choices:
+
+- `0` **Default**: use the normal game balloon, with no custom image or animation.
+- `1` **SJK**: Sol's original SJK behavior, with standard typing, busy and away animations.
+- `2` **SJK Clan Default**: show each player's static clan picture.
+- `3` **SJK Clan Animated**: show clan-specific typing, busy and away animations, with a
+  static clan picture when no SJK reason is known.
+
+In **SJK**, an unknown reason uses the game's normal balloon. In either clan mode,
+players with a known clan tag use that clan's artwork, while all other players use the
+standard artwork.
+
+Clan themes use the existing clan-tag recognition: `{{S}}`, JoF, or standard for everyone
+else. The typing animation lights three dots in turn; busy shows a pause sign for a menu
+or console; away shows a blue moon with a rising z for an alt-tabbed or minimised window.
+For players without SJK, the published name selects the theme and `EF_TALK` determines
+whether the balloon is active; their picture is the theme's static `default.png`.
+This covers non-SJK players when their published name matches a recognised clan tag.
+The asset folders are
+`assets/status_balloons/Default`, `S` and `Jof` ([status_balloons.rs](../crates/sjk-viewer/src/status_balloons.rs),
+[status_balloons_frame.rs](../crates/sjk-viewer/src/status_balloons_frame.rs); standard
+placeholder images by [status_balloon_assets.py](../scripts/status_balloon_assets.py)):
 
 - **The server still decides the balloon.** It shows only while the player's entity
   carries `EF_TALK`, exactly where stock's would (and where a JA+ blade spares them);
@@ -3221,9 +3234,9 @@ by [status_balloon_assets.py](../scripts/status_balloon_assets.py)):
   (toy `status_balloon`, event `typing`, `menu`, `console` or `away`) through the
   [toy relay](hub-chat.md#toy-relay) to each other SJK player on the server, those
   in its snapshot first, one every 50 ms, and to each one who joins while it holds. A
-  new reason is told again; one that ends sends nothing. Others see the stock balloon
-  for the half second the relay takes. Every client sends whatever its setting,
-  so the players who switch it on see everyone's.
+  new reason is told again; one that ends sends nothing. Until the relay arrives, clan
+  animated mode shows its static fallback. Every client sends whatever its setting, and
+  each client applies its own selected mode to all talking players.
 - **How it is kept:** a reason heard (from a player whose shown name matches the
   claim, not muted here) holds until its player is seen in a snapshot without the
   balloon, after a 1.5 second grace for a relay quicker than the snapshots; out of

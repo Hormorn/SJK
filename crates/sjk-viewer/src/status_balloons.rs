@@ -1,23 +1,154 @@
-//! Status balloons (`cg_statusBalloons`, Sol's idea, 08/11/2026): the talk balloon over
-//! an SJK player shows why it is up: the three dots lit in turn while they type in the
-//! chat, a pause sign while a menu or the console is open, a moon with rising z's while
-//! their window is alt-tabbed or minimised.
+//! Status balloons (`cg_statusBalloons`, Sol's idea, 08/11/2026): the talk balloon uses
+//! a clan theme and, when the SJK reason is known, shows why it is up: the three dots lit
+//! in turn while they type in the chat, a pause sign while a menu or the console is open,
+//! a moon with rising z's while their window is alt-tabbed or minimised.
 //!
-//! The balloon itself stays the server's: `EF_TALK`, which the player's `BUTTON_TALK`
-//! sets ([`sjk_game_jka::pmove_talk`]), decides whether one shows, as in stock, so a
-//! balloon here is never up when stock's would not be (a JA+ blade spares a player under
-//! it). Only the reason travels, as one toy relay event (`docs/hub-chat.md`, "Toy
-//! relay") to each SJK player on the server when it changes ([`TOY`], [`Reason::word`]);
-//! the others, and any player whose reason has not come, keep the stock balloon. A
-//! reason is kept until its player is seen without the balloon, so it needs no event when
-//! it ends.
+//! The four [`Mode`]s choose stock's picture, Sol's original SJK reason animation, or a
+//! clan's static/animated theme. `EF_TALK`, which the player's `BUTTON_TALK` sets
+//! ([`sjk_game_jka::pmove_talk`]), still decides whether a balloon shows. Reasons travel
+//! as one toy relay event (`docs/hub-chat.md`, "Toy relay") to each SJK player on the
+//! server when they change ([`TOY`], [`Reason::word`]); a reason is kept until its player
+//! is seen without the balloon, so it needs no event when it ends.
 
 use std::time::{Duration, Instant};
 
+/// Artwork family for a clan, using the tags already recognised by `jof_tag`.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum ClanTheme {
+    #[default]
+    Default,
+    S,
+    Jof,
+}
+
+/// Clan tags with dedicated status balloon artwork. Every other recognised clan uses
+/// the standard theme.
+const CLAN_THEMES: &[(&str, ClanTheme)] = &[
+    // Sol's request, 12/11/2026: dedicated artwork for the {{S}} clan.
+    ("{{S}}", ClanTheme::S),
+    // Sol's request, 12/11/2026: dedicated artwork for Jedi of Freedom.
+    ("JoF", ClanTheme::Jof),
+];
+
+impl ClanTheme {
+    fn for_clan(clan: &str) -> Self {
+        CLAN_THEMES
+            .iter()
+            .find(|(tag, _)| *tag == clan)
+            .map_or(Self::Default, |(_, theme)| *theme)
+    }
+
+    fn for_name(name: &str) -> Self {
+        crate::jof_tag::clan(name)
+            .map(|clan| Self::for_clan(clan.name))
+            .unwrap_or_default()
+    }
+
+    const fn default_shader(self) -> &'static str {
+        match self {
+            Self::Default => "gfx/sjk/status/default/default",
+            Self::S => "gfx/sjk/status/s/default",
+            Self::Jof => "gfx/sjk/status/jof/default",
+        }
+    }
+
+    const fn shader(self, reason: Reason) -> &'static str {
+        match (self, reason) {
+            (Self::Default, Reason::Typing) => "gfx/sjk/status/default/typing",
+            (Self::Default, Reason::Menu | Reason::Console) => "gfx/sjk/status/default/busy",
+            (Self::Default, Reason::Away) => "gfx/sjk/status/default/away",
+            (Self::S, Reason::Typing) => "gfx/sjk/status/s/typing",
+            (Self::S, Reason::Menu | Reason::Console) => "gfx/sjk/status/s/busy",
+            (Self::S, Reason::Away) => "gfx/sjk/status/s/away",
+            (Self::Jof, Reason::Typing) => "gfx/sjk/status/jof/typing",
+            (Self::Jof, Reason::Menu | Reason::Console) => "gfx/sjk/status/jof/busy",
+            (Self::Jof, Reason::Away) => "gfx/sjk/status/jof/away",
+        }
+    }
+}
+
+/// How the talk sprite is drawn. These numeric values are saved in `cg_statusBalloons`
+/// and named in the Settings choice list below.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[repr(i64)]
+pub(crate) enum Mode {
+    /// Stock game's talk balloon; no SJK image or animation.
+    Default = 0,
+    /// Sol's original SJK status animations, using stock icons for unknown reasons.
+    #[default]
+    Sjk = 1,
+    /// Clan-specific static `default.png` pictures.
+    SjkClanDefault = 2,
+    /// Clan-specific reason animations, with static fallback pictures.
+    SjkClanAnimated = 3,
+}
+
+/// Fresh profiles keep Sol's requested animated SJK behavior as the selection.
+pub(crate) const DEFAULT_MODE: i64 = Mode::Sjk as i64;
+
+impl Mode {
+    pub(crate) const CHOICES: &[&str] = &["0", "1", "2", "3"];
+
+    pub(crate) fn from_value(value: i64) -> Self {
+        match value {
+            0 => Self::Default,
+            1 => Self::Sjk,
+            2 => Self::SjkClanDefault,
+            3 => Self::SjkClanAnimated,
+            // An unknown cvar value should always fall back to stock presentation.
+            _ => Self::Default,
+        }
+    }
+
+    pub(crate) const fn uses_clan_themes(self) -> bool {
+        matches!(self, Self::SjkClanDefault | Self::SjkClanAnimated)
+    }
+
+    pub(crate) const fn uses_animations(self) -> bool {
+        matches!(self, Self::Sjk | Self::SjkClanAnimated)
+    }
+}
+
+/// Clan themes for the current server. Player configstrings are only reparsed when the
+/// server changes a name or clan emblems are toggled, so this adds no per-frame allocations.
+#[derive(Debug)]
+struct ClanThemes {
+    player_info: [Option<Vec<u8>>; SLOTS],
+    themes: [ClanTheme; SLOTS],
+    emblems_shown: Option<bool>,
+}
+
+impl Default for ClanThemes {
+    fn default() -> Self {
+        Self {
+            player_info: std::array::from_fn(|_| None),
+            themes: [ClanTheme::Default; SLOTS],
+            emblems_shown: None,
+        }
+    }
+}
+
+impl ClanThemes {
+    fn follow(&mut self, game_state: &sjk_protocol::GameState, emblems_shown: bool) {
+        let visibility_changed = self.emblems_shown != Some(emblems_shown);
+        self.emblems_shown = Some(emblems_shown);
+        for slot in 0..SLOTS {
+            let info = game_state.config_string(crate::player_identity::CS_PLAYERS + slot);
+            if !visibility_changed && self.player_info[slot].as_deref() == info {
+                continue;
+            }
+            self.player_info[slot] = info.map(<[u8]>::to_vec);
+            self.themes[slot] = crate::player_identity::shown_name(game_state, slot)
+                .as_deref()
+                .map(ClanTheme::for_name)
+                .unwrap_or_default();
+        }
+    }
+}
+
 /// The relay's toy id. The hub knows no toys: any id of `a` to `z` and `_` goes.
 pub(crate) const TOY: &str = "status_balloon";
-/// The setting: draw the reasons (on by default since 2026.1109.2, Sol's call; off: stock's
-/// balloon).
+/// The setting for stock, original SJK, static clan, or animated clan balloons.
 pub(crate) const CVAR: &str = "cg_statusBalloons";
 /// Client slots.
 pub(crate) const SLOTS: usize = crate::looks::SLOTS;
@@ -61,55 +192,114 @@ impl Reason {
     pub(crate) fn parse(word: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|reason| reason.word() == word)
     }
-
-    /// The balloon drawn for it. A menu and the console share the pause sign: to the
-    /// others both mean "not playing for a moment", and three pictures read better from
-    /// afar than four.
-    pub(crate) const fn shader(self) -> &'static str {
-        match self {
-            Self::Typing => SHADERS[0],
-            Self::Menu | Self::Console => SHADERS[1],
-            Self::Away => SHADERS[2],
-        }
-    }
 }
 
-/// The balloons' shaders (`assets/status_balloons/status_balloons.shader`), which the
-/// frame's effect materials load ([`crate::effect_assets::CODE_SHADERS`]).
-pub(crate) const SHADERS: [&str; 3] = [
-    "gfx/sjk/status/typing",
-    "gfx/sjk/status/busy",
-    "gfx/sjk/status/away",
+/// The themed status balloon shaders and their static fallbacks. The reason names and
+/// animation timing stay the same across all three artwork families.
+pub(crate) const SHADERS: [&str; 12] = [
+    "gfx/sjk/status/default/typing",
+    "gfx/sjk/status/default/busy",
+    "gfx/sjk/status/default/away",
+    "gfx/sjk/status/s/typing",
+    "gfx/sjk/status/s/busy",
+    "gfx/sjk/status/s/away",
+    "gfx/sjk/status/jof/typing",
+    "gfx/sjk/status/jof/busy",
+    "gfx/sjk/status/jof/away",
+    "gfx/sjk/status/default/default",
+    "gfx/sjk/status/s/default",
+    "gfx/sjk/status/jof/default",
 ];
 
-/// The pictures, at their game paths, and their shader (made by
-/// `scripts/status_balloon_assets.py`, but the shader).
-macro_rules! bundled {
-    ($name:literal) => {
-        include_bytes!(concat!("../assets/status_balloons/", $name))
+macro_rules! theme_files {
+    ($folder:literal, $theme:literal) => {
+        [
+            (
+                concat!("gfx/sjk/status/", $theme, "/typing_1.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/typing_1.png"
+                )),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/typing_2.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/typing_2.png"
+                )),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/typing_3.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/typing_3.png"
+                )),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/busy.png"),
+                include_bytes!(concat!("../assets/status_balloons/", $folder, "/busy.png")),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/away_1.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/away_1.png"
+                )),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/away_2.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/away_2.png"
+                )),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/away_3.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/away_3.png"
+                )),
+            ),
+            (
+                concat!("gfx/sjk/status/", $theme, "/default.png"),
+                include_bytes!(concat!(
+                    "../assets/status_balloons/",
+                    $folder,
+                    "/default.png"
+                )),
+            ),
+        ]
     };
 }
-const FILES: [(&str, &[u8]); 8] = [
-    (
-        "shaders/sjk_status_balloons.shader",
-        bundled!("status_balloons.shader"),
-    ),
-    ("gfx/sjk/status/typing_1.png", bundled!("typing_1.png")),
-    ("gfx/sjk/status/typing_2.png", bundled!("typing_2.png")),
-    ("gfx/sjk/status/typing_3.png", bundled!("typing_3.png")),
-    ("gfx/sjk/status/busy.png", bundled!("busy.png")),
-    ("gfx/sjk/status/away_1.png", bundled!("away_1.png")),
-    ("gfx/sjk/status/away_2.png", bundled!("away_2.png")),
-    ("gfx/sjk/status/away_3.png", bundled!("away_3.png")),
-];
+
+const SHADER_FILE: (&str, &[u8]) = (
+    "shaders/sjk_status_balloons.shader",
+    include_bytes!("../assets/status_balloons/status_balloons.shader"),
+);
+const DEFAULT_FILES: [(&str, &[u8]); 8] = theme_files!("Default", "default");
+const S_FILES: [(&str, &[u8]); 8] = theme_files!("S", "s");
+const JOF_FILES: [(&str, &[u8]); 8] = theme_files!("Jof", "jof");
+
+fn files() -> impl Iterator<Item = (&'static str, &'static [u8])> {
+    std::iter::once(SHADER_FILE)
+        .chain(DEFAULT_FILES.iter().copied())
+        .chain(S_FILES.iter().copied())
+        .chain(JOF_FILES.iter().copied())
+}
 
 /// Mount the bundled balloon files.
 pub(crate) fn mount(vfs: &mut sjk_vfs::VirtualFileSystem) -> Result<(), sjk_vfs::VfsError> {
-    vfs.mount_memory("SJK status balloons", FILES.iter().copied())?;
+    vfs.mount_memory("SJK status balloons", files())?;
     Ok(())
 }
 
-/// What the own client tells: its reason, since when, and the slots told it.
+/// What this client tells: its reason, since when, and the slots told it.
 #[derive(Debug, Default)]
 struct Outbox {
     reason: Option<Reason>,
@@ -186,40 +376,56 @@ impl Heard {
     }
 }
 
-/// The reason drawn over each slot this frame, for the balloon's sprite
-/// (`player_sprites.rs`); none draws stock's.
+/// The themed picture shown for each talking player this frame (`player_sprites.rs`).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Shown(
-    [Option<Reason>; SLOTS],
+pub(crate) struct Shown {
+    mode: Mode,
+    reasons: [Option<Reason>; SLOTS],
+    themes: [ClanTheme; SLOTS],
     /// World shots: the balloon drawn over these players whatever their `EF_TALK`.
     #[cfg(test)]
-    pub(crate) bool,
-);
+    pub(crate) force: bool,
+}
 
 impl Default for Shown {
     fn default() -> Self {
-        Self(
-            [None; SLOTS],
+        Self {
+            mode: Mode::Default,
+            reasons: [None; SLOTS],
+            themes: [ClanTheme::Default; SLOTS],
             #[cfg(test)]
-            false,
-        )
+            force: false,
+        }
     }
 }
 
 impl Shown {
-    /// World shots: `reason` over every player, with or without the balloon.
+    /// World shots use the original SJK animations over every player.
     #[cfg(test)]
     pub(crate) fn for_shot(reason: Reason) -> Self {
-        Self([Some(reason); SLOTS], true)
+        Self {
+            mode: Mode::Sjk,
+            reasons: [Some(reason); SLOTS],
+            themes: [ClanTheme::Default; SLOTS],
+            force: true,
+        }
     }
 
-    /// The balloon's shader for the player in `slot`, if their reason is known.
+    /// The replacement shader for a talking player, if this mode selects one. `None`
+    /// leaves the stock sprite; clan animated mode falls back to its static clan image
+    /// until a reason arrives.
     pub(crate) fn shader(&self, slot: u16) -> Option<&'static str> {
-        self.0
-            .get(usize::from(slot))
-            .copied()
-            .flatten()
-            .map(Reason::shader)
+        let index = usize::from(slot);
+        let theme = self.themes.get(index).copied().unwrap_or_default();
+        let reason = self.reasons.get(index).copied().flatten();
+        match self.mode {
+            Mode::Default => None,
+            Mode::Sjk => reason.map(|reason| ClanTheme::Default.shader(reason)),
+            Mode::SjkClanDefault => Some(theme.default_shader()),
+            Mode::SjkClanAnimated => {
+                Some(reason.map_or_else(|| theme.default_shader(), |reason| theme.shader(reason)))
+            }
+        }
     }
 }
 
@@ -230,6 +436,7 @@ pub(crate) struct StatusBalloons {
     pub(crate) server: Option<std::net::SocketAddr>,
     outbox: Outbox,
     heard: Heard,
+    clans: ClanThemes,
     /// This frame's balloons ([`Shown`]).
     pub(crate) shown: Shown,
     /// World shots: drawn instead of `shown`, in a demo too.
@@ -246,11 +453,20 @@ impl StatusBalloons {
         };
     }
 
-    /// One frame at `now`: the own `reason`, the reasons `heard` (slot and reason, already
-    /// checked), the players `seen` in the snapshot and those of them `talking` (bits by
-    /// slot). Returns the event to relay, if one is due, for the SJK players `others`
-    /// (bits), those `seen` first. `draw` is the setting; `own` the own slot, whose
-    /// balloon shows its own reason.
+    /// Cache themes by the game's published names, using `jof_tag::clan` and its setting.
+    pub(crate) fn follow_clans(
+        &mut self,
+        game_state: &sjk_protocol::GameState,
+        clan_emblems_shown: bool,
+    ) {
+        self.clans.follow(game_state, clan_emblems_shown);
+    }
+
+    /// One frame at `now`: the selected `mode`, the own `reason`, the reasons `heard`
+    /// (slot and reason, already checked), the players `seen` in the snapshot and those
+    /// of them `talking` (bits by slot). Returns the event to relay, if one is due, for
+    /// the SJK players `others` (bits), those `seen` first. `own` is the own slot.
+    /// Reasons are still relayed in stock mode so other SJK clients can use them.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn frame(
         &mut self,
@@ -261,20 +477,28 @@ impl StatusBalloons {
         talking: u64,
         others: u64,
         own: Option<u8>,
-        draw: bool,
+        mode: Mode,
     ) -> Option<(u8, Reason)> {
         for (slot, reason) in heard {
             self.heard.hear(slot, reason, now);
         }
         self.heard.follow(seen, talking, now);
         self.outbox.follow(reason, now);
-        self.shown = Shown::default();
-        if draw {
-            for (shown, heard) in self.shown.0.iter_mut().zip(self.heard.0.iter()) {
+        self.shown = Shown {
+            mode,
+            themes: if mode.uses_clan_themes() {
+                self.clans.themes
+            } else {
+                [ClanTheme::Default; SLOTS]
+            },
+            ..Shown::default()
+        };
+        if mode.uses_animations() {
+            for (shown, heard) in self.shown.reasons.iter_mut().zip(self.heard.0.iter()) {
                 *shown = heard.map(|(reason, _)| reason);
             }
             if let Some(slot) = own.filter(|slot| usize::from(*slot) < SLOTS) {
-                self.shown.0[usize::from(slot)] = reason;
+                self.shown.reasons[usize::from(slot)] = reason;
             }
         }
         let others = own.map_or(others, |own| others & !(1 << own));
@@ -295,11 +519,12 @@ mod tests {
                 "{shader}"
             );
         }
-        let source = std::str::from_utf8(FILES[0].1).unwrap();
+        let files: Vec<_> = files().collect();
+        let source = std::str::from_utf8(files[0].1).unwrap();
         for shader in SHADERS {
             assert!(source.contains(shader), "{shader}");
         }
-        for (path, bytes) in &FILES[1..] {
+        for (path, bytes) in &files[1..] {
             assert!(bytes.starts_with(&[0x89, b'P', b'N', b'G']), "{path}");
             let picture = path.trim_end_matches(".png");
             assert!(source.contains(picture), "{picture} unused");
@@ -318,7 +543,10 @@ mod tests {
         }
         assert!(TOY.len() <= 32 && TOY.bytes().all(|b| b.is_ascii_lowercase() || b == b'_'));
         assert_eq!(Reason::parse("dancing"), None);
-        assert_eq!(Reason::Menu.shader(), Reason::Console.shader());
+        assert_eq!(
+            ClanTheme::Default.shader(Reason::Menu),
+            ClanTheme::Default.shader(Reason::Console)
+        );
     }
 
     #[test]
@@ -336,7 +564,7 @@ mod tests {
                 0,
                 others,
                 Some(1),
-                true,
+                Mode::Sjk,
             )
         };
         // Not yet held long enough.
@@ -364,7 +592,7 @@ mod tests {
         let mut at = start;
         let mut tick = |balloons: &mut StatusBalloons, reason, others| {
             at += Duration::from_millis(300);
-            balloons.frame(at, reason, [], 0, 0, others, Some(0), true)
+            balloons.frame(at, reason, [], 0, 0, others, Some(0), Mode::Sjk)
         };
         tick(&mut balloons, Some(Reason::Menu), 1 << 3);
         assert_eq!(
@@ -388,10 +616,28 @@ mod tests {
         );
         // The own slot is never told.
         let mut own = StatusBalloons::default();
-        own.frame(start, Some(Reason::Typing), [], 0, 0, 1 << 6, Some(6), true);
+        own.frame(
+            start,
+            Some(Reason::Typing),
+            [],
+            0,
+            0,
+            1 << 6,
+            Some(6),
+            Mode::Sjk,
+        );
         let later = start + Duration::from_secs(1);
         assert_eq!(
-            own.frame(later, Some(Reason::Typing), [], 0, 0, 1 << 6, Some(6), true),
+            own.frame(
+                later,
+                Some(Reason::Typing),
+                [],
+                0,
+                0,
+                1 << 6,
+                Some(6),
+                Mode::Sjk
+            ),
             None
         );
     }
@@ -400,29 +646,39 @@ mod tests {
     fn a_heard_reason_shows_until_its_player_is_seen_without_the_balloon() {
         let start = Instant::now();
         let mut balloons = StatusBalloons::default();
-        balloons.frame(start, None, [(4, Reason::Away)], 0, 0, 0, Some(0), true);
+        balloons.frame(
+            start,
+            None,
+            [(4, Reason::Away)],
+            0,
+            0,
+            0,
+            Some(0),
+            Mode::Sjk,
+        );
         assert_eq!(balloons.shown.shader(4), Some(SHADERS[2]));
         assert_eq!(balloons.shown.shader(5), None);
         // Seen without the balloon before it showed: kept for the grace.
         let soon = start + Duration::from_millis(500);
-        balloons.frame(soon, None, [], 1 << 4, 0, 0, Some(0), true);
+        balloons.frame(soon, None, [], 1 << 4, 0, 0, Some(0), Mode::Sjk);
         assert_eq!(balloons.shown.shader(4), Some(SHADERS[2]));
         // Out of view, kept whatever the time.
         let late = start + Duration::from_secs(60);
-        balloons.frame(late, None, [], 0, 0, 0, Some(0), true);
+        balloons.frame(late, None, [], 0, 0, 0, Some(0), Mode::Sjk);
         assert_eq!(balloons.shown.shader(4), Some(SHADERS[2]));
         // Seen under it, kept.
-        balloons.frame(late, None, [], 1 << 4, 1 << 4, 0, Some(0), true);
+        balloons.frame(late, None, [], 1 << 4, 1 << 4, 0, Some(0), Mode::Sjk);
         assert_eq!(balloons.shown.shader(4), Some(SHADERS[2]));
         // Seen without it after the grace: gone.
-        balloons.frame(late, None, [], 1 << 4, 0, 0, Some(0), true);
+        balloons.frame(late, None, [], 1 << 4, 0, 0, Some(0), Mode::Sjk);
         assert_eq!(balloons.shown.shader(4), None);
     }
 
     #[test]
-    fn the_setting_off_draws_stock_but_still_tells_and_hears() {
+    fn stock_mode_keeps_the_stock_balloon_but_still_tells_and_hears() {
         let start = Instant::now();
         let mut balloons = StatusBalloons::default();
+        balloons.clans.themes[2] = ClanTheme::Jof;
         balloons.frame(
             start,
             Some(Reason::Console),
@@ -431,7 +687,7 @@ mod tests {
             0,
             1 << 2,
             Some(1),
-            false,
+            Mode::Default,
         );
         assert_eq!(balloons.shown.shader(1), None);
         assert_eq!(balloons.shown.shader(2), None);
@@ -445,11 +701,48 @@ mod tests {
                 0,
                 1 << 2,
                 Some(1),
-                true
+                Mode::Sjk
             ),
             Some((2, Reason::Console))
         );
         assert_eq!(balloons.shown.shader(1), Some(SHADERS[1]));
         assert_eq!(balloons.shown.shader(2), Some(SHADERS[0]));
+    }
+
+    #[test]
+    fn the_clan_theme_table_maps_only_the_requested_clans() {
+        assert_eq!(ClanTheme::for_clan("{{S}}"), ClanTheme::S);
+        assert_eq!(ClanTheme::for_clan("JoF"), ClanTheme::Jof);
+        assert_eq!(ClanTheme::for_clan("JoFA"), ClanTheme::Default);
+        assert_eq!(ClanTheme::for_clan("JAWA"), ClanTheme::Default);
+    }
+
+    #[test]
+    fn a_talking_player_without_a_reason_gets_the_clan_static_fallback() {
+        let start = Instant::now();
+        let mut balloons = StatusBalloons::default();
+        balloons.clans.themes[4] = ClanTheme::S;
+        balloons.frame(start, None, [], 0, 0, 0, Some(0), Mode::SjkClanDefault);
+        assert_eq!(balloons.shown.shader(4), Some(SHADERS[10]));
+        assert_eq!(balloons.shown.shader(5), Some(SHADERS[9]));
+    }
+
+    #[test]
+    fn clan_animated_mode_uses_the_clan_reason_and_static_fallback() {
+        let start = Instant::now();
+        let mut balloons = StatusBalloons::default();
+        balloons.clans.themes[4] = ClanTheme::Jof;
+        balloons.frame(
+            start,
+            None,
+            [(4, Reason::Typing)],
+            0,
+            0,
+            0,
+            Some(0),
+            Mode::SjkClanAnimated,
+        );
+        assert_eq!(balloons.shown.shader(4), Some(SHADERS[6]));
+        assert_eq!(balloons.shown.shader(5), Some(SHADERS[9]));
     }
 }

@@ -4,7 +4,8 @@
 //! - **Minimal** (1): nothing social over the game. Other players' emotes and toys are
 //!   not seen nor heard ([`hides_fun`], read where their relayed events are taken), the
 //!   unlock cards wait until Tactical is off again (`unlock_toast.rs`), and the toys'
-//!   own switches, status balloons, tags and holocron cards go off.
+//!   own switches, custom status balloon pictures, tags and holocron cards go off; the
+//!   talk balloon returns to the stock game picture.
 //! - **Medium** (2): the Vanilla graphics preset (`graphics_quality.rs`), no weather,
 //!   clouds, weather sounds or map fog, every blade stock (`cg_stockBlades 2`), no
 //!   finishers, Force Speed afterimages or toon shading.
@@ -103,7 +104,7 @@ impl Level {
     fn words(self) -> &'static str {
         match self {
             Self::Off => "everything as you set it",
-            Self::Minimal => "no emotes, toys, tags, status balloons or unlock cards",
+            Self::Minimal => "no emotes, toys, tags, custom status pictures or unlock cards",
             Self::Medium => {
                 "minimal, plus Vanilla graphics, no weather or fog, stock blades, no finishers"
             }

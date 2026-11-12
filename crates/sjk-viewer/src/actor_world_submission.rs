@@ -160,7 +160,7 @@ struct Sinks<'a> {
     card_outline: Option<u16>,
     /// The players outlined as teammates and enemies (`hud::team_outline`).
     team_outline: crate::hud::team_outline::Groups,
-    /// Why each player's talk balloon is up, where known (`status_balloons.rs`).
+    /// The themed picture for each talking player (`status_balloons.rs`).
     status_balloons: crate::status_balloons::Shown,
     /// Appearances whose model failed to load: their NPCs keep the Kyle stand-in.
     npc_failed: &'a std::collections::BTreeSet<Appearance>,

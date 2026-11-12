@@ -1291,15 +1291,18 @@ remain unverified. See [talk balloons](client.md#talk-balloons).
 ## Status balloons
 
 08/11/2026, `personal/status-balloons`, based on `main` `802e8ab8`: `cg_statusBalloons`
-(off by default) draws an SJK player's talk balloon as why it is up (typing, a menu or
-the console, away), the reason relayed once per change through the toy relay; the
+(then off by default) draws an SJK player's talk balloon as why it is up (typing, a menu
+or the console, away), the reason relayed once per change through the toy relay; the
 server's `EF_TALK` still decides whether a balloon shows. No hub change: the hub knows
-no toys. Verified on Windows x64: the sender's timing and order, newcomers told, the
-receiver's keep-until-seen-quiet rule, the setting and the bundled assets by unit
-tests; the offline GPU demo shot `status_balloons_on_a_demo` draws each picture over a
-recorded player through the sprite path, the typing dots changing frame. Not verified:
-two clients on a server through the hub, in game. See
-[status balloons](client.md#status-balloons).
+no toys. The original SJK implementation's sender timing and order, newcomers told,
+receiver keep-until-seen-quiet rule, setting and bundled assets were verified on Windows
+x64, including the offline GPU demo shot `status_balloons_on_a_demo`.
+
+Extended 12/11/2026 (Hormorn): `cg_statusBalloons` now has stock, original SJK, clan
+static and clan animated modes. Clan selection uses the existing clan-tag recognition;
+players without SJK can use the static clan picture when `EF_TALK` is set. Not verified:
+the four modes have not been checked since this extension, and in-game behavior remains
+for the user to check. See [status balloons](client.md#status-balloons).
 ## Received game-chat logs (opt in)
 
 01/11/2026, `feat/chat-logs`, based on `main` `57f60dde` (requested default):

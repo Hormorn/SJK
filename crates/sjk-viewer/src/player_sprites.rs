@@ -1,7 +1,7 @@
 //! `CG_PlayerSprites` / `CG_PlayerFloatSprite` (`codemp/cgame/cg_players.c`): the
 //! connection icon or talk balloon over a player's head, as a frame billboard in the
-//! effect pool (the balloon of an SJK player whose reason is known drawn as its status
-//! balloon, `status_balloons.rs`) that `pickups::simple::append_frame` clears on the next frame. It
+//! effect pool (a known SJK status reason or a clan's static fallback from
+//! `status_balloons.rs`) that `pickups::simple::append_frame` clears on the next frame. It
 //! uses the pool's billboard reserve ([`crate::particle_types::FRAME_BILLBOARD_RESERVE`]),
 //! so effects filling the pool do not hide it.
 use super::*;
@@ -51,7 +51,7 @@ pub(super) fn submit(
     };
     // World shots: the balloon over every player given one.
     #[cfg(test)]
-    let flags = if sinks.status_balloons.1 && sinks.status_balloons.shader(slot).is_some() {
+    let flags = if sinks.status_balloons.force && sinks.status_balloons.shader(slot).is_some() {
         flags | sjk_game_jka::pmove_talk::EF_TALK
     } else {
         flags

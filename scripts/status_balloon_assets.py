@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw the status balloons' pictures (`crates/sjk-viewer/assets/status_balloons`,
+"""Draw the standard status balloons' pictures (`crates/sjk-viewer/assets/status_balloons/Default`,
 `status_balloons.rs`, 08/11/2026): the stock talk balloon's shape and look (a black oval
 with a glowing rim and a tail at the lower left, 128 pixels square like
 `gfx/mp/chat_icon`), drawn anew, holding what the player is doing:
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-OUT = Path(__file__).resolve().parent.parent / "crates/sjk-viewer/assets/status_balloons"
+OUT = Path(__file__).resolve().parent.parent / "crates/sjk-viewer/assets/status_balloons/Default"
 SIZE = 128
 SS = 4  # supersampling
 BIG = SIZE * SS
@@ -155,6 +155,8 @@ def main():
         img = down(make())
         img.save(OUT / f"{name}.png", optimize=True)
         made[name] = img
+    # Non-SJK clients provide EF_TALK without a reason, so use a static first frame.
+    made["typing_1"].save(OUT / "default.png", optimize=True)
     if len(sys.argv) > 1:
         scale = 3
         sheet = Image.new("RGBA", (SIZE * scale * len(made), SIZE * scale), (70, 74, 80, 255))

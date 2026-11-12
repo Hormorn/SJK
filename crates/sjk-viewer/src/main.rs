@@ -660,7 +660,7 @@ struct GpuState {
     banana: banana::Banana,
     /// The Prop gun toy (`toy_propgun`): the gun held, the bolts and what others hold.
     propgun: propgun::PropGun,
-    /// The status balloons (`cg_statusBalloons`): why each SJK player's talk balloon is up.
+    /// The status balloons (`cg_statusBalloons`): each talking player's selected picture.
     status_balloons: status_balloons::StatusBalloons,
     /// The Tag toy (`toy_tag`): the own tag stuck on the world.
     tags: tags::Tags,

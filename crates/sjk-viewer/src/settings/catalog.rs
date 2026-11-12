@@ -1019,9 +1019,9 @@ pub(super) const HUD: &[Setting] = &[
         kind: ValueKind::Bool,
     },
     Setting {
-        label: "Status bubbles",
+        label: "Status balloon mode",
         cvar: crate::status_balloons::CVAR,
-        kind: ValueKind::Bool,
+        kind: ValueKind::Choice(crate::status_balloons::Mode::CHOICES),
     },
     Setting {
         label: "Save game chat logs",

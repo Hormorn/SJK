@@ -802,9 +802,9 @@ pub(super) fn register_daily_cvars(cvars: &mut CvarRegistry) -> Result<(), sjk_s
         ),
         CvarDefinition::new(
             crate::status_balloons::CVAR,
-            true,
+            crate::status_balloons::DEFAULT_MODE,
             archive,
-            "The talk balloon over SJK players shows why it is up: typing, a menu or the console, or away (SJK)",
+            "Status balloons: 0 stock, 1 SJK animations, 2 clan static, 3 clan animations (SJK)",
         ),
         CvarDefinition::new(
             crate::emotes::TYPING_KEEP_CVAR,

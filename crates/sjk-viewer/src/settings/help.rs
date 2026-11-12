@@ -100,6 +100,10 @@ pub(super) fn classic_label<'a>(cvar: &str, label: &'a str) -> (&'a str, Timing)
 /// a code: each `(cvar, value, name)`. A value not listed is shown as it is
 /// written ([`super::classic_view::choice_label`]).
 const CHOICE_NAMES: &[(&str, &str, &str)] = &[
+    (crate::status_balloons::CVAR, "0", "Default"),
+    (crate::status_balloons::CVAR, "1", "SJK"),
+    (crate::status_balloons::CVAR, "2", "SJK Clan Default"),
+    (crate::status_balloons::CVAR, "3", "SJK Clan Animated"),
     (crate::hud::clock::CVAR, "0", "Off"),
     (crate::hud::clock::CVAR, "1", "Time"),
     (crate::hud::clock::CVAR, "2", "Time and date"),
@@ -989,7 +993,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::status_balloons::CVAR,
-        "The chat bubble over SJK players shows why: dots while typing, a pause sign in a menu or the console, a moon while away.",
+        "Default: stock game balloon. SJK: Sol's original animations. SJK Clan Default: static clan picture. SJK Clan Animated: clan pictures with animations and a static fallback.",
     ),
     (
         crate::console::chat_log::CVAR,
