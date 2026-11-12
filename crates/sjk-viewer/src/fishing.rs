@@ -1807,7 +1807,10 @@ mod tests {
             unreachable!()
         };
         let wait = bite - now;
-        assert!(wait >= Duration::from_secs(14) && wait <= Duration::from_secs(41));
+        // The cast, then BITE_WAIT.
+        let (low, high) = BITE_WAIT;
+        assert!(wait >= CAST_TIME + Duration::from_secs_f32(low));
+        assert!(wait <= CAST_TIME + Duration::from_secs_f32(high) + Duration::from_millis(1));
         fishing.update(frame(false), bite, || None);
         assert!(matches!(
             fishing.phase,
@@ -1822,7 +1825,8 @@ mod tests {
             unreachable!()
         };
         fishing.update(frame(false), bite, || None);
-        fishing.update(frame(false), bite + Duration::from_secs(2), || None);
+        // Past the longest window (BITE_WINDOW's 2 s), the fish lets go.
+        fishing.update(frame(false), bite + Duration::from_secs(3), || None);
         assert!(matches!(fishing.phase, Some(Phase::Waiting { .. })));
     }
 
