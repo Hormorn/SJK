@@ -30,7 +30,16 @@ The site (site/assets/site.js, parseChangelog) reads the release headings,
 introductions and recap lines too.
 Add each release's notes here when it is tagged (docs/sjk.md "Releases").
 -->
-## Unreleased
+## 2026.1112.1 (Alpha) | 12/11/2026
+
+Mystery boxes reworked, the Ray Gun, Wheels of Doom on the maps, and easier fishing.
+
+> Mystery boxes: Never empty and never just the price back: a holocron nearly one time in two, piles of gold coins, the Ray Gun or, very rarely, a kyber crystal.
+> Ray Gun: A box may put it in your hand for 30 seconds; its bolts knock players down, and box hunters you hit pay you credits.
+> Wheels of Doom: They stand on maps now: spin one with Use for a DOOM coin, with a holocron of every tier on the wheel.
+> Fishing: Bites come sooner and give you more time to press Use, fewer come up empty, and an Echo bite gives 3 seconds and three tries.
+> Mining: Prospector can reach 9 of 9 again: a clean strike gives the rarer of two ores.
+> Fixes: Loading NPCs no longer flash as Kyle, a female player whose model you lack speaks with a female voice, and Collection text fits.
 
 - Mystery boxes are never empty and never just give the price back: a holocron (green or better) nearly one time in two, credits as piles of gold coins, the Ray Gun, and very rarely a kyber crystal; no more box in the box _(Sol)_
 - Everyone sees the real holocron or kyber crystal a box gives, never a placeholder _(Sol)_
