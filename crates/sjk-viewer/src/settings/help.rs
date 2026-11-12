@@ -993,7 +993,7 @@ const HELP: &[(&str, &str)] = &[
     ),
     (
         crate::status_balloons::CVAR,
-        "Default: stock game balloon. SJK: Sol's original animations. SJK Clan Default: static clan picture. SJK Clan Animated: clan pictures with animations and a static fallback.",
+        "Default: stock. SJK: original animations. Clan Default: static art. Clan Animated: clan art with animated reasons and a static fallback.",
     ),
     (
         crate::console::chat_log::CVAR,
