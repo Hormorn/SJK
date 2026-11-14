@@ -375,17 +375,22 @@ mod tests {
         );
     }
 
-    /// Every setting a release asks players to review is a switch Settings shows, so the
-    /// card can draw it with its name and switch it.
+    /// Every setting a release asks players to review is a switch the card can draw.
+    /// A reset-only entry may instead name any setting row: it is reset on upgrade, and
+    /// the card only offers interactive review for settings it can safely switch.
     #[test]
-    fn every_setting_to_review_is_a_settings_switch() {
+    fn settings_to_review_have_a_supported_settings_row() {
         for release in parse(EMBEDDED).unwrap() {
             for review in &release.review {
+                let supported = if review.reset {
+                    crate::settings::row_label(&review.cvar).is_some()
+                } else {
+                    crate::settings::switch_label(&review.cvar).is_some()
+                };
                 assert!(
-                    crate::settings::switch_label(&review.cvar).is_some(),
-                    "{}: {} is not an on/off row in Settings",
-                    release.title,
-                    review.cvar
+                    supported,
+                    "{}: {} has no supported Settings row",
+                    release.title, review.cvar
                 );
                 assert!(
                     (1..=160).contains(&review.text.len()),
