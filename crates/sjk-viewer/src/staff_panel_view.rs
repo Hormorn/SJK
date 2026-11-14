@@ -2634,7 +2634,7 @@ impl Panel {
             [MIDDLE_X, y + 88.0, 180.0, 42.0],
             "Merge...",
             ready,
-            ready && self.shown.creator,
+            ready,
             self.focus == MERGE_TOKEN,
             MERGE_TOKEN,
         );
@@ -2875,7 +2875,11 @@ impl Panel {
             && matches!(self.view, View::Achievements | View::Keys)
         {
             (
-                "Only the owner clears, unlinks or merges; this tab is to read.".to_owned(),
+                match self.view {
+                    View::Keys => "Only the owner unlinks; merging is every staff member's.",
+                    _ => "Only the owner clears; this tab is to read.",
+                }
+                .to_owned(),
                 color::MUTED,
             )
         } else {

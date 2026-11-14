@@ -605,6 +605,48 @@ fn duel6_orbits() {
     });
 }
 
+/// Sol's DOOM (13/11/2026, a Unique blade): an upright blade up close, its black heart,
+/// smoke, lightning and skulls at eight times over a few heartbeats and thunder strikes
+/// (`duel6-doom-blade`).
+#[test]
+#[ignore = "renders with the GPU and the installed game data named by JKA_GAME_DATA"]
+fn duel6_doom_blade() {
+    on_big_stack(|| {
+        mount_test_packs();
+        let Some((mut gpu, _profile)) = open("maps/mp/duel6.bsp", [1280, 720], None, &[]) else {
+            return;
+        };
+        let (spawn, yaw) = assets::initial_camera(&gpu.bsp).expect("a spawn point");
+        let turn = glam::Quat::from_rotation_z(yaw);
+        let eye = Vec3::from_array(spawn);
+        let ahead = |x: f32, y: f32, z: f32| eye + turn * Vec3::new(x, y, z);
+        let blade = Blade {
+            base: ahead(32.0, 0.0, -26.0).to_array(),
+            direction: (turn * Vec3::new(0.0, 0.1, 1.0)).normalize().to_array(),
+            length: 40.0,
+            radius: 3.0,
+        };
+        let (look_yaw, look_pitch) = look(eye.to_array(), ahead(32.0, 3.0, -4.0).to_array());
+        aim(&mut gpu, eye.to_array(), look_yaw, look_pitch);
+        gpu.saber_skins.shot_blades = vec![(blade, ShotColor::Skin("saber_doom"), 2)];
+        // Drawn from its file until its own pipelines are built off the render thread: draw
+        // until they are (the blade asks for them), a while at most.
+        gpu.saber_skins.shot_seconds = Some(3.0);
+        let started = std::time::Instant::now();
+        while started.elapsed().as_secs() < 90 {
+            let _ = frame(&mut gpu, 10);
+        }
+        println!("signatures built: {:?}", gpu.saber_gpu.signatures_built());
+        let mut shots = Vec::new();
+        for (index, seconds) in [3.0, 3.3, 4.6, 5.9, 7.2, 8.4, 9.9, 12.5].into_iter().enumerate() {
+            gpu.saber_skins.shot_seconds = Some(seconds);
+            let full = frame(&mut gpu, if index == 0 { 40 } else { 4 });
+            shots.push(image::imageops::crop_imm(&full, 290, 0, 700, 720).to_image());
+        }
+        println!("{}", sheet(&shots, 4, 700, "duel6-doom-blade").display());
+    });
+}
+
 /// The chromas ([`crate::unlockables::Unlockable::chroma`]) take their saber's colour:
 /// each in a row of the six retail colours and a custom white (which leaves the skin's
 /// own), standing on duel6 as the lineup does.

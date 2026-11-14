@@ -1335,10 +1335,12 @@ own player, and admin panel access stays the operator's.
 
 Since 23/10/2026 (Sol's call) what takes back, clears or merges is the creator's alone
 too: taking back medals, saber shaders and holocrons, credits and shards (given or taken),
-clearing achievements, taking a picture down, unlinking and merging keys. The hub refuses
-those requests from other staff (an error `creator_only`); on their Staff page those
-buttons show dimmed, Tab skips them and a press does nothing (`owner_only` in
-`staff_panel.rs`), and the Achievements and Keys tabs' status line says the tab is to read.
+clearing achievements, taking a picture down and unlinking keys. The hub refuses those
+requests from other staff (an error `creator_only`); on their Staff page those buttons show
+dimmed, Tab skips them and a press does nothing (`owner_only` in `staff_panel.rs`), the
+Achievements tab's status line says the tab is to read and the Keys tab's that only the
+owner unlinks. Merging keys was the creator's too until 13/11/2026, when Sol opened it to
+every staff member (still never a staff player merged away, nor the creator).
 
 Since 08/11/2026 (Sol's call) every staff member gives, from the Staff page: medals (and
 their rank), saber shaders, holocrons and kyber crystals (`gift` in `staff_panel.rs`; the

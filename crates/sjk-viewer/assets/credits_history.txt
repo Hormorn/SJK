@@ -9,6 +9,10 @@
 #                               made it when that is not the piece's owner.
 
 = Sol
++ 13/11/2026 | - | Status: staff merge keys deployed, panel too
+- 0caa59e |  | Status: staff merge keys deployed, panel too
++ 13/11/2026 | - | Staff page: every staff member merges keys; unlinking stays the creator's
+- 2bd06e4 |  | Staff page: every staff member merges keys; unlinking stays the creator's
 + 12/11/2026 | - | Mystery box rework, the Ray Gun, WHEELS OF DOOM placed on maps for DOOM coins
 - 3db8ce6 |  | Mystery box rework, the Ray Gun, WHEELS OF DOOM placed on maps for DOOM coins
 + 11/11/2026 | - | Release 2026.1111.6 (Alpha)
@@ -3665,8 +3669,10 @@
 - fed9acd |  | Hide duel opponents' bars and send nothing while duelling
 
 = Slash
-+ 12/11/2026 | - | Credits and debug panel for PR #419
++ 13/11/2026 | - | Credits and debug panel for PR #419
 - ee23bce |  | Credits and debug panel for PR #419
+- 63ce78d |  | Release 2026.1112.1 (Alpha)
+- e8dec1a |  | Fishing test: the bite wait follows BITE_WAIT, a late press past the window
 + 12/11/2026 | SJK #419 | Fishing odds and timing: easier bites, fewer empty catches, more time for an Echo
 - bd5f86c |  | Fishing: easier bites, fewer empty catches, more time for an Echo
 - 762b640 |  | Changelog: PR #419

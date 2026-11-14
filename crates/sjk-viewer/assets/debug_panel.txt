@@ -24,6 +24,24 @@
 
 # ---- Console & chat ----
 
+[chat-client-icons]
+area: Console & chat
+title: Game chat: EJK icon (and tick) before JoF EternalJK players' lines
+change: A claim from JoF EJK (1.6.3 beta 2+) shows the EJK icon and the player's tick in chat.
+change: An EJK player in SJK chat who claims nothing gets the EJK icon alone, by name.
+test: With a JoF EJK player on the server, their All chat lines start with the EJK icon.
+test: A verified EJK beta player shows their tick after the name; cl_sjkChatClientIcons 0 = SJK.
+note: World shot: game_lines_with_marks (Figo = claim, dart_mario = name match).
+
+[staff-merge-keys]
+area: Menus & settings
+title: Every staff member merges keys (Staff page, Keys and merge)
+change: Merging keys was the creator's alone; now any staff member merges from the Staff page.
+change: Unlinking a key stays the creator's. A staff player is still never merged away.
+test: As non-creator staff, Staff page > a player > Keys and merge: field, Pick, Merge... work.
+test: The Unlink buttons stay dimmed for them; the status line says only the owner unlinks.
+note: Needs the hub's staff-merge branch deployed, or the hub still answers creator_only.
+
 [model-sync]
 area: Menus & settings
 title: Model sync: share your models through the Sith cloud, and its page
@@ -4303,6 +4321,18 @@ test: Light it: it kindles up from the hilt; put it away: it cools to a deep red
 test: Swing hard: grey and glowing ash flakes drift down and settle; a still blade sheds none.
 test: Collection > Shaders > its parts: each of the five switches off on its own.
 note: Hub deployed 25/10 (pack, sounds); the growth by days held was dropped the same day.
+
+[doom-blade]
+area: Rendering & effects
+title: DOOM, a Unique blade: red with a black heart, death aura, red lightning, skulls
+change: Blade 301: blood-red blade beating like a heart, black cracked core, black smoke aura.
+change: Red lightning crackles off it, thunder bolts leap far out; red-eyed skulls rise round it.
+change: Swings shed black cinders burning red; its name is DOOM in red in the Collection.
+test: Staff grant saber_doom to yourself: Collection > Shaders shows "DOOM blade" in red.
+test: Wear it: a thunderclap as it lights; the doom gathers; every beat throbs up the blade.
+test: Swing hard: more lightning and black cinders climbing away; clash: a burst of bolts.
+test: Collection > Shaders > its parts: each of the five switches off on its own.
+note: Needs the hub branch doom-blade deployed (pack, sounds, catalogue); sounds unheard.
 
 [lazy-blade-skins]
 area: Rendering & effects

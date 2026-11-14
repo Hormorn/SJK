@@ -14,7 +14,9 @@
 //! gold to deep red and going out in the air. The Moon (26/10/2026, Creyon's) sheds moondust
 //! (`"kind": "moon"`): glittering specks in silver, lilac and purple that float up and fade, as
 //! its blade swings and as its wearer moves (`moving`); on a chroma the coloured dust takes its
-//! wearer's saber colour (`PetalSpec::turn`).
+//! wearer's saber colour (`PetalSpec::turn`). Sol's DOOM (13/11/2026) sheds cinders
+//! (`"kind": "doom"`): black flakes burning red at their edges that climb and drift off as
+//! they go out.
 
 use glam::Vec3;
 use serde::Deserialize;
@@ -39,6 +41,9 @@ pub(crate) enum PetalKind {
     Moon,
     /// An angel's feathers, turning as they sink slowly and settle.
     Feather,
+    /// DOOM's cinders: black flakes burning red at their edges, climbing off the swing and
+    /// tumbling as they go out.
+    Doom,
 }
 
 /// A skin's falling blossoms, as its signature's `@petals` line gives them.
@@ -199,8 +204,9 @@ macro_rules! bundled {
 }
 /// Their shaders, which the frame's effect materials must load (`effect_assets::CODE_SHADERS`):
 /// the blossoms' three tints, then the crane flying right and flying left, then grey ash and
-/// ash still glowing, then the ember, then the Moon's moondust.
-pub(crate) const SHADERS: [&str; 11] = [
+/// ash still glowing, then the ember, then the Moon's moondust, then the angel's feather and
+/// its cloud, then DOOM's cinder.
+pub(crate) const SHADERS: [&str; 12] = [
     "gfx/sjk/petals/blossom_pink",
     "gfx/sjk/petals/blossom_pale",
     "gfx/sjk/petals/blossom_white",
@@ -212,6 +218,7 @@ pub(crate) const SHADERS: [&str; 11] = [
     "gfx/sjk/petals/moon_dust",
     "gfx/sjk/petals/feather",
     "gfx/sjk/petals/puff",
+    "gfx/sjk/petals/doom_cinder",
 ];
 const BLOSSOMS: usize = 3;
 const CRANES: usize = 2;
@@ -247,7 +254,7 @@ const PAPER: [[f32; 3]; 8] = [
     [0.6, 0.32, 0.56],
     [0.97, 0.93, 0.84],
 ];
-const FILES: [(&str, &[u8]); 12] = [
+const FILES: [(&str, &[u8]); 13] = [
     ("shaders/sjk_petals.shader", bundled!("petals.shader")),
     (
         "gfx/sjk/petals/blossom_pink.png",
@@ -269,6 +276,7 @@ const FILES: [(&str, &[u8]); 12] = [
     ("gfx/sjk/petals/moon_dust.png", bundled!("moon_dust.png")),
     ("gfx/sjk/petals/feather.png", bundled!("feather.png")),
     ("gfx/sjk/petals/puff.png", bundled!("puff.png")),
+    ("gfx/sjk/petals/doom_cinder.png", bundled!("doom_cinder.png")),
 ];
 
 /// Mount the bundled petal files.
@@ -301,11 +309,12 @@ pub(crate) fn frame(gpu: &mut crate::GpuState, now: Instant) {
         let crane = spec.kind == PetalKind::Crane;
         let ember = spec.kind == PetalKind::Ember;
         let moon = spec.kind == PetalKind::Moon;
-        // Cranes, embers and moondust fly on through the world; petals and ash settle.
-        let flies = crane || ember || moon;
+        let doom = spec.kind == PetalKind::Doom;
+        // Cranes, embers, moondust and cinders fly on through the world; petals and ash settle.
+        let flies = crane || ember || moon || doom;
         let (angle, spin) = if crane {
             ((unit(seed, 9) - 0.5) * 30.0, (unit(seed, 8) - 0.5) * 12.0)
-        } else if moon {
+        } else if moon || doom {
             (unit(seed, 9) * 360.0, (unit(seed, 8) - 0.5) * 120.0)
         } else {
             (unit(seed, 9) * 360.0, (unit(seed, 8) - 0.5) * 50.0)
@@ -321,6 +330,7 @@ pub(crate) fn frame(gpu: &mut crate::GpuState, now: Instant) {
             PetalKind::Feather => {
                 SHADERS[BLOSSOMS + CRANES + ASHES + 2 + usize::from(seed % 2 == 0)]
             }
+            PetalKind::Doom => SHADERS[BLOSSOMS + CRANES + ASHES + 4],
         };
         let [r, g, b] = if crane {
             PAPER[(seed % PAPER.len() as u32) as usize]

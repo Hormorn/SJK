@@ -727,6 +727,7 @@ mod tests {
         chat.slot_marks = vec![crate::chat::marks::SlotMark::default(); 32];
         chat.slot_marks[3] = crate::chat::marks::SlotMark {
             sjk: true,
+            client: None,
             verified: true,
             tick: sjk_identity::Tick::None,
             trust: None,

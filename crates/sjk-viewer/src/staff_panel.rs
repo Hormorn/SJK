@@ -156,9 +156,10 @@ const NOTE_MAX: usize = 200;
 const CONFIRM_FOR: Duration = Duration::from_secs(3);
 
 /// Whether `token` is one of the buttons only SJK's creator may use (the hub's
-/// `PROTOCOL.md`, "Creator", since 23/10/2026): what takes back, clears, merges or makes
+/// `PROTOCOL.md`, "Creator", since 23/10/2026): what takes back, clears, unlinks or makes
 /// value out of nothing (credits and shards). Other staff see them dimmed; Tab skips them
-/// and a press does nothing. Giving is every staff member's since 08/11/2026 ([`gift`]).
+/// and a press does nothing. Giving is every staff member's since 08/11/2026 ([`gift`]),
+/// merging keys since 13/11/2026.
 fn owner_only(token: u16) -> bool {
     let within = |base: u16, count: usize| (base..base + count as u16).contains(&token);
     matches!(
@@ -170,10 +171,6 @@ fn owner_only(token: u16) -> bool {
             | CREDITS_TAKE_TOKEN
             | SHARDS_GIVE_TOKEN
             | SHARDS_TAKE_TOKEN
-            | MERGE_FIELD_TOKEN
-            | MERGE_PICK_TOKEN
-            | MERGE_TOKEN
-            | MERGE_CONFIRM_TOKEN
     ) || within(TAKE_BASE, crate::medals::Medal::COUNT)
         || within(RELOCK_BASE, crate::unlockables::ALL.len())
         || within(HOLOCRON_REMOVE_BASE, HOLOCRONS_SHOWN)
@@ -1995,6 +1992,32 @@ mod tests {
         assert_eq!(panel.shown.merge_problem, Some(MergeProblem::Staff));
         assert_eq!(panel.activate(MERGE_TOKEN), PanelAction::None);
         assert!(panel.pending_merge.is_none());
+    }
+
+    /// Since 13/11/2026 every staff member merges keys; unlinking stays the creator's.
+    #[test]
+    fn staff_merge_but_only_the_creator_unlinks() {
+        let reset = profile("bbbbbbbbbbbbbbbb", "Fox");
+        let (mut panel, _, _) = drawn(vec![reset.clone()]);
+        let me = Profile {
+            keys: vec!["aaaaaaaaaaaaaaaa".into(), "cccccccccccccccc".into()],
+            ..helper()
+        };
+        let _ = panel.activate(KEYS_TAB_TOKEN);
+        panel.merge_from = "bbbbbbbbbbbbbbbb".into();
+        redraw(&mut panel, &me, vec![reset.clone()]);
+        assert!(panel.order.contains(&MERGE_TOKEN));
+        assert!(!panel.order.contains(&UNLINK_BASE));
+        assert_eq!(panel.activate(UNLINK_BASE), PanelAction::None);
+        let _ = panel.activate(MERGE_TOKEN);
+        redraw(&mut panel, &me, vec![reset]);
+        assert_eq!(
+            panel.activate(MERGE_CONFIRM_TOKEN),
+            PanelAction::Request(StaffRequest::Merge {
+                key_id: me.key_id.clone(),
+                from: "bbbbbbbbbbbbbbbb".into()
+            })
+        );
     }
 
     #[test]

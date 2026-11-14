@@ -90,6 +90,20 @@ pub(crate) const FROM_HOLOCRONS: &str = "Found in holocrons.";
 pub(crate) const COMING_TO_HOLOCRONS: &str = "Coming to holocrons soon.";
 /// How to get a Unique one ([`Rarity::Unique`]): Sol gives it by hand.
 pub(crate) const PERSONAL_THANKS: &str = "A personal thank-you from Sol.";
+/// Shaders whose name is always drawn in a colour of its own rather than the text's, as
+/// `(unlock id, colour)`: Sol's DOOM (13/11/2026: "always written caps and in red"). A new
+/// one is a new row here; the Collection's tiles, rows, page title and hover card read it
+/// through [`name_colour`].
+pub(crate) const NAME_COLOURS: [(&str, u32); 1] = [("saber_doom", 0xE5_1A1A)];
+
+/// The colour `id`'s name is always drawn in ([`NAME_COLOURS`]), if it has one.
+pub(crate) fn name_colour(id: &str) -> Option<sjk_ui::Color> {
+    NAME_COLOURS
+        .iter()
+        .find(|(listed, _)| *listed == id)
+        .map(|(_, hex)| crate::holocrons::rgb(*hex))
+}
+
 /// How to get the mystery boxes' own blade (`mystery_box`, 29/10/2026).
 pub(crate) const FROM_MYSTERY_BOXES: &str =
     "Found only in mystery boxes: never in holocrons, the shop or a trade.";
@@ -186,7 +200,7 @@ pub(crate) fn blade_skin_named(word: &str) -> Option<&'static Unlockable> {
 }
 
 /// Every unlockable, in the hub's catalogue order (the order profiles list them in).
-pub(crate) static ALL: [Unlockable; 300] = [
+pub(crate) static ALL: [Unlockable; 301] = [
     Unlockable {
         id: "saber_sun",
         number: 1,
@@ -4095,6 +4109,21 @@ pub(crate) static ALL: [Unlockable; 300] = [
         description: "The Force as it was wielded on Malachor V, drawn to a single thin edge: a body of pale rose light clouded with white, climbing the blade, a fine sheen along its outline and a narrow tear in space around it. Long crescents of white light and crimson wheel round it in dark red air, with small stars.",
         how_to_get: COMING_TO_HOLOCRONS,
     },
+    // 13/11/2026: Sol's DOOM, the third Unique blade, its name always in capitals and in red
+    // (`NAME_COLOURS`).
+    Unlockable {
+        id: "saber_doom",
+        number: 301,
+        name: "DOOM blade",
+        kind: Kind::BladeSkin,
+        tier: Rarity::Unique,
+        chroma: false,
+        droppable: false,
+        edition: crate::editions::ALPHA,
+        smith: SOL,
+        description: "DOOM: a blood-red blade with a black heart that beats, red fire in its cracks. Black smoke rolls up it in a red glow, red lightning crackles off it and thunder leaps far from it, red-eyed skulls rise round it into the smoke, and its swings shed burning black cinders.",
+        how_to_get: PERSONAL_THANKS,
+    },
 ];
 
 /// The unlockable `id` names (spaces round it and case ignored), if this client knows it.
@@ -4980,7 +5009,7 @@ mod tests {
         // Sol's thank-you gifts (25/10/2026).
         assert_eq!(
             of(Rarity::Unique),
-            ["saber_thousand_cranes", "saber_hearth",]
+            ["saber_thousand_cranes", "saber_hearth", "saber_doom"]
         );
         let order = blade_skins_by_tier();
         assert_eq!(order.len(), blade_skins().count());
@@ -5677,6 +5706,7 @@ mod tests {
                 ("saber_ansion_plains", "Ansion Plains blade"),
                 ("saber_sernpidal_dust", "Sernpidal Dust blade"),
                 ("saber_malachor_rose", "Malachor Rose blade"),
+                ("saber_doom", "DOOM blade"),
             ]
         );
         assert!(ALL.iter().all(Unlockable::is_blade_skin));

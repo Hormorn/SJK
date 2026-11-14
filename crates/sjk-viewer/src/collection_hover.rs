@@ -456,7 +456,7 @@ pub(super) fn shader_card(
         .map(Line::held);
     Card {
         title: skin.name.to_owned(),
-        colour: skin.tier.colour(),
+        colour: crate::unlockables::name_colour(skin.id).unwrap_or(skin.tier.colour()),
         lines: vec![
             Line::how(crate::terms::say(skin.how_to_get)),
             // The blade number only while `debug_collectibles` is on (Sol, 21/10/2026).

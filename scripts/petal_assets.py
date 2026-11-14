@@ -5,7 +5,8 @@ end, pale at its base and blushing toward its tip, in three tints; and the Thous
 paper crane, white paper in three shades that the particle tints (25/10/2026); and the
 Hearth's ash, a ragged grey flake, plain and with an edge still glowing; and the Sun's
 swing ember, a soft white spark (26/10/2026); and the Moon's moondust, a speck of white light
-with four short rays that the particle tints and adds (26/10/2026).
+with four short rays that the particle tints and adds (26/10/2026); and DOOM's cinder, a
+black flake burning red at its edge (13/11/2026).
 
     python3 scripts/petal_assets.py
 """
@@ -217,3 +218,39 @@ def moon_dust():
 
 moon_dust().save(OUT / "moon_dust.png", optimize=True)
 print("written moon_dust")
+
+
+def doom_cinder():
+    """DOOM's cinder (13/11/2026): a ragged black flake, charred to a dull red-brown at its
+    heart, its edge still burning red, drawn blended (the particle does not tint it)."""
+    rng = [0.9, 0.7, 1.0, 0.62, 0.86, 0.95, 0.68, 0.88, 0.76, 1.0, 0.72, 0.84]
+    img = Image.new("RGBA", (SIZE, SIZE))
+    px = img.load()
+    for j in range(SIZE):
+        for i in range(SIZE):
+            hits, edge = 0, 0.0
+            for sj in range(SAMPLES):
+                for si in range(SAMPLES):
+                    x = ((i + (si + 0.5) / SAMPLES) / SIZE) * 2.0 - 1.0
+                    y = 1.0 - ((j + (sj + 0.5) / SAMPLES) / SIZE) * 2.0
+                    a = math.atan2(y, x) / (2.0 * math.pi) * len(rng)
+                    k = int(math.floor(a)) % len(rng)
+                    t = a - math.floor(a)
+                    reach = 0.82 * (rng[k] * (1.0 - t) + rng[(k + 1) % len(rng)] * t)
+                    r = math.hypot(x * 1.15, y)
+                    if r < reach:
+                        hits += 1
+                        edge += r / reach
+            if not hits:
+                px[i, j] = (0, 0, 0, 0)
+                continue
+            e = edge / hits
+            c = [0.05 + 0.06 * e, 0.02, 0.02]
+            burn = max(0.0, (e - 0.62) / 0.38) ** 1.3
+            c = [c[0] + (1.0 - c[0]) * burn, c[1] + (0.12 - c[1]) * burn, c[2] + (0.06 - c[2]) * burn]
+            px[i, j] = tuple(int(round(min(v, 1.0) * 255)) for v in c) + (int(round(hits / SAMPLES ** 2 * 240)),)
+    return img
+
+
+doom_cinder().save(OUT / "doom_cinder.png", optimize=True)
+print("written doom_cinder")

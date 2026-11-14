@@ -780,7 +780,10 @@ request, 08/10/2026):
   SJK's emblem. The same icon marks that client's players on the scoreboard and the
   player card, once the client claims its slot (presence's `client`, 27/10/2026,
   [identity.md](identity.md#what-happens)); until JoF EternalJK does, its players in
-  the chat wear its icon on the scoreboard by name alone (08/11/2026, same page).
+  the chat wear its icon on the scoreboard by name alone (08/11/2026, same page). Since
+  13/11/2026 (Sol: "the EJK icons in chat properly when someone speaks in all chat and
+  their verified status too") the game's chat lines follow too: see
+  [Game chat lines look the same](#game-chat-lines-look-the-same).
 - In the game's chat an SJK chat line is labelled after the name, where All chat lines
   have none and Team chat reads TEAM: SJK for a message only in SJK chat, ALL/SJK for
   one also said in the server's All chat ([Said on the game server too](#said-on-the-game-server-too);
@@ -823,8 +826,18 @@ sends as text with no sender, showed no emblem at all.
   [chat/marks.rs](../crates/sjk-viewer/src/chat/marks.rs)). Two players wearing one name
   leave the line unattributed. An attributed line's name shows the sender card
   (the click menu it also opened was removed on 18/10/2026).
+- **The sender's client** (13/11/2026): a claim made from another client that takes
+  part in SJK chat (presence's `client`; JoF EternalJK claims since its 1.6.3 beta 2,
+  JediofFreedom/JoF_EJK#405) starts the sender's lines with that client's icon instead of
+  SJK's emblem, with their tick as any claim gives (`SlotMark::client`). A slot no claim
+  names, where an online SJK chat reader on a client that claims nothing seems to sit
+  (the scoreboard's name rule, `player_identity::unclaimed_slots`), gets that client's
+  icon alone: a name proves nothing, so no tick, emoji or key. Before, a JoF EternalJK
+  claim showed SJK's emblem and an unclaimed JoF EternalJK player nothing.
+  `cl_sjkChatClientIcons 0` gives a claim SJK's emblem and the name match nothing.
 - **What each slot shows** (`chat::marks::SlotMark`): worked out from the hub's
-  claims, the server's players and the player's `name` only when one of them changes
+  claims, the server's players, the player's `name` and the name-matched slots only
+  when one of them changes
   (`ChatOverlay::follow_marks`, every frame from `identity_frame.rs`), so a frame costs a
   comparison. With the identity off nobody has SJK's emblem or a tick.
 - **Names the server cut**: a game server carries names as bytes of the old code pages,

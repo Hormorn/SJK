@@ -54,7 +54,7 @@ macro_rules! signature {
 /// Blade Lab designs reworked in full (19/10/2026: the Star Wars rework; the Bleeding Kyber in
 /// round 9), which replace their hand-ported designs (`blade_lab_designs.rs`). Sol's Sun
 /// (blade 001) became one on 20/10/2026, keeping its file's look under its own.
-pub(crate) const SIGNATURES: [Signature; 263] = [
+pub(crate) const SIGNATURES: [Signature; 264] = [
     signature!("sun"),
     signature!("abyssal_eye"),
     signature!("aurora_wyrm"),
@@ -192,6 +192,8 @@ pub(crate) const SIGNATURES: [Signature; 263] = [
     signature!("thousand_cranes"),
     // 25/10/2026: Sol's Hearth (blade 168), a Unique blade that grows as it is held.
     signature!("hearth"),
+    // 13/11/2026: Sol's DOOM (blade 301), the third Unique blade.
+    signature!("doom"),
     // 29/10/2026: Creyon's Star Wars round (from blade 170).
     signature!("vulptex_crystalfire"),
     signature!("zeffo_thunderchorus"),

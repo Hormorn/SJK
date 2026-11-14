@@ -1,3 +1,25 @@
+## Game chat: client icons and ticks (13/11/2026)
+
+13/11/2026, `personal/chat-client-icons` based on `main` `cdd73b774` (Sol: "I would like to
+see the EJK icons in chat properly when someone speaks in all chat and their verified status
+too"). Game chat lines took SJK's emblem for every claim and nothing for an unclaimed EJK
+player; now a claim's client picks the icon (JoF EternalJK claims since its 1.6.3 beta 2),
+with the claim's tick, and an unclaimed EJK chat reader matched by name (the scoreboard's
+rule) gets the icon alone ([hub-chat.md](hub-chat.md#game-chat-lines-look-the-same)).
+Verified: `cargo test -p sjk-viewer chat` and the `game_lines_with_marks` world shot (EJK icon
+with a JoF tick, EJK icon alone). Not tried in a game.
+
+## Staff merge keys (13/11/2026)
+
+13/11/2026, `personal/staff-merge-keys` based on `main` `dd2d6a408` (Sol: "Allow staff to do
+it", about merging keys). The Staff page's Keys and merge tab (field, Pick in list, Merge...)
+is no longer creator-only; Unlink stays the creator's, and a staff player is still never
+merged away ([identity.md](identity.md#players-with-several-keys)). The hub's `staff-merge`
+branch drops its `creator_only` check on `POST /v1/staff/merge`, and the admin panel lets
+staff merge too (passkey asked, no button for a staff player); deployed 13/11/2026 (hub
+`c6affb7`). Verified: `cargo test -p sjk-viewer staff_panel` and the hub's full `cargo
+test`. Not tried in a game; released clients up to 2026.1112.1 still dim Merge for staff.
+
 ## Mystery box rework, Ray Gun, placed WHEELS OF DOOM (12/11/2026)
 
 Sol's asks of 11/11/2026. Boxes never empty, no refund, no free roll; a holocron 45.5%,

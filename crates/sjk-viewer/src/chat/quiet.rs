@@ -303,6 +303,7 @@ mod tests {
         assert_eq!(chat.quiet_keys(), None);
         let mark = |key: &str| SlotMark {
             sjk: true,
+            client: None,
             verified: false,
             tick: sjk_identity::Tick::None,
             trust: None,

@@ -2,7 +2,8 @@
 // petal, both sides drawn, faded by the particle. The Thousand Cranes' paper crane, flying
 // right and flying left, white paper the particle tints. The Hearth's ash, grey and glowing. The
 // Sun's swing ember, a white spark the particle tints, added to what is behind it. The Moon's
-// moondust, a speck of white light the particle tints, added (its alpha fades it).
+// moondust, a speck of white light the particle tints, added (its alpha fades it). DOOM's
+// cinder, a black flake burning red at its edge, blended.
 
 gfx/sjk/petals/blossom_pink
 {
@@ -130,6 +131,18 @@ gfx/sjk/petals/puff
 	cull none
 	{
 		map gfx/sjk/petals/puff
+		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+		rgbGen vertex
+		alphaGen vertex
+	}
+}
+
+gfx/sjk/petals/doom_cinder
+{
+	nopicmip
+	cull none
+	{
+		map gfx/sjk/petals/doom_cinder
 		blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
 		rgbGen vertex
 		alphaGen vertex

@@ -1,7 +1,10 @@
 //! What SJK knows of the player in each slot, for their game chat lines
 //! (`docs/hub-chat.md`, "How a line looks"): whether they play on SJK (the hub holds a
 //! claim for that slot under the name the game shows), whether they are verified, and
-//! their name as they wear it when the server dropped some of its characters.
+//! their name as they wear it when the server dropped some of its characters, and the
+//! client they play on (`chat/client_icons.rs`): its icon takes SJK's emblem's place, from
+//! the claim, or alone without a tick for a slot where a player in SJK chat on a client
+//! that claims nothing seems to sit (the scoreboard's name rule, `scoreboard/chat_readers.rs`).
 //!
 //! A game server carries names as bytes of the old code pages: a JoF JA+ server drops
 //! an emoji from a name (`^0JoF J S^7olol 🦊` reached the chat as `^0JoF J S^7olol `,
@@ -15,8 +18,11 @@ use sjk_identity::Snapshot;
 /// What the chat shows of the player in one slot.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct SlotMark {
-    /// The hub knows them in this slot: SJK's emblem goes before their name.
+    /// The hub knows them in this slot: SJK's emblem (or their client's icon) goes before
+    /// their name.
     pub(crate) sjk: bool,
+    /// The client they play on when it is not SJK: its icon instead of SJK's emblem.
+    pub(crate) client: Option<&'static super::client_icons::ClientIcon>,
     pub(crate) verified: bool,
     /// Their tick, as the hub sent it.
     pub(crate) tick: sjk_identity::Tick,
@@ -52,12 +58,15 @@ pub(crate) fn claimed<'a>(worn: &'a str, shown: &'a str) -> &'a str {
 }
 
 /// Every slot's mark from the hub's claims on this server: `shown` gives the name the
-/// game shows in a slot, `own` the player's slot and `worn` the name they wear.
+/// game shows in a slot, `own` the player's slot and `worn` the name they wear;
+/// `unclaimed` (bits) the slots of players on a client that claims nothing
+/// (`player_identity::unclaimed_slots`), who get its icon alone.
 pub(crate) fn marks<'a>(
     snapshot: &Snapshot,
     shown: impl Fn(usize) -> Option<&'a str>,
     own: Option<usize>,
     worn: &str,
+    unclaimed: u64,
 ) -> Vec<SlotMark> {
     let mut marks = vec![SlotMark::default(); crate::chat_mutes::SLOTS];
     for (slot, mark) in marks.iter_mut().enumerate() {
@@ -69,6 +78,7 @@ pub(crate) fn marks<'a>(
             if let Some(me) = &snapshot.me {
                 *mark = SlotMark {
                     sjk: true,
+                    client: None,
                     verified: me.verified,
                     tick: me.tick,
                     trust: me.trust,
@@ -83,10 +93,19 @@ pub(crate) fn marks<'a>(
             .ok()
             .and_then(|slot| snapshot.badge(slot, name))
         else {
+            if slot < 64 && unclaimed & 1 << slot != 0 {
+                // A name proves nothing: the client's icon, no tick nor key.
+                *mark = SlotMark {
+                    sjk: true,
+                    client: super::client_icons::unclaimed(),
+                    ..SlotMark::default()
+                };
+            }
             continue;
         };
         *mark = SlotMark {
             sjk: true,
+            client: super::client_icons::find(&player.client),
             verified: player.verified,
             tick: player.tick,
             trust: player.trust,
@@ -99,11 +118,13 @@ pub(crate) fn marks<'a>(
 }
 
 /// What [`ChatOverlay::follow_marks`] last worked the marks out from: the hub's
-/// players' revision, who is in each slot and the name the player wears.
+/// players' revision, who is in each slot, the name the player wears and the slots of
+/// players on a client that claims nothing.
 pub(super) type MarksKey = (
     u64,
     [Option<sjk_client::ChatTarget>; crate::chat_mutes::SLOTS],
     String,
+    u64,
 );
 
 impl super::ChatOverlay {
@@ -116,6 +137,7 @@ impl super::ChatOverlay {
         worn: &str,
         own: Option<usize>,
         live: bool,
+        unclaimed: u64,
     ) {
         if !live {
             if self.shown_for_shot() {
@@ -130,8 +152,8 @@ impl super::ChatOverlay {
         if self
             .marks_key
             .as_ref()
-            .is_some_and(|(seen, targets, name)| {
-                *seen == revision && *targets == roster && name == worn
+            .is_some_and(|(seen, targets, name, readers)| {
+                *seen == revision && *targets == roster && name == worn && *readers == unclaimed
             })
         {
             return;
@@ -140,10 +162,11 @@ impl super::ChatOverlay {
             let name = self.player_label(slot as u16);
             (!name.is_empty()).then_some(name)
         };
-        self.slot_marks =
-            crate::player_identity::with_snapshot(|snapshot| marks(snapshot, shown, own, worn))
-                .unwrap_or_default();
-        self.marks_key = Some((revision, roster, worn.to_owned()));
+        self.slot_marks = crate::player_identity::with_snapshot(|snapshot| {
+            marks(snapshot, shown, own, worn, unclaimed)
+        })
+        .unwrap_or_default();
+        self.marks_key = Some((revision, roster, worn.to_owned(), unclaimed));
     }
 
     /// The slot whose player sent a line the server did not attribute, as JA+ servers
@@ -181,6 +204,38 @@ mod tests {
         assert_eq!(claimed("Solol", "Sol"), "Sol");
     }
 
+    /// A claim from JoF EternalJK gives its icon with the player's tick; a slot where a
+    /// player in SJK chat on a client that claims nothing seems to sit gets the icon alone.
+    #[test]
+    fn a_line_shows_its_players_client_with_the_claims_tick_only() {
+        let mut snapshot =
+            sjk_identity::Snapshot::blank(&sjk_identity::Identity::from_seed([7; 32]));
+        let claim = |slot: u8, name: &str, client: &str| -> sjk_identity::Presence {
+            serde_json::from_value(serde_json::json!({
+                "slot": slot, "claimed_name": name, "key_id": format!("{slot:016x}"),
+                "name": name, "verified": true, "client": client,
+            }))
+            .expect("a claim")
+        };
+        snapshot.players = vec![claim(1, "Vinry", "ejk"), claim(2, "Sol", "")];
+        let names = ["", "Vinry", "Sol", "Figo", "Kyle"];
+        let shown = |slot: usize| names.get(slot).copied().filter(|name| !name.is_empty());
+        let marks = marks(&snapshot, shown, None, "", 1 << 3);
+        let ejk = super::super::client_icons::find("ejk");
+        assert!(ejk.is_some());
+        assert_eq!(
+            (marks[1].sjk, marks[1].client, marks[1].verified),
+            (true, ejk, true)
+        );
+        assert_eq!((marks[2].sjk, marks[2].client), (true, None));
+        assert_eq!(
+            (marks[3].sjk, marks[3].client, marks[3].verified),
+            (true, ejk, false)
+        );
+        assert!(marks[3].key_id.is_empty());
+        assert_eq!(marks[4], SlotMark::default());
+    }
+
     /// The game's chat with SJK players' lines among others (`docs/hub-chat.md`, "How a
     /// line looks"), rendered off screen at 1080p and 4K.
     #[test]
@@ -215,6 +270,7 @@ mod tests {
                 gpu.chat.slot_marks = vec![SlotMark::default(); crate::chat_mutes::SLOTS];
                 gpu.chat.slot_marks[0] = SlotMark {
                     sjk: true,
+                    client: None,
                     verified: true,
                     tick: sjk_identity::Tick::None,
                     trust: None,
@@ -222,8 +278,24 @@ mod tests {
                     name: Some("^0JoF J S^7olol 🦊".to_owned()),
                     key_id: String::new(),
                 };
+                // JoF EternalJK: Figo claims (icon and tick), dart_mario reads SJK chat
+                // without claiming (icon alone).
+                let ejk = crate::chat::client_icons::find("ejk");
+                gpu.chat.slot_marks[3] = SlotMark {
+                    sjk: true,
+                    client: ejk,
+                    verified: true,
+                    tick: sjk_identity::Tick::Jof,
+                    ..SlotMark::default()
+                };
+                gpu.chat.slot_marks[5] = SlotMark {
+                    sjk: true,
+                    client: ejk,
+                    ..SlotMark::default()
+                };
                 gpu.chat.slot_marks[7] = SlotMark {
                     sjk: true,
+                    client: None,
                     verified: false,
                     tick: sjk_identity::Tick::None,
                     trust: None,

@@ -416,6 +416,13 @@ impl Row {
         self.skin.map_or("Stock blade", |skin| skin.name)
     }
 
+    /// The colour its name is always drawn in, if it has one (DOOM's red,
+    /// [`crate::unlockables::NAME_COLOURS`]).
+    fn name_colour(self) -> Option<sjk_ui::Color> {
+        self.skin
+            .and_then(|skin| crate::unlockables::name_colour(skin.id))
+    }
+
     /// Its blade number after its tier ("  ·  042"), nothing for the stock blade or
     /// when numbers are hidden ([`Self::numbered`]).
     fn number_words(self) -> String {
@@ -1538,10 +1545,11 @@ impl Panel {
         let name_size = 16.0;
         let line = 18.0 * k;
         let (first, second) = name_lines(card_name(row.name()), width - 20.0, name_size);
-        let name_colour = match (chosen, row.owned) {
-            (true, _) => CHOSEN_OUTLINE,
-            (false, true) => color::TEXT,
-            (false, false) => color::MUTED,
+        let name_colour = match (chosen, row.owned, row.name_colour()) {
+            (_, true, Some(own)) => own,
+            (true, _, _) => CHOSEN_OUTLINE,
+            (false, true, _) => color::TEXT,
+            (false, false, _) => color::MUTED,
         };
         for (at, words) in [first, second].iter().enumerate() {
             if words.is_empty() {
@@ -1721,10 +1729,11 @@ impl Panel {
             format_args!("{}", card_name(row.name())),
             words(name_x, columns.name[0] + name_width - name_x, 18.0),
             18.0 * s,
-            match (chosen, row.owned) {
-                (true, _) => color::GOLD_BRIGHT,
-                (false, true) => color::TEXT,
-                (false, false) => color::MUTED,
+            match (chosen, row.owned, row.name_colour()) {
+                (_, true, Some(own)) => own,
+                (true, _, _) => color::GOLD_BRIGHT,
+                (false, true, _) => color::TEXT,
+                (false, false, _) => color::MUTED,
             },
             FontWeight::Semibold,
             TextAlign::Start,
@@ -2030,7 +2039,11 @@ impl Panel {
             format_args!("{}", row.name()),
             frame.rect(name_rect[0], name_rect[1], name_rect[2], name_rect[3]),
             50.0 * s,
-            if lit { color::GOLD_BRIGHT } else { color::TEXT },
+            match (lit, row.name_colour()) {
+                (true, Some(own)) => own,
+                (true, None) => color::GOLD_BRIGHT,
+                (false, _) => color::TEXT,
+            },
             FontWeight::Semibold,
             TextAlign::Start,
         );

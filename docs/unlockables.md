@@ -377,6 +377,7 @@ Blades 170 to 299, Creyon's Star Wars round (PR #370, merged 06/11/2026), do not
 | 298 | `saber_ansion_plains` | Ansion Plains blade | Common | Creyon | no |
 | 299 | `saber_sernpidal_dust` | Sernpidal Dust blade | Common | Creyon | no |
 | 300 | `saber_malachor_rose` | Malachor Rose blade | Mythical | Creyon | no |
+| 301 | `saber_doom` | DOOM blade | Unique | Sol | no |
 
 A client ignores an id it does not know. Both catalogues' tests pin this exact list
 (ids, names, order), so a change to one fails until the other follows.
@@ -703,6 +704,26 @@ the hub's, described in its `scripts/blade_skin_sounds.py` and `saber_skin_sound
   month, the blaze at six, the stones at a year); Sol dropped that the same day, the stages
   too alike to tell apart, so every holder has it whole (the growth code is on the branch
   `personal/hearth`, commit `c8e8bf26`).
+- **DOOM** (13/11/2026, blade 301, Sol's, the third [Unique](#unique-shaders) blade; a
+  signature, `blade_signatures/doom.glsl`). Sol: "a special shader, unique tier, kinda
+  crazy, the DOOM shader (always written caps and in red), a red saber with death aura
+  effect, in red and black maybe, thunder, particles". Its name is "DOOM blade", in
+  capitals everywhere, and the Collection draws it in red (`unlockables::NAME_COLOURS`,
+  below). A blood-red blade whose light beats as a heart does (a heavy lub-dub every 1.6
+  seconds, a wave of brighter red running up it from the hilt on each beat), a dark
+  marbling crawling up through it; up its middle runs a black heart, a narrow ragged black
+  core cracked with red fire that flares with the beat (Black heart). A death aura hangs
+  round it: a deep red glow, red sparks rising, and black smoke rolling up it (Death aura).
+  Red lightning crackles off it all the time (its own arcs and its file's `arcs`, one
+  switch), more on a swing and a burst of it on a clash, and now and then thunder: a great
+  forked bolt leaps up to 11 units out from it with a flash where it leaves (Red
+  lightning). Three skulls, the doomed, rise slowly round it in 3D, their eyes burning red
+  with the beat, fading into the smoke (Doomed souls), and its swings shed cinders, black
+  flakes burning red at their edges that climb and drift off as they go out (Cinders,
+  [rendering.md](rendering.md#falling-blossoms)). The doom gathers as it lights and dies as
+  it goes out. Its own sounds, `sound/sjk/sol/doom/` (a dark growl beating like a heart,
+  lightning's crackle in it, a thunderclap at ignition), are in the hub's skins pack. Alpha
+  edition, as the other Unique blades (Beta is Creyon's round). Not tried in a game; seen in world shots only.
 - **Speed of the round** (1/11/2026, updates 17 and 18): the round's blades looked like slow motion beside Sol's (their time factors had a median of 0.4 against 1.1). A blade's motion now runs at its own `@speed` (`uTime`), tuned per blade; its cycles and moments keep real time (`uClock`), so a period named in a description is in real seconds. A woven bolt's writhing speed followed the storm's phase and raced, the bug update 16 fixed elsewhere; it is steady now. Update 18 also reworked Trayus (straight point, fine outline, scything arcs, spectral blades), Korriban (cursed flames as real fire), Zeffo (blue to silver), Rakata (six Star Forge suns, a visible god ki body, forked threads), Dromund Kaas (slimmer effects, a smooth run of colour), Bendu (a seam and two winding currents), Kalevala (beskar shards, black lightning) and Ruusan (a dawn haze). Update 19 replaced the bare look of the Mythicals with something each blade is: Zeffo a storm in glass with tomb stones, Trayus with orbiting scythes, Dromund Kaas with devoured worlds, Kalevala a true sword whose shards form a crown, Ruusan with its thought bomb, Tund with its mirage, Ossus with drifting pages, Atollon with gathered lights. Tund went to Legendary; Haruun Kal and Lira San to Rare; Atollon, Ossus and Utapau to Mythical. Update 20, after Creyon named Tund, Prism, Unstable, Neon, Abyssal, World Shift and the beskar blades as what he means: the blade itself must be the effect. Moon is rock, Zeffo a standing wave, Dromund Kaas flesh and veins, Ossus one brush stroke; Crait no longer has a red front climbing it, and Wobani's block of mist is gone. Update 21: `halo(d, w)` is 1 for every negative `d`, so a wave written `halo(y - front, w)` lit everything below its front and snapped back when it wrapped, the sudden resets Creyon saw; every round blade takes `abs()` there now. New blades in place of Ziost Dark Anvil and Nur Shadowflame: Tatooine Krayt Spine and Byss Force Storm. Nihilus (a wound in the blade, no mask at his wish), Zeffo, Vardos Phrik and Nightsister Ichor were rebuilt; Garel Corona went to Common and Trandosha Scorekeeper to Rare. Update 22: Lotho Minor Furnace and Vulptex Spiritfire became Lotho Minor Lavaglass and Vulptex Crystalfire; Hyperlane became a new blade named Fondor Mass Driver under its old unlock id `saber_hyperlane`, so those who own it keep it; Nihilus, Rodia and Polis Massa were rebuilt. rxRibbon stays on Moraband, Bendu, Lehon, Utapau and Tund; 35 other blades draw their paths with `xBeads`, `xDust`, `xComets` or `xPuffs`. Crooked lines writhe with `xZigT` instead of jumping to a new random path. Peridea and Zonama went to Legendary, Nightsister Ichor to Mythical with RGB, and the round's Uncommons have no RGB. Update 23, each Legendary a body of its own: Kuat a ship on the slip, Nar Kreeta racing bars, Wroshyr bark, Iktotch crossing ripples, Kowak a silk cocoon, Mimban bubbling mud. Update 24 (Creyon's last round of the list): seen along the blade, as its wearer does, short zigzags and lumps fold into steps that look like tears (Zeffo's "glitching thunder"), so what runs along a round blade now stays long and slow. Sixty-odd Commons, Uncommons, Rares and Legendaries that were a bright rod with dust became a material of their own (slate, pewter, amber, coral, silk, hide, kolto, a night sky): the blade itself is the effect, written from a short recipe. Ossus Scroll lost its black ink for gold, Utapau Whirlwind became a tornado with no bright strands, Nihilus Hunger lost its arms and eats the light round it, Crait Salt Flats became a chroma, Atollon Gathering a Legendary. Trail styles 28 to 33 are new (Bone, Hunger, Hex, Gilded, Gale, Salt) and style 23 is now Byss's violet storm. Every round blade's file now has the colours its header names, which is what the trail and the Collection icon read. The round's sounds (not in the repository) got a swing made of each blade's own material. Update 25 (Creyon: beside the Legendaries already in the client the new ones looked cheap and bare): a round blade is a bright saber again, with its material showing round a white heart and large effects round it that read from afar, as Reactor's or Big Bang's do; effects rise with the blade as it lights and sink as it goes out; tips are round, not pointed (the Moon keeps its point); nothing small sits in a blade (Kuat's lattice, Iktotch's beads, Vardos's discs, Polis Massa's rocks and Byss's wreckage went); Zeffo's sideways forks, which looked like cuts, went; Wellspring Triad and Kuat Shipwright became chromas. Update 26: `blade_place` takes a place's side from the ray and the axis, not the quad's `blade.x` (under a close perspective a slice of the blade drew mirrored; pixel-identical otherwise); Rakata's trail follows its surge; a round blade's body starts softly in the emitter.rs`, `pipeline_cache/` in the player's folder, one file a blade, Vulkan only) and those not yet there are compiled one by one in the background, so a blade compiles once. Update 27 (Creyon's list after testing): extras on Trayus (Energy aura), Chirrut (cloth, motes always faintly seen), Fondor Mass Driver, Wroshyr and Kalevala; Nihilus's dying worlds slower; the Moon's purple at its ends removed; effects start a little above the hilt. Update 28: Trayus Scythe's run is straight and only its tip curves; Wayland, Sullust, Iridonia, Atollon, Crait, Scipio and Wobani had the stock glow they lean on calmed (it wobbled quickly); the Moon's body takes a chroma's colour, and its shatter costs less (fewer pieces, and a ray skips those far from its height).
 - **Creyon's Star Wars round** (29/10/2026, blades 170 to 269, `feat/blade-round-anime`): a
   hundred blades on Creyon's ideas, every one named for a place, a person or a piece of Star Wars
@@ -1743,6 +1764,7 @@ off, and every other SJK player then draws the blade the same way.
 | Varykino Blossom | `blossom_branch` Blossom branch, `lavender_mist` Lavender mist, `drifting_petals` Drifting petals, `falling_blossoms` Falling blossoms (the petals its swing sheds, [rendering.md](rendering.md#falling-blossoms)), `sakura_droplet` Sakura droplet (the pearl at its tip), `swing_and_clash_bursts` Swing and clash bursts (a signature's parts) |
 | Thousand Cranes | `red_thread` Red thread, `paper_cranes` Paper cranes (the flock and the cranes a clash startles), `golden_crane` Golden crane, `washi_light` Washi light (the paper's fibres in its glow), `flying_cranes` Flying cranes (the paper cranes its swing releases), `swing_and_clash_bursts` Swing and clash bursts (a signature's parts) |
 | Hearth | `hearth_flames` Hearth flames, `blaze` Blaze, `hearthstones` Hearthstones (the stones, the drifting ash and the ash its swings shed), `embers` Embers (embers), `heat_shimmer` Heat shimmer (haze), `swing_and_clash_bursts` Swing and clash bursts (a signature's parts) |
+| DOOM | `black_heart` Black heart (the black core, the marbling and the beat's wave), `death_aura` Death aura (the glow, the rising sparks, the black smoke), `red_lightning` Red lightning (its arcs, the file's arcs and the thunder), `doomed_souls` Doomed souls (the skulls), `cinders` Cinders (the cinders its swing sheds), `swing_and_clash_bursts` Swing and clash bursts (a signature's parts) |
 | Vulptex Crystalfire | `crystal_body` Crystal body, `foxfire` Foxfire, `embers` Embers, `inner_fire` Inner fire, `crystal_dust` Crystal dust, `the_howl` The howl |
 | Zeffo Thunderchorus | `charged_plasma` Charged plasma, `thunderhead` Thunderhead, `sheet_lightning` Sheet lightning, `great_bolts` Great bolts, `struck_stars` Struck stars, `the_great_storm` The great storm |
 | Moraband Erasure | `erased_space` Erased space, `burning_edges` Burning edges, `violet_ribbons` Violet ribbons, `void_smoke` Void smoke, `the_erasure` The erasure, `unmade_space` Unmade space, `swing_and_clash_bursts` Swing and clash bursts (a signature's parts) |
@@ -2263,8 +2285,14 @@ Built 25/10/2026 (Sol's decision), branch `personal/unique-tier`: a tier above M
 **Unique** (rose, `#FF6B9A`; `Rarity::Unique` in
 [unlockables.rs](../crates/sjk-viewer/src/unlockables.rs)), for the personal thank-you
 gifts Sol gives by hand to people who helped SJK. The first is the **Thousand Cranes**
-blade (167), the second the **Hearth** (168). The hub names the tier `unique` (its side is
-built apart).
+blade (167), the second the **Hearth** (168), the third **DOOM** (301, 13/11/2026). The
+hub names the tier `unique` (its side is built apart).
+
+- **A name in its own colour:** a shader may have its name always drawn in a colour of its
+  own, from the table `unlockables::NAME_COLOURS` (one row a shader; `name_colour` reads
+  it): DOOM's red (`#E51A1A`, Sol: "always written caps and in red"). The Collection's
+  tiles, rows and page title draw a held one's name in it (in place of the chosen gold;
+  the chosen outline still marks it), and its hover card's title.
 
 - **Given by hand only:** granted at the hub like any grant by hand (the Staff page, the
   operator's command), with the note Sol writes. Never found, dropped, sold, traded or
@@ -2326,8 +2354,8 @@ instead of found). The same day Sol's card, SJK Alpha 000, began to bring the Su
 for as long as the player holds a copy ([cards.md](cards.md#faces-and-the-first-set),
 `grants`, `unlockables::CARD_BLADES`): for a few hours it was the only way, then Sol made
 it a second way besides holocrons. So 293 of the 299 shaders drop (the Varykino Blossom, 166, since 21/10/2026; Creyon's anime round from 170, since 29/10/2026), all but Glitch, Hologram
-and Runic (their medals), the Thousand Cranes and the Hearth (Unique, given by hand,
-25/10/2026) and the Mystery blade (169, only from mystery boxes); the test pins `droppable` exactly when no medal brings it and it is not Unique.
+and Runic (their medals), the Thousand Cranes, the Hearth and DOOM (Unique, given by hand,
+25/10/2026 and 13/11/2026) and the Mystery blade (169, only from mystery boxes); the test pins `droppable` exactly when no medal brings it and it is not Unique.
 
 Duplicates show in the Collection's Shaders tab (14/10/2026): the rack's state line, the
 grid card's state and the big card's pill read "Yours x2" (or "Worn x2"), the card's

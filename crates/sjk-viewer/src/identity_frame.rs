@@ -173,8 +173,9 @@ impl GpuState {
         self.follow_discord_presence();
     }
 
-    /// Keep what the game chat shows of each slot's player (SJK's emblem, the verified
-    /// tick, the name as worn) in step with the hub's claims (`chat/marks.rs`).
+    /// Keep what the game chat shows of each slot's player (SJK's emblem or their client's
+    /// icon, the verified tick, the name as worn) in step with the hub's claims and the
+    /// players in SJK chat (`chat/marks.rs`).
     fn update_chat_marks(&mut self) {
         let live = self
             .live_session
@@ -187,8 +188,16 @@ impl GpuState {
             .and_then(|console| console.text_cvar("name").ok())
             .unwrap_or_default()
             .trim();
-        self.chat
-            .follow_marks(player_identity::revision(), worn, own, live.is_some());
+        let unclaimed = live.map_or(0, |session| {
+            player_identity::unclaimed_slots(session.game_state())
+        });
+        self.chat.follow_marks(
+            player_identity::revision(),
+            worn,
+            own,
+            live.is_some(),
+            unclaimed,
+        );
     }
 
     /// Hand the identity the player models the game has and the one the player wears,

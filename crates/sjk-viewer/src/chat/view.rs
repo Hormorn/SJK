@@ -460,6 +460,7 @@ fn line_marks<'a>(
             .filter(|mark| mark.sjk);
         let marks = sjk_line::Marks {
             sjk: true,
+            icon: mark.and_then(|mark| mark.client),
             mark: mark.and_then(|mark| {
                 crate::ui_renderer::mark_texture(mark.verified, mark.tick, mark.trust)
             }),
@@ -479,7 +480,7 @@ fn line_marks<'a>(
         .filter(|mark| mark.sjk);
     let marks = sjk_line::Marks {
         sjk: mark.is_some(),
-        icon: None,
+        icon: mark.and_then(|mark| mark.client),
         mark: mark.and_then(|mark| {
             crate::ui_renderer::mark_texture(mark.verified, mark.tick, mark.trust)
         }),

@@ -3632,6 +3632,12 @@ when it is swung, which its own quad could not hold: they are particles in the w
   settle as the petals do: a ragged grey flake (`ash_grey.png`) and, one in three, the same
   flake with its edge still glowing orange (`ash_ember.png`), both drawn by
   `scripts/petal_assets.py`, tumbling as they fall.
+- **Cinders** (13/11/2026, Sol's DOOM): `"kind": "doom"` sheds cinders, switched with its
+  "Cinders" part: `// @petals {"part":4,"kind":"doom","per_unit":0.06,"life":2.4,
+  "size":1.1,"fall":0.0,"drift":10.0,"rise":16.0}`. A ragged black flake charred red-brown
+  at its heart, its edge still burning red (`doom_cinder.png`, drawn by
+  `scripts/petal_assets.py`, blended and not tinted), climbing and tumbling through the
+  world as moondust does (`apply_physics` off) until it fades.
 - **Moondust** (26/10/2026, the Moon, Creyon's): `"kind": "moon"` sheds moondust, switched with
   its "Moon glitter" part: `// @petals {"part":1,"kind":"moon",
   "per_unit":0.6,"life":3.4,"size":1.1,"fall":0.0,"drift":20.0,"rise":30.0,"moving":0.8}`.

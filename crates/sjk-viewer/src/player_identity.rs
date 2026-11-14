@@ -869,6 +869,40 @@ pub(crate) type SlotMarks = [Option<sjk_ui::TextureId>; MAX_CLIENTS];
 /// SJK's.
 pub(crate) fn slot_clients(game_state: &GameState) -> SlotMarks {
     let mut clients = [None; MAX_CLIENTS];
+    let rows = shown_rows(game_state);
+    with_snapshot(|snapshot| {
+        for (slot, name, _) in &rows {
+            if let Some(player) = snapshot.badge(*slot, name) {
+                clients[usize::from(*slot)] =
+                    crate::chat::client_icons::plate_texture(&player.client);
+            }
+        }
+    });
+    if let Some(icon) = crate::chat::client_icons::unclaimed() {
+        let slots = unclaimed_readers(&rows);
+        for (slot, client) in clients.iter_mut().enumerate() {
+            if slot < 64 && slots & 1 << slot != 0 {
+                *client = Some(icon.texture);
+            }
+        }
+    }
+    clients
+}
+
+/// The slots, as bits, where an online SJK chat reader on a client that claims nothing
+/// seems to sit (`scoreboard::chat_readers`): no claim names the slot, it is not a bot's
+/// nor the player's own. 0 while `chat::client_icons::CVAR` is off. The game chat gives
+/// their lines that client's icon, without a tick (`chat/marks.rs`).
+pub(crate) fn unclaimed_slots(game_state: &GameState) -> u64 {
+    if crate::chat::client_icons::unclaimed().is_none() {
+        return 0;
+    }
+    unclaimed_readers(&shown_rows(game_state))
+}
+
+/// Each slot's row for [`slot_clients`] and [`unclaimed_slots`]: the slot, the name the
+/// game shows and whether a claim (or the player's own) marks it; bots left out.
+fn shown_rows(game_state: &GameState) -> Vec<(u8, String, bool)> {
     let own = usize::try_from(game_state.client_num).ok();
     let mut rows: Vec<(u8, String, bool)> = (0..MAX_CLIENTS)
         .filter(|&slot| {
@@ -883,26 +917,20 @@ pub(crate) fn slot_clients(game_state: &GameState) -> SlotMarks {
         .collect();
     with_snapshot(|snapshot| {
         for (slot, name, claimed) in &mut rows {
-            if let Some(player) = snapshot.badge(*slot, name) {
+            if snapshot.badge(*slot, name).is_some() {
                 *claimed = true;
-                clients[usize::from(*slot)] =
-                    crate::chat::client_icons::plate_texture(&player.client);
             }
         }
     });
-    if let Some(icon) = crate::chat::client_icons::unclaimed() {
-        let shown: Vec<(u8, &str, bool)> = rows
-            .iter()
-            .map(|(slot, name, claimed)| (*slot, name.as_str(), *claimed))
-            .collect();
-        let slots = crate::scoreboard::chat_readers::slots(&shown);
-        for (slot, client) in clients.iter_mut().enumerate() {
-            if slot < 64 && slots & 1 << slot != 0 {
-                *client = Some(icon.texture);
-            }
-        }
-    }
-    clients
+    rows
+}
+
+fn unclaimed_readers(rows: &[(u8, String, bool)]) -> u64 {
+    let shown: Vec<(u8, &str, bool)> = rows
+        .iter()
+        .map(|(slot, name, claimed)| (*slot, name.as_str(), *claimed))
+        .collect();
+    crate::scoreboard::chat_readers::slots(&shown)
 }
 
 /// The pictures of the SJK players on this server, by slot, for their nameplates: each
