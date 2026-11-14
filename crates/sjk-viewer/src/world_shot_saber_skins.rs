@@ -638,7 +638,10 @@ fn duel6_doom_blade() {
         }
         println!("signatures built: {:?}", gpu.saber_gpu.signatures_built());
         let mut shots = Vec::new();
-        for (index, seconds) in [3.0, 3.3, 4.6, 5.9, 7.2, 8.4, 9.9, 12.5].into_iter().enumerate() {
+        for (index, seconds) in [3.0, 3.3, 4.6, 5.9, 7.2, 8.4, 9.9, 12.5]
+            .into_iter()
+            .enumerate()
+        {
             gpu.saber_skins.shot_seconds = Some(seconds);
             let full = frame(&mut gpu, if index == 0 { 40 } else { 4 });
             shots.push(image::imageops::crop_imm(&full, 290, 0, 700, 720).to_image());

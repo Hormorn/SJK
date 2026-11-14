@@ -276,7 +276,10 @@ const FILES: [(&str, &[u8]); 13] = [
     ("gfx/sjk/petals/moon_dust.png", bundled!("moon_dust.png")),
     ("gfx/sjk/petals/feather.png", bundled!("feather.png")),
     ("gfx/sjk/petals/puff.png", bundled!("puff.png")),
-    ("gfx/sjk/petals/doom_cinder.png", bundled!("doom_cinder.png")),
+    (
+        "gfx/sjk/petals/doom_cinder.png",
+        bundled!("doom_cinder.png"),
+    ),
 ];
 
 /// Mount the bundled petal files.
